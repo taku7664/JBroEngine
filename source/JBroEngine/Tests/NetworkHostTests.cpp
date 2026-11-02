@@ -5,9 +5,11 @@
 #include <JBro/Network/Testing/MemorySocketProvider.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
+#include <JBro/Network/ServiceContext.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <JBro/Types/Bool.h>
@@ -241,6 +243,111 @@ namespace
         side.host.Disconnect();
     }
 
+    // **스크립트가 부르는 표면 그대로 세션이 돌아간다**(network-plan §3-9). 호스트가 스크립트 DLL 에 넘기는 블록을
+    // 이 모듈에 묶고, `Probe.cpp` 의 `ProbeNetworkedScript` 가 쓰는 것과 **같은 호출만** 쓴다 - 세션 서비스로 켜고 붙고,
+    // 네트워크 서비스로 보내고 꺼내고 권한을 묻는다. 트랜스포트도 소켓도 만지지 않는다.
+    //
+    // 블록은 한 모듈에 하나씩 묶인다(한 프로세스에 호스트 하나라는 규율 그대로다). 그래서 서버 차례와 클라이언트 차례에
+    // 각각 그쪽 블록으로 바꿔 묶는다 - 게임에서는 프로세스마다 한 번 묶고 끝이다.
+    void TestScriptServicesDriveASession()
+    {
+        JBro::Network::Testing::MemorySocketProvider provider;
+        JBro::Network::Testing::ManualClock clock;
+        Side server(provider, clock);
+        Side client(provider, clock);
+
+        const auto bind = [](Side& side)
+        {
+            JBro::BindNetworkSystemContext(side.host.GetSystemContext());
+            JBro::BindNetworkServiceContext(side.host.GetServiceContext());
+        };
+
+        // 서버 차례: 스크립트가 켜는 길이다.
+        bind(server);
+        Check(JBro::GetNetworkServices().Session.GetRole() == JBro::Network::NetworkRole::None, "nothing is on yet");
+        Check(JBro::GetNetworkServices().Session.StartServer(7901), "the script surface starts the server");
+        Check(JBro::GetNetworkServices().Session.GetRole() == JBro::Network::NetworkRole::Server, "and the role says server");
+
+        // 클라이언트 차례: 스크립트가 붙는 길이다.
+        bind(client);
+        Check(JBro::GetNetworkServices().Session.Connect("memory", 7901), "the script surface connects");
+
+        for (JBro::Int32 frame = 0; frame < 12; ++frame)
+        {
+            server.Frame();
+            client.Frame();
+            clock.Advance(5.0);
+        }
+        bind(client);
+        Check(JBro::GetNetworkServices().Session.IsConnected(), "the client is connected");
+        bind(server);
+        Check(JBro::GetNetworkServices().Session.GetConnectionCount() == 1, "and the server sees it");
+
+        // 서버 캔버스의 오브젝트는 서버에 권한이 있고, 클라이언트의 복제본은 없다 - 예시 스크립트가 이것으로 갈라진다.
+        JBro::Object::GameObject* object = server.canvas.CreateObject(nullptr);
+        Check(nullptr != object, "the server makes an object");
+        JBro::Component::Transform2D* transform = server.canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        Check(nullptr != transform, "with a transform to replicate");
+        for (JBro::Int32 frame = 0; frame < 12; ++frame)
+        {
+            server.Frame();
+            client.Frame();
+            clock.Advance(5.0);
+        }
+        bind(server);
+        Check(JBro::GetNetworkServices().Network.HasAuthority(object->GetInstanceId()),
+            "the server has authority over its own object");
+        const JBro::Network::NetworkObjectId networkId = server.host.FindNetworkId(object->GetInstanceId());
+        Check(JBro::Network::InvalidNetworkObjectId != networkId, "the object is in the replication table");
+        bind(client);
+        const JBro::InstanceId replica = client.host.FindLocalObject(networkId);
+        Check(JBro::InvalidInstanceId != replica, "the client has a replica");
+        Check(false == JBro::GetNetworkServices().Network.HasAuthority(replica),
+            "and no authority over it - writing to it would be overwritten by the next snapshot");
+
+        // 사건 메시지: 서버가 알리고 클라이언트가 꺼낸다. 예시 스크립트의 `ProbeScoreEvent` 와 같은 모양이다.
+        struct ScoreEvent
+        {
+            JBro::UInt32 round = 0;
+            JBro::Float value = 0.0f;
+        };
+        ScoreEvent sent;
+        sent.round = 3;
+        sent.value = 1.5f;
+        bind(server);
+        Check(JBro::GetNetworkServices().Network.Broadcast(77, sent), "the server broadcasts a POD event");
+
+        // **메시지는 도착한 프레임에 꺼낸다.** `Update` 가 큐를 그 프레임에 온 것으로 갈아 끼우므로, 프레임을 여러 번
+        // 돌린 뒤 꺼내면 이미 늦다. 스크립트가 `OnUpdate` 마다 꺼내는 것이 그래서다 - 여기서도 프레임마다 꺼낸다.
+        // (`Side::Frame` 은 수신 시스템까지 돌려 큐를 비우므로 여기서는 소켓만 돌린다.)
+        bind(client);
+        JBro::Network::MessageView inbox[8];
+        JBro::UInt32 taken = 0;
+        for (JBro::Int32 pump = 0; pump < 16 && 0 == taken; ++pump)
+        {
+            server.host.Update();
+            client.host.Update();
+            taken = JBro::GetNetworkServices().Network.TakeMessages(inbox, 8);
+            clock.Advance(5.0);
+        }
+        Check(taken >= 1, "the client takes the event through the script surface");
+        Check(inbox[0].messageId == 77 && inbox[0].size == sizeof(ScoreEvent), "with the id and size it was sent with");
+        ScoreEvent received;
+        std::memcpy(&received, inbox[0].data, sizeof(received));
+        Check(received.round == 3 && NearlyEqual(received.value, 1.5f), "and the bytes survive the trip");
+
+        // 끌 때도 스크립트가 끈다.
+        bind(server);
+        JBro::GetNetworkServices().Session.Disconnect();
+        Check(JBro::GetNetworkServices().Session.GetRole() == JBro::Network::NetworkRole::None, "the server is off");
+        bind(client);
+        JBro::GetNetworkServices().Session.Disconnect();
+
+        // 묶은 것을 돌려놓는다 - 다음 묶음이 죽은 호스트를 보지 않게.
+        JBro::BindNetworkSystemContext({});
+        JBro::BindNetworkServiceContext({});
+    }
+
     void TestNoSocketsFailsQuietly()
     {
         JBro::Network::Testing::ManualClock clock;
@@ -266,6 +373,7 @@ JBro::Int32 RunNetworkHostTests()
         TestTwoHostsReplicateTransforms();
         TestNothingIsBuiltUntilTheGameAsks();
         TestNoSocketsFailsQuietly();
+        TestScriptServicesDriveASession();
     }
     catch (const std::exception& error)
     {

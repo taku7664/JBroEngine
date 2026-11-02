@@ -53,6 +53,73 @@ public:
     double m_padding[4] = {1.0, 2.0, 3.0, 4.0};
 };
 
+
+// ── 네트워크를 쓰는 예시 스크립트 ───────────────────────────────────────────────────────────────
+//
+// **멀티플레이 게임 스크립트가 어떻게 생기는지 보여 주는 자리다**(network-plan §3-9). 호스트가 넘긴 네트워크 블록이
+// 이 DLL 사본에 묶이고, 스크립트는 값 서비스 둘로만 망을 만진다 - 소켓도 트랜스포트도 보지 않는다.
+//
+// 규율 셋이 전부다.
+//  (1) **상태는 복제가 나른다.** 위치·체력처럼 매 틱 변하는 값은 서버의 컴포넌트 풀에 쓰고, 복제가 클라이언트에 입힌다.
+//      스크립트가 그 값을 메시지로 보내지 않는다.
+//  (2) **사건은 POD 메시지로 보낸다.** 점수가 올랐다·문이 열렸다처럼 한 번 일어나는 것이다. 호스트와 DLL 이 다른
+//      컴파일러일 수 있어 직렬화는 `memcpy` 고정이고, 그래서 메시지 타입은 POD 여야 한다(서비스가 컴파일할 때 검사한다).
+//  (3) **권한 있는 쪽만 바꾼다.** `HasAuthority` 가 거짓인 쪽에서 상태를 바꾸면 다음 스냅숏이 그것을 덮어쓴다 -
+//      지금은 서버만 참이다(소유 위임은 열어 둔 것이다).
+struct ProbeScoreEvent
+{
+    JBro::UInt32 round = 0;
+    JBro::Float value = 0.0f;
+};
+
+// 1..0xFDFF 가 게임 몫이다. 0xFE00 부터는 복제와 세션이 쓴다.
+inline constexpr JBro::Network::MessageId ProbeScoreMessageId = 77;
+
+class ProbeNetworkedScript final : public JBro::GameScript2D
+{
+    JBRO_SCRIPT_BODY(ProbeNetworkedScript)
+public:
+    // 서버가 올리고 클라이언트가 메시지로 받아 적는 값이다.
+    JBRO_FIELD(JBro::Float, Score) = 0.0f;
+    JBRO_FIELD(JBro::UInt32, Round) = 0;
+
+protected:
+    void OnUpdate() override
+    {
+        const JBro::NetworkServiceContext& net = JBro::GetNetworkServices();
+
+        // 받은 것을 먼저 꺼낸다. 뷰가 가리키는 바이트는 이번 프레임까지만 산다 - 쓸 값은 복사해 둔다.
+        JBro::Network::MessageView inbox[8];
+        const JBro::UInt32 taken = net.Network.TakeMessages(inbox, 8);
+        for (JBro::UInt32 index = 0; index < taken; ++index)
+        {
+            const JBro::Network::MessageView& view = inbox[index];
+            if (view.messageId != ProbeScoreMessageId || view.size != sizeof(ProbeScoreEvent))
+            {
+                continue;
+            }
+            ProbeScoreEvent event;
+            std::memcpy(&event, view.data, sizeof(event));
+            Round = event.round;
+            Score = event.value;
+        }
+
+        // 권한이 없으면 여기서 끝이다. 서버가 보낸 것을 받아 쓰는 쪽이다.
+        if (false == net.Network.HasAuthority(GetGameObject().GetInstanceId()))
+        {
+            return;
+        }
+
+        // 서버다. 값을 올리고 사건을 한 번 알린다.
+        Round = Round + 1;
+        Score = Score + 1.0f;
+        ProbeScoreEvent event;
+        event.round = Round;
+        event.value = Score;
+        net.Network.Broadcast(ProbeScoreMessageId, event);
+    }
+};
+
 extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetScriptRegistry() noexcept
 {
     return reinterpret_cast<std::uintptr_t>(&JBro::ScriptRegistry::Get());
@@ -74,6 +141,7 @@ extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetRegisteredScrip
 // 스크립트 등록과 진입점은 한 줄씩이다(cpp-script-plan §3.2). 컨텍스트 검증·바인딩·해제는 엔진(`JBroFramework2D`)이 한다 -
 // 이 파일이 손으로 하던 때는 호스트가 넘기는 오디오·네트워크를 묶지 않았다.
 JBRO_REGISTER_SCRIPT_2D(ProbeRegisteredScript);
+JBRO_REGISTER_SCRIPT_2D(ProbeNetworkedScript);
 
 JBRO_SCRIPT_MODULE_2D()
 
