@@ -32,6 +32,9 @@ namespace JBro::Network
     // 서버 → 클라이언트. 이 오브젝트의 소유자가 바뀌었다. 스폰에는 `SpawnDesc::owner` 로 이미 실려 있으므로,
     // 이 메시지는 **스폰 뒤에 바뀐 것**을 알린다. [u32 networkId][u64 owner] - 연결 번호는 64 비트다.
     inline constexpr MessageId ReplicationOwnerMessage = 0xFE05;
+    // 클라이언트 → 서버. **내가 가진 오브젝트의 값**이다. 항목마다 [u32 networkId][u8 type][원소 바이트] 이고,
+    // 서버는 보낸 연결이 그 오브젝트의 소유자일 때만 받는다. 최신 값만 뜻이 있으므로 비신뢰 순서 채널로 간다.
+    inline constexpr MessageId ReplicationOwnedStateMessage = 0xFE06;
 
     inline Bool IsReplicationMessage(MessageId id)
     {
@@ -63,6 +66,8 @@ namespace JBro::Network
         UInt32 snapshotBytes = 512 * 1024;
         // 델타 메시지 하나의 상한. 트랜스포트의 최대 메시지 크기 이하여야 한다. 넘치면 그 틱은 보내지 않고 센다.
         UInt32 maxDeltaBytes = 60 * 1024;
+        // 클라이언트가 한 스텝에 올리는 '내 것' 의 상한. 한 사람이 가진 오브젝트는 몇 개뿐이라 작게 잡는다.
+        UInt32 maxOwnedUploadBytes = 4 * 1024;
     };
 
     static_assert(std::is_standard_layout_v<SpawnDesc>);

@@ -53,6 +53,8 @@ namespace JBro
         void Update();
         // 고정 스텝 안. 각각 서버·클라이언트일 때만 일한다.
         void StepServer();
+        // 클라이언트일 때 내 것의 값을 서버에 올린다. 같은 송신 자리에서 부른다.
+        void StepClient();
         // 보간 계수는 복제가 스냅숏 간격으로 스스로 정한다.
         void ApplyClient();
 
@@ -70,6 +72,8 @@ namespace JBro
         UInt32 GetConnectionCount() const override;
         Network::ConnectionId GetConnectionAt(UInt32 index) const override;
         Network::ConnectionId GetLocalConnectionId() const override;
+        // 서버 쪽 복제 진단. 서버가 아니면 빈 값이다 - 시험과 에디터가 본다.
+        Network::ReplicationServerDiagnostics GetServerDiagnostics() const;
         double GetRoundTripMilliseconds(Network::ConnectionId connection) const override;
         double GetUdpLossRate(Network::ConnectionId connection) const override;
         Bool Send(Network::ConnectionId connection, Network::MessageId messageId, const void* data, UInt32 size,

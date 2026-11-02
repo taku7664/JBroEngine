@@ -6,6 +6,7 @@
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include <JBro/Network/ServiceContext.h>
+#include <JBro/Network/Transport.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cmath>
@@ -437,6 +438,127 @@ namespace
         Check(false == late.host.HasAuthority(lateReplica), "which is not itself");
     }
 
+    // **소유자가 쓴 값이 서버를 거쳐 다른 클라이언트까지 간다**(network-plan §3-9, 2 단계). 1 단계는 "써도 되는가" 만
+    // 알려 줬고, 이제 그 값이 실제로 망을 탄다. 서버는 **보낸 연결이 그 오브젝트의 소유자일 때만** 받는다.
+    void TestOwnerWritesTravelThroughTheServer()
+    {
+        JBro::Network::Testing::MemorySocketProvider provider;
+        JBro::Network::Testing::ManualClock clock;
+        Side server(provider, clock);
+        Side owner(provider, clock);
+        Side watcher(provider, clock);
+        Check(server.host.StartServer(7921), "the server starts");
+        Check(owner.host.Connect("memory", 7921), "the owner connects");
+        Check(watcher.host.Connect("memory", 7921), "the watcher connects");
+
+        const auto pump = [&](JBro::Int32 frames)
+        {
+            for (JBro::Int32 frame = 0; frame < frames; ++frame)
+            {
+                server.Frame();
+                owner.Frame();
+                watcher.Frame();
+                clock.Advance(5.0);
+            }
+        };
+        pump(20);
+        Check(server.host.GetConnectionCount() == 2, "both clients are in");
+
+        JBro::Object::GameObject* object = server.canvas.CreateObject(nullptr);
+        Check(nullptr != object, "the server makes an object");
+        JBro::Component::Transform2D* serverTransform =
+            server.canvas.AttachComponent<JBro::Component::Transform2D>(object);
+        Check(nullptr != serverTransform, "with a transform");
+        serverTransform->position = JBro::Vector2{1.0f, 1.0f};
+        pump(20);
+
+        const JBro::Network::NetworkObjectId networkId = server.host.FindNetworkId(object->GetInstanceId());
+        const JBro::InstanceId ownerLocal = owner.host.FindLocalObject(networkId);
+        const JBro::InstanceId watcherLocal = watcher.host.FindLocalObject(networkId);
+        Check(JBro::InvalidInstanceId != ownerLocal && JBro::InvalidInstanceId != watcherLocal, "both clients have it");
+
+        // 넘긴다.
+        Check(server.host.SetObjectOwner(object->GetInstanceId(), owner.host.GetLocalConnectionId()),
+            "the server hands it to the owner");
+        pump(20);
+        Check(owner.host.HasAuthority(ownerLocal), "the owner has authority");
+        Check(false == watcher.host.HasAuthority(watcherLocal), "the watcher does not");
+
+        // 소유자가 자기 것을 움직인다 - 게임 스크립트가 `HasAuthority` 를 보고 하는 일이다.
+        JBro::Component::Transform2D* ownerTransform = nullptr;
+        owner.canvas.ForEachObject([&](JBro::Object::GameObject& candidate)
+        {
+            if (candidate.GetInstanceId() == ownerLocal)
+            {
+                ownerTransform = owner.canvas.FindComponentRaw<JBro::Component::Transform2D>(&candidate);
+            }
+        });
+        Check(nullptr != ownerTransform, "the owner's replica has a transform");
+        ownerTransform->position = JBro::Vector2{7.0f, -3.0f};
+        pump(24);
+
+        // 서버가 받아 적었다.
+        Check(NearlyEqual(serverTransform->position.x, 7.0f) && NearlyEqual(serverTransform->position.y, -3.0f),
+            "the server took the owner's value");
+        // 소유자의 값은 되돌아온 스냅숏에 덮이지 않는다.
+        Check(NearlyEqual(ownerTransform->position.x, 7.0f), "and the owner's own value was not overwritten");
+        // 구경꾼에게도 갔다.
+        JBro::Component::Transform2D* watcherTransform = nullptr;
+        watcher.canvas.ForEachObject([&](JBro::Object::GameObject& candidate)
+        {
+            if (candidate.GetInstanceId() == watcherLocal)
+            {
+                watcherTransform = watcher.canvas.FindComponentRaw<JBro::Component::Transform2D>(&candidate);
+            }
+        });
+        Check(nullptr != watcherTransform, "the watcher's replica has a transform");
+        Check(NearlyEqual(watcherTransform->position.x, 7.0f) && NearlyEqual(watcherTransform->position.y, -3.0f),
+            "and the watcher sees what the owner did");
+
+        // **제 것이 아닌 오브젝트에는 쓸 수 없다.** 구경꾼이 제 복제본을 밀어도 올리지 않는다 - 올릴 것을 고를 때
+        // 소유한 것만 담기 때문이다. 그래서 서버 값은 그대로다.
+        watcherTransform->position = JBro::Vector2{99.0f, 99.0f};
+        pump(24);
+        Check(false == NearlyEqual(serverTransform->position.x, 99.0f), "an honest non-owner never uploads what it does not own");
+        Check(NearlyEqual(serverTransform->position.x, 7.0f), "so the owner's value still stands");
+
+        // **고쳐 쓴 클라이언트가 보내면 서버가 막는다.** 위의 것은 "보내지 않는다" 를 보였고, 이것은 "보내도 안 받는다" 다.
+        // 값 서비스는 복제 대역을 막으므로(`NetworkHost::Send`), 트랜스포트로 직접 지어 보낸다.
+        JBro::Network::Transport hostile(provider, clock);
+        Check(hostile.Connect("memory", 7921), "a hand-made client connects");
+        for (JBro::Int32 frame = 0; frame < 20; ++frame)
+        {
+            server.Frame();
+            owner.Frame();
+            watcher.Frame();
+            hostile.Update();
+            clock.Advance(5.0);
+        }
+        const JBro::UInt32 refusedBefore = server.host.GetServerDiagnostics().ownedStateRefused;
+        const JBro::UInt32 elementBytes = watcher.pool.ElementBytes();
+        std::uint8_t forged[5 + 128] = {};
+        Check(elementBytes <= 128, "the element fits the forged buffer");
+        forged[0] = static_cast<std::uint8_t>(networkId & 0xFF);
+        forged[1] = static_cast<std::uint8_t>((networkId >> 8) & 0xFF);
+        forged[2] = static_cast<std::uint8_t>((networkId >> 16) & 0xFF);
+        forged[3] = static_cast<std::uint8_t>((networkId >> 24) & 0xFF);
+        forged[4] = 0;
+        Check(hostile.Send(JBro::Network::ServerConnectionId, JBro::Network::ReplicationOwnedStateMessage, forged,
+                  5 + elementBytes, JBro::Network::NetChannel::UnreliableSequenced),
+            "the forged write goes out");
+        for (JBro::Int32 frame = 0; frame < 20; ++frame)
+        {
+            server.Frame();
+            owner.Frame();
+            watcher.Frame();
+            hostile.Update();
+            clock.Advance(5.0);
+        }
+        Check(server.host.GetServerDiagnostics().ownedStateRefused > refusedBefore,
+            "the server refused a write from a connection that owns nothing");
+        Check(NearlyEqual(serverTransform->position.x, 7.0f), "and the owner's value is untouched");
+    }
+
     void TestNoSocketsFailsQuietly()
     {
         JBro::Network::Testing::ManualClock clock;
@@ -464,6 +586,7 @@ JBro::Int32 RunNetworkHostTests()
         TestNoSocketsFailsQuietly();
         TestScriptServicesDriveASession();
         TestOwnershipMovesAuthorityToTheClient();
+        TestOwnerWritesTravelThroughTheServer();
     }
     catch (const std::exception& error)
     {

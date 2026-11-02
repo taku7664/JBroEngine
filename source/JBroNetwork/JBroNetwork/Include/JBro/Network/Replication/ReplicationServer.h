@@ -24,6 +24,9 @@ namespace JBro::Network
         UInt32 lastDeltaBytes = 0;
         // 전체 스냅숏을 보낸 횟수(기준이 없거나 이력에서 밀렸다).
         UInt32 fullSnapshotsSent = 0;
+        // 소유자가 올린 값을 받아들인 횟수와, 소유자가 아니어서 버린 횟수(후자는 거짓말이거나 뒤늦은 것이다).
+        UInt32 ownedStateApplied = 0;
+        UInt32 ownedStateRefused = 0;
         // 델타가 상한을 넘어 보내지 못한 틱 수.
         UInt32 oversizedTicks = 0;
         // 이번 스텝에 실제로 인코드한 횟수. 클라이언트 수가 아니라 **서로 다른 기준의 수**다.
@@ -90,6 +93,7 @@ namespace JBro::Network
 
         ObjectRecord* FindRecord(InstanceId instance);
         void SendOwner(ConnectionId connection, const ObjectRecord& record);
+        void HandleOwnedState(const MessageView& view);
         ObjectRecord* FindRecordByNetworkId(NetworkObjectId id);
         ObjectRecord* AddRecord(InstanceId instance, const SpawnDesc& desc);
         void RemoveRecordAt(std::size_t index);
