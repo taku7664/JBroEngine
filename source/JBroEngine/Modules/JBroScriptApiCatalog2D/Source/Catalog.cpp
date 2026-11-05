@@ -8,12 +8,11 @@
 
 namespace JBro::ScriptApiCatalog2D::Internal
 {
-    // 정의는 사용자가 보는 스크립트 SDK 사본(`Build/ScriptSdk/2D/Include`)을 가리킨다. 엔진 소스의 헤더는 주석째로 사용자에게 가지 않는다.
+    // 정의는 사용자가 보는 스크립트 SDK 사본(`<엔진 산출물>/ScriptSdk/2D/Include`)을 가리킨다. 엔진 소스의 헤더는 주석째로 사용자에게 가지 않는다.
     static String HeaderUri(const char* sdkRelative)
     {
-        // /FC supplies a stable absolute source path; this is metadata, never a header parser.
-        const auto engineRoot = std::filesystem::path(reinterpret_cast<const char8_t*>(__FILE__)).parent_path().parent_path().parent_path().parent_path();
-        const auto sdkInclude = engineRoot / "Build" / "ScriptSdk" / "2D" / "Include";
+        // 사본의 자리는 SDK 도구가 대응표에 적는다 - 산출물 자리는 빌드가 정한다(D-370).
+        const auto sdkInclude = std::filesystem::path(reinterpret_cast<const char8_t*>(ScriptSdk::Root)) / "2D" / "Include";
         const auto encoded = (sdkInclude / std::filesystem::path(reinterpret_cast<const char8_t*>(sdkRelative))).generic_u8string();
         String uri = "file:///";
         constexpr char hex[] = "0123456789ABCDEF";

@@ -59,6 +59,11 @@ Visual Studio 2026(MSVC 툴셋 `v145`, Windows SDK `10.0.22621.0`. 둘 다 `JBro
 msbuild source/JBroEngine/Tests/JBroTests.vcxproj -p:Configuration=Debug -p:Platform=x64
 ```
 
+산출물은 모두 한 자리에 쌓인다(`source/JBro.BuildPaths.props`, D-370). 기본은 체크아웃의 `BuildOutput/` 이고, 환경 변수 `JBRO_BUILD_ROOT` 를 두면
+그 아래 체크아웃마다 `<폴더 이름>-<해시>/` 폴더가 생긴다(워크트리끼리 덮지 않는다). 어디에 쌓였는지는 빌드가 체크아웃 뿌리의 `BuildOutput.txt` 에 적는다.
+그 아래 `Engine/x64/<구성>` 이 엔진 실행 파일, `Network/` 가 네트워크, `JBroLauncher/`·`JBroLauncherTests/` 가 런처다. 아래 명령의 `<산출물>` 은 이 자리다.
+Visual Studio 의 `.vs` 폴더(IntelliSense 데이터베이스)는 MSBuild 가 정하지 않으므로 이 자리를 따르지 않는다.
+
 ```bash
 msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Configuration=Debug -p:Platform=x64
 ```
@@ -98,7 +103,7 @@ Vulkan 백엔드는 `vulkan-1.dll` 을 실행 시간에 열고 API 헤더는 `Th
 전체 규약은 `--help` 와 [tasks/todo.md](tasks/todo.md) 의 D-97 에 있다.
 
 ```bash
-source/JBroEngine/Build/x64/Debug/JBroEditorHost.exe --project 내게임.jproject --content-root source/JBroEngine
+<산출물>/Engine/x64/Debug/JBroEditorHost.exe --project 내게임.jproject --content-root source/JBroEngine
 ```
 
 ### 내장 코드 편집기
@@ -120,7 +125,7 @@ source/JBroEngine/Build/x64/Debug/JBroEditorHost.exe --project 내게임.jprojec
 표준 출력에 알리고 빈 캔버스로 뜬다. 모르는 인자는 종료 코드 5 다.
 
 ```bash
-source/JBroEngine/Build/x64/Debug_Game2D/JBroGameHost.exe --project 내게임.jproject --canvas Scenes/시작.jcanvas
+<산출물>/Engine/x64/Debug_Game2D/JBroGameHost.exe --project 내게임.jproject --canvas Scenes/시작.jcanvas
 ```
 
 ## 읽는 순서

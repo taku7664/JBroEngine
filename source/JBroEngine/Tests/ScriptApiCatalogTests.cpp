@@ -138,9 +138,9 @@ namespace
     void CheckScriptSdk(const ApiCatalog& catalog)
     {
         const String path = PathFromUri(catalog.Types[0].DefinitionUri);
-        const std::size_t root = path.find("/Build/ScriptSdk/2D/Include/");
+        const std::size_t root = path.find("/ScriptSdk/2D/Include/");
         Check(root != String::npos, "script API definitions open the script SDK copy, not the engine source");
-        const auto include = std::filesystem::path(reinterpret_cast<const char8_t*>(path.Substr(0, root + 27).c_str()));
+        const auto include = std::filesystem::path(reinterpret_cast<const char8_t*>(path.Substr(0, root + 21).c_str()));
         std::size_t headers = 0;
         for (const auto& entry : std::filesystem::recursive_directory_iterator(include))
         {

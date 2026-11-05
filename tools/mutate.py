@@ -32,6 +32,17 @@ import io, os, subprocess, sys
 # 이 파일의 자리에서 저장소를 찾는다. 기계마다 다른 절대 경로를 박지 않는다.
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT = os.path.join(REPO, "source", "JBroEngine")
+# 산출물 자리는 빌드가 체크아웃 뿌리의 BuildOutput.txt 에 적는다(D-370). 아직 빌드 전이면 체크아웃 안의 기본 자리다.
+def build_dir():
+    try:
+        with io.open(os.path.join(REPO, "BuildOutput.txt"), encoding="utf-8-sig") as pointer:
+            text = pointer.read().strip()
+        if text:
+            return text
+    except OSError:
+        pass
+    return os.path.join(REPO, "BuildOutput")
+
 MSBUILD = r"C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe"
 TEST_TIMEOUT_SECONDS = 900
 NL = chr(10)
@@ -66,7 +77,7 @@ def run():
     if build.returncode != 0:
         return "build"
     try:
-        result = subprocess.run([os.path.join(ROOT, r"Build\x64\Debug\JBroTests.exe")],
+        result = subprocess.run([os.path.join(build_dir(), r"Engine\x64\Debug\JBroTests.exe")],
                                 cwd=ROOT, capture_output=True, text=True,
                                 errors="replace", timeout=TEST_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:

@@ -4,10 +4,11 @@
     모든 JBro 모듈이 공유하는 빌드 설정.
     모듈별 vcxproj 는 이름, 구성 타입, 의존 모듈만 정의하고 나머지는 여기서 상속한다.
   -->
+  <!-- 산출물 자리(`JBroOutputRoot`·`JBroBuildDir`·`JBroNetworkBuildDir`)는 저기 한 곳이다(D-370). 사용자 스크립트 프로젝트도 이 파일을 거쳐 같은 자리를 본다. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\JBro.BuildPaths.props" Condition="'$(JBroBuildPathsImported)' == ''" />
   <PropertyGroup Label="JBroPaths">
     <JBroRoot>$(MSBuildThisFileDirectory)</JBroRoot>
     <JBroModulesDir>$(JBroRoot)Modules\</JBroModulesDir>
-    <JBroBuildDir>$(JBroRoot)Build\</JBroBuildDir>
     <!-- 외부 라이브러리는 소스째로 여기 있다. ThirdParty/README.md 참조. -->
     <JBroThirdPartyDir>$(JBroRoot)ThirdParty\</JBroThirdPartyDir>
     <!-- 네트워크는 별도 프로젝트다(D-122). 엔진이 그것을 참조하고, 그것은 엔진의 Core·Runtime 만 참조한다. -->
@@ -79,6 +80,15 @@
     <OutDir>$(JBroBuildDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(JBroBuildDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
+
+  <!--
+    산출물과 소스가 서로를 찾는 표지다(D-370). 산출물이 체크아웃 밖(`JBRO_BUILD_ROOT`)에 있으면 실행 파일에서 위로 올라가도 소스가 없고,
+    소스에서도 해시가 든 산출물 폴더 이름을 알 수 없다. 모든 프로젝트가 먼저 빌드하는 JBroCore 한 곳에서만 써서 병렬 빌드가 같은 파일을 다투지 않는다.
+  -->
+  <Target Name="JBroWriteBuildPointers" BeforeTargets="Build" Condition="'$(ProjectName)' == 'JBroCore'">
+    <WriteLinesToFile File="$(JBroCheckoutRoot)BuildOutput.txt" Lines="$(JBroOutputRoot)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile File="$(JBroBuildDir)EngineRoot.txt" Lines="$(JBroRoot)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
 
   <!-- Debug scripts keep optimization off while the loading host selects the CRT and public value layouts. -->
   <PropertyGroup Condition="'$(JBroScriptHostConfiguration)'=='Debug' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Debug')">

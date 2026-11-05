@@ -1,5 +1,6 @@
 ﻿#include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Editor/EditorUI.h>
+#include <JBro/Editor/ScriptProject.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
@@ -31,25 +32,16 @@ namespace
     {
         namespace fs = std::filesystem;
         JBro::WindowsPlatform platform;
-        const auto executable = platform.GetExecutableFolder();
-        fs::path root(reinterpret_cast<const char8_t*>(executable.c_str()));
+        // 산출물은 체크아웃 밖에 있을 수 있다(D-370). 에디터가 엔진 소스를 찾는 길을 그대로 쓴다.
+        const JBro::String engineRoot = JBro::ScriptProject::FindEngineRoot(platform, platform.GetExecutableFolder().c_str());
         fs::path widget;
-        for (;;)
+        if (!engineRoot.empty())
         {
-            for (const auto& candidate : {root, root / "source/JBroEngine"})
+            const auto file = fs::path(reinterpret_cast<const char8_t*>(engineRoot.c_str())) / "Modules/JBroEditor/Source/Widget/ScriptOutline.cpp";
+            if (fs::is_regular_file(file))
             {
-                const auto file = candidate / "Modules/JBroEditor/Source/Widget/ScriptOutline.cpp";
-                if (fs::is_regular_file(file))
-                {
-                    widget = file;
-                    break;
-                }
+                widget = file;
             }
-            if (!widget.empty() || root == root.parent_path())
-            {
-                break;
-            }
-            root = root.parent_path();
         }
         Check(!widget.empty(), "script outline source guard locates the checkout");
         std::ifstream file(widget, std::ios::binary);

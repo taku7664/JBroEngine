@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    모든 빌드 산출물의 자리를 여기 한 곳에서 정한다(D-370). 엔진·네트워크·디버그 어댑터의 vcxproj 는 `JBroEngine/JBro.Common.props` 로,
+    런처의 csproj 는 `Directory.Build.props` 로 이 파일을 가져온다. **프로젝트 파일에 `Build\` 같은 산출물 경로를 따로 적지 않는다.**
+
+    - 환경 변수 `JBRO_BUILD_ROOT` 가 있으면 그 아래 `<체크아웃 폴더 이름>-<체크아웃 경로 해시>\` 다. 워크트리마다 폴더가 갈려 서로 덮지 않는다.
+    - 없으면 체크아웃 안의 `BuildOutput\` 이다.
+
+    그 아래는 `Engine\`(엔진 모듈·시험·도구, `x64\<구성>`·`Intermediate`·`ScriptSdk`), `Network\`, `<csproj 이름>\bin`·`obj` 다.
+    빌드는 체크아웃 뿌리의 `BuildOutput.txt` 에 이 자리를, `Engine\EngineRoot.txt` 에 엔진 소스 폴더를 적는다 - 소스에서 산출물을,
+    산출물(실행 파일)에서 소스를 찾는 도구는 이 두 파일을 읽는다.
+  -->
+  <PropertyGroup Condition="'$(JBroBuildPathsImported)' == ''">
+    <JBroBuildPathsImported>true</JBroBuildPathsImported>
+    <JBroCheckoutRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</JBroCheckoutRoot>
+    <JBroCheckoutName>$([System.IO.Path]::GetFileName($(JBroCheckoutRoot.TrimEnd('\'))))</JBroCheckoutName>
+    <JBroCheckoutHash>$([MSBuild]::StableStringHash($(JBroCheckoutRoot.ToLowerInvariant())).ToString('x8'))</JBroCheckoutHash>
+    <JBroOutputRoot Condition="'$(JBroOutputRoot)' == '' And '$(JBRO_BUILD_ROOT)' != ''">$([MSBuild]::EnsureTrailingSlash('$(JBRO_BUILD_ROOT)'))$(JBroCheckoutName)-$(JBroCheckoutHash)\</JBroOutputRoot>
+    <JBroOutputRoot Condition="'$(JBroOutputRoot)' == ''">$(JBroCheckoutRoot)BuildOutput\</JBroOutputRoot>
+    <JBroBuildDir>$(JBroOutputRoot)Engine\</JBroBuildDir>
+    <JBroNetworkBuildDir>$(JBroOutputRoot)Network\</JBroNetworkBuildDir>
+  </PropertyGroup>
+</Project>

@@ -18,6 +18,8 @@ namespace JBro::ScriptProject
         constexpr const char* EnginePropsFileName = "JBroEngine.props";
         constexpr const char* ScriptsFolderName = "Scripts";
         constexpr const char* EngineMarkerFileName = "JBro.GameScript.props";
+        // 엔진 빌드가 산출물 폴더에 적어 두는 소스 자리다(`JBro.Common.props`, D-370).
+        constexpr const char* EngineRootPointerFileName = "EngineRoot.txt";
 
         // C++ 예약어와, 스크립트 기반 타입·매크로가 이미 쓰는 이름이다. 스크립트 이름과 필드 이름에 쓰면 컴파일이 깨지거나
         // 기반의 함수를 가린다(기존 엔진 `IsReservedScriptName` 을 넓혔다).
@@ -491,6 +493,28 @@ namespace JBro::ScriptProject
             if (platform.FileExists(EditorPaths::JoinPath(folder.c_str(), EngineMarkerFileName).c_str()))
             {
                 return folder;
+            }
+            // 산출물이 체크아웃 밖에 있으면(`JBRO_BUILD_ROOT`, D-370) 위로 올라가도 소스가 없다. 빌드가 적어 둔 자리를 따라가되,
+            // 그 자리에 엔진이 있을 때만 믿는다 - 체크아웃을 옮기거나 지우면 표지가 옛 자리를 가리킨다.
+            Array<std::byte> pointer;
+            if (platform.ReadWholeFile(EditorPaths::JoinPath(folder.c_str(), EngineRootPointerFileName).c_str(), pointer))
+            {
+                String target(reinterpret_cast<const char*>(pointer.Data()), pointer.Size());
+                if (target.size() >= 3 && static_cast<unsigned char>(target[0]) == 0xEF
+                    && static_cast<unsigned char>(target[1]) == 0xBB && static_cast<unsigned char>(target[2]) == 0xBF)
+                {
+                    target.erase(0, 3);
+                }
+                while (false == target.empty()
+                    && (target.back() == '\r' || target.back() == '\n' || target.back() == ' ' || target.back() == '\\' || target.back() == '/'))
+                {
+                    target.pop_back();
+                }
+                if (false == target.empty()
+                    && platform.FileExists(EditorPaths::JoinPath(target.c_str(), EngineMarkerFileName).c_str()))
+                {
+                    return target;
+                }
             }
             folder = EditorPaths::FolderOf(folder.c_str());
         }

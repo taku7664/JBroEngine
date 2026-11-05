@@ -4624,7 +4624,7 @@ namespace JBro
         {
             base.push_back('/');
         }
-        // 설치본은 에디터 옆에 둘을 둔다. 개발 빌드는 구성마다 폴더가 다르다(`Build/x64/Debug_Game2D`).
+        // 설치본은 에디터 옆에 둘을 둔다. 개발 빌드는 구성마다 폴더가 다르다(`<산출물 자리>/Engine/x64/Debug_Game2D`, D-370).
         const char* const candidates[] = {
             is3D ? "JBroGameHost3D.exe" : "JBroGameHost2D.exe",
             is3D ? "../Debug_Game3D/JBroGameHost.exe" : "../Debug_Game2D/JBroGameHost.exe",

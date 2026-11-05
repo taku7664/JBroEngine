@@ -31,7 +31,7 @@ Windows, Visual Studio 2026의 MSVC `v145`, C++20, x64를 사용한다. 저장�
 MSBuild.exe source/JBroEngine/Modules/JBroc/JBroc.vcxproj /m:3 /p:Configuration=Debug /p:Platform=x64 /nr:false
 ```
 
-기본 산출물은 `source/JBroEngine/Build/x64/Debug/JBroc.exe`이며 Release는 같은 경로의 `Release` 아래다.
+기본 산출물은 `<엔진 산출물>/x64/Debug/JBroc.exe`(산출물 자리는 D-370, 저장소 뿌리의 `BuildOutput.txt`)이며 Release는 같은 경로의 `Release` 아래다.
 `/p:JBroBuildDir=<별도 절대 폴더>\`로 출력 뿌리를 바꿀 수 있다. 빌드는 실행 파일 옆에
 `Localization/jbroc/ko-KR.yaml`과 `en-US.yaml`을 복사한다.
 

@@ -25,5 +25,5 @@ JBroEditorHost.exe [--project <경로.jproject>] [--frames <수>] [--control-por
 
 ## 참고
 
-- 이 실행본은 엔진 저장소의 `source/JBroEngine` 를 Release 로 빌드해 뽑았다. 다시 뽑으려면 그 솔루션(`JBroEngine.slnx`)을 Release|x64 로 빌드하고 `Build/x64/Release/JBroEditorHost.exe` 와 그 옆의 `Localization/`·`ThirdParty/` 를 여기에 복사한다.
+- 이 실행본은 엔진 저장소의 `source/JBroEngine` 를 Release 로 빌드해 뽑았다. 다시 뽑으려면 그 솔루션(`JBroEngine.slnx`)을 Release|x64 로 빌드하고 산출물 자리(저장소 뿌리의 `BuildOutput.txt` 가 가리킨다)의 `Engine/x64/Release/JBroEditorHost.exe` 와 그 옆의 `Localization/`·`ThirdParty/` 를 여기에 복사한다.
 - 스크립트를 빌드하려면 MSVC 빌드 도구가 따로 있어야 한다(에디터가 없으면 무엇을 깔지 알려 준다).

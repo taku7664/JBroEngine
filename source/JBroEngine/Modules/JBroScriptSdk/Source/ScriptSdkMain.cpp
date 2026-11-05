@@ -31,6 +31,28 @@ namespace
         return String(std::string(reinterpret_cast<const char*>(text.data()), text.size()));
     }
 
+    // C++ 좁은 문자열 리터럴로 옮긴다. ASCII 밖의 바이트와 `\`·`"` 는 8 진 탈출이다 - 16 진은 뒤의 글자까지 먹는다.
+    String CppLiteral(const String& text)
+    {
+        String out;
+        for (const char character : text)
+        {
+            const unsigned char value = static_cast<unsigned char>(character);
+            if (value >= 0x80 || value == '\\' || value == '"')
+            {
+                out.push_back('\\');
+                out.push_back(static_cast<char>('0' + (value >> 6)));
+                out.push_back(static_cast<char>('0' + ((value >> 3) & 7)));
+                out.push_back(static_cast<char>('0' + (value & 7)));
+            }
+            else
+            {
+                out.push_back(character);
+            }
+        }
+        return out;
+    }
+
     String ReadFile(const fs::path& path)
     {
         std::ifstream input(path, std::ios::binary);
@@ -553,6 +575,13 @@ namespace
             String out = "// JBroScriptSdk 가 만든 파일이다. 고치지 않는다.\r\n"
                 "// 원본 헤더의 줄(0 부터) -> 스크립트 SDK 사본의 줄(1 부터, 0 은 지운 줄)과 사본 줄의 시작 바이트.\r\n"
                 "namespace JBro::ScriptApiCatalog2D::Internal::ScriptSdk\r\n{\r\n";
+            // 사본이 놓인 자리다. 산출물 자리는 빌드가 정하므로(D-370) 카탈로그는 경로를 짐작하지 않고 이것을 쓴다.
+            String root = PathText(fs::absolute(output).lexically_normal());
+            while (root.IsNotEmpty() && root.back() == '/')
+            {
+                root.pop_back();
+            }
+            out.Append("inline constexpr const char* Root = \"").Append(CppLiteral(root).View()).Append("\";\r\n");
             lineMap.ReplaceAll("\n", "\r\n");
             table.ReplaceAll("\n", "\r\n");
             out.Append(lineMap.View());

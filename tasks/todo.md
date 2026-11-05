@@ -3057,6 +3057,20 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-370. 빌드 산출물은 `source/JBro.BuildPaths.props` 가 정한 한 자리에 쌓인다. `JBRO_BUILD_ROOT` 가 있으면 그 아래 체크아웃마다 `<폴더 이름>-<경로 해시>`, 없으면 체크아웃의 `BuildOutput` 이다.**
+  (2026-11-05. 사용자 지시 "모든 산출물은 F에 쌓여야된다? 빠짐없이 빌드 경로 관리하게 바꿔" - 엔진 빌드 폴더가 C 드라이브의 체크아웃 안에 수 GB 쌓였다)
+  Updates: D-334(스크립트 SDK 사본의 자리가 `Build/ScriptSdk` 에서 `<엔진 산출물>/ScriptSdk` 로), D-122(네트워크 산출물이 `source/JBroNetwork/Build` 에서 `<산출물>/Network` 로).
+  (1) 전에는 엔진(`source/JBroEngine/Build`)·네트워크(`source/JBroNetwork/Build`)·런처(`bin`·`obj`)가 저마다 제 폴더 안에 썼고, 경로를 바꿀 수 있는 곳이 없었다(`JBroBuildDir` 에 조건이 없었다).
+  이제 `JBro.BuildPaths.props` 가 `JBroOutputRoot` 를 정하고 그 아래 `Engine\`(엔진 모듈·시험·도구·디버그 어댑터·`ScriptSdk`)·`Network\`·`<csproj 이름>\bin`·`obj` 를 둔다.
+  vcxproj 는 `JBro.Common.props` 로, csproj 는 `source/Directory.Build.props` 로 가져온다(`BaseIntermediateOutputPath` 는 SDK 가 읽기 전에 정해져야 해서 csproj 안에서는 늦다).
+  (2) 자리를 환경 변수로 바꾼다 - 기계마다 드라이브가 달라 저장소에 드라이브를 적을 수 없다. 그 아래를 체크아웃의 폴더 이름과 경로 해시(`StableStringHash`)로 가른다 - 워크트리가 여럿이고
+  `.codex/worktrees/*/JBroEngine` 처럼 폴더 이름이 같아도 서로 덮지 않는다.
+  (3) 산출물이 체크아웃 밖이면 실행 파일에서 위로 올라가도 소스가 없고, 소스에서는 해시 든 폴더 이름을 모른다. 그래서 JBroCore 빌드(모든 프로젝트가 먼저 빌드한다 - 병렬 빌드가 같은 파일을 다투지 않게 한 곳)가
+  체크아웃 뿌리의 `BuildOutput.txt`(산출물 자리)와 `Engine\EngineRoot.txt`(엔진 소스 자리)를 쓴다. `ScriptProject::FindEngineRoot` 는 위로 올라가며 표지를 따라가되 그 자리에 `JBro.GameScript.props` 가 있을 때만 믿는다.
+  `mutate.py` 와 스크립트 편집기의 `JBroc` 찾기는 `BuildOutput.txt` 를 읽는다. 스크립트 API 카탈로그는 `__FILE__` 로 `Build/ScriptSdk` 를 짐작하던 것을 버리고 SDK 도구가 대응표에 적는 `ScriptSdk::Root` 를 쓴다.
+  (4) 따르지 않는 것: 사용자 게임 프로젝트의 스크립트 DLL(`JBro.GameScript.props` 가 그 프로젝트 안에 둔다 - 엔진 산출물이 아니고 `.jproject` 의 `ScriptOutputLibraryPath` 가 그 자리를 안다),
+  Visual Studio 의 `.vs`(MSBuild 밖), NuGet 패키지 캐시(`%USERPROFILE%\.nuget`), 커밋된 실행본 `build/`.
+
 - **D-369. 셰이더 그래프는 노드 그래프 도메인 `Shader` 이고, 저장하면 그래프 옆에 `.hlsl` 을 쓴다. 머티리얼·패키지·렌더러는 그 파일만 본다.**
   (2026-11-03, [node-graph-plan.md](./node-graph-plan.md) §5. 사용자 지시 "남은거 전부 구현 ㄱ", 권고안대로 라이트 뒤에 했다)
   Updates: D-323(도메인이 하나 는다, 노드에 이름 `label` 이 는다), D-347(셰이더를 만드는 길이 하나 더 는다 - 계획이 말한 "그래프의 결과물").

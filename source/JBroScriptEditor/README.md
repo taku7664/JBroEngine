@@ -97,7 +97,8 @@ npm ci --prefix extensions/jbro-languages
 제어 포트 기본값은 3663이며 다른 번호로 엔진을 띄웠다면 `jbro.engine.controlPort`를 같은 번호로 설정한다.
 이 패널은 Problems의 언어 진단과 별개이며, C++ 이미터가 완성되기 전에는 JBroScript 실행 오류가 아직 발생하지 않는다.
 
-기본 실행 파일은 이 저장소의 `source/JBroEngine/Build/x64/Debug/JBroc.exe`, 없으면 `Release/JBroc.exe`다.
+기본 실행 파일은 이 저장소의 엔진 산출물 `Engine/x64/Debug/JBroc.exe`, 없으면 `Release/JBroc.exe`다. 산출물 자리는 엔진 빌드가
+저장소 뿌리의 `BuildOutput.txt` 에 적고, 없으면 `BuildOutput/` 이다(D-370).
 다른 빌드 위치나 루트에 여러 `.jproject` 파일이 있는 경우 작업 폴더 설정에 경로를 지정한다.
 
 ```json

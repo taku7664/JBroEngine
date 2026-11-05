@@ -303,7 +303,7 @@
   `SystemContext`도 공통 계층이다 — 차원별 시스템 인터페이스는 D-37 확장 블록(`Framework2DSystemContext`)으로 전달한다. (D-43)
 - **모듈은 스크립트가 보는 층(Tier S)과 엔진만 보는 층(Tier E)으로 나뉜다.** 한 모듈에 두 층을 섞지 않는다. (MUST) (D-42)
   사용자 비공개는 include 경로가 강제하므로(§10.1), 스크립트 타깃은 Tier S 모듈의 Include 경로만 받는다.
-  사용자 스크립트 프로젝트는 그중에서도 스크립트 입구에서 닿는 헤더를 주석 없이 옮긴 스크립트 SDK 사본(`Build/ScriptSdk/<차원>/Include`)만 받는다. (D-334)
+  사용자 스크립트 프로젝트는 그중에서도 스크립트 입구에서 닿는 헤더를 주석 없이 옮긴 스크립트 SDK 사본(`<엔진 산출물>/ScriptSdk/<차원>/Include`)만 받는다. (D-334)
   의존은 Tier E → Tier S 방향만 허용한다. Tier S 모듈이 Tier E 헤더를 include하면 컴파일이 실패해야 한다.
 
   | 층 | 모듈 | 내용 |
@@ -347,6 +347,11 @@
   > 백엔드는 이제 셋이다(D3D12·D3D11·Vulkan, D-107·D-108). 승격은 방향 판단이라 사용자 확인 뒤 한다 -
   > `tasks/framework3d-plan.md` §3 `[열림]`.
 - 게임 스크립트 핫 리로드를 지원한다. 스크립트 DLL 경계 설계는 이 요구를 전제로 한다. (MUST)
+- **빌드 산출물의 자리는 `source/JBro.BuildPaths.props` 한 곳에서 정한다.** (MUST) (D-370)
+  vcxproj 는 `JBro.Common.props` 로, csproj 는 `source/Directory.Build.props` 로 그것을 가져오고, 프로젝트 파일·코드·도구에 `Build\` 같은
+  산출물 경로를 따로 적지 않는다. 환경 변수 `JBRO_BUILD_ROOT` 가 있으면 그 아래 체크아웃마다 `<폴더 이름>-<경로 해시>\`, 없으면 체크아웃의 `BuildOutput\` 이고,
+  그 아래 `Engine\`·`Network\`·`<csproj 이름>\` 이다. 소스에서 산출물을 찾는 도구는 체크아웃 뿌리의 `BuildOutput.txt` 를, 실행 파일에서 엔진 소스를 찾는 코드는
+  `Engine\EngineRoot.txt` 를 읽는다. 사용자 게임 프로젝트의 스크립트 DLL 은 엔진 산출물이 아니라 그 프로젝트 안에 남는다.
 
 > 참고: 아키텍처 초안 §13은 전 모듈 DLL화의 근거로 프로세스 간 코드 페이지 공유를 든다.
 > Windows는 동일 EXE 이미지도 같은 방식으로 코드 페이지를 공유하므로,

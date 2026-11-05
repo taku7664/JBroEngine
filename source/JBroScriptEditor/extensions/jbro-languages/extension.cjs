@@ -34,12 +34,24 @@ async function projectFile(folder) {
 	return matches[0].fsPath;
 }
 
+// 엔진 산출물 자리다. 엔진 빌드가 체크아웃 뿌리의 BuildOutput.txt 에 적고, 없으면 체크아웃 안의 기본 자리다(D-370).
+function engineBuildFolder(context) {
+	const checkout = path.resolve(context.extensionPath, '..', '..', '..', '..');
+	try {
+		const text = fs.readFileSync(path.join(checkout, 'BuildOutput.txt'), 'utf8').replace(/^\uFEFF/, '').trim();
+		if (text) {
+			return path.join(text, 'Engine');
+		}
+	} catch {
+	}
+	return path.join(checkout, 'BuildOutput', 'Engine');
+}
+
 function serverPath(context, folder) {
 	const setting = vscode.workspace.getConfiguration('jbro.jbroscript', folder.uri).get('serverPath', '').trim();
 	const candidates = setting
 		? [configuredPath(setting, folder)]
-		: ['Debug', 'Release'].map(configuration => path.resolve(context.extensionPath, '..', '..', '..',
-			'JBroEngine', 'Build', 'x64', configuration, 'JBroc.exe'));
+		: ['Debug', 'Release'].map(configuration => path.join(engineBuildFolder(context), 'x64', configuration, 'JBroc.exe'));
 	const found = candidates.find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
 	if (!found) {
 		throw new Error(vscode.l10n.t('JBroc.exe was not found. Build the engine or set jbro.jbroscript.serverPath.'));
