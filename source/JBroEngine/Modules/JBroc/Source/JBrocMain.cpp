@@ -289,6 +289,61 @@ namespace
 
 JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv);
 
+namespace
+{
+    // 분석과 C++ 생성은 식의 깊이만큼 재귀한다. 기본 1 MB 스택은 Debug 에서 식 깊이 24(생성)·40(분석)에 넘쳐, `jbroc` 이 아무 말 없이
+    // 0xC00000FD 로 죽었다(빌드에는 MSB3073 한 줄, 언어 서버는 연결이 끊김). 일은 스택을 크게 예약한 스레드에서 하고,
+    // 그래도 넘치면 결함으로 알리고 종료 코드 3 으로 끝낸다. 깊이에 상한을 두는 언어 규칙은 정하지 않았다.
+    constexpr SIZE_T WorkerStackReserve = 256u * 1024u * 1024u;
+
+    struct Work
+    {
+        JBro::Int32 Argc;
+        wchar_t** Argv;
+        JBro::Int32 Result;
+        JBro::Bool StackOverflow;
+    };
+
+    // 잡히지 않은 예외는 아무 말 없이 종료 코드 3 으로 죽는다. 무엇이 죽었는지 표준 에러에 남긴다.
+    JBro::Int32 RunCatchingExceptions(JBro::Int32 argc, wchar_t** argv)
+    {
+        try
+        {
+            return Run(argc, argv);
+        }
+        catch (const std::exception& exception)
+        {
+            WriteLine(STD_ERROR_HANDLE, String("jbroc: internal error: ").Append(exception.what()).View());
+        }
+        catch (...)
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: internal error");
+        }
+        return ExitInternalError;
+    }
+
+    // `__try` 를 쓰는 함수에는 해제할 C++ 객체를 두지 않는다(C2712).
+    JBro::Int32 RunGuardingStack(JBro::Int32 argc, wchar_t** argv, JBro::Bool& stackOverflow)
+    {
+        __try
+        {
+            return RunCatchingExceptions(argc, argv);
+        }
+        __except (GetExceptionCode() == EXCEPTION_STACK_OVERFLOW ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+        {
+            stackOverflow = true;
+        }
+        return ExitInternalError;
+    }
+
+    DWORD WINAPI RunWork(void* data)
+    {
+        Work& work = *static_cast<Work*>(data);
+        work.Result = RunGuardingStack(work.Argc, work.Argv, work.StackOverflow);
+        return 0;
+    }
+}
+
 int wmain(int argc, wchar_t** argv)
 {
     // **단언이 대화상자를 띄우면 안 된다(D-69 와 같은 이유).** JBroc 은 편집기의 빌드 태스크가 사람 없이 부른다.
@@ -301,20 +356,22 @@ int wmain(int argc, wchar_t** argv)
     }
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 
-    // 잡히지 않은 예외는 아무 말 없이 종료 코드 3 으로 죽는다. 무엇이 죽었는지 표준 에러에 남긴다.
-    try
+    Work work{argc, argv, ExitInternalError, false};
+    const HANDLE thread = CreateThread(nullptr, WorkerStackReserve, &RunWork, &work, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
+    if (thread == nullptr)
     {
-        return Run(argc, argv);
+        work.Result = RunGuardingStack(argc, argv, work.StackOverflow);
     }
-    catch (const std::exception& exception)
+    else
     {
-        WriteLine(STD_ERROR_HANDLE, String("jbroc: internal error: ").Append(exception.what()).View());
+        WaitForSingleObject(thread, INFINITE);
+        CloseHandle(thread);
     }
-    catch (...)
+    if (work.StackOverflow)
     {
-        WriteLine(STD_ERROR_HANDLE, "jbroc: internal error");
+        WriteLine(STD_ERROR_HANDLE, "jbroc: internal error: the source nests too deeply to compile (stack overflow)");
     }
-    return ExitInternalError;
+    return work.Result;
 }
 
 JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)

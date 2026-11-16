@@ -455,6 +455,64 @@ namespace
 
         std::filesystem::remove_all(scratch);
     }
+
+    // **깊은 식에서 죽지 않는다**(Script QA 결함 3). 분석과 생성은 식의 깊이만큼 재귀해서, 기본 1 MB 스택은 Debug 에서 깊이 24 의 덧셈에
+    // 넘쳐 `jbroc` 이 0xC00000FD 로 아무 말 없이 죽었다. 종료 코드는 계약대로 0·1·3 중 하나여야 하고, 3 이면 표준 에러가 까닭을 말한다.
+    void TestDeepExpressionsDoNotCrash()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_deep_expression_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const auto repeat = [](const char* piece, const char* separator, JBro::Int32 count) {
+            std::string text;
+            for (JBro::Int32 index = 0; index < count; ++index)
+            {
+                text += index == 0 ? "" : separator;
+                text += piece;
+            }
+            return text;
+        };
+        struct Shape
+        {
+            const char* Name;
+            const char* Return;
+            std::string Expression;
+        };
+        const JBro::Int32 depth = 64;
+        const Shape shapes[] = {
+            {"plus", "Int", repeat("1", " + ", depth)},
+            {"paren", "Int", std::string(64, '(') + "1" + std::string(64, ')')},
+            {"and", "Bool", repeat("flag", " and ", depth)},
+            {"concat", "String", repeat("\"a\"", " + ", depth)},
+            {"multiply", "Float", repeat("1.0", " * ", depth)},
+        };
+        for (const Shape& shape : shapes)
+        {
+            const fs::path source = scratch / (std::string(shape.Name) + ".jscript");
+            WriteBytes(source, std::string("script Deep\n{\n    Bool flag = true\n    fn F() -> ") + shape.Return
+                + "\n    {\n        return " + shape.Expression + "\n    }\n}\n");
+            const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
+            if (result.ExitCode != 0)
+            {
+                Print(result);
+            }
+            Check(result.ExitCode == 0, "a 64-deep expression is analyzed and emitted instead of overflowing the stack");
+        }
+        // 스택을 크게 잡아도 끝이 있다. 그 끝에서도 프로세스가 죽지 않고 결함(3)과 까닭을 알린다.
+        const fs::path extreme = scratch / L"extreme.jscript";
+        WriteBytes(extreme, "script Deep\n{\n    fn F() -> Int\n    {\n        return " + std::string(60000, '(') + "1"
+            + std::string(60000, ')') + "\n    }\n}\n");
+        const RunResult overflow = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(extreme), scratch);
+        if (overflow.ExitCode != 3)
+        {
+            Print(overflow);
+        }
+        Check(overflow.ExitCode == 3 && overflow.Err.find("nests too deeply") != std::string::npos,
+            "an expression too deep even for the large stack ends as an internal error with a reason, not a crash");
+        fs::remove_all(scratch);
+    }
 }
 
 JBro::Int32 RunScriptCompilerCommandLineTests()
@@ -463,6 +521,7 @@ JBro::Int32 RunScriptCompilerCommandLineTests()
     TestTranslationTablesHoldDiagnosticAndCommandLineKeys();
     TestTheExecutable();
     TestProjectOutputPreservesUnchangedFiles();
+    TestDeepExpressionsDoNotCrash();
     std::cout << "Script compiler command line tests passed.\n";
     return 0;
 }

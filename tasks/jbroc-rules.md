@@ -529,3 +529,12 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
   **아직 내리지 못하는 것**(생성 단계 오류로 거절한다): 버퍼와 길이(`Count`)를 받는 `Text.CopyText`·`Network.TakeMessages`·`Session.TakeEvents`·`Uuid.Parse`·`Uuid.ToText`, 반환값의 필드를 섞는 `Input.CaptureBinding`.
   카탈로그의 자유 함수(`FindKeyByName` 등)는 투영과 별개로 이미터가 이름을 풀지 못한다.
 - 시험: 생성 시험 프로젝트(`Tests/JBroScriptGeneratedProbe`, `/W4 /WX`)에 `Section14Enemy.jscript`(§14 예시)와 `EmitterShapes.jscript`(세 모양)를 더했다. 고치기 전 이미터로는 그 프로젝트가 C2664·C2660·C2440 으로 멈춘다.
+
+## 15. 깊은 식에서 죽던 `jbroc` (2026-11-17, Script QA 결함 3)
+
+분석과 C++ 생성은 식의 깊이만큼 재귀한다. 기본 1 MB 주 스레드 스택은 Debug 에서 깊이 24(생성)·40(분석)에 넘쳐 `jbroc` 이 아무 말 없이 0xC00000FD 로 죽었다.
+스크립트 빌드에는 `MSB3073 … 코드: -1073741571` 한 줄만 남았고, 언어 서버(같은 1 MB 주 스레드에서 분석)도 깊이 64 에서 연결이 끊겼다.
+
+- `JBroc` 의 진입점은 일을 스택을 256 MB 예약한 스레드에서 하고, 그래도 넘치면 SEH 로 받아 §11.3 의 결함 종료 코드 3 과 표준 에러 `jbroc: internal error: the source nests too deeply to compile (stack overflow)` 로 끝낸다. 명령줄과 `--lsp` 가 같은 진입점이다.
+- Debug 실측: `--emit-project` 와 언어 서버 모두 깊이 2,000(덧셈·괄호·`and`·문자열·곱셈)까지 정상, 괄호 20,000·60,000 은 종료 3. 재귀 자체와 깊이 상한(새 진단)은 정하지 않았다 - 사용자 결정 대기.
+- 시험: `ScriptCompilerCommandLine` 의 `TestDeepExpressionsDoNotCrash`(깊이 64 의 다섯 모양은 종료 0, 괄호 60,000 은 종료 3 과 까닭). 고치기 전 `JBroc` 으로는 깊이 64 에서 종료 3221225725 로 실패한다.
