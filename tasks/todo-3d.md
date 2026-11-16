@@ -27,7 +27,8 @@ Camera·MeshRender·Text·Audio, 캔버스 뷰는 궤도 카메라·3D 집기·�
    `MeshLibrary`(도형 다섯과 이름 표)·`InspectorPanel::ChoicesFor`(메시 칸의 빌트인)·`MeshRender3DSystem`(빈 메시는 정육면체). **만들기 메뉴는 두지 않는다** -
    2D 와 같이 `오브젝트 추가` → `컴포넌트 추가` 의 `MeshRenderer3D` → 메시 칸에서 고른다(사용자: 2D 와 일관되게).
    남긴 것: 도형에 UV 가 없다(정점이 위치·법선뿐, 재질 때 붙인다 - 우선순위 4). 고리 수(32 x 16)는 고정이다.
-3. `[진행 예정]` **메시 에셋 임포트**(glTF 먼저, 다음 `.obj`). 레지스트리·`.jmeta`·에셋 브라우저·검색 드롭다운에 붙이고,
+3. `[진행]` **모델 임포트**(D-338, 계획은 `model-import-plan.md`). 메시가 아니라 모델 단위로 FBX·glTF·OBJ 를 ufbx·cgltf 로 읽고, 메시·재질·내장 그림을 하위 에셋으로 둔다.
+   아래 원래 적은 것은 그 안의 메시 부분이다: ~~**메시 에셋 임포트**(glTF 먼저, 다음 `.obj`).~~ 레지스트리·`.jmeta`·에셋 브라우저·검색 드롭다운에 붙이고,
    `MeshRender3DSystem` 이 매 Update 에 `MeshLibrary` 로 다시 푸는 길을 `SpriteLibrary` 모양으로 정리한다(아래 "재질" 의 세 번째 항목).
 
 ### P1 - 게임처럼 보인다
