@@ -104,12 +104,24 @@
 |---|---|---|
 | 1 | 브라우저 ▶ 펼치기 화면 - 그림의 Texture·Sprite 로 먼저 세우고 화면을 찍어 확인받는다 | `[완료]` 2026-11-16 · 사용자 확인("이대로 커밋") · `AssetBrowserPanel`(`Collect` 가 `owner` 있는 레코드를 파일 줄에 단다, `DrawFile` 의 트리 화살표, `DrawFileTile` 의 `DrawTileExpander`·묶음 띠, `HandleChildInput`) · 시험 `TestTheAssetBrowserExpandsSubAssets`(화면 `assets_expanded_list`·`assets_expanded_icons`·`assets_folded_icons`) |
 | 2 | ufbx·cgltf 를 `ThirdParty/` 에 들인다(내려받기는 파일·출처·크기를 밝히고 확인) · `ModelDecoder` 와 `ModelData` · 시험 모델(작은 `.glb`·`.fbx`·`.obj`) | `[완료]` 2026-11-16 · ufbx v0.23.1(자기 정적 라이브러리)·cgltf v1.15(헤더, 구현은 `ModelDecoder.cpp` 한 곳) · `JBroAsset` 의 `ModelDecoder.h` (`ModelData`·`DecodeModel`·`ModelFileReader`·`HashModelBytes`)와 `AssetTypes.h` 의 `ModelImportOptions`(D-339) · 시험 묶음 `ModelDecoder` 가 모델을 직접 짓는다(데이터 URI `.gltf`·바깥 `.bin` `.gltf`·`.glb`·`.mtl` 있는 `.obj`·ASCII `.fbx`) · 뮤테이션 여덟(감김·UV 뒤집기·단위·매끈함 각·합치기·`importMaterials`·해시·배율)이 모두 잡힌다 - 처음 해시 시험은 길이만 달라 지나갔다. 세부는 §2.2 의 "선 모양" |
-| 3 | `AssetType::Model` · 확장자 표 · 레지스트리의 하위 레코드와 `.jmeta` 하위 아이디 고정 · `ModelImportOptions` | |
+| 3 | `AssetType::Model` · 확장자 표 · 레지스트리의 하위 레코드와 `.jmeta` 하위 아이디 고정 · `ModelImportOptions` | `[완료]` 2026-11-16 · D-341 · `AssetType::Model`(`.fbx .obj .gltf .glb`), `AssetRecord::name`, `.jmeta` 의 `Model.ImportOptions`·`Model.SubAssets`(`Key`·`Id`), `RefreshModelSubAssets`(`ModelImport.h`), 스캔이 하위 레코드를 세움, 인스펙터의 모델 임포트 옵션(블록 종류를 열거형 하나로), 메시 칸 목록의 `모델 / 메시`, 브라우저의 모델·메시·재질 아이콘, `TextureImportOptions` 의 `colorSpace`·`mipmaps`(값만, D-339 (a)) · 시험 `AssetRegistry` 의 `TestModelsRegisterTheirSubAssets`·브라우저 펼치기 시험의 모델(화면 `assets_model_icons`·`assets_model_inspector`) |
 | 4 | `AssetSystem` 의 메시 풀 · `MeshLibrary` 등록과 해석 패스 · 메시 칸 목록의 `모델 / 메시` · 파일 감시로 다시 읽기 | |
 | 5 | 내장 그림의 하위 Texture · 해시 기록 · 브라우저 배지와 인스펙터 `같은 그림` 줄 | |
 | 6 | `.jpak` 에 엔진이 바로 읽는 이진 메시로 구워 넣기(2D 의 미리 뜬 아틀라스와 같은 자리) | |
 
 각 단계는 시험·뮤테이션·문서·커밋을 끝내고 다음으로 간다.
+
+### 2.8 하위 목록이 서는 길 (3 단계에서 정한 것, D-341)
+
+- `.jmeta` 의 `Model:` 블록에 `ImportOptions` 와 `SubAssets`(항목마다 `Key: Mesh/Body`·`Id`)가 있다. 키는 `종류/이름` 이고 종류는 `Mesh`·`Material`·`Texture`(5 단계)다.
+  키가 겹치거나 아이디가 모델·서로와 겹치면 메타 전체가 실패다.
+- **게임은 메타의 목록만 본다** - 모델을 읽지 않고 하위 레코드를 세운다. **에디터는 목록이 없을 때만 모델을 읽어 채운다**(`RefreshModelSubAssets`) -
+  프로젝트를 열 때마다 모든 모델을 다시 읽지 않는다. 같은 키는 아이디를 지키고 새 키는 새 아이디, 사라진 키는 빠진다. 키의 이름은 메시는 디코더의 메시 이름(`Crate/Wood` -
+  재질로 나뉜 메시는 `메시/재질`), 재질은 재질 이름이고 겹치면 ` (2)` 를 붙인다.
+- 읽히지 않는 모델도 모델 레코드는 선다(하위 에셋만 없다, 스캔 보고의 `unreadableModel`) - 브라우저에 보여야 고칠 수 있다.
+- 옵션 편집은 하위 목록을 새 옵션으로 다시 맞춰 **같은 커맨드**(`SetAssetMetaCommand`)에 담는다 - 되돌리면 옛 목록과 옛 아이디가 돌아온다. 메타를 쓴 뒤 에디터가
+  다음 프레임 앞에서 레지스트리를 다시 훑는다(`RequestAssetRescan` - 그리는 도중에 표를 바꾸면 패널이 든 레코드 포인터가 죽는다).
+- 남은 것: 모델 **파일**이 바뀌었을 때 목록을 다시 맞추는 것은 파일 감시(4 단계)다. 지금은 메타를 지우거나 옵션을 고쳐야 다시 읽는다.
 
 ## 4. 열린 것 `[열림]`
 

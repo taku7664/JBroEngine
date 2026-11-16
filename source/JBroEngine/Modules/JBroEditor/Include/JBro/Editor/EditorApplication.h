@@ -303,6 +303,8 @@ namespace JBro
         const String& GetAssetRoot() const;
         // 에셋 폴더를 지금 다시 훑는다. 감시가 서지 않은 자리에서 사람이 새로 고치는 길이다.
         Bool RescanAssets();
+        // 다음 프레임 앞에서 다시 훑는다. 그리는 도중(커맨드 실행)에 레지스트리를 바꾸면 패널이 든 레코드 포인터가 죽는다.
+        void RequestAssetRescan();
 
         // **한 손짓이 여럿을 지우면 되돌리기도 하나다**(§11). 고른 것 전부를 한 커맨드로 묶는다.
         Bool DeleteAssets(const Array<String>& relativePaths);
@@ -1012,6 +1014,7 @@ namespace JBro
         Bool m_saveRequested = false;
         Bool m_openProjectRequested = false;
         Bool m_newProjectRequested = false;
+        Bool m_assetRescanRequested = false;
         PathBrowseRequest m_browseRequest;
         Bool m_browseRequested = false;
         // 열어 달라고 한 캔버스(에셋 폴더 기준 상대경로). 비어 있으면 요청이 없다.

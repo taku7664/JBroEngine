@@ -75,12 +75,10 @@ namespace JBro
         {
             // 이번 프레임의 편집본. 원본은 `EditorApplication::GetSelectedAssetMeta` 다.
             AssetMetaFile* scratch = nullptr;
-            // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다.
-            Bool spriteBlock = false;
-            Bool audioBlock = false;
-            Bool fontBlock = false;
-            Bool fontFamilyBlock = false;
-            Bool stringTableBlock = false;
+            // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다. 블록마다 불 값을 두던 것을 하나로 모았다 -
+            // 블록이 늘 때마다 불 값과 그 판정 사슬이 함께 늘었다(D-338 의 모델 블록을 더하며 바꿨다).
+            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model };
+            Block block = Block::Texture;
         };
 
         struct Context

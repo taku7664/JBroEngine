@@ -1,7 +1,10 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
+
+#include <string_view>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
 
@@ -32,6 +35,16 @@ namespace JBro
     //     Id: ...
     //     ImportOptions:
     //       sliceType: CellCount
+    // 모델의 하위 에셋 하나다(D-338). `key` 는 `종류/이름`(`Mesh/Body`, `Material/Skin`)이고 다시 가져와도 같은 키면 같은 아이디다.
+    struct AssetSubEntry
+    {
+        String key;
+        AssetId id;
+    };
+
+    // 하위 키를 종류와 이름으로 나눈다. 모르는 종류이거나 이름이 비면 false 다.
+    Bool SplitSubAssetKey(std::string_view key, AssetType& type, std::string_view& name);
+
     struct AssetMetaFile
     {
         UInt32 version = 1;
@@ -55,6 +68,12 @@ namespace JBro
         // `StringTable` 일 때만 뜻이 있다(`StringTable.ImportOptions`, D-226).
         Bool hasStringTableOptions = false;
         StringTableOptions stringTableOptions;
+        // `Model` 일 때만 뜻이 있다(`Model.ImportOptions`·`Model.SubAssets`, D-338·D-339). 하위 목록이 없으면(`hasSubAssets` 거짓) 에디터의 스캔이
+        // 모델을 읽어 채운다. 게임은 이 목록만 보고 하위 레코드를 세운다 - 모델을 다시 읽지 않는다.
+        Bool hasModelOptions = false;
+        ModelImportOptions modelOptions;
+        Bool hasSubAssets = false;
+        Array<AssetSubEntry> subAssets;
     };
 
     struct AssetMetaError

@@ -65,6 +65,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Asset/ModelImport.h>
 
 namespace JBro
 {
@@ -958,7 +959,18 @@ namespace JBro
             {
                 continue;
             }
-            choices->names.Add(record.relativePath);
+            // 모델의 하위 에셋(D-338)은 경로가 모델과 같다. 이름을 붙여야 칸에서 갈린다.
+            if (record.name.empty())
+            {
+                choices->names.Add(record.relativePath);
+            }
+            else
+            {
+                String label = record.relativePath;
+                label += " / ";
+                label += record.name;
+                choices->names.Add(std::move(label));
+            }
             choices->ids.Add(record.id);
         }
         choices->namePointers.Clear();
@@ -1646,16 +1658,11 @@ namespace JBro
 
         const Bool image = AssetTypeRules::IsImageType(meta.type);
         Int32 slot = 0;
-        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, Bool spriteBlock,
-                                     Bool audioBlock = false, Bool fontBlock = false, Bool fontFamilyBlock = false,
-                                     Bool stringTableBlock = false) {
+        using Block = AssetEditScope::Block;
+        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, Block block) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
-            scope.spriteBlock = spriteBlock;
-            scope.audioBlock = audioBlock;
-            scope.fontBlock = fontBlock;
-            scope.fontFamilyBlock = fontFamilyBlock;
-            scope.stringTableBlock = stringTableBlock;
+            scope.block = block;
             if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
@@ -1666,35 +1673,41 @@ namespace JBro
         if (meta.type == AssetType::Texture)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorTextureImportOptions, "Texture Import Options"),
-                TypeDescriptorOf<TextureImportOptions>::Get(), &scratch.textureOptions, false);
+                TypeDescriptorOf<TextureImportOptions>::Get(), &scratch.textureOptions, Block::Texture);
         }
         if (image)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorSpriteImportOptions, "Sprite Import Options"),
-                TypeDescriptorOf<SpriteImportOptions>::Get(), &scratch.spriteOptions, true);
+                TypeDescriptorOf<SpriteImportOptions>::Get(), &scratch.spriteOptions, Block::Sprite);
         }
         if (meta.type == AssetType::Audio)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorAudioImportOptions, "Audio Import Options"),
-                TypeDescriptorOf<AudioImportOptions>::Get(), &scratch.audioOptions, false, true);
+                TypeDescriptorOf<AudioImportOptions>::Get(), &scratch.audioOptions, Block::Audio);
         }
         // 폰트의 PPU·필터(D-200). 고치면 제자리 재로드로 글자가 새 크기로 다시 뜬다.
         if (meta.type == AssetType::Font)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorFontImportOptions, "Font Import Options"),
-                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);
+                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, Block::Font);
         }
         // 폰트 패밀리의 네 칸(D-225). 고치면 제자리 재로드로 칸의 폰트가 바뀌고, 그 패밀리를 쓰는 텍스트가 다시 레이아웃된다.
         if (meta.type == AssetType::FontFamily)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorFontFamilyFaces, "Font Family"),
-                TypeDescriptorOf<FontFamilyOptions>::Get(), &scratch.fontFamilyOptions, false, false, false, true);
+                TypeDescriptorOf<FontFamilyOptions>::Get(), &scratch.fontFamilyOptions, Block::FontFamily);
         }
         // 문자열 표의 로케일(D-226). 고치면 제자리 재로드로 표가 다른 언어의 것이 되고, 키가 있는 텍스트가 다시 레이아웃된다.
         if (meta.type == AssetType::StringTable)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorStringTable, "String Table"),
-                TypeDescriptorOf<StringTableOptions>::Get(), &scratch.stringTableOptions, false, false, false, false, true);
+                TypeDescriptorOf<StringTableOptions>::Get(), &scratch.stringTableOptions, Block::StringTable);
+        }
+        // 모델의 임포트 옵션(D-339). 고치면 하위 목록을 새 옵션으로 다시 맞춰 같은 커맨드에 담는다 - `importMaterials` 를 끄면 재질 하위 에셋이 빠지고, 되돌리면 같은 아이디로 돌아온다.
+        if (meta.type == AssetType::Model)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorModelImportOptions, "Model Import Options"),
+                TypeDescriptorOf<ModelImportOptions>::Get(), &scratch.modelOptions, Block::Model);
         }
     }
 
@@ -1709,29 +1722,41 @@ namespace JBro
         }
         // 고친 블록은 이제 파일에 있어야 한다.
         AssetMetaFile& scratch = *context.asset->scratch;
-        if (context.asset->spriteBlock)
+        using Block = AssetEditScope::Block;
+        switch (context.asset->block)
         {
+        case Block::Sprite:
             scratch.hasSpriteOptions = true;
-        }
-        else if (context.asset->audioBlock)
-        {
+            break;
+        case Block::Audio:
             scratch.hasAudioOptions = true;
-        }
-        else if (context.asset->fontBlock)
-        {
+            break;
+        case Block::Font:
             scratch.hasFontOptions = true;
-        }
-        else if (context.asset->fontFamilyBlock)
-        {
+            break;
+        case Block::FontFamily:
             scratch.hasFontFamilyOptions = true;
-        }
-        else if (context.asset->stringTableBlock)
-        {
+            break;
+        case Block::StringTable:
             scratch.hasStringTableOptions = true;
-        }
-        else
+            break;
+        case Block::Model:
         {
+            scratch.hasModelOptions = true;
+            // 하위 목록을 새 옵션으로 맞춘다. 읽히지 않으면 옵션만 바꾸고 목록은 둔다 - 고치는 손을 막지 않는다.
+            const AssetRecord* record = m_editor->GetAssetRegistry().Find(target.id);
+            Bool changed = false;
+            String error;
+            if (record != nullptr && target.platform != nullptr)
+            {
+                RefreshModelSubAssets(*target.platform, m_editor->GetAssetRoot().c_str(), record->relativePath, scratch, changed, error);
+            }
+            break;
+        }
+        case Block::Texture:
+        default:
             scratch.hasTextureOptions = true;
+            break;
         }
         const String before = FormatAssetMetaFile(*original);
         const String after = FormatAssetMetaFile(scratch);

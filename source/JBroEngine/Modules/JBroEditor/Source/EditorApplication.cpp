@@ -1107,6 +1107,11 @@ namespace JBro
         return true;
     }
 
+    void EditorApplication::RequestAssetRescan()
+    {
+        m_assetRescanRequested = true;
+    }
+
     Bool EditorApplication::CreateAssetFolder(const char* relativeFolder, const char* name)
     {
         if (name == nullptr || name[0] == '\0' || GetAssetRoot().empty())
@@ -1700,6 +1705,11 @@ namespace JBro
         target.metaPath = assets->GetMetaPath(*record);
         target.id = record->id;
         target.spriteId = m_selectedAssetMetaLoaded ? m_selectedAssetMeta->spriteId : AssetId{};
+        if (record->type == AssetType::Model)
+        {
+            target.afterWrite = [](void* user) { static_cast<EditorApplication*>(user)->RequestAssetRescan(); };
+            target.afterWriteUser = const_cast<EditorApplication*>(this);
+        }
         return true;
     }
 
@@ -7261,6 +7271,11 @@ namespace JBro
         }
         PerformOpenProjectRequest();
         PerformNewProjectRequest();
+        if (m_assetRescanRequested)
+        {
+            m_assetRescanRequested = false;
+            RescanAssets();
+        }
         PerformBrowseRequest();
         PerformImportRequest();
         PerformOpenCanvasRequest();

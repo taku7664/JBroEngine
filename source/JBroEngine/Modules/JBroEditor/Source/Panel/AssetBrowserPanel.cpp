@@ -62,6 +62,12 @@ namespace JBro
                 return Icons::Language;
             case AssetType::Layer:
                 return Icons::Layer;
+            case AssetType::Model:
+                return Icons::FileModel;
+            case AssetType::Mesh:
+                return Icons::FileMesh;
+            case AssetType::Material:
+                return Icons::FileMaterial;
             default:
                 return Icons::File;
             }
@@ -677,8 +683,8 @@ namespace JBro
         child.owner = owner.record;
         child.isChild = true;
         child.folder = owner.folder;
-        // 하위 에셋의 이름은 지금 종류다(그림의 `Sprite`). 모델의 메시·재질은 파일 안의 이름을 갖게 된다(model-import-plan 3 단계).
-        child.name = AssetTypeRules::GetTypeName(record.type);
+        // 하위 에셋은 제 이름(모델 안의 `Body`)을 보인다. 이름이 없는 것(그림의 Sprite)은 종류를 보인다.
+        child.name = record.name.empty() ? AssetTypeRules::GetTypeName(record.type) : record.name.c_str();
         child.modified = owner.modified;
         child.modifiedText = owner.modifiedText;
         char idText[Uuid::TextCapacity] = {};

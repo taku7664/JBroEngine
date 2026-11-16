@@ -1,6 +1,7 @@
 ﻿#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/ModelImport.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <cstring>
@@ -350,9 +351,127 @@ namespace
     }
 }
 
+namespace
+{
+    // 메시 둘(재질이 둘이라 나뉜다)과 재질 둘인 OBJ 다. 재질 파일은 곁에 둔다.
+    const char* const TwoPartObj =
+        "mtllib parts.mtl\n"
+        "v 0 0 0\nv 0 0 1\nv 1 0 1\nv 1 0 0\nv 0 1 0\n"
+        "o Crate\n"
+        "usemtl Wood\nf 1 2 3\n"
+        "usemtl Metal\nf 1 3 4\n";
+    const char* const TwoPartMtl = "newmtl Wood\nKd 0.6 0.4 0.2\nnewmtl Metal\nKd 0.7 0.7 0.7\n";
+
+    JBro::AssetId SubId(const JBro::AssetMetaFile& meta, const char* key)
+    {
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            if (meta.subAssets[index].key == key)
+            {
+                return meta.subAssets[index].id;
+            }
+        }
+        return {};
+    }
+
+    // **모델의 하위 에셋**(D-338, model-import-plan 3 단계). 에디터 스캔이 모델을 읽어 `.jmeta` 의 `Model.SubAssets` 를 채우고, 메시·재질이
+    // `owner` 가 모델인 하위 레코드로 이름과 함께 선다. 다시 훑으면 같은 아이디이고, 게임(메타를 만들지 않는 스캔)은 메타의 목록만으로 같은 것을 세운다.
+    void TestModelsRegisterTheirSubAssets()
+    {
+        Check(JBro::AssetTypeRules::DetectTypeFromPath("art/Hero.FBX") == JBro::AssetType::Model
+                && JBro::AssetTypeRules::DetectTypeFromPath("a.glb") == JBro::AssetType::Model
+                && JBro::AssetTypeRules::DetectTypeFromPath("a.obj") == JBro::AssetType::Model,
+            "model files are Model, not Mesh");
+        Check(JBro::AssetTypeRules::ParseTypeName("Model") == JBro::AssetType::Model, "and the type has its name");
+
+        const fs::path root = MakeProbeDirectory();
+        WriteFile(root / "props" / "crate.obj", TwoPartObj);
+        WriteFile(root / "props" / "parts.mtl", TwoPartMtl);
+        WriteFile(root / "props" / "broken.fbx", "this is not a model");
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
+        JBro::AssetScanOptions editor;
+        editor.createMissingMeta = true;
+        JBro::AssetRegistry registry;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(platform, Utf8(root).c_str(), editor, report), "the folder scans");
+        Check(report.unreadableModel == 1, "the broken model is counted as unreadable");
+        Check(registry.FindByPath("props/broken.fbx") != nullptr, "but it is still registered, so the user can see and fix it");
+
+        const JBro::AssetRecord* crate = registry.FindByPath("props/crate.obj");
+        Check(crate != nullptr && crate->type == JBro::AssetType::Model, "the OBJ is a Model record");
+        const JBro::AssetId crateId = crate->id;
+        JBro::Array<JBro::AssetId> owned;
+        registry.CollectOwned(crateId, owned);
+        Check(owned.Size() == 4, "two meshes and two materials hang under the model");
+        JBro::Int32 meshes = 0;
+        JBro::Int32 materials = 0;
+        JBro::Bool named = true;
+        for (std::size_t index = 0; index < owned.Size(); ++index)
+        {
+            const JBro::AssetRecord* child = registry.Find(owned[index]);
+            Check(child != nullptr && child->owner == crateId && child->relativePath == "props/crate.obj", "each sub-asset shares the model's path");
+            meshes += child->type == JBro::AssetType::Mesh ? 1 : 0;
+            materials += child->type == JBro::AssetType::Material ? 1 : 0;
+            named = named && false == child->name.empty();
+        }
+        Check(meshes == 2 && materials == 2 && named, "two named meshes and two named materials");
+
+        JBro::AssetMetaFile meta;
+        JBro::AssetMetaError metaError;
+        Check(JBro::LoadAssetMetaFile(platform, Utf8(root / "props" / "crate.obj.jmeta").c_str(), meta, metaError), "the model's meta reads back");
+        Check(meta.type == JBro::AssetType::Model && meta.hasSubAssets && meta.subAssets.Size() == 4, "and lists its sub-assets");
+        const JBro::AssetId woodId = SubId(meta, "Material/Wood");
+        Check(false == woodId.IsNull() && registry.Find(woodId) != nullptr && registry.Find(woodId)->name == "Wood",
+            "a material's key is Material/<name> and its record carries the name");
+
+        // 다시 훑어도 아이디는 그대로다. 게임(메타를 만들지 않는 스캔)도 메타의 목록만으로 같은 레코드를 세운다.
+        JBro::AssetScanOptions game;
+        JBro::AssetRegistry again;
+        Check(again.Scan(platform, Utf8(root).c_str(), game, report), "a read-only scan runs");
+        Check(again.Find(woodId) != nullptr && again.Find(woodId)->owner == crateId, "the read-only scan stands the same sub-assets from the meta");
+
+        // 옵션을 바꿔 다시 맞추면 같은 키는 아이디를 지키고, 재질을 끄면 재질 키만 빠진다.
+        const JBro::String firstMeshKey = meta.subAssets[0].key;
+        const JBro::AssetId firstMeshId = meta.subAssets[0].id;
+        meta.hasModelOptions = true;
+        meta.modelOptions.importMaterials = false;
+        JBro::Bool changed = false;
+        JBro::String error;
+        Check(JBro::RefreshModelSubAssets(platform, Utf8(root).c_str(), "props/crate.obj", meta, changed, error), "the model refreshes");
+        Check(changed && meta.subAssets.Size() == 2 && SubId(meta, "Material/Wood").IsNull(), "importMaterials off drops the material keys");
+        Check(SubId(meta, firstMeshKey.c_str()) == firstMeshId, "the mesh keys stay with the same ids - a canvas that uses them keeps working");
+        meta.modelOptions.importMaterials = true;
+        Check(JBro::RefreshModelSubAssets(platform, Utf8(root).c_str(), "props/crate.obj", meta, changed, error), "the model refreshes again");
+        Check(changed && meta.subAssets.Size() == 4, "turning materials back on brings their keys back");
+        JBro::Bool unchanged = false;
+        Check(JBro::RefreshModelSubAssets(platform, Utf8(root).c_str(), "props/crate.obj", meta, unchanged, error) && false == unchanged,
+            "refreshing with nothing changed reports no change");
+
+        // 메타의 모델 블록은 왕복한다.
+        JBro::AssetMetaFile reread;
+        const JBro::String text = JBro::FormatAssetMetaFile(meta);
+        Check(false == text.empty() && JBro::ParseAssetMetaFile(text.c_str(), text.size(), reread, metaError), "a model meta formats and parses");
+        Check(reread.hasModelOptions && reread.modelOptions.importMaterials && reread.subAssets.Size() == 4
+                && reread.subAssets[1].key == meta.subAssets[1].key && reread.subAssets[1].id == meta.subAssets[1].id,
+            "with its options and its sub-asset list");
+        const char* clash = "Version: 1\nId: 0123456789abcdeffedcba9876543210\nType: Model\nModel:\n  SubAssets:\n"
+                            "    - Key: Mesh/A\n      Id: 0123456789abcdeffedcba9876543211\n"
+                            "    - Key: Mesh/A\n      Id: 0123456789abcdeffedcba9876543212\n";
+        Check(false == JBro::ParseAssetMetaFile(clash, std::strlen(clash), reread, metaError), "two sub-assets may not share a key");
+        const char* badKey = "Version: 1\nId: 0123456789abcdeffedcba9876543210\nType: Model\nModel:\n  SubAssets:\n"
+                             "    - Key: Canvas/A\n      Id: 0123456789abcdeffedcba9876543211\n";
+        Check(false == JBro::ParseAssetMetaFile(badKey, std::strlen(badKey), reread, metaError), "a sub-asset is a mesh, a material or a texture");
+        platform.Shutdown();
+        fs::remove_all(root);
+    }
+}
+
 JBro::Int32 RunAssetRegistryTests()
 {
     TestTypeRules();
+    TestModelsRegisterTheirSubAssets();
     TestMetaFileRoundTrip();
     TestIgnorePatterns();
     TestRegisterUnregisterAndRename();

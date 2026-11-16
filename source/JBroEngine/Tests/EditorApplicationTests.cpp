@@ -5061,6 +5061,13 @@ namespace
             std::ofstream png(root / "Assets" / "art" / name, std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
+        // 모델 하나(D-338, 3 단계) - 메시 둘·재질 둘이 하위 에셋으로 펼쳐지고 제 이름을 보인다.
+        {
+            std::ofstream obj(root / "Assets" / "art" / "crate.obj", std::ios::binary);
+            obj << "mtllib parts.mtl\nv 0 0 0\nv 0 0 1\nv 1 0 1\nv 1 0 0\no Crate\nusemtl Wood\nf 1 2 3\nusemtl Metal\nf 1 3 4\n";
+            std::ofstream mtl(root / "Assets" / "art" / "parts.mtl", std::ios::binary);
+            mtl << "newmtl Wood\nKd 0.6 0.4 0.2\nnewmtl Metal\nKd 0.7 0.7 0.7\n";
+        }
         const JBro::String projectPath = TempPath("JBroAssetExpandProbe\\Expand.jproject");
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
@@ -5190,6 +5197,39 @@ namespace
         Check(LocateItem(editor, hwnd, LabelId(LabelId(contents->ID, "art/slime.png"), "##expand"), -1, unused) == Located::Found,
             "every file with sub-assets has its own button");
         SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_folded_icons");
+
+        // ── 모델: 펼치면 메시·재질이 제 이름으로 선다 ─────────────
+        const JBro::AssetRecord* crate = editor.GetAssetRegistry().FindByPath("art/crate.obj");
+        Check(crate != nullptr && crate->type == JBro::AssetType::Model, "the OBJ is registered as a model");
+        JBro::Array<JBro::AssetId> crateParts;
+        editor.GetAssetRegistry().CollectOwned(crate->id, crateParts);
+        Check(crateParts.Size() == 4, "with its two meshes and two materials");
+        const ImGuiID crateScope = LabelId(contents->ID, "art/crate.obj");
+        Spot crateExpander;
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(crateScope, "##expand"), crateExpander), "the model tile has a fold button");
+        ClickAt(editor, hwnd, crateExpander);
+        Check(editor.Tick(Frame), "the model unfolds");
+        for (std::size_t part = 0; part < crateParts.Size(); ++part)
+        {
+            char partText[JBro::Uuid::TextCapacity] = {};
+            Check(crateParts[part].ToText(partText, sizeof(partText)), "a part id has a text form");
+            Check(LocateItem(editor, hwnd, LabelId(LabelId(crateScope, partText), "##tile"), -1, unused) == Located::Found,
+                "every mesh and material of the model has a tile");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_model_icons");
+        // 모델을 고르면 인스펙터가 모델 임포트 옵션을 보인다(D-339).
+        Spot crateTile;
+        Check(LocateItem(editor, hwnd, LabelId(crateScope, "##tile"), -1, crateTile) == Located::Found, "the model tile is on screen");
+        ClickAt(editor, hwnd, crateTile);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector shows the model");
+        }
+        Check(editor.GetSelectedAsset() == crate->id, "clicking the model tile chooses the model");
+        const JBro::AssetMetaFile* crateMeta = editor.GetSelectedAssetMeta();
+        Check(crateMeta != nullptr && crateMeta->type == JBro::AssetType::Model && crateMeta->subAssets.Size() == 4,
+            "and the inspector reads its meta with the sub-asset list");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_model_inspector");
 
         editor.Shutdown();
         fs::remove_all(root, ignored);

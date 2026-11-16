@@ -49,6 +49,15 @@ namespace JBro
         { TextureFilter::Nearest, "Nearest" },
         { TextureFilter::Linear,  "Linear" });
 
+    JBRO_DEFINE_ENUM_TYPE(TextureColorSpace, "JBro.TextureColorSpace",
+        { TextureColorSpace::Auto,   "Auto" },
+        { TextureColorSpace::Srgb,   "Srgb" },
+        { TextureColorSpace::Linear, "Linear" });
+
+    JBRO_DEFINE_ENUM_TYPE(ModelNormals, "JBro.ModelNormals",
+        { ModelNormals::Import,    "Import" },
+        { ModelNormals::Calculate, "Calculate" });
+
     JBRO_DEFINE_ENUM_TYPE(FontRenderMode, "JBro.FontRenderMode",
         { FontRenderMode::Bitmap, "Bitmap" },
         { FontRenderMode::Sdf,    "Sdf" });
@@ -67,10 +76,33 @@ namespace JBro
             static const FieldEntry entries[] =
             {
                 MakeFieldEntry<&TextureImportOptions::filter>(),
+                MakeFieldEntry<&TextureImportOptions::colorSpace>(),
+                MakeFieldEntry<&TextureImportOptions::mipmaps>(),
             };
-            static const StaticPropertyTable<1> fields { entries };
+            static const StaticPropertyTable<3> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<TextureImportOptions>("JBro.TextureImportOptions", fields.Get());
+            return descriptor;
+        }
+    };
+
+    // `.jmeta` 의 `Model.ImportOptions` 가 이 표로 읽히고 쓰인다(D-339).
+    template <>
+    struct TypeDescriptorOf<ModelImportOptions>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&ModelImportOptions::scale>(Attribute::Range(0.0001f, 10000.0f)),
+                MakeFieldEntry<&ModelImportOptions::convertUnits>(),
+                MakeFieldEntry<&ModelImportOptions::normals>(),
+                MakeFieldEntry<&ModelImportOptions::smoothingAngle>(Attribute::Range(0.0f, 180.0f)),
+                MakeFieldEntry<&ModelImportOptions::importMaterials>(),
+            };
+            static const StaticPropertyTable<5> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<ModelImportOptions>("JBro.ModelImportOptions", fields.Get());
             return descriptor;
         }
     };

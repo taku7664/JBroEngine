@@ -82,6 +82,10 @@ namespace JBro
                 m_target.assets->ReloadInPlace(m_target.spriteId);
             }
         }
+        if (m_target.afterWrite != nullptr)
+        {
+            m_target.afterWrite(m_target.afterWriteUser);
+        }
         return true;
     }
 }

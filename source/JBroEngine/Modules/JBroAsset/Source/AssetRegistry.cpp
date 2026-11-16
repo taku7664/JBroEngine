@@ -2,6 +2,7 @@
 
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/ModelImport.h>
 #include <JBro/Platform/Platform.h>
 
 #include <string_view>
@@ -186,6 +187,27 @@ namespace JBro
                 ++report.metaCreated;
             }
 
+            // **모델의 하위 목록**(D-338). 에디터만, 목록이 아직 없을 때만 모델을 읽어 채운다 - 프로젝트를 열 때마다 모든 모델을 다시 읽지 않는다.
+            // 파일이 바뀐 것은 파일 감시가, 옵션이 바뀐 것은 옵션 편집이 다시 맞춘다. 게임은 메타의 목록만 본다.
+            if (meta.type == AssetType::Model && false == meta.hasSubAssets && options.createMissingMeta)
+            {
+                Bool changed = false;
+                String modelError;
+                if (RefreshModelSubAssets(platform, assetRoot, relativePath, meta, changed, modelError))
+                {
+                    if (false == SaveAssetMetaFile(platform, metaPath.c_str(), meta))
+                    {
+                        ++report.invalidMeta;
+                        continue;
+                    }
+                }
+                else
+                {
+                    // 읽히지 않는 모델도 모델 레코드는 선다 - 브라우저에 보여야 사용자가 고칠 수 있다. 하위 에셋만 없다.
+                    ++report.unreadableModel;
+                }
+            }
+
             AssetRecord record;
             record.id = meta.id;
             record.type = meta.type;
@@ -212,6 +234,47 @@ namespace JBro
                     continue;
                 }
                 ++report.registered;
+            }
+            if (meta.type == AssetType::Model)
+            {
+                // 하위 레코드는 모델과 같은 경로이고 `owner` 가 모델이다. 하나라도 아이디가 남의 것이면 모델째 물린다 - 반쪽만 선 모델을 두지 않는다.
+                Array<AssetId> added;
+                Bool clash = false;
+                for (std::size_t sub = 0; sub < meta.subAssets.Size() && false == clash; ++sub)
+                {
+                    AssetType subType = AssetType::Unknown;
+                    std::string_view subName;
+                    if (false == SplitSubAssetKey(meta.subAssets[sub].key, subType, subName))
+                    {
+                        continue;
+                    }
+                    AssetRecord child;
+                    child.id = meta.subAssets[sub].id;
+                    child.type = subType;
+                    child.relativePath = relativePath;
+                    child.owner = meta.id;
+                    child.name = String(subName);
+                    if (Register(child))
+                    {
+                        added.Add(child.id);
+                    }
+                    else
+                    {
+                        clash = true;
+                    }
+                }
+                if (clash)
+                {
+                    for (std::size_t undo = 0; undo < added.Size(); ++undo)
+                    {
+                        Unregister(added[undo]);
+                    }
+                    Unregister(meta.id);
+                    --report.registered;
+                    ++report.duplicateId;
+                    continue;
+                }
+                report.registered += static_cast<UInt32>(added.Size());
             }
         }
         return true;

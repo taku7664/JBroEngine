@@ -151,10 +151,64 @@ namespace JBro
             {
                 return false;
             }
+            // 모델 블록: 옵션과 하위 에셋 목록(D-338). 목록의 항목은 `Key` 와 `Id` 이고 키는 겹치지 않으며 아이디는 모델·서로와 겹치지 않는다.
+            const UInt32 model = document.Find(root, "Model");
+            if (false == ReadOptions(document, model, TypeDescriptorOf<ModelImportOptions>::Get(),
+                    &parsed.modelOptions, parsed.hasModelOptions, error))
+            {
+                return false;
+            }
+            const UInt32 subAssets = model != YamlDocument::InvalidNode && document.GetKind(model) == YamlKind::Map
+                ? document.Find(model, "SubAssets") : YamlDocument::InvalidNode;
+            if (subAssets != YamlDocument::InvalidNode)
+            {
+                if (document.GetKind(subAssets) != YamlKind::Sequence)
+                {
+                    return Fail(error, document.GetLine(subAssets), "Model.SubAssets must be a list");
+                }
+                parsed.hasSubAssets = true;
+                for (std::size_t at = 0; at < document.GetCount(subAssets); ++at)
+                {
+                    const UInt32 item = document.GetElement(subAssets, at);
+                    AssetSubEntry entry;
+                    AssetType subType = AssetType::Unknown;
+                    std::string_view subName;
+                    if (document.GetKind(item) != YamlKind::Map || false == document.FindScalar(item, "Key", entry.key)
+                        || false == SplitSubAssetKey(entry.key, subType, subName))
+                    {
+                        return Fail(error, document.GetLine(item), "a sub-asset needs a Key like Mesh/Name");
+                    }
+                    if (false == ReadId(document, item, "Id", entry.id) || entry.id.IsNull() || entry.id == parsed.id)
+                    {
+                        return Fail(error, document.GetLine(item), "a sub-asset needs its own Id");
+                    }
+                    for (std::size_t seen = 0; seen < parsed.subAssets.Size(); ++seen)
+                    {
+                        if (parsed.subAssets[seen].key == entry.key || parsed.subAssets[seen].id == entry.id)
+                        {
+                            return Fail(error, document.GetLine(item), "two sub-assets share a key or an id");
+                        }
+                    }
+                    parsed.subAssets.Add(std::move(entry));
+                }
+            }
 
             result = parsed;
             return true;
         }
+    }
+
+    Bool SplitSubAssetKey(std::string_view key, AssetType& type, std::string_view& name)
+    {
+        const std::size_t slash = key.find('/');
+        if (slash == std::string_view::npos || slash == 0 || slash + 1 >= key.size())
+        {
+            return false;
+        }
+        type = AssetTypeRules::ParseTypeName(key.substr(0, slash));
+        name = key.substr(slash + 1);
+        // 모델의 하위 에셋은 메시·재질·내장 그림뿐이다.
+        return type == AssetType::Mesh || type == AssetType::Material || type == AssetType::Texture;
     }
 
     Bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error)
@@ -232,6 +286,37 @@ namespace JBro
                     &meta.stringTableOptions, error))
             {
                 return false;
+            }
+            writer.EndMap();
+        }
+        // 모델 블록은 모델에만 적는다. 옵션과 하위 목록 둘 다 없으면 블록이 없다 - 다음 에디터 스캔이 모델을 읽어 채운다.
+        if (meta.type == AssetType::Model && (meta.hasModelOptions || meta.hasSubAssets))
+        {
+            writer.BeginMap("Model");
+            if (meta.hasModelOptions && false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<ModelImportOptions>::Get(),
+                    &meta.modelOptions, error))
+            {
+                return false;
+            }
+            if (meta.hasSubAssets)
+            {
+                writer.BeginSequence("SubAssets");
+                for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+                {
+                    const AssetSubEntry& entry = meta.subAssets[index];
+                    AssetType subType = AssetType::Unknown;
+                    std::string_view subName;
+                    if (entry.id.IsNull() || false == SplitSubAssetKey(entry.key, subType, subName))
+                    {
+                        return false;
+                    }
+                    writer.BeginMap(nullptr);
+                    writer.WriteString("Key", entry.key.c_str());
+                    entry.id.ToText(idText, sizeof(idText));
+                    writer.WriteString("Id", idText);
+                    writer.EndMap();
+                }
+                writer.EndSequence();
             }
             writer.EndMap();
         }

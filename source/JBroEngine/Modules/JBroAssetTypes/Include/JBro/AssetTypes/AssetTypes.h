@@ -49,7 +49,10 @@ namespace JBro
         // 소리 이펙트 하나다(D-306, 기존 `.jfx`). 본문은 `Effect: { Kind, Parameters }` YAML 이고 `AudioSource.audioEffectIds` 가 차례로 건다.
         AudioEffect,
         // 노드 그래프 하나다(D-323). 본문이 그래프 YAML 이고 첫 키 `Domain` 이 어느 도메인의 그래프인지 정한다. 에디터의 노드 그래프 창이 연다.
-        NodeGraph
+        NodeGraph,
+        // 3D 모델 파일 하나다(D-338, `.fbx .gltf .glb .obj`). 파일 안의 메시·재질은 `owner` 가 이 모델인 하위 `Mesh`·`Material` 레코드다.
+        // 하위 목록은 `.jmeta` 의 `Model.SubAssets` 에 있고 아이디가 키(`Mesh/Body`)로 고정된다.
+        Model
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반
@@ -99,10 +102,22 @@ namespace JBro
         Linear
     };
 
+    // 텍스처를 어느 색 공간으로 읽는가(D-339). `Auto` 는 쓰임새가 정한다 - 일반 그림과 재질의 기본색·발광 칸은 sRGB, 노멀·거칠기 따위 칸은 선형이다.
+    enum class TextureColorSpace : std::uint8_t
+    {
+        Auto,
+        Srgb,
+        Linear
+    };
+
     // 텍스처 임포트 옵션이다. `.jmeta` 의 `Texture.ImportOptions` 로 저장된다(D-117).
     struct TextureImportOptions
     {
         TextureFilter filter = TextureFilter::Default;
+        // **값만 저장한다**(D-339 (a)) - 효과(sRGB 뷰·밉 체인)는 3D 가 텍스처를 처음 그리는 재질 단계에서 켠다. 지금 2D 그림에는 변화가 없다.
+        TextureColorSpace colorSpace = TextureColorSpace::Auto;
+        // 일반 그림은 끈다(2D 픽셀 아트는 밉이 없어야 한다). 모델의 내장 그림은 켠 채로 만든다(model-import-plan 5 단계).
+        Bool mipmaps = false;
     };
 
     // 모델의 법선을 어디서 얻는가(D-339). `Import` 는 파일의 것이고 파일에 없으면 계산한다. `Calculate` 는 파일의 것을 버리고 늘 계산한다.

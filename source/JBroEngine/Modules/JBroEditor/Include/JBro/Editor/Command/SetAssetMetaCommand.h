@@ -20,6 +20,9 @@ namespace JBro
         // 메타의 주인(텍스처 등)과, 이미지면 함께 선 스프라이트. 로드돼 있는 것만 in-place 재로드된다.
         AssetId id;
         AssetId spriteId;
+        // 메타를 쓴 뒤 부른다(실행·되돌리기·다시 하기 모두). 모델은 하위 목록이 바뀔 수 있어 에디터가 레지스트리를 다시 훑게 한다(D-338).
+        void (*afterWrite)(void* user) = nullptr;
+        void* afterWriteUser = nullptr;
     };
 
     // 에셋의 임포트 옵션을 되돌릴 수 있게 고친다(D-120).

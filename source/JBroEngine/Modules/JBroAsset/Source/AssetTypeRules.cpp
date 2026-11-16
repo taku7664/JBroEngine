@@ -31,6 +31,7 @@ namespace JBro
             {AssetType::Layer, "Layer"},
             {AssetType::AudioEffect, "AudioEffect"},
             {AssetType::NodeGraph, "NodeGraph"},
+            {AssetType::Model, "Model"},
         };
 
         struct Extension
@@ -47,9 +48,11 @@ namespace JBro
             {".jpeg", AssetType::Texture},
             {".bmp", AssetType::Texture},
             {".tga", AssetType::Texture},
-            {".obj", AssetType::Mesh},
-            {".gltf", AssetType::Mesh},
-            {".glb", AssetType::Mesh},
+            // 모델 파일은 `Model` 이다(D-338). 그 안의 메시는 하위 `Mesh` 레코드다.
+            {".fbx", AssetType::Model},
+            {".obj", AssetType::Model},
+            {".gltf", AssetType::Model},
+            {".glb", AssetType::Model},
             {".jmat", AssetType::Material},
             {".hlsl", AssetType::Shader},
             {".jcanvas", AssetType::Canvas},
