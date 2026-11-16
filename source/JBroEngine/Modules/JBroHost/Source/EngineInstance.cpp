@@ -19,6 +19,8 @@
 #include <JBro/NetworkSystem/NetworkHost.h>
 
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/AssetMetaFile.h>
+#include <JBro/Asset/ModelImport.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
@@ -476,6 +478,23 @@ namespace JBro
             break;
         case FileEventKind::Modified:
         {
+            // **모델 파일이 바뀌면 하위 목록부터 맞춘다**(D-342, model-import-plan 4 단계). 메시가 생기거나 이름이 바뀌었을 수 있다 - 같은 키는 아이디를
+            // 지키고 새 키는 새 아이디다. 목록이 달라졌으면 메타를 쓰고 다시 훑는다(메타를 쓴 것은 메타 이벤트라 위에서 걸러진다). 감시는 에디터만 켠다.
+            if (const AssetRecord* changed = m_assetRegistry.FindByPath(event.path);
+                changed != nullptr && changed->type == AssetType::Model && m_watchAssetDirectory)
+            {
+                const String metaPath = m_assets->GetMetaPath(*changed);
+                AssetMetaFile meta;
+                AssetMetaError metaError;
+                Bool listChanged = false;
+                String modelError;
+                if (LoadAssetMetaFile(*m_platform, metaPath.c_str(), meta, metaError)
+                    && RefreshModelSubAssets(*m_platform, m_assetRoot.c_str(), event.path, meta, listChanged, modelError)
+                    && listChanged && SaveAssetMetaFile(*m_platform, metaPath.c_str(), meta))
+                {
+                    m_assetRescanPending = true;
+                }
+            }
             recordsAt(event.path, ids);
             for (std::size_t index = 0; index < ids.Size(); ++index)
             {

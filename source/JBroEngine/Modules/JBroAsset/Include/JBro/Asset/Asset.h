@@ -17,6 +17,8 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
 
+#include <JBro/Asset/ModelDecoder.h>
+
 namespace JBro
 {
     class IPlatform;
@@ -115,6 +117,17 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
+    // 로드된 메시다(D-338, model-import-plan 4 단계). 모델의 하위 `Mesh` 레코드 하나 - 모델 파일을 읽어 그 이름의 메시를 꺼낸 것이다.
+    // **CPU 자료만이다** - GPU 메시는 `MeshLibrary`(Framework3DSystem)가 든다(스프라이트와 같은 자리, asset-plan §2.5). 정점은 엔진 좌표·엔진 감김이다
+    // (`ModelDecoder`). `dataGeneration` 은 in-place 재로드마다 오른다 - 라이브러리가 이것을 보고 다시 올린다.
+    struct MeshData
+    {
+        Array<ModelVertex> vertices;
+        Array<UInt32> indices;
+        Bool hasUvs = false;
+        UInt32 dataGeneration = 1;
+    };
+
     // 워커에서 디코드할 에셋 하나다(D-236). `AssetSystem::PrepareDecode`(메인)가 경로와 옵션을 채우고, `DecodeAssetFile`
     // (어느 스레드든)이 파일을 읽어 자료를 채우며, `AssetSystem::AdoptDecoded`(메인)가 풀에 넣는다. 텍스처와 오디오만 이 길로
     // 간다 - 스프라이트는 주인 텍스처가 무거운 몫이라 그 텍스처가 대신 가고, 폰트·문자열 표는 파일을 한 번 읽을 뿐이라 동기
@@ -203,6 +216,7 @@ namespace JBro
         const FontFamilyData* GetFontFamily(AssetHandle handle) const;
         const StringTableData* GetStringTable(AssetHandle handle) const;
         const AudioEffectData* GetAudioEffect(AssetHandle handle) const;
+        const MeshData* GetMesh(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
@@ -271,6 +285,12 @@ namespace JBro
         void ReleaseFamilyFonts(FontFamilyData& data);
         Bool ReadStringTable(const AssetRecord& record, StringTableData& data);
         Bool ReadAudioEffect(const AssetRecord& record, AudioEffectData& data);
+        // 모델의 하위 메시 하나를 읽는다. 같은 모델의 메시를 연달아 읽는 일이 흔해 마지막으로 읽은 모델 하나를 들고 있는다.
+        Bool ReadMesh(const AssetRecord& record, MeshData& data);
+        // 곁 파일(`.gltf` 의 `.bin`, OBJ 의 `.mtl`)은 에셋이 아니라 레지스트리에 없다 - 에셋 폴더에서 바로 읽는다. 패키지에서는 아직 읽지 못한다(6 단계).
+        Bool ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const;
+        AssetId m_decodedModelId;
+        ModelData m_decodedModel;
         void NotifyAudioRelease(UInt32 slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
@@ -297,6 +317,7 @@ namespace JBro
         Pool<FontFamilyData> m_fontFamilies;
         Pool<StringTableData> m_stringTables;
         Pool<AudioEffectData> m_audioEffects;
+        Pool<MeshData> m_meshes;
         AudioReleaseCallback m_audioRelease = nullptr;
         UInt32 m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;

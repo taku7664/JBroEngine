@@ -18,7 +18,8 @@ namespace JBro::System
     public:
         Int32 GetExecutionOrder() const override;
         void SetRenderWorld(RenderWorld3D* renderWorld);
-        void SetMeshLibrary(const MeshLibrary* library);
+        // 라이브러리는 처음 만난 모델 메시를 올리므로 고칠 수 있는 것을 받는다(D-342).
+        void SetMeshLibrary(MeshLibrary* library);
         void ExtractRenderWorld(Canvas& canvas);
 
     protected:
@@ -26,6 +27,6 @@ namespace JBro::System
 
     private:
         RenderWorld3D* m_renderWorld = nullptr;
-        const MeshLibrary* m_library = nullptr;
+        MeshLibrary* m_library = nullptr;
     };
 }

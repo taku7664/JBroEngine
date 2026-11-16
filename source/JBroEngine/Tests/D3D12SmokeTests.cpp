@@ -125,6 +125,11 @@ namespace
                 png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
             };
             writePng("hero.png");
+            const auto writeObj = [&](const char* text) {
+                std::ofstream obj(root / "Assets" / "crate.obj", std::ios::binary);
+                obj << text;
+            };
+            writeObj("v 0 0 0\nv 1 0 0\nv 0 1 0\no Lid\nf 1 2 3\n");
             const fs::path projectPath = root / "Smoke.jproject";
             {
                 std::ofstream file(projectPath, std::ios::binary);
@@ -177,6 +182,29 @@ namespace
                 }), "a renamed file keeps its id");
             Check(fs::exists(root / "Assets" / "renamed.png.jmeta", ignored), "and its meta moved with it");
             Check(engine.GetAssetRegistry().FindByPath("extra.png") == nullptr, "and the old path is gone");
+
+            // **모델 파일을 고치면 하위 목록이 맞춰지고 로드된 메시가 다시 읽힌다**(D-342). 메시 하나에서 둘로 - 처음 메시는 같은 아이디다.
+            {
+                const JBro::AssetRecord* crate = engine.GetAssetRegistry().FindByPath("crate.obj");
+                Check(crate != nullptr && crate->type == JBro::AssetType::Model, "the model is registered");
+                const JBro::AssetId crateId = crate->id;
+                JBro::Array<JBro::AssetId> parts;
+                engine.GetAssetRegistry().CollectOwned(crateId, parts);
+                Check(parts.Size() == 1, "with its one mesh");
+                const JBro::AssetId lidId = parts[0];
+                const JBro::AssetHandle lid = assets->Load(lidId);
+                Check(lid.generation != 0 && assets->GetMesh(lid) != nullptr && assets->GetMesh(lid)->indices.Size() == 3, "the mesh loads");
+                writeObj("v 0 0 0\nv 1 0 0\nv 0 1 0\nv 0 0 1\no Lid\nf 1 2 3\no Base\nf 1 3 4\n");
+                Check(pollUntil([&]() {
+                        JBro::Array<JBro::AssetId> now;
+                        engine.GetAssetRegistry().CollectOwned(crateId, now);
+                        return now.Size() == 2 && assets->GetMesh(lid) != nullptr && assets->GetMesh(lid)->dataGeneration >= 2;
+                    }), "a second mesh in the file becomes a second sub-asset, and the loaded mesh reloads");
+                Check(engine.GetAssetRegistry().Find(lidId) != nullptr && engine.GetAssetRegistry().Find(lidId)->name == "Lid",
+                    "the first mesh keeps its id across the change");
+                Check(assets->Find(lidId).generation == lid.generation, "under the same handle");
+                assets->Release(lid);
+            }
 
             // 폴더를 읽지 못하는 다시 스캔은 거짓이고 레지스트리를 두어야 한다. 감시 핸들이 폴더를 붙들고 있어 지우지는
             // 못하지만 이름은 바꿀 수 있다 - 못 바꾸는 파일 시스템이면 이 검사는 건너뛴다.

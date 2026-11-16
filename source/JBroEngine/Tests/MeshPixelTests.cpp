@@ -13,8 +13,12 @@
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Math3D.h>
+#include <JBro/Asset/Asset.h>
+#include <JBro/Asset/AssetRegistry.h>
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -122,8 +126,10 @@ namespace
             JBro::FrameTarget frameTarget;
             frameTarget.texture = target;
             frameTarget.extent = {TargetWidth, TargetHeight};
-            Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
+            // **호스트와 같은 차례다** - 갱신(Update)이 먼저, 렌더 프레임이 나중이다(`EngineInstance::Tick`). 렌더러는 프레임 안의 등록을 거절하므로
+            // 갱신에서 처음 만난 모델 메시를 올리는 길(D-342)은 이 차례에서만 선다. 전에는 거꾸로 불러도 빌트인만 있어 드러나지 않았다.
             JBro::Testing::Tick(framework, 1.0f / 60.0f);
+            Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
             Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit its view");
             Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must finish");
             image.Resize(TargetWidth * TargetHeight * 4);
@@ -670,8 +676,115 @@ namespace
     }
 }
 
+namespace
+{
+    // 카메라(z=3, 세로 화각 60°)에서 보이는 평면 z=0 의 삼각형 하나다. 위(+Z)에서 볼 때 반시계라 앞면이 카메라를 본다.
+    const char* const UpperLeftTriangle = "v -2.2 0.6 0\nv -1.0 0.6 0\nv -1.6 1.5 0\nf 1 2 3\n";
+    const char* const LowerRightTriangle = "v 1.0 -1.5 0\nv 2.2 -1.5 0\nv 1.6 -0.6 0\nf 1 2 3\n";
+
+    void WriteText(const std::filesystem::path& path, const char* text)
+    {
+        std::filesystem::create_directories(path.parent_path());
+        std::ofstream file(path, std::ios::binary);
+        file << text;
+    }
+
+    // **모델의 메시가 그려진다**(D-338·D-342, model-import-plan 4 단계). 레지스트리 스캔 → 해석 패스(`BindCanvasAssets`)가 `meshId` 로 에셋 핸들을 채움 →
+    // `MeshLibrary` 가 CPU 자료를 처음 만날 때 렌더러에 올림. 삼각형은 화면 왼쪽 위에 있어, 정육면체 대체(가운데)와 갈린다.
+    // 파일을 고쳐 다시 읽으면(in-place 재로드, 자료 세대가 오른다) 라이브러리가 다시 올려 그림이 오른쪽 아래로 옮겨진다.
+    template <typename TModule>
+    void TestAModelMeshIsDrawnAndFollowsAReload()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; model meshes not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroModelMeshProbe·모델";
+        fs::remove_all(root);
+        WriteText(root / "props" / "shard.obj", UpperLeftTriangle);
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const JBro::AssetRecord* model = registry.FindByPath("props/shard.obj");
+        Check(model != nullptr, "the model is registered");
+        JBro::Array<JBro::AssetId> parts;
+        registry.CollectOwned(model->id, parts);
+        Check(parts.Size() == 1 && registry.Find(parts[0])->type == JBro::AssetType::Mesh, "with its one mesh");
+        const JBro::AssetId meshId = parts[0];
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes with the renderer and the assets");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* shard = canvas.CreateObject("shard");
+        canvas.AttachComponent<JBro::Component::Transform3D>(shard);
+        auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(shard);
+        mesh->meshId = meshId;
+        mesh->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+        framework.BindCanvasAssets();
+        Check(mesh->mesh.generation != 0 && assets.GetMesh(mesh->mesh) != nullptr, "the resolve pass fills the component with the mesh asset");
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        stage.RenderOnce(framework, image, readback);
+        Check(framework.GetMeshLibrary().GetUploadedAssetCount() == 1, "the library uploads the model's mesh once");
+        const Pixel upperLeft = ReadPixel(image, readback.rowPitch, 18, 16);
+        const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        const Pixel lowerRight = ReadPixel(image, readback.rowPitch, 77, 53);
+        std::cout << "  model mesh: upper-left " << upperLeft.r.Get() << ", centre " << center.r.Get() << ", lower-right " << lowerRight.r.Get() << std::endl;
+        Check(Near(upperLeft.r, 0.587f, 0.05f), "the triangle is drawn where the file put it, lit from the front");
+        Check(Near(center.r, 0.0f) && Near(lowerRight.r, 0.0f), "and nowhere else - it is not the cube fallback");
+
+        // 파일을 고치고 다시 읽는다. 핸들은 그대로이고 자료 세대가 올라 라이브러리가 다시 올린다.
+        const JBro::AssetHandle before = mesh->mesh;
+        WriteText(root / "props" / "shard.obj", LowerRightTriangle);
+        Check(assets.ReloadInPlace(meshId), "the mesh reloads in place");
+        Check(mesh->mesh.index == before.index && mesh->mesh.generation == before.generation, "keeping its handle");
+        stage.RenderOnce(framework, image, readback);
+        const Pixel movedUpperLeft = ReadPixel(image, readback.rowPitch, 18, 16);
+        const Pixel movedLowerRight = ReadPixel(image, readback.rowPitch, 77, 53);
+        Check(Near(movedLowerRight.r, 0.587f, 0.05f) && Near(movedUpperLeft.r, 0.0f), "after the reload the triangle is drawn where the file now puts it");
+        Check(framework.GetMeshLibrary().GetUploadedAssetCount() == 1, "the old upload was replaced, not added to");
+        // 한 번 더 고친다. 이제 에셋 시스템은 방금 읽은 모델을 들고 있다 - 다시 읽기가 그것을 버리지 않으면 낡은 자리를 그린다
+        // (첫 다시 읽기는 해석 패스의 `CollectUnused` 가 비워 둔 뒤라 이것을 드러내지 못했다 - 뮤테이션이 지나갔다).
+        WriteText(root / "props" / "shard.obj", UpperLeftTriangle);
+        Check(assets.ReloadInPlace(meshId), "the mesh reloads in place again");
+        stage.RenderOnce(framework, image, readback);
+        Check(Near(ReadPixel(image, readback.rowPitch, 18, 16).r, 0.587f, 0.05f) && Near(ReadPixel(image, readback.rowPitch, 77, 53).r, 0.0f),
+            "a second reload reads the file again rather than the model it last decoded");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+}
+
 JBro::Int32 RunMeshPixelTests()
 {
+    TestAModelMeshIsDrawnAndFollowsAReload<JBro::D3D12RHIModule>();
+    TestAModelMeshIsDrawnAndFollowsAReload<JBro::D3D11RHIModule>();
+    TestAModelMeshIsDrawnAndFollowsAReload<JBro::VulkanRHIModule>();
     TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::D3D12RHIModule>();
     TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::D3D11RHIModule>();
     TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::VulkanRHIModule>();

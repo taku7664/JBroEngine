@@ -22,7 +22,7 @@ namespace JBro::System
         m_renderWorld = renderWorld;
     }
 
-    void MeshRender3DSystem::SetMeshLibrary(const MeshLibrary* library)
+    void MeshRender3DSystem::SetMeshLibrary(MeshLibrary* library)
     {
         m_library = library;
     }
@@ -50,18 +50,21 @@ namespace JBro::System
             {
                 return;
             }
-            // 해석 패스. 저장되는 것은 아이디고 핸들은 이번 실행의 자리다 - 비어 있으면 표에서 채운다.
-            if (renderer.mesh.generation == 0 && false == renderer.meshId.IsNull() && m_library != nullptr)
+            // **컴포넌트의 `mesh` 는 에셋 시스템의 핸들이다**(D-342) - 해석 패스(`BindCanvasAssets`)가 `meshId` 로 채운다. 이 시스템은 그것을 되쓰지 않고
+            // 라이브러리로 렌더러 메시를 푼다(2D 의 스프라이트와 같다). 모델의 메시가 아니면(빌트인 도형은 레지스트리에 없어 핸들이 빈다) 아이디로 빌트인 표를 본다.
+            AssetHandle mesh;
+            if (m_library != nullptr)
             {
-                renderer.mesh = m_library->Resolve(renderer.meshId);
-            }
-            // **풀리지 않으면 정육면체다**(D-335 우선순위 2). 2D 의 `SpriteRenderer2D` 가 스프라이트가 비었거나 풀리지 않으면 흰 사각형을
-            // 그리는 것과 같다 - `컴포넌트 추가` 로 붙이자마자 보이고, 메시 칸에서 다른 도형·에셋을 고른다. 컴포넌트의 핸들에는 넣지 않는다:
-            // 넣으면 다음 Update 의 해석 패스가 채워진 핸들을 보고 진짜 메시를 다시 찾지 않는다.
-            AssetHandle mesh = renderer.mesh;
-            if (mesh.generation == 0 && m_library != nullptr)
-            {
-                mesh = m_library->Resolve(MeshLibrary::BuiltinCubeId());
+                mesh = m_library->ResolveAsset(renderer.mesh);
+                if (mesh.generation == 0 && false == renderer.meshId.IsNull())
+                {
+                    mesh = m_library->Resolve(renderer.meshId);
+                }
+                // **풀리지 않으면 정육면체다**(D-337). 2D 의 `SpriteRenderer2D` 가 스프라이트가 비었거나 풀리지 않으면 흰 사각형을 그리는 것과 같다.
+                if (mesh.generation == 0)
+                {
+                    mesh = m_library->Resolve(MeshLibrary::BuiltinCubeId());
+                }
             }
             if (mesh.generation == 0)
             {

@@ -1,5 +1,8 @@
 ﻿#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 
+#include <JBro/Asset/Asset.h>
+#include <JBro/Types/Int.h>
+
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Types/Bool.h>
@@ -258,10 +261,12 @@ namespace JBro
         return BuiltinMesh{entry.name, Uuid::FromName(entry.uuidName)};
     }
 
-    Bool MeshLibrary::Initialize(Renderer* renderer)
+    Bool MeshLibrary::Initialize(Renderer* renderer, AssetSystem* assets)
     {
         m_renderer = renderer;
+        m_assets = assets;
         m_entries.Clear();
+        m_assetEntries.Clear();
         if (renderer == nullptr || false == renderer->IsInitialized())
         {
             return true;
@@ -287,9 +292,86 @@ namespace JBro
             {
                 m_renderer->UnregisterMesh(m_entries[index].handle);
             }
+            for (std::size_t index = 0; index < m_assetEntries.Size(); ++index)
+            {
+                if (m_assetEntries[index].rendererMesh.generation != 0)
+                {
+                    m_renderer->UnregisterMesh(m_assetEntries[index].rendererMesh);
+                }
+            }
         }
         m_entries.Clear();
+        m_assetEntries.Clear();
         m_renderer = nullptr;
+        m_assets = nullptr;
+    }
+
+    AssetHandle MeshLibrary::ResolveAsset(AssetHandle meshAsset)
+    {
+        if (m_assets == nullptr || m_renderer == nullptr || false == m_renderer->IsInitialized() || meshAsset.generation == 0)
+        {
+            return {};
+        }
+        const MeshData* mesh = m_assets->GetMesh(meshAsset);
+        if (mesh == nullptr || mesh->vertices.Size() == 0 || mesh->indices.Size() == 0)
+        {
+            return {};
+        }
+        // 풀의 슬롯 번호로 자리를 판다(위 8 비트는 타입, D-322 (2)). 표는 첫 만남 때만 자란다 - 프레임마다가 아니다.
+        const UInt32 slot = meshAsset.index & ((1u << 24) - 1);
+        if (slot >= m_assetEntries.Size())
+        {
+            m_assetEntries.Resize(static_cast<std::size_t>(slot) + 1);
+        }
+        AssetEntry& entry = m_assetEntries[slot.Get()];
+        const Bool sameAsset = entry.asset.index == meshAsset.index && entry.asset.generation == meshAsset.generation;
+        if (sameAsset && entry.rendererMesh.generation != 0 && entry.dataGeneration == mesh->dataGeneration)
+        {
+            return entry.rendererMesh;
+        }
+        if (sameAsset && entry.rendererMesh.generation == 0 && entry.failedGeneration == mesh->dataGeneration)
+        {
+            return {};
+        }
+        // 처음 만났거나, 슬롯을 다른 메시가 다시 썼거나, 같은 메시가 다시 읽혔다(세대가 올랐다). 옛것을 내리고 새로 올린다.
+        if (entry.rendererMesh.generation != 0)
+        {
+            m_renderer->UnregisterMesh(entry.rendererMesh);
+            entry.rendererMesh = {};
+        }
+        // 렌더러의 정점은 위치·법선뿐이다(UV 는 재질 단계에서 붙는다, model-import-plan §4).
+        Array<MeshVertex> vertices;
+        vertices.Resize(mesh->vertices.Size());
+        for (std::size_t index = 0; index < vertices.Size(); ++index)
+        {
+            const ModelVertex& source = mesh->vertices[index];
+            for (Int32 axis = 0; axis < 3; ++axis)
+            {
+                vertices[index].position[axis.Get()] = source.position[axis.Get()];
+                vertices[index].normal[axis.Get()] = source.normal[axis.Get()];
+            }
+        }
+        const JArrayView<MeshVertex> vertexView{vertices.Data(), static_cast<UInt32>(vertices.Size())};
+        const JArrayView<UInt32> indexView{mesh->indices.Data(), static_cast<UInt32>(mesh->indices.Size())};
+        entry.asset = meshAsset;
+        entry.rendererMesh = m_renderer->RegisterMesh(vertexView, indexView);
+        if (entry.rendererMesh.generation == 0)
+        {
+            entry.failedGeneration = mesh->dataGeneration;
+            return {};
+        }
+        entry.dataGeneration = mesh->dataGeneration;
+        return entry.rendererMesh;
+    }
+
+    std::size_t MeshLibrary::GetUploadedAssetCount() const
+    {
+        std::size_t count = 0;
+        for (std::size_t index = 0; index < m_assetEntries.Size(); ++index)
+        {
+            count += m_assetEntries[index].rendererMesh.generation != 0 ? 1 : 0;
+        }
+        return count;
     }
 
     AssetHandle MeshLibrary::Resolve(AssetId id) const

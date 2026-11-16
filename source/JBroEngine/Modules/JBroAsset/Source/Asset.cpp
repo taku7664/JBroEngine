@@ -5,6 +5,7 @@
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Asset/AudioEffectFile.h>
+#include <JBro/Asset/ModelDecoder.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -761,6 +762,93 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
+    const MeshData* AssetSystem::GetMesh(AssetHandle handle) const
+    {
+        const Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const
+    {
+        out.Clear();
+        if (m_platform == nullptr || m_assetRoot.empty())
+        {
+            return false;
+        }
+        String path = m_assetRoot;
+        if (path.back() != '/' && path.back() != '\\')
+        {
+            path += "/";
+        }
+        path += String(relativePath);
+        return m_platform->ReadWholeFile(path.c_str(), out);
+    }
+
+    Bool AssetSystem::ReadMesh(const AssetRecord& record, MeshData& data)
+    {
+        // 하위 메시는 모델 파일 안의 이름이 그 메시다(`AssetRecord::name`). 모델 레코드의 메타가 옵션을 든다.
+        const AssetRecord* model = record.owner.IsNull() || m_registry == nullptr ? nullptr : m_registry->Find(record.owner);
+        if (model == nullptr || model->type != AssetType::Model || m_source == nullptr)
+        {
+            return false;
+        }
+        if (m_decodedModelId != model->id)
+        {
+            AssetMetaFile meta;
+            if (false == ReadMeta(*model, meta))
+            {
+                return false;
+            }
+            Array<std::byte> bytes;
+            if (false == m_source->Read(*model, AssetBlob::Source, bytes))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the model file could not be read", model->relativePath.c_str());
+                return false;
+            }
+            struct SideReader
+            {
+                const AssetSystem* assets;
+                String folder;
+                static Bool Read(void* user, const char* relativePath, Array<std::byte>& out)
+                {
+                    const SideReader& self = *static_cast<const SideReader*>(user);
+                    String path = self.folder;
+                    path += relativePath;
+                    return self.assets->ReadLooseFile(path, out);
+                }
+            };
+            const std::size_t slash = model->relativePath.find_last_of('/');
+            SideReader side{this, slash == String::npos ? String() : String(model->relativePath.substr(0, slash + 1))};
+            ModelFileReader reader;
+            reader.read = &SideReader::Read;
+            reader.user = &side;
+            ModelData decoded;
+            String error;
+            if (false == DecodeModel({bytes.Data(), static_cast<UInt32>(bytes.Size())}, ModelFormatFromPath(model->relativePath),
+                    meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, reader, decoded, error))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: %s", model->relativePath.c_str(), error.c_str());
+                return false;
+            }
+            m_decodedModel = std::move(decoded);
+            m_decodedModelId = model->id;
+        }
+        for (std::size_t index = 0; index < m_decodedModel.meshes.Size(); ++index)
+        {
+            const ModelMesh& mesh = m_decodedModel.meshes[index];
+            if (mesh.name == record.name)
+            {
+                data.vertices = mesh.vertices;
+                data.indices = mesh.indices;
+                data.hasUvs = mesh.hasUvs;
+                return true;
+            }
+        }
+        // 메타의 목록이 파일보다 낡았다(파일이 바뀌고 목록을 아직 맞추지 않음). 에디터의 파일 감시가 맞춘다.
+        Log::Write(LogLevel::Warning, "asset", "%s: the model has no mesh named %s", model->relativePath.c_str(), record.name.c_str());
+        return false;
+    }
+
     const StringTableData* AssetSystem::GetStringTable(AssetHandle handle) const
     {
         const Slot<StringTableData>* slot = FindSlot(m_stringTables, handle, AssetType::StringTable);
@@ -960,6 +1048,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::Mesh:
+                if (Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -1057,6 +1152,16 @@ namespace JBro
             handle = Occupy(m_audioEffects, AssetType::AudioEffect, id, std::move(data));
             break;
         }
+        case AssetType::Mesh:
+        {
+            MeshData data;
+            if (false == ReadMesh(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_meshes, AssetType::Mesh, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -1124,6 +1229,14 @@ namespace JBro
             {
                 --effect->referenceCount;
             }
+            return;
+        }
+        if (Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        {
+            if (mesh->referenceCount != 0)
+            {
+                --mesh->referenceCount;
+            }
         }
     }
 
@@ -1141,7 +1254,8 @@ namespace JBro
             || FindSlot(m_fonts, handle, AssetType::Font) != nullptr
             || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr
             || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr
-            || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr;
+            || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr
+            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr;
     }
 
     UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -1173,6 +1287,10 @@ namespace JBro
         if (const Slot<AudioEffectData>* effect = FindSlot(m_audioEffects, handle, AssetType::AudioEffect))
         {
             return effect->referenceCount;
+        }
+        if (const Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        {
+            return mesh->referenceCount;
         }
         return 0;
     }
@@ -1295,6 +1413,20 @@ namespace JBro
             effect->data = fresh;
             return true;
         }
+        if (Slot<MeshData>* mesh = FindSlot(m_meshes, *loaded, AssetType::Mesh))
+        {
+            // 모델 파일이 바뀌었다는 뜻이다 - 들고 있던 모델을 버리고 다시 읽는다.
+            m_decodedModelId = {};
+            m_decodedModel = {};
+            MeshData fresh;
+            if (false == ReadMesh(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = mesh->data.dataGeneration + 1;
+            mesh->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -1389,6 +1521,18 @@ namespace JBro
                 ++freed;
             }
         }
+        for (UInt32 index = 0; index < m_meshes.slots.Size(); ++index)
+        {
+            Slot<MeshData>& slot = m_meshes.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_meshes, index);
+                ++freed;
+            }
+        }
+        // 들고 있던 모델도 놓는다 - 다음 메시 로드가 다시 읽는다.
+        m_decodedModelId = {};
+        m_decodedModel = {};
         return freed;
     }
 

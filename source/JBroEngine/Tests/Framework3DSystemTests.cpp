@@ -273,9 +273,10 @@ namespace
             "but the fallback is not written back - a mesh chosen later must still be looked up");
         Check(world.GetMesh(0).mesh.index == 7 && world.GetMesh(0).mesh.generation == 3,
             "with its handle resolved from the id");
-        Check(shownMesh->mesh.index == 7, "and the resolved handle written back so it is not looked up again");
+        // 컴포넌트의 `mesh` 칸은 해석 패스가 채우는 에셋 핸들이다(D-342) - 이 시스템이 렌더러 핸들을 되써서 두 종류의 핸들이 섞이지 않는다.
+        Check(shownMesh->mesh.generation == 0 && hiddenMesh->mesh.generation == 0,
+            "the system never writes renderer handles into the component's asset handle");
         Check(Near(world.GetMesh(0).tint.G, 0.5f), "carrying the tint");
-        Check(hiddenMesh->mesh.generation == 0, "a hidden mesh is not even resolved");
 
         // 용량을 넘으면 세기만 한다.
         world.BeginFrame();

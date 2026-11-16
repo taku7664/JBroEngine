@@ -66,9 +66,9 @@ Camera·MeshRender·Text·Audio, 캔버스 뷰는 궤도 카메라·3D 집기·�
   바이트코드로 컴파일)는 그 뒤에 Shader 에셋을 만드는 길이 하나 더 생기는 것이라 재질과 렌더러가 바뀌지 않는다.
   렌더러의 배치 키를 (파이프라인, 재질, 메시)로 넓힌다. RHI 에 상수·구조화 버퍼 바인딩이 먼저 필요하다(공용 todo).
 - `[열림]` `MeshRenderer3D::materialId` 는 해석하지 않는다. 메시 파이프라인 하나가 전부다.
-- `[열림]` `MeshRenderer3D::meshId` 는 빌트인 정육면체(`Uuid::FromName`)라 레지스트리에 없어 해석 패스(D-115)가 핸들을
+- ~~`[열림]` `MeshRenderer3D::meshId` 는 빌트인 정육면체(`Uuid::FromName`)라 레지스트리에 없어 해석 패스(D-115)가 핸들을
   비우고 `MeshRender3DSystem` 이 매 Update 에 `MeshLibrary` 로 다시 푼다. 메시 에셋(`.obj`·`.gltf`)이 레지스트리에 들어오면
-  `SpriteLibrary` 와 같은 모양으로 정리한다.
+  `SpriteLibrary` 와 같은 모양으로 정리한다.~~ → 완료 2026-11-16 · D-342 · 컴포넌트의 `mesh` 는 에셋 핸들, `MeshLibrary::ResolveAsset` 이 GPU 로 푼다.
 
 ## 모델 임포트의 남은 일 (D-339)
 
