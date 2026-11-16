@@ -239,6 +239,52 @@ namespace
         Check(false == EditFieldSettings(*invalid->Documents.First(), 14, change, edits, error) && edits.IsEmpty(),
             "an unsafe or incomplete syntax tree cannot be changed through the summary");
     }
+
+    // **지운 속성은 쉼표와 그 공백까지 가져간다**(Script QA 결함 9). 토큰만 지우면 `[range(1, 50) , future(3)]`·`[  category(…)]`·
+    // `[range(1, 100) ]` 처럼 공백이 남았다. 맨 앞·가운데·맨 끝을 지우거나 바꾸고, 줄바꿈이 섞인 목록도 결과 글자 그대로 본다.
+    void TestRemovedAttributesTakeTheirSeparators()
+    {
+        struct Case
+        {
+            const char* Attributes;
+            Array<SummaryAttribute> Desired;
+            const char* Expected;
+            const char* Message;
+        };
+        const Case cases[] = {
+            {"[range(1, 100), category(\"Stats\"), future(3)]", {{"category", {"\"Stats\""}}},
+                "[category(\"Stats\"), future(3)]", "removing the first attribute takes the comma and the space after it"},
+            {"[range(1, 100), category(\"Stats\"), future(3)]", {{"range", {"1", "50"}}},
+                "[range(1, 50), future(3)]", "removing a middle attribute leaves no space before the next comma"},
+            {"[range(1, 100), category(\"Stats\")]", {{"range", {"1", "100"}}},
+                "[range(1, 100)]", "removing the last attribute leaves no space before the bracket"},
+            {"[range(1, 100), category(\"Stats\")]", {{"range", {"1", "50"}}, {"category", {"\"Stats\""}}},
+                "[range(1, 50), category(\"Stats\")]", "changing an argument keeps the list as written"},
+            {"[range(1, 100),\n category(\"Stats\"),\n future(3)]", {{"range", {"1", "100"}}},
+                "[range(1, 100),\n future(3)]", "removing a line of a multi-line list removes the line and keeps one comma"},
+        };
+        for (const Case& item : cases)
+        {
+            const String source = String("class C\n{\n") + item.Attributes + " Int value = 1\n}\n";
+            const auto analysis = Analyze(source.View());
+            const DocumentAnalysis& document = *analysis->Documents.First();
+            const ScriptSummary original = SummarizeScript(*analysis, document);
+            Check(original.Valid, "the attribute list fixture is valid source");
+            FieldSettingsChange change;
+            change.ChangeAttributes = true;
+            change.Attributes = item.Desired;
+            Array<SummaryTextEdit> edits;
+            String error;
+            Check(EditFieldSettings(document, original.Types[0].Members[0].SelectionRange.Begin.Offset, change, edits, error),
+                "the attribute change is accepted");
+            const String edited = Apply(source.View(), edits);
+            if (false == edited.Contains(item.Expected))
+            {
+                std::cout << "  got: " << edited.c_str() << '\n';
+            }
+            Check(edited.Contains(String(item.Expected) + " Int value = 1"), item.Message);
+        }
+    }
 }
 
 JBro::Int32 RunScriptSummaryTests()
@@ -248,6 +294,7 @@ JBro::Int32 RunScriptSummaryTests()
     TestEdits();
     TestAddRemove();
     TestAttributeTriviaAndSeparators();
+    TestRemovedAttributesTakeTheirSeparators();
     std::cout << "  ScriptSummary tests passed\n";
     return 0;
 }

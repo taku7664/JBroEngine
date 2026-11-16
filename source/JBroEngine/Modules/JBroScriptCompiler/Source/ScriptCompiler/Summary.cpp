@@ -318,7 +318,7 @@ namespace JBro::ScriptCompiler
                             present.Add(String(node.Text));
                             if (nullptr == desired)
                             {
-                                ReplaceTokens(tokens, node.Range, {}, edits);
+                                // 지우기는 남는 속성이 다 정해진 뒤 아래에서 한다 - 앞뒤 쉼표와 공백을 함께 지우려면 이웃을 알아야 한다.
                             }
                             else if (node.ChildCount == desired->Arguments.Size())
                             {
@@ -337,21 +337,92 @@ namespace JBro::ScriptCompiler
                             }
                         }
                     }
-                    if (remaining == 0)
+                    // **지운 속성은 쉼표와 공백까지 함께 지운다.** 토큰만 지우면 `range(1, 50) , x` 처럼 공백이 쉼표 앞에 남았다(Script QA 결함 9).
+                    // 앞에 남는 속성이 있으면 "앞 속성 끝 ~ 이 속성 끝", 없으면 "이 속성 시작 ~ 다음 속성 시작" 을 지운다. 그 틈에 공백·쉼표 말고
+                    // 다른 글(주석)이 있으면 그 글을 지키려고 토큰만 지운다.
+                    const std::string_view text = document.Source.GetText();
+                    const auto onlySpaceAndComma = [&text](UInt32 begin, UInt32 end)
+                    {
+                        for (std::size_t at = begin.Get(); at < end.Get() && at < text.size(); ++at)
+                        {
+                            const char character = text[at];
+                            if (character != ' ' && character != '\t' && character != '\r' && character != '\n' && character != ',')
+                            {
+                                return false;
+                            }
+                        }
+                        return true;
+                    };
+                    Bool cleanGaps = brackets.Size() == 2 && false == group.IsEmpty();
+                    for (std::size_t index = 0; cleanGaps && index <= group.Size(); ++index)
+                    {
+                        const UInt32 gapBegin = index == 0 ? brackets[0]->Range.End.Offset : tree.Get(group[index - 1]).Range.End.Offset;
+                        const UInt32 gapEnd = index == group.Size() ? brackets[1]->Range.Begin.Offset : tree.Get(group[index]).Range.Begin.Offset;
+                        cleanGaps = onlySpaceAndComma(gapBegin, gapEnd);
+                    }
+                    if (remaining == 0 && cleanGaps)
+                    {
+                        // 남는 속성이 없으면 괄호까지 한 구간으로 지운다.
+                        edits.Add({{brackets[0]->Range.Begin, brackets[1]->Range.End}, {}});
+                    }
+                    else if (remaining == 0)
                     {
                         for (const Token* bracket : brackets)
                         {
                             edits.Add({bracket->Range, {}});
                         }
-                    }
-                    Bool seenKept = false;
-                    for (std::size_t index = 0; index < keep.Size(); ++index)
-                    {
-                        if (index > 0 && index - 1 < separators.Size() && (false == keep[index] || false == seenKept))
+                        for (NodeIndex attribute : group)
                         {
-                            edits.Add({separators[index - 1]->Range, {}});
+                            ReplaceTokens(tokens, tree.Get(attribute).Range, {}, edits);
                         }
-                        seenKept = seenKept || keep[index];
+                        for (const Token* separator : separators)
+                        {
+                            edits.Add({separator->Range, {}});
+                        }
+                    }
+                    else
+                    {
+                        Bool seenKept = false;
+                        for (std::size_t index = 0; index < keep.Size(); ++index)
+                        {
+                            if (false == keep[index])
+                            {
+                                const SourceRange current = tree.Get(group[index]).Range;
+                                if (seenKept)
+                                {
+                                    const SourceRange previous = tree.Get(group[index - 1]).Range;
+                                    if (onlySpaceAndComma(previous.End.Offset, current.Begin.Offset))
+                                    {
+                                        edits.Add({{previous.End, current.End}, {}});
+                                    }
+                                    else
+                                    {
+                                        ReplaceTokens(tokens, current, {}, edits);
+                                        if (index - 1 < separators.Size())
+                                        {
+                                            edits.Add({separators[index - 1]->Range, {}});
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    const SourceRange next = tree.Get(group[index + 1]).Range;
+                                    if (onlySpaceAndComma(current.End.Offset, next.Begin.Offset))
+                                    {
+                                        edits.Add({{current.Begin, next.Begin}, {}});
+                                    }
+                                    else
+                                    {
+                                        ReplaceTokens(tokens, current, {}, edits);
+                                        if (index < separators.Size())
+                                        {
+                                            edits.Add({separators[index]->Range, {}});
+                                        }
+                                    }
+                                }
+                            }
+                            seenKept = seenKept || keep[index];
+                        }
                     }
                     brackets.Clear();
                     separators.Clear();
