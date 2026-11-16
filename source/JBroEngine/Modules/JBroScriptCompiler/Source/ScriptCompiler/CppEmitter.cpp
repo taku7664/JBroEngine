@@ -1236,13 +1236,16 @@ namespace JBro::ScriptCompiler
                             attributeCode += " | ";
                         }
                         attributeCode += native + "(";
+                        // `Range`·`Clamp` 는 `Float` 둘을 받는다. `[range(1, 100)]` 의 정수는 `Float` 로 저절로 바뀌지 않으므로(D-290) 명시해 넘긴다.
+                        const Bool floatArguments = text == "range" || text == "clamp";
                         for (std::size_t argument = 0; argument < arity; ++argument)
                         {
                             if (argument != 0)
                             {
                                 attributeCode += ", ";
                             }
-                            attributeCode += Expr(Child(attribute, argument)).code;
+                            const String value = Expr(Child(attribute, argument)).code;
+                            attributeCode += floatArguments ? String(NativeType({"Float", false}) + "(" + value + ")") : value;
                         }
                         attributeCode += ")";
                     }
@@ -1633,6 +1636,96 @@ namespace JBro::ScriptCompiler
                 return {};
             }
 
+            // `a?.b.c` 에서 `?.` 는 뒤의 `.c` 까지 건너뛴다 - 분석이 받는 쪽의 null 건너뛰기를 사슬 끝까지 넘기는 것과 같게 본다
+            // (`Analysis.cpp` 의 `receiver.NullSafe`). 넘기지 않으면 `.c` 가 `Require` 로 내려가 `a` 가 없을 때 콜백을 멈추고, 결과가 값이 되어
+            // 이어지는 `??` 가 값에 `IsPresent` 를 불렀다.
+            Bool InNullSafeChain(NodeIndex index) const
+            {
+                for (std::size_t depth = 0; index != InvalidNode && depth < 256; ++depth)
+                {
+                    const SyntaxNode& node = Node(index);
+                    if (node.Kind == SyntaxKind::MemberAccessExpression)
+                    {
+                        if (node.Flags & SyntaxFlagNullSafe)
+                        {
+                            return true;
+                        }
+                        index = Child(index, 0);
+                    }
+                    else if (node.Kind == SyntaxKind::CallExpression && Node(Child(index, 0)).Kind == SyntaxKind::MemberAccessExpression)
+                    {
+                        index = Child(index, 0);
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                return false;
+            }
+
+            // 출력 인자로 투영한 엔진 함수(lsp-plan §5 - 스크립트는 반환값으로 받는다)를 원래 C++ 호출로 되돌린다. `target` 은 받는 쪽과
+            // 구분자까지(`(x).`·`T::`)이고, 돌려주는 글자는 `callType` 을 돌려주는 람다의 몸이다. 출력 하나를 성공 여부나 모음으로 받는 모양과
+            // 찾은 값의 포인터를 돌려주는 모양을 내린다. 버퍼와 길이(`Count`)·반환값의 필드를 섞는 모양은 아직 내리지 못한다고 알린다.
+            String ProjectedCallBody(const ApiMember& member, const String& target, const String& method,
+                const Array<String>& arguments, const Type& callType)
+            {
+                const String result = NativeType(callType);
+                String joined;
+                for (std::size_t index = 0; index < arguments.Size(); ++index)
+                {
+                    joined += index == 0 ? "" : ", ";
+                    joined += arguments[index];
+                }
+                if (member.NativeOutputParameters.IsEmpty())
+                {
+                    if (member.Projection != ApiProjectionKind::NullableReturn)
+                    {
+                        Error("C++ emitter does not support the output projection of " + String(member.Name));
+                        return {};
+                    }
+                    return "auto* jbro_gen_found = " + target + method + "(" + joined + "); if (jbro_gen_found == nullptr) { return {}; } "
+                        "return " + result + "(*jbro_gen_found);";
+                }
+                const Bool supported = member.NativeOutputParameters.Size() == 1 && member.NativeReturnField.IsEmpty()
+                    && (member.Projection == ApiProjectionKind::NullableReturn || member.Projection == ApiProjectionKind::CollectionReturn);
+                String native;
+                std::size_t next = 0;
+                Bool outputPlaced = false;
+                Bool countParameter = false;
+                for (std::size_t index = 0; supported && index < member.NativeParameterNames.Size(); ++index)
+                {
+                    const Bool output = member.NativeOutputParameters[0] == index;
+                    const Bool input = next < member.Parameters.Size() && member.Parameters[next].Name == member.NativeParameterNames[index];
+                    if (!output && !input)
+                    {
+                        countParameter = true;
+                        break;
+                    }
+                    if (input && next >= arguments.Size())
+                    {
+                        // 뒤의 입력은 C++ 기본 인자로 둔다. 출력이 아직 뒤에 있으면 그 자리를 채울 수 없다.
+                        break;
+                    }
+                    native += native.empty() ? "" : ", ";
+                    native += output ? String("jbro_gen_out") : arguments[next];
+                    next += output ? 0 : 1;
+                    outputPlaced = outputPlaced || output;
+                }
+                if (!supported || countParameter || !outputPlaced)
+                {
+                    Error("C++ emitter does not support the output projection of " + String(member.Name));
+                    return {};
+                }
+                const String call = target + method + "(" + native + ")";
+                const String body = NativeType({callType.name, false}) + " jbro_gen_out{}; ";
+                if (member.Projection == ApiProjectionKind::NullableReturn && member.SuccessFromNativeReturn)
+                {
+                    return body + "if (" + call + ") { return " + result + "(std::move(jbro_gen_out)); } return {};";
+                }
+                return body + call + "; return " + result + "(std::move(jbro_gen_out));";
+            }
+
             const CallSite* AnalyzedCall(NodeIndex index) const
             {
                 if (m_analysis == nullptr)
@@ -1847,7 +1940,7 @@ namespace JBro::ScriptCompiler
                     {
                         return {GuardField(field, String(), receiver.code + access, index), memberType, field.Owner != nullptr};
                     }
-                    if (node.Flags & SyntaxFlagNullSafe)
+                    if ((node.Flags & SyntaxFlagNullSafe) || (receiver.type.ref && InNullSafeChain(Child(index, 0))))
                     {
                         if (memberType.name.empty())
                         {
@@ -1996,6 +2089,7 @@ namespace JBro::ScriptCompiler
                     const SyntaxNode& calleeNode = Node(calleeIndex);
                     const CallSite* analyzedCall = AnalyzedCall(index);
                     String arguments;
+                    Array<String> argumentList;
                     for (std::size_t slot = 1; slot < node.ChildCount; ++slot)
                     {
                         if (slot != 1)
@@ -2004,18 +2098,20 @@ namespace JBro::ScriptCompiler
                         }
                         const NodeIndex argumentIndex = Child(index, slot);
                         const Expression argument = Expr(argumentIndex);
-                        arguments += analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
+                        argumentList.Add(analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
                             ? AdaptValue(TextType(analyzedCall->ParameterTypes[slot - 1]), argument, argumentIndex)
-                            : argument.code;
+                            : argument.code);
+                        arguments += argumentList.Last();
                     }
                     if (calleeNode.Kind == SyntaxKind::MemberAccessExpression)
                     {
                         const Expression receiver = Expr(Child(calleeIndex, 0));
                         String method = CppIdentifier(calleeNode.Text);
-                        if (const ApiMember* member = ApiMemberInHierarchy(receiver.type.name, calleeNode.Text))
+                        const ApiMember* apiMember = ApiMemberInHierarchy(receiver.type.name, calleeNode.Text);
+                        if (apiMember != nullptr)
                         {
-                            method = member->NativeName.empty() ? Pascal(calleeNode.Text)
-                                : String(member->NativeName.c_str());
+                            method = apiMember->NativeName.empty() ? Pascal(calleeNode.Text)
+                                : String(apiMember->NativeName.c_str());
                         }
                         for (std::size_t slot = 1; slot < calleeNode.ChildCount; ++slot)
                         {
@@ -2026,7 +2122,28 @@ namespace JBro::ScriptCompiler
                         {
                             method += '>';
                         }
-                        if (calleeNode.Flags & SyntaxFlagNullSafe)
+                        const Bool nullSafe = (calleeNode.Flags & SyntaxFlagNullSafe) || (receiver.type.ref && InNullSafeChain(Child(calleeIndex, 0)));
+                        if (apiMember != nullptr && apiMember->HasOutputProjection)
+                        {
+                            const String resultType = NativeType(callType);
+                            if (nullSafe)
+                            {
+                                return {WithReceiver(receiver.code, resultType, "if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) return {}; "
+                                    + ProjectedCallBody(*apiMember, "JBro::ScriptGuard::UnwrapPresent(jbro_gen_receiver).", method, argumentList, callType)),
+                                    callType};
+                            }
+                            if (receiver.type.ref || IsHandle(receiver.type))
+                            {
+                                const String site = SiteKey(calleeNode);
+                                return {WithReceiver(receiver.code, resultType, "auto&& jbro_gen_target = JBro::ScriptGuard::Require(jbro_gen_receiver, "
+                                    + Escape(site) + ", " + Escape(site + " invalid ref access: " + AccessPath(calleeIndex)) + "); "
+                                    + ProjectedCallBody(*apiMember, "jbro_gen_target.", method, argumentList, callType)), callType};
+                            }
+                            const String target = receiver.isType ? receiver.code + "::" : "(" + receiver.code + ").";
+                            return {"[&]() -> " + resultType + " { " + ProjectedCallBody(*apiMember, target, method, argumentList, callType) + " }()",
+                                callType};
+                        }
+                        if (nullSafe)
                         {
                             if (callType.name == "Void")
                             {

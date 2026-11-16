@@ -517,3 +517,15 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 
 실제 `NestedScriptType` suite는 여러 파일의 중첩 타입을 생성 C++로 빌드·게임 DLL로 로드하고 공개 결과 값 30을 확인했다. 생성기 내부 이름·접근 alias를 정규식 문자열 검사만으로 통과시키지 않는다.
 요약·최소 범위 편집·버전/UTF-16·주석 보존과 중첩 문법을 포함한 관련 21개 suite와 전체 빌드를 Debug/Release에서 통과했다. 마지막 UI 수정 뒤 양 구성 전체 빌드·5개 추가 회귀와 실제 화면/엔진의 유한 확인 범위는 [작업 기록](./script-summary-debugger.md)에 둔다.
+
+## 14. 생성 C++ 이 MSVC 에서 멈추던 세 모양 (2026-11-17, Script QA 결함 2)
+
+`jbroc` 이 진단 없이 통과시킨 코드가 생성 C++ 에서 멈추면 §3.1 위반이다. Script QA 가 문법 §14 예시 안에서 세 모양을 찾았고 이미터(`CppEmitter.cpp`)를 고쳤다.
+
+- `[range(a, b)]`·`[clamp(a, b)]` 의 인자를 `JBro::Float(…)` 로 감싸 넘긴다. `Attribute::Range`·`Clamp` 는 `Float` 둘을 받고 정수는 저절로 바뀌지 않는다(D-290). 전에는 `Int` 필드의 `[range(1, 100)]` 가 생성 파일에서 C2664 였다.
+- `a?.b.c` 의 `?.` 를 분석(`Analysis.cpp` 의 `receiver.NullSafe`)과 같게 사슬 끝까지 넘긴다. 전에는 `.c` 가 `Require` 로 내려가 `a` 가 없으면 건너뛰지 않고 콜백을 멈췄고, 결과가 값이라 이어지는 `??` 가 `IsPresent(Float)` 를 불러 C2039 였다.
+- 출력 인자로 투영한 엔진 함수(언어 서버 계획 §5)를 원래 C++ 호출로 되돌린다. 출력 하나를 성공 여부(`NullableReturn` + `SuccessFromNativeReturn`)나 모음(`CollectionReturn`)으로 받는 모양과, 찾은 값의 포인터를 돌려주는 `Table.Find` 를 내린다.
+  전에는 투영 정보를 아무도 쓰지 않아 `Physics.Raycast(o, d, dist)` 가 인자 셋으로 호출되어 C2660 이었다.
+  **아직 내리지 못하는 것**(생성 단계 오류로 거절한다): 버퍼와 길이(`Count`)를 받는 `Text.CopyText`·`Network.TakeMessages`·`Session.TakeEvents`·`Uuid.Parse`·`Uuid.ToText`, 반환값의 필드를 섞는 `Input.CaptureBinding`.
+  카탈로그의 자유 함수(`FindKeyByName` 등)는 투영과 별개로 이미터가 이름을 풀지 못한다.
+- 시험: 생성 시험 프로젝트(`Tests/JBroScriptGeneratedProbe`, `/W4 /WX`)에 `Section14Enemy.jscript`(§14 예시)와 `EmitterShapes.jscript`(세 모양)를 더했다. 고치기 전 이미터로는 그 프로젝트가 C2664·C2660·C2440 으로 멈춘다.

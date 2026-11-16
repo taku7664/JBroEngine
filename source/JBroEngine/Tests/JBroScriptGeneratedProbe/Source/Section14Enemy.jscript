@@ -1,0 +1,125 @@
+﻿interface IDamageable
+{
+    fn TakeDamage(Int amount)
+}
+
+enum EnemyState
+{
+    Idle
+    Chasing
+    Dead
+}
+
+struct DropEntry
+{
+    Int Weight = 1
+}
+
+class LootTable
+{
+    public Int Rolls = 0
+
+    public fn LootTable(Int rolls)
+    {
+        Rolls = rolls
+    }
+}
+
+// jbroscript-syntax.md §14 의 전체 예시다. 생성 C++ 이 /W4 /WX 로 컴파일되어야 한다(jbroc-rules §3.1·§8).
+
+script Enemy : IDamageable
+{
+    [range(1, 100), category("Stats")]
+    Int MaxHp = 10
+
+    [prop]
+    Float MoveSpeed = 2.0
+
+    [category("Links")]
+    ref Transform2D target                              // 핸들은 언제나 ref
+
+    ref Transform2D home
+    Int hp = 0
+    EnemyState state = EnemyState.Idle
+    Array<ref Enemy> allies
+    LootTable loot = LootTable(8)                    // class 는 값으로 소유한다
+    Vector2 down
+
+    fn OnStart() callback
+    {
+        hp = MaxHp
+        down.y = -1.0
+    }
+
+    fn OnUpdate() callback
+    {
+        switch (state)
+        {
+            case EnemyState.Idle
+            {
+                if (target is not null)
+                {
+                    state = EnemyState.Chasing
+                }
+            }
+            case EnemyState.Chasing
+            {
+                if (target is null)
+                {
+                    state = EnemyState.Idle
+                    return
+                }
+                target.position.x += MoveSpeed * Time.DeltaTime()   // 위에서 좁혔다
+            }
+            case EnemyState.Dead
+            {
+                return
+            }
+        }
+
+        home!.position.y = 0.0                       // 단언: 틀리면 로그를 남기고 이 콜백을 멈춘다
+    }
+
+    fn IsGrounded() -> Bool
+    {
+        if (target is null)
+        {
+            return false
+        }
+        ref RaycastHit2D hit = Physics.Raycast(target.position, down, 1.0)
+        return hit is not null
+    }
+
+    fn IsDead() -> Bool
+    {
+        return hp <= 0
+    }
+
+    fn TargetHeight() -> Float
+    {
+        return target?.position.y ?? 0.0             // 없으면 0 - 쓰는 사람이 정한다
+    }
+
+    fn CountLivingAllies() -> Int
+    {
+        Int count = 0
+        for (ally in allies)
+        {
+            if (ally is not null and not ally.IsDead())
+            {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    static fn SumWeights(ref const Array<DropEntry> table) -> Int   // 빌린 매개변수
+    {
+        Int total = 0
+        for (entry in table)
+        {
+            total += entry.Weight
+        }
+        return total
+    }
+}
