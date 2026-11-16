@@ -221,7 +221,7 @@ namespace
         Check(false == JBro::Internal::BuildCamera3D(source, {0, 100}, parameters), "and so is a zero frame");
     }
 
-    // 메시 렌더러는 보일 때만, 트랜스폼이 있을 때만 뜬다. 빈 핸들은 아이디로 해석한다.
+    // 메시 렌더러는 보일 때만, 트랜스폼이 있을 때만 뜬다. 빈 핸들은 아이디로 해석하고, 아이디가 없으면 정육면체다.
     void TestMeshesAreExtractedAndResolved()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
@@ -252,7 +252,7 @@ namespace
         hiddenMesh->meshId = JBro::MeshLibrary::BuiltinCubeId();
         hiddenMesh->visible = false;
         placelessMesh->meshId = JBro::MeshLibrary::BuiltinCubeId();
-        (void)unnamedMesh;
+        // `unnamed` 는 메시를 고르지 않았다.
 
         JBro::System::Transform3DSystem transforms;
         JBro::System::MeshRender3DSystem meshes;
@@ -264,8 +264,13 @@ namespace
         transforms.Update(canvas, 1.0f / 60.0f);
         meshes.Update(canvas, 1.0f / 60.0f);
 
-        Check(world.GetMeshCount() == 1, "only the visible, placed, named mesh is extracted");
-        Check(world.GetMesh(0).owner == shown, "and it is the shown one");
+        // 메시가 빈 렌더러는 정육면체로 뜬다 - 2D 의 빈 스프라이트가 흰 사각형인 것과 같다(D-335 우선순위 2).
+        Check(world.GetMeshCount() == 2, "the visible, placed meshes are extracted, the empty one as the cube");
+        Check(world.GetMesh(0).owner == shown, "the first is the shown one");
+        Check(world.GetMesh(1).owner == unnamed && world.GetMesh(1).mesh.index == 7 && world.GetMesh(1).mesh.generation == 3,
+            "the one with no mesh draws the builtin cube");
+        Check(unnamedMesh->mesh.generation == 0,
+            "but the fallback is not written back - a mesh chosen later must still be looked up");
         Check(world.GetMesh(0).mesh.index == 7 && world.GetMesh(0).mesh.generation == 3,
             "with its handle resolved from the id");
         Check(shownMesh->mesh.index == 7, "and the resolved handle written back so it is not looked up again");

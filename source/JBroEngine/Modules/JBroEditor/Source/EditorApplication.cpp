@@ -43,7 +43,11 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Host/IFramework.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
@@ -2365,7 +2369,7 @@ namespace JBro
         return JBro::CheckProjectName(*m_platform, parentFolder, name);
     }
 
-    void EditorApplication::AddStarterCamera()
+    void EditorApplication::AddStarterObjects()
     {
         // **새 프로젝트의 빈 캔버스에는 카메라 하나를 둔다**(사용자 시나리오 A). 없으면 첫 스크립트를 붙여 실행해도 시뮬레이션 뷰가
         // `카메라가 없습니다` 만 보여, 스크립트가 도는지 알 수 없다. 이미 무언가 있으면(열던 캔버스) 건드리지 않는다.
@@ -2381,10 +2385,34 @@ namespace JBro
         }
         if (m_frameworkKind == FrameworkKind::Framework3D)
         {
-            canvas->AttachComponent<Component::Transform3D>(camera);
+            // **3D 의 카메라는 캔버스 뷰가 처음 서는 궤도 자리에 선다**(D-335). 원점에 회전 없이 두면 -Z 만 보고 바닥도 큐브도 비껴,
+            // 실행해도 바탕색만 보였다. 편집 화면과 실행 화면이 같아야 둘을 오가며 헷갈리지 않는다(2D 의 크기 5 와 같은 까닭).
+            // 자리는 `EditorViewDesc` 의 처음 값에서 `SubmitEditorView3D` 와 같은 식으로 낸다.
+            const EditorViewDesc view;
+            constexpr Float Degrees = 3.14159265f / 180.0f;
+            const Quaternion rotation = FromEuler(Vector3{view.pitchDegrees * Degrees, view.yawDegrees * Degrees, 0.0f});
+            const Vector3 forward = Rotate(rotation, Vector3{0.0f, 0.0f, -1.0f});
+            if (auto* transform = canvas->AttachComponent<Component::Transform3D>(camera))
+            {
+                transform->position = Vector3{view.centerX - forward.x * view.distance, view.centerY - forward.y * view.distance,
+                    view.centerZ - forward.z * view.distance};
+                transform->rotation = rotation;
+            }
             if (auto* lens = canvas->AttachComponent<Component::Camera3D>(camera))
             {
                 lens->primary = true;
+                lens->verticalFieldOfView = view.verticalFieldOfView;
+            }
+            // 볼 것이 하나 있어야 실행했을 때 그려지는지 안다. 스크립트를 붙일 자리도 된다.
+            Object::GameObject* cube = canvas->CreateObject("Cube");
+            if (cube == nullptr)
+            {
+                return;
+            }
+            canvas->AttachComponent<Component::Transform3D>(cube);
+            if (auto* mesh = canvas->AttachComponent<Component::MeshRenderer3D>(cube))
+            {
+                mesh->meshId = MeshLibrary::BuiltinCubeId();
             }
             return;
         }
@@ -2406,7 +2434,7 @@ namespace JBro
             m_pendingProjectPath.clear();
             if (SwitchToProject(path.c_str()))
             {
-                AddStarterCamera();
+                AddStarterObjects();
                 // 스크립트 자리도 처음부터 둔다(사용자 시나리오 C). 에셋 브라우저의 `스크립트` 뿌리가 디스크의 폴더와 맞고,
                 // `.jscript` 를 편집기에서 바로 만들 곳이 생긴다.
                 const String scripts = GetScriptRoot();

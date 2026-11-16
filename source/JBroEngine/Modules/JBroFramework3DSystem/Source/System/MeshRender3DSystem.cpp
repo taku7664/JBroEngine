@@ -55,7 +55,15 @@ namespace JBro::System
             {
                 renderer.mesh = m_library->Resolve(renderer.meshId);
             }
-            if (renderer.mesh.generation == 0)
+            // **풀리지 않으면 정육면체다**(D-335 우선순위 2). 2D 의 `SpriteRenderer2D` 가 스프라이트가 비었거나 풀리지 않으면 흰 사각형을
+            // 그리는 것과 같다 - `컴포넌트 추가` 로 붙이자마자 보이고, 메시 칸에서 다른 도형·에셋을 고른다. 컴포넌트의 핸들에는 넣지 않는다:
+            // 넣으면 다음 Update 의 해석 패스가 채워진 핸들을 보고 진짜 메시를 다시 찾지 않는다.
+            AssetHandle mesh = renderer.mesh;
+            if (mesh.generation == 0 && m_library != nullptr)
+            {
+                mesh = m_library->Resolve(MeshLibrary::BuiltinCubeId());
+            }
+            if (mesh.generation == 0)
             {
                 return;
             }
@@ -64,7 +72,7 @@ namespace JBro::System
             item.position = world->worldPosition;
             item.rotation = world->worldRotation;
             item.scale = world->worldScale;
-            item.mesh = renderer.mesh;
+            item.mesh = mesh;
             item.material = renderer.material;
             item.tint = renderer.tint;
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;

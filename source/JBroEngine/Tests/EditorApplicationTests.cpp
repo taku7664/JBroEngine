@@ -51,6 +51,10 @@
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Physics2D/World.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
@@ -6218,7 +6222,8 @@ namespace
             "editor must reopen a project on its live process resources");
         editor.CloseProject();
 
-        // 3D 백엔드는 아직 그리지 않지만, 그것이 호스트를 끝내는 이유가 되어서는 안 된다(F-7).
+        // 카메라 없는 빈 3D 프로젝트도 제출할 것이 없다. 그것이 호스트를 끝내는 이유가 되어서는 안 된다(F-7).
+        // (새 프로젝트 팝업은 카메라와 큐브를 둔다 - 시나리오 D. 여기는 서술자로 연 빈 캔버스다.)
         JBro::ProjectDescriptor project3D;
         project3D.framework = JBro::FrameworkKind::Framework3D;
         project3D.graphicsApi = JBro::GraphicsApi::D3D12;
@@ -17067,6 +17072,250 @@ namespace
         ScenarioShot(editor, "b15_closed_mid_build");
         editor.Shutdown();
     }
+
+    // 캔버스의 뿌리 오브젝트를 이름으로 찾는다. 실행을 멈추면 오브젝트가 새로 만들어지므로 포인터를 들고 다니지 않는다.
+    JBro::Object::GameObject* FindRootNamed(JBro::Canvas& canvas, const char* name)
+    {
+        JBro::Array<JBro::Object::GameObject*> roots;
+        canvas.GetRootObjects(roots);
+        for (JBro::Object::GameObject* each : roots)
+        {
+            if (std::strcmp(each->GetName(), name) == 0)
+            {
+                return each;
+            }
+        }
+        return nullptr;
+    }
+
+    // 창 `window` 의 안쪽에서 두 그림이 다른 픽셀 수다. 한 패널만의 변화를 다른 패널의 변화와 섞지 않으려 쓴다.
+    std::size_t CountDifferingPixelsInWindow(const JBro::Array<std::byte>& first, const JBro::Array<std::byte>& second,
+        const JBro::TextureReadback& readback, const ImGuiWindow& window)
+    {
+        // 픽셀 좌표는 표준 라이브러리 `std::max`·`std::min` 에 넘기는 경계라 원시 `int` 로 센다.
+        const int left = std::max(0, static_cast<int>(window.InnerRect.Min.x));
+        const int top = std::max(0, static_cast<int>(window.InnerRect.Min.y));
+        const int right = std::min(static_cast<int>(ScenarioWidth.Get()), static_cast<int>(window.InnerRect.Max.x));
+        const int bottom = std::min(static_cast<int>(ScenarioHeight.Get()), static_cast<int>(window.InnerRect.Max.y));
+        std::size_t differing = 0;
+        for (int y = top; y < bottom; ++y)
+        {
+            for (int x = left; x < right; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4;
+                if (std::memcmp(first.Data() + offset, second.Data() + offset, 4) != 0)
+                {
+                    ++differing;
+                }
+            }
+        }
+        return differing;
+    }
+
+    // **시나리오 D: 3D 로 처음 쓰는 사용자**(D-335, todo-3d 우선순위 1). 새 프로젝트에서 3D 를 고른다 → 열자마자 카메라와 큐브가 있고
+    // 캔버스 뷰 가운데에 큐브가 보인다 → 눌러 고른다 → 기즈모로 옮기고 되돌린다 → 실행하면 게임 화면에 큐브가 그려진다 → 멈추면 그대로다.
+    // 스크립트는 다루지 않는다(3D 스크립트는 우선순위 7). MSBuild 가 없어도 돈다.
+    void TestScenarioD3DFirstProject()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroUserScenarioD").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root, ignored);
+
+        DialogProbe dialog;
+        dialog.path = JBro::String(root.string().c_str());
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario D not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        // ── 1. 새 프로젝트에서 3D 를 고른다 ─────────────
+        editor.RequestNewProject();
+        Check(editor.Tick(Frame), "the folder dialog runs outside the frame");
+        Check(editor.IsPopupOpenById("new_project"), "a new project asks for a name");
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the popup settles");
+        }
+        TypeText(editor, "My 3D Game");
+        ImGuiWindow* popup = FindActiveWindowContaining("###popup_");
+        Check(popup != nullptr, "the new project popup has a window");
+        const ImGuiID frameworkCombo = LabelId(LabelId(popup->ID, "##newProject"), "##framework");
+        Spot comboSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, popup, frameworkCombo, comboSpot), "the framework list is in the popup");
+        ClickAt(editor, hwnd, comboSpot);
+        Check(editor.Tick(Frame), "the framework list opens");
+        ImGuiWindow* list = FindActiveWindowContaining("##Combo_");
+        Check(list != nullptr, "the framework list has a window");
+        const ImGuiID threeD = LabelId(PushedId(list->ID, 1), "3D");
+        Spot threeDSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, list, threeD, threeDSpot), "3D is in the list");
+        ScenarioShot(editor, "d01_new_project_framework");
+        ClickAt(editor, hwnd, threeDSpot);
+        Check(editor.Tick(Frame), "3D is chosen");
+        ScenarioShot(editor, "d02_new_project_3d");
+        Check(editor.IsPopupOpenById("new_project"), "choosing the framework keeps the popup open");
+        // 만들기 단추를 누른다 - 목록을 누른 뒤라 이름 칸에 포커스가 없어 Enter 가 아니다.
+        popup = FindActiveWindowContaining("###popup_");
+        Check(popup != nullptr, "the popup is still there");
+        const char* createLabel = JBro::Loc::TextOr(JBro::LocKeys::CommonCreate, "Create");
+        Spot createSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, popup, LabelId(popup->ID, createLabel), createSpot),
+            "the create button is in the popup");
+        ClickAt(editor, hwnd, createSpot);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor switches to the new project");
+        }
+        Check(false == editor.IsPopupOpenById("new_project"), "the popup closes");
+        Check(editor.HasOpenProject() && editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
+            "the new project is open as a 3D project");
+        Check(fs::is_regular_file(root / "My 3D Game" / "My 3D Game.jproject"), "its project file is written");
+
+        // ── 2. 열자마자 카메라와 큐브가 있다 ─────────────
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the new project has a canvas");
+        JBro::Object::GameObject* camera = FindRootNamed(*canvas, "Camera");
+        JBro::Object::GameObject* cube = FindRootNamed(*canvas, "Cube");
+        Check(camera != nullptr && cube != nullptr, "the new 3D canvas starts with a camera and a cube");
+        auto* lens = canvas->FindComponentRaw<JBro::Component::Camera3D>(camera);
+        auto* eye = canvas->FindComponentRaw<JBro::Component::Transform3D>(camera);
+        Check(lens != nullptr && lens->primary, "the camera is the primary 3D camera");
+        Check(eye != nullptr && JBro::Length(eye->position) > 1.0f, "and stands away from the origin");
+        // 카메라가 보는 쪽(-Z)이 원점의 큐브를 향한다.
+        const JBro::Vector3 forward = JBro::Rotate(eye->rotation, JBro::Vector3{0.0f, 0.0f, -1.0f});
+        const JBro::Vector3 toCube = JBro::Normalize(JBro::Scale(eye->position, -1.0f));
+        Check(JBro::Dot(forward, toCube) > 0.999f, "and looks straight at the cube");
+        auto* mesh = canvas->FindComponentRaw<JBro::Component::MeshRenderer3D>(cube);
+        Check(mesh != nullptr && mesh->meshId == JBro::MeshLibrary::BuiltinCubeId() && mesh->visible,
+            "the cube draws the builtin cube mesh");
+        Check(canvas->FindComponentRaw<JBro::Component::Transform3D>(cube) != nullptr, "and has a 3D transform");
+        Check(editor.GetCommands().CanUndo() == false, "the starter objects are not an edit to undo");
+        ScenarioShot(editor, "d03_project_open");
+
+        // ── 3. 캔버스 뷰 가운데를 누르면 큐브가 골라진다 ─────────────
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr && IsFrontTab("CanvasView"), "the canvas view is in front");
+        // 궤도 카메라는 원점을 그린 화면(텍스처)의 한가운데에 둔다. 패널은 그 텍스처의 왼쪽 위를 잘라 붙이므로(D-150)
+        // 원점은 패널의 가운데가 아니라 그림 왼쪽 위에서 텍스처 크기의 절반만큼 간 자리다.
+        JBro::Widget::ItemLocator::Watch(LabelId(view->ID, "##canvas"));
+        Check(editor.Tick(Frame), "the editor must tick while locating the picture");
+        JBro::Widget::ItemLocator::ItemRect picture;
+        Check(JBro::Widget::ItemLocator::Take(picture), "the canvas view's picture is on screen");
+        const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
+        Check(drawn.width != 0 && drawn.height != 0, "the canvas view has been drawn");
+        Spot center;
+        center.x = static_cast<JBro::Int32>(picture.minX.Get() + static_cast<float>(drawn.width.Get()) * 0.5f);
+        center.y = static_cast<JBro::Int32>(picture.minY.Get() + static_cast<float>(drawn.height.Get()) * 0.5f);
+        ClickAt(editor, hwnd, center);
+        Check(editor.Tick(Frame), "the click is taken");
+        Check(editor.GetSelectedObject() == cube, "clicking the middle of the view picks the cube the view looks at");
+        ScenarioShot(editor, "d04_cube_picked");
+
+        // ── 3b. 인스펙터의 메시 칸에서 도형을 바꾸고 되돌린다(D-335 우선순위 2) ─────────────
+        // 빌트인 도형은 레지스트리에 없지만 목록 앞에 이름으로 선다. 전에는 칸이 `(없는 에셋)` 이었다.
+        {
+            const JBro::PropertyTable* meshFields = JBro::PropertyRegistry::Lookup(
+                JBro::NameTable::Get().Intern("Component::MeshRenderer3D"));
+            Check(meshFields != nullptr, "the mesh renderer must have registered its properties");
+            Spot meshField;
+            Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(*meshFields, "meshId"), "##value"), meshField),
+                "the mesh field is in the inspector");
+            ClickAt(editor, hwnd, meshField);
+            Check(editor.Tick(Frame), "the mesh list opens");
+            ImGuiWindow* meshList = FindActiveWindowContaining("##Combo_");
+            Check(meshList != nullptr, "the mesh list has a window");
+            // 맨 위는 비우기 항목이고 그다음이 빌트인 차례다(Cube, Sphere, ...).
+            Spot sphereSpot;
+            Check(FindItemAnywhereInWindow(editor, hwnd, meshList, LabelId(PushedId(meshList->ID, 2), "Sphere"), sphereSpot),
+                "the builtin shapes are listed by name");
+            ScenarioShot(editor, "d04b_mesh_list");
+            ClickAt(editor, hwnd, sphereSpot);
+            Check(editor.Tick(Frame), "the sphere is chosen");
+            auto* chosenMesh = canvas->FindComponentRaw<JBro::Component::MeshRenderer3D>(cube);
+            Check(chosenMesh != nullptr && chosenMesh->meshId == JBro::MeshLibrary::GetBuiltin(1).id,
+                "choosing Sphere puts the builtin sphere in the field");
+            ScenarioShot(editor, "d04c_sphere");
+            Check(editor.GetCommands().Undo(), "the change is one edit to undo");
+            Check(editor.Tick(Frame), "the undo settles");
+            Check(chosenMesh->meshId == JBro::MeshLibrary::BuiltinCubeId(), "undo brings the cube back");
+        }
+
+        // ── 4. 기즈모로 옮기고 되돌린다 ─────────────
+        Spot handle;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), handle),
+            "the x handle stands on the picked cube");
+        DragFrom(editor, hwnd, handle, handle.x + 80);
+        Check(editor.Tick(Frame), "the drag settles");
+        auto* cubeTransform = canvas->FindComponentRaw<JBro::Component::Transform3D>(cube);
+        Check(cubeTransform != nullptr && std::fabs(cubeTransform->position.x) > 0.1f, "dragging the handle moves the cube");
+        Check(std::fabs(cubeTransform->position.y) < 0.0001f && std::fabs(cubeTransform->position.z) < 0.0001f,
+            "only along its x axis");
+        ScenarioShot(editor, "d05_cube_moved");
+        Check(editor.GetCommands().Undo(), "the move is one edit to undo");
+        Check(editor.Tick(Frame), "the undo settles");
+        Check(std::fabs(cubeTransform->position.x) < 0.0001f, "undo puts the cube back at the origin");
+
+        // ── 5. 실행하면 게임 화면에 큐브가 그려진다 ─────────────
+        Check(RunEditorAction(editor, "simulation.play"), "play (F5) starts");
+        if (JBro::EditorPanel* simulation = editor.FindPanel("Simulation"))
+        {
+            simulation->RequestFocus();
+        }
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor plays");
+        }
+        Check(editor.IsSimulationPlaying(), "the simulation runs");
+        Check(IsFrontTab("Simulation"), "the simulation view is in front");
+        ImGuiWindow* game = ImGui::FindWindowByName("Simulation");
+        Check(game != nullptr, "the simulation view has a window");
+        ScenarioShot(editor, "d06_playing");
+        // 큐브를 감춘 그림과 견준다. 게임 화면 안에서 달라져야 큐브가 그 카메라에 그려진 것이다.
+        JBro::Object::GameObject* playingCube = FindRootNamed(*editor.GetCanvas(), "Cube");
+        Check(playingCube != nullptr, "the cube is there while playing");
+        auto* playingMesh = editor.GetCanvas()->FindComponentRaw<JBro::Component::MeshRenderer3D>(playingCube);
+        Check(playingMesh != nullptr, "with its mesh");
+        JBro::Array<std::byte> withCube;
+        JBro::Array<std::byte> withoutCube;
+        JBro::TextureReadback readback;
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, withCube, readback);
+        playingMesh->visible = false;
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor draws without the cube");
+        }
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, withoutCube, readback);
+        playingMesh->visible = true;
+        const std::size_t cubePixels = CountDifferingPixelsInWindow(withCube, withoutCube, readback, *game);
+        std::cout << "  the starter cube covers " << cubePixels << " pixels of the game view" << std::endl;
+        Check(cubePixels > 100, "the game camera sees the starter cube");
+
+        // ── 6. 멈추면 그대로다 ─────────────
+        Check(RunEditorAction(editor, "simulation.play"), "pressing play again stops");
+        Check(editor.Tick(Frame), "the editor stops");
+        Check(false == editor.IsSimulationPlaying(), "the simulation stops");
+        JBro::Object::GameObject* stoppedCube = FindRootNamed(*editor.GetCanvas(), "Cube");
+        Check(stoppedCube != nullptr, "the cube is still there after stopping");
+        auto* stoppedMesh = editor.GetCanvas()->FindComponentRaw<JBro::Component::MeshRenderer3D>(stoppedCube);
+        Check(stoppedMesh != nullptr && stoppedMesh->visible, "and drawn");
+        ScenarioShot(editor, "d07_stopped");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
 }
 
 JBro::Int32 RunEditorApplicationTests()
@@ -17212,6 +17461,7 @@ JBro::Int32 RunUserScenarioTests()
     TestScenarioAFirstScript();
     TestScenarioBHostileUser();
     TestScenarioCJBroScript();
+    TestScenarioD3DFirstProject();
     std::cout << "User scenario tests passed.\n";
     return 0;
 }

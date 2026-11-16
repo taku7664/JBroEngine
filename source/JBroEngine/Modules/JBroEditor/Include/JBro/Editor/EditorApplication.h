@@ -792,8 +792,8 @@ namespace JBro
         void NotifyUnresolvedScripts();
         // 새 프로젝트 이름을 검사한다(`CheckProjectName`). 새 프로젝트 팝업이 치는 동안 묻는다.
         ProjectCreateFailure CheckProjectName(const char* parentFolder, const char* name);
-        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 비어 있지 않으면 아무것도 하지 않는다.
-        void AddStarterCamera();
+        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 3D 는 원점의 큐브 하나를 더 둔다(D-335). 비어 있지 않으면 아무것도 하지 않는다.
+        void AddStarterObjects();
         // 오류 줄을 여는 편집기다(D-299). 에디터 설정에 저장된다.
         ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
         void SetScriptEditor(ScriptBuild::EditorKind kind);

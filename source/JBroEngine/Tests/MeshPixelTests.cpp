@@ -12,10 +12,12 @@
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Math3D.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <JBro/Types/Bool.h>
@@ -174,7 +176,7 @@ namespace
         JBro::Testing::AttachClock(context);
         context.renderer = &stage.renderer;
         Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
-        Check(stage.renderer.GetMeshCount() == 1, "initializing must upload the builtin cube");
+        Check(stage.renderer.GetMeshCount() == JBro::MeshLibrary::GetBuiltinCount(), "initializing must upload every builtin shape");
         JBro::Canvas& canvas = *framework.GetCanvas();
 
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
@@ -593,8 +595,86 @@ namespace
     }
 }
 
+namespace
+{
+    // **빌트인 도형마다 카메라를 향한 면이 빛을 받는다**(D-335 우선순위 2). 흰 도형 하나를 가운데 두고 가운데 픽셀이 고정 광원의
+    // 램버트 값인지 본다. 감김이 뒤집히면 바깥 면이 컬링되고 안쪽 면(앰비언트 0.25)이 보인다 - 정육면체 때 실제로 그랬다(D-108).
+    // 구·캡슐·원기둥은 옆에서(+Z) 보고 앞 법선이 (0,0,1) 이라 0.587, 평면은 위에서 내려다보고 법선이 (0,1,0) 이라 0.25 + 0.75 x 0.799 = 0.849 다.
+    template <typename TModule>
+    void TestEveryBuiltinShapeShowsItsLitFrontFace()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; builtin shapes not verified" << std::endl;
+            return;
+        }
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
+        Check(JBro::MeshLibrary::GetBuiltinCount() == 5, "the builtin shapes are the cube, sphere, capsule, cylinder and plane");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* shape = canvas.CreateObject("shape");
+        canvas.AttachComponent<JBro::Component::Transform3D>(shape);
+        auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(shape);
+        mesh->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+
+        for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+        {
+            const JBro::MeshLibrary::BuiltinMesh builtin = JBro::MeshLibrary::GetBuiltin(index);
+            Check(builtin.name != nullptr && false == builtin.id.IsNull(), "every builtin has a name and an id");
+            Check(false == (JBro::MeshLibrary::GetBuiltin(index).id == JBro::MeshLibrary::GetBuiltin((index + 1) % JBro::MeshLibrary::GetBuiltinCount()).id),
+                "and no two builtins share an id");
+            const JBro::Bool plane = std::strcmp(builtin.name, "Plane") == 0;
+            if (plane)
+            {
+                // 위에서 곧장 내려다본다. 카메라는 -Z 를 보므로 X 축으로 -90도 돌린다.
+                eyeTransform->position = {0.0f, 3.0f, 0.0f};
+                eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+            }
+            else
+            {
+                eyeTransform->position = {0.0f, 0.0f, 3.0f};
+                eyeTransform->rotation = {};
+            }
+            mesh->meshId = builtin.id;
+            // 아이디를 바꾸면 해석된 핸들도 비운다 - 에디터의 커맨드 뒤 해석 패스가 하는 일이다. 비우지 않으면 첫 도형(정육면체)의 핸들이
+            // 남아 다섯 번 모두 정육면체를 그렸고, 그래서 감김을 뒤집은 뮤테이션을 이 시험이 놓쳤다.
+            mesh->mesh = {};
+            JBro::Array<std::byte> image;
+            JBro::TextureReadback readback;
+            stage.RenderOnce(framework, image, readback);
+            Check(stage.renderer.GetLastFrameStats().meshCount == 1, "the shape must be submitted");
+            const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+            const JBro::Float expected = plane ? 0.849f : 0.587f;
+            std::cout << "  " << builtin.name << " front face " << center.r.Get() << " (expected " << expected.Get() << ")" << std::endl;
+            Check(Near(center.r, expected, 0.05f), "the face towards the camera must be lit, not a culled shape's inside");
+            const Pixel corner = ReadPixel(image, readback.rowPitch, 2, 2);
+            if (false == plane)
+            {
+                Check(Near(corner.r, 0.0f), "the shape is no bigger than it should be - the corner stays clear");
+            }
+        }
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer must have stayed quiet");
+        framework.Shutdown();
+        Check(stage.renderer.GetMeshCount() == 0, "shutting the framework down must unregister every builtin");
+        stage.Close();
+    }
+}
+
 JBro::Int32 RunMeshPixelTests()
 {
+    TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::D3D12RHIModule>();
+    TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::D3D11RHIModule>();
+    TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::VulkanRHIModule>();
     TestLayersStackAndBlendIn3D<JBro::D3D12RHIModule>();
     TestLayersStackAndBlendIn3D<JBro::D3D11RHIModule>();
     TestLayersStackAndBlendIn3D<JBro::VulkanRHIModule>();

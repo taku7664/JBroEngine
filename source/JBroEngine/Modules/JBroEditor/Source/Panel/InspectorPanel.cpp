@@ -64,6 +64,7 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 
 namespace JBro
 {
@@ -939,6 +940,17 @@ namespace JBro
         choices->revision = registry.GetRevision();
         choices->names.Clear();
         choices->ids.Clear();
+        // **빌트인 도형이 메시 목록의 앞에 선다**(D-335 우선순위 2). 레지스트리에 없는 아이디라, 넣지 않으면 새 프로젝트의 큐브가
+        // `(없는 에셋)` 으로 보였다(시나리오 D). 파일 에셋과 겹치지 않게 이름에 경로가 없다.
+        if (type == AssetType::Mesh || also == AssetType::Mesh)
+        {
+            for (UInt32 index = 0; index < MeshLibrary::GetBuiltinCount(); ++index)
+            {
+                const MeshLibrary::BuiltinMesh builtin = MeshLibrary::GetBuiltin(index);
+                choices->names.Add(String(builtin.name));
+                choices->ids.Add(builtin.id);
+            }
+        }
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);

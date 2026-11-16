@@ -3,6 +3,7 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro
 {
@@ -16,6 +17,17 @@ namespace JBro
     public:
         // 빌트인 정육면체의 아이디. `MeshRenderer3D::meshId` 에 넣으면 그 도형이 그려진다.
         static AssetId BuiltinCubeId();
+
+        // **빌트인 도형 표**(D-335 우선순위 2). 정육면체·구·캡슐·원기둥·평면이고, 아이디는 `Uuid::FromName("builtin/<이름>")` 이다.
+        // 레지스트리에 없는 아이디라 에디터의 메시 칸·만들기 메뉴가 이 표에서 이름을 얻는다. 이름은 번역하지 않는다.
+        struct BuiltinMesh
+        {
+            const char* name = nullptr;
+            AssetId id;
+        };
+        static UInt32 GetBuiltinCount();
+        // 범위 밖이면 이름이 널이다.
+        static BuiltinMesh GetBuiltin(UInt32 index);
 
         // 빌트인 도형을 렌더러에 올린다. 렌더러가 없으면(테스트) 표만 비어 있고 참이다.
         Bool Initialize(Renderer* renderer);
