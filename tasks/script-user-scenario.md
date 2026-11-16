@@ -119,7 +119,7 @@ C++ 사용자와 같은 길을 `.jscript` 로 걷는다. 걷기 전의 상태는
 | 고친 뒤의 실패 알림 | 성공 알림 옆에 남았다 | 성공하면 닫는다 |
 | main 의 솔루션 빌드 | `JBroScriptStaticFailureProbe.vcxproj` 가 솔루션에 없어 솔루션 빌드가 `MSB8013`(Debug\|Win32)으로 멈췄다 | 솔루션에 넣었다 |
 | 엔진 쪽 예외 보호의 이름 | main 이 같은 `ScriptGuard.h` 를 생성 코드의 null 검사로 들였다 | 이 브랜치의 SEH 보호를 `ScriptCallGuard` 로 바꿨다 |
-| main 의 SDK 위치표 | `JBroScriptApiCatalog2D` 의 `Definitions.cpp` 는 헤더 안 바이트 위치를 숫자로 적는데, 만든 뒤 main 의 다른 커밋이 `AssetTypes.h`·`GameObjectHandle.h`·`Array.h` 를 고쳐 107 항목이 어긋났다. 전체 시험이 `ScriptApiCatalog` 에서 멈췄다 | 위치표를 만든 커밋(fc0e17f9)의 헤더와 지금 헤더를 줄로 맞대 105 항목을 옮기고, 줄 자체가 바뀐 `Array.h` 의 둘은 같은 식이 옮겨 간 줄로 맞췄다. 1275 항목이 모두 맞는다. [의문] 위치표를 다시 만드는 도구가 리포에 없다 - 헤더를 고칠 때마다 같은 일이 난다 |
+| main 의 SDK 위치표 | `JBroScriptApiCatalog2D` 의 `Definitions.cpp` 는 헤더 안 바이트 위치를 숫자로 적는데, 만든 뒤 main 의 다른 커밋이 `AssetTypes.h`·`GameObjectHandle.h`·`Array.h` 를 고쳐 107 항목이 어긋났다. 전체 시험이 `ScriptApiCatalog` 에서 멈췄다 | 위치표를 만든 커밋(fc0e17f9)의 헤더와 지금 헤더를 줄로 맞대 105 항목을 옮기고, 줄 자체가 바뀐 `Array.h` 의 둘은 같은 식이 옮겨 간 줄로 맞췄다. 1275 항목이 모두 맞는다. ~~[의문] 위치표를 다시 만드는 도구가 리포에 없다 - 헤더를 고칠 때마다 같은 일이 난다~~ → 2026-11-16 D-340: 자리를 줄 번호 대신 선언의 글자(닻)로 적어, 헤더에 줄을 끼워도 밀리지 않는다 |
 | 폰트 하나에 1.2 GB (main 의 고장) | D-322 (2) 가 에셋 핸들의 위 8 비트에 타입을 넣었는데 `TextLibrary`·`SpriteLibrary` 는 슬롯을 28 비트로 잘라 썼다. 폰트 표가 1 억 5 천만 칸이 되어 글자가 있는 에디터 시험이 멈춘 것처럼 보였다(`TextRender` 437 초) | 24 비트로 자른다. `TextRender` 가 폰트 표 칸 수를 본다(11.8 초) |
 
 ## 5. 남은 의문
