@@ -598,6 +598,86 @@ namespace
         Check(editor.GetScriptBuildState() != State::Running, "closing the project stops it");
         editor.Shutdown();
     }
+
+    // **컴파일러 진단은 에디터 언어로 온다**(Script QA 결함 5). 빌드 타깃이 `jbroc` 에 언어를 넘기지 않아, 영어 에디터의 빌드 결과에
+    // JBroScript 진단만 한국어로 섞였다. 에디터가 고른 언어를 빌드 명령이 `JBroCompilerLocale` 로 넘긴다.
+    void BuildATypoIn(const char* locale, const char* folder, const char* expected, const char* message)
+    {
+        using State = EditorApplication::ScriptBuildState;
+        const fs::path root = FreshFolder(folder);
+        fs::create_directories(root / "Contents" / "Assets");
+        fs::create_directories(root / "Contents" / "Scripts");
+        const fs::path projectPath = root / "Typo.jproject";
+        std::ofstream(projectPath, std::ios::binary) <<
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Contents/Assets\n"
+            "ScriptSourceDirectory: Contents\n"
+            "ScriptOutputLibraryPath: x64/Debug/GameScript.dll\n"
+            "Build:\n"
+            "  ProductName: Typo\n";
+        std::ofstream(root / "Contents" / "Scripts" / "Typo.jscript", std::ios::binary)
+            << "script Typo\n{\n    fn F() -> Int\n    {\n        return missingName\n    }\n}\n";
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        config.locale = locale;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the compiler language not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the typo project opens");
+        Check(BuildAndWait(editor), "the typo build starts");
+        Check(editor.GetScriptBuildState() == State::Failed, "a JBroScript typo fails the build");
+        Bool found = false;
+        for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+        {
+            found = found || (diagnostic.code == "JBC3004" && diagnostic.message.find(expected) != String::npos);
+        }
+        if (false == found)
+        {
+            for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+            {
+                std::cout << "  " << diagnostic.code.c_str() << " " << diagnostic.message.c_str() << std::endl;
+            }
+        }
+        Check(found, message);
+        editor.Shutdown();
+    }
+
+    void TestTheCompilerSpeaksTheEditorLanguage()
+    {
+        WindowsPlatform probe;
+        JMemoryContext memory;
+        Check(probe.Initialize(memory), "the platform initializes");
+        const Bool haveMSBuild = false == ScriptBuild::LocateMSBuild(probe, Utf8(FreshFolder("tools3")).c_str()).empty();
+        probe.Shutdown();
+        if (false == haveMSBuild)
+        {
+            std::cout << "  [skip] no MSBuild on this machine; the compiler language not verified" << std::endl;
+            return;
+        }
+        BuildATypoIn("en-US", "locale-en", "Unknown name: missingName", "an English editor shows the JBroScript diagnostic in English");
+        BuildATypoIn("ko-KR", "locale-ko", "\xec\x95\x8c \xec\x88\x98 \xec\x97\x86\xeb\x8a\x94 \xec\x9d\xb4\xeb\xa6\x84",
+            "a Korean editor shows it in Korean");
+        Check(ScriptBuild::CompilerLocaleFor("ko") == "ko-KR" && ScriptBuild::CompilerLocaleFor("en-GB") == "en-US"
+                && ScriptBuild::CompilerLocaleFor("fr-FR") == "en-US" && ScriptBuild::CompilerLocaleFor("").empty(),
+            "the editor language maps onto a compiler language the way the language server maps it");
+        Check(Contains(ScriptBuild::MakeBuildCommand("MSBuild.exe", "GameScript.vcxproj", "Debug", "build.log", nullptr, "en-US"),
+                " -p:JBroCompilerLocale=en-US"),
+            "the build command carries the compiler language");
+        Check(false == Contains(ScriptBuild::MakeBuildCommand("MSBuild.exe", "GameScript.vcxproj", "Debug", "build.log"), "JBroCompilerLocale"),
+            "a build without a language keeps the compiler's own default");
+    }
 }
 
 Int32 RunScriptBuildTests()
@@ -611,6 +691,7 @@ Int32 RunScriptBuildTests()
     TestOnlyAnInstallWithTheCompilerIsUsed();
     TestTheScriptEditorIsRemembered();
     TestTheEditorBuildsTheScriptsAndFindsTheErrorLine();
+    TestTheCompilerSpeaksTheEditorLanguage();
     std::cout << "Script build tests passed.\n";
     return 0;
 }

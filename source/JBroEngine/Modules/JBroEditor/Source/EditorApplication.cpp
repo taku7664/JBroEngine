@@ -4087,7 +4087,10 @@ namespace JBro
         m_platform->DeleteFileAt(m_scriptBuildLog.c_str());
         const String projectFile = EditorPaths::JoinPath(contents.c_str(), "GameScript.vcxproj");
         const String compiler = EditorPaths::JoinPath(m_platform->GetExecutableFolder().c_str(), "JBroc.exe");
-        const String command = ScriptBuild::MakeBuildCommand(m_msbuildPath.c_str(), projectFile.c_str(), "Debug", m_scriptBuildLog.c_str(), compiler.c_str());
+        // 컴파일러 진단도 에디터 언어로 온다 - 넘기지 않으면 영어 에디터의 빌드 결과에 한국어 진단이 섞였다.
+        const String compilerLocale = ScriptBuild::CompilerLocaleFor(m_locale.c_str());
+        const String command = ScriptBuild::MakeBuildCommand(m_msbuildPath.c_str(), projectFile.c_str(), "Debug", m_scriptBuildLog.c_str(),
+            compiler.c_str(), compilerLocale.c_str());
         m_scriptBuild = m_platform->StartProcess(command.c_str(), contents.c_str(), nullptr);
         if (m_scriptBuild.process == nullptr)
         {

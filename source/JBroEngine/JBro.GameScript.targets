@@ -19,6 +19,8 @@
     <JBroGameScriptPdbStamp>$([System.DateTime]::Now.ToString("yyyyMMddHHmmssfff"))</JBroGameScriptPdbStamp>
     <JBroCompilerPath>$(JBroBuildDir)$(Platform)\$(JBroGameScriptLibraryConfiguration)\JBroc.exe</JBroCompilerPath>
     <JBroGeneratedDirectory>$(IntDir)JBroScript\</JBroGeneratedDirectory>
+    <!-- 에디터는 자기 언어를 `JBroCompilerLocale` 로 넘긴다(ScriptBuild::MakeBuildCommand). 에디터 밖 빌드는 비어 있어 jbroc 의 기본 언어를 쓴다. -->
+    <JBroCompilerLocaleArgument Condition="'$(JBroCompilerLocale)' != ''">--locale &quot;$(JBroCompilerLocale)&quot; </JBroCompilerLocaleArgument>
   </PropertyGroup>
 
   <!-- Keep the generated file in the engine's intermediate directory; never rewrite user-owned C++ sources. -->
@@ -42,7 +44,7 @@
   <Target Name="JBroGameScriptGenerate" BeforeTargets="ClCompile" DependsOnTargets="JBroGameScriptValidate"
           Condition="'$(JBroScriptDimension)' == '2D' and ('@(JBroScriptSource)' != '' or Exists('$(JBroGeneratedDirectory)JBroGenerated.files'))">
     <MakeDir Directories="$(JBroGeneratedDirectory)" />
-    <Exec Command="&quot;$(JBroCompilerPath)&quot; --emit-project &quot;$(JBroGeneratedDirectory).&quot; --no-module-entry @(JBroScriptSource->'&quot;%(FullPath)&quot;', ' ')"
+    <Exec Command="&quot;$(JBroCompilerPath)&quot; $(JBroCompilerLocaleArgument)--emit-project &quot;$(JBroGeneratedDirectory).&quot; --no-module-entry @(JBroScriptSource->'&quot;%(FullPath)&quot;', ' ')"
           StdOutEncoding="UTF-8" StdErrEncoding="UTF-8" />
     <ReadLinesFromFile File="$(JBroGeneratedDirectory)JBroGenerated.items">
       <Output TaskParameter="Lines" ItemName="JBroGeneratedCompileFiles" />

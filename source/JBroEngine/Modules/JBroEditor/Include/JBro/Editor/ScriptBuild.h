@@ -71,7 +71,11 @@ namespace JBro
         String LocateVisualStudioCode(IPlatform& platform);
 
         // `"<msbuild>" "<vcxproj>" ...`. 로그는 `logFile` 에 UTF-8 로 남는다 - 콘솔 출력은 시스템 코드 페이지라 한글 경로가 깨진다.
-        String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile, const char* compiler = nullptr);
+        // `compilerLocale` 이 있으면 `jbroc` 진단의 언어로 넘긴다(`-p:JBroCompilerLocale`). 없으면 빌드 타깃은 `jbroc` 의 기본 언어를 쓴다.
+        String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile,
+            const char* compiler = nullptr, const char* compilerLocale = nullptr);
+        // 에디터 언어를 `jbroc` 이 받는 언어로 바꾼다 - 언어 서버와 같다: `ko` 로 시작하면 `ko-KR`, 그 밖은 `en-US`, 빈 것은 빈 것(기본값).
+        String CompilerLocaleFor(const char* editorLocale);
         // 그 편집기로 파일의 그 줄을 여는 명령줄이다. `System` 이거나 편집기 경로가 비면 빈 글자다(부르는 쪽이 셸로 연다).
         String MakeOpenAtLineCommand(EditorKind kind, const char* editorPath, const char* file, UInt32 line);
     }

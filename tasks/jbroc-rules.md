@@ -94,6 +94,7 @@ MSVC 가 무엇이든 말하면 그것은 `jbroc` 의 결함이다. 사용자는
 - **번역 표는 `Localization/jbroc/<로케일>.yaml` 이다**(2026-09-17, D-104). 파일 모양과 로케일 이름(`ko-KR`·`en-US`)은
   에디터의 `Localization/<로케일>.yaml` 과 같고, `jbroc` 이 JBroCore 의 `Yaml.h` 로 직접 읽는다.
   에디터의 `LocalizationTable` 은 `JBroEditor` 안에 있어 쓸 수 없다.
+- **스크립트 빌드도 에디터 언어로 낸다**(2026-11-17, D-373). 에디터가 빌드 명령에 `-p:JBroCompilerLocale=<ko-KR|en-US>` 를 넘기고 `JBro.GameScript.targets` 가 `jbroc --locale` 로 전한다. 에디터 밖 빌드는 속성이 비어 `jbroc` 의 기본 언어(`ko-KR`)다.
 
 ## 4. 참조를 무엇으로 바꾸는가 [확정] (D-262)
 

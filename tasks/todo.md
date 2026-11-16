@@ -3057,6 +3057,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-373. 에디터의 스크립트 빌드는 `jbroc` 진단을 에디터 언어로 받는다. 에디터가 MSBuild 속성 `JBroCompilerLocale` 을 넘기고 `JBro.GameScript.targets` 가 `jbroc --locale` 로 전한다.**
+  (2026-11-17, Script QA 결함 5)
+  Updates: D-299(빌드 명령에 속성이 하나 는다), D-105(`--locale` 을 빌드 타깃이 쓴다).
+  (1) 전에는 빌드 타깃이 언어를 넘기지 않아 `jbroc` 기본값 `ko-KR` 로 고정되어, 영어 에디터의 `빌드 결과` 에 JBroScript 진단만 한국어로 섞였다.
+  (2) 에디터 언어는 언어 서버와 같은 규칙으로 바꾼다(`ScriptBuild::CompilerLocaleFor`): `ko` 로 시작하면 `ko-KR`, 그 밖은 `en-US` - 명령줄 `jbroc` 은 두 언어만 받고 다른 값은 종료 2 다. 빈 값이면 속성을 넘기지 않는다.
+  (3) 에디터 밖 빌드(Visual Studio·MSBuild 직접)는 속성이 비어 지금처럼 `jbroc` 기본 언어다.
+  (4) 시험: `ScriptBuild` 의 `TestTheCompilerSpeaksTheEditorLanguage`(영어·한국어 에디터에서 `.jscript` 오타를 실제로 빌드해 진단 글의 언어를 본다).
+
 - **D-372. 필드 어트리뷰트의 모르는 이름은 `JBC3045`, 인자 수가 틀리면(`[prop(1)]` 포함) `JBC3046` 이다. 둘 다 분석이 내므로 명령줄과 언어 서버가 같은 자리에 같은 글을 보인다. 생성 단계에 남는 오류는 원본 파일과 줄·열을 앞에 붙인다.**
   (2026-11-17, Script QA 결함 4. 근거는 jbroc-rules §3.2 [확정] "필드 어트리뷰트: 모르는 이름, 인자 개수·타입")
   Updates: D-105(진단 번호표에 3045·3046 이 는다), jbroc-rules §3.2(이름·개수는 섰고 인자 **타입** 검사는 아직 없다).

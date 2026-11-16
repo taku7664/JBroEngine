@@ -378,7 +378,18 @@ namespace JBro::ScriptBuild
         return String();
     }
 
-    String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile, const char* compiler)
+    String CompilerLocaleFor(const char* editorLocale)
+    {
+        if (editorLocale == nullptr || editorLocale[0] == '\0')
+        {
+            return String();
+        }
+        const Bool korean = (editorLocale[0] == 'k' || editorLocale[0] == 'K') && (editorLocale[1] == 'o' || editorLocale[1] == 'O');
+        return korean ? String("ko-KR") : String("en-US");
+    }
+
+    String MakeBuildCommand(const char* msbuild, const char* projectFile, const char* configuration, const char* logFile, const char* compiler,
+        const char* compilerLocale)
     {
         String command = "\"";
         command += msbuild;
@@ -400,6 +411,11 @@ namespace JBro::ScriptBuild
             command += " \"-p:JBroCompilerPath=";
             command += compiler;
             command += "\"";
+        }
+        if (compilerLocale != nullptr && compilerLocale[0] != '\0')
+        {
+            command += " -p:JBroCompilerLocale=";
+            command += compilerLocale;
         }
         return command;
     }
