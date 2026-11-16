@@ -2,6 +2,7 @@
 #include <JBro/Types/ValueMath.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/Lexer.h>
+#include <JBro/ScriptCompiler/Summary.h>
 #include <JBro/Types/Table.h>
 #include "QualifiedName.h"
 
@@ -1141,6 +1142,29 @@ namespace JBro::ScriptCompiler
                             kind = SymbolKind::EnumMember;
                         }
                         Symbol symbol = FromNode(child, binding.Id, kind);
+                        // 필드 어트리뷰트의 이름과 인자 수는 타입체커가 잡는다(jbroc-rules §3.2). 전에는 C++ 생성기만 보아서 위치·코드 없는 영어 한 줄로
+                        // 빌드에서야 멈췄고, 언어 서버는 아무것도 보이지 않았다. 목록은 요약·생성기와 같은 `FindFieldAttributeDefinition` 이다.
+                        if (kind == SymbolKind::Field && Child(child, 0) != InvalidNode)
+                        {
+                            for (NodeIndex attribute : m_document->Tree.GetChildren(Child(child, 0)))
+                            {
+                                if (attribute == InvalidNode)
+                                {
+                                    continue;
+                                }
+                                const SyntaxNode& declaration = Node(attribute);
+                                const FieldAttributeDefinition* definition = FindFieldAttributeDefinition(declaration.Text);
+                                if (definition == nullptr)
+                                {
+                                    Error("JBC3045", "unknown_attribute", NameRange(*m_document, declaration), {String(declaration.Text)});
+                                }
+                                else if (declaration.ChildCount != definition->ArgumentCount)
+                                {
+                                    Error("JBC3046", "attribute_argument_count", NameRange(*m_document, declaration),
+                                        {String(declaration.Text), String(std::to_string(definition->ArgumentCount.Get()))});
+                                }
+                            }
+                        }
                         if (kind == SymbolKind::Field && (Node(child).Flags & SyntaxFlagStatic))
                         {
                             Bool property = false;
@@ -3176,7 +3200,7 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
             "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
             "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature",
-            "jbroc.semantic.uninitialized_field"
+            "jbroc.semantic.uninitialized_field", "jbroc.semantic.unknown_attribute", "jbroc.semantic.attribute_argument_count"
         };
         return {keys, std::size(keys)};
     }

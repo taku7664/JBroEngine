@@ -3057,6 +3057,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-372. 필드 어트리뷰트의 모르는 이름은 `JBC3045`, 인자 수가 틀리면(`[prop(1)]` 포함) `JBC3046` 이다. 둘 다 분석이 내므로 명령줄과 언어 서버가 같은 자리에 같은 글을 보인다. 생성 단계에 남는 오류는 원본 파일과 줄·열을 앞에 붙인다.**
+  (2026-11-17, Script QA 결함 4. 근거는 jbroc-rules §3.2 [확정] "필드 어트리뷰트: 모르는 이름, 인자 개수·타입")
+  Updates: D-105(진단 번호표에 3045·3046 이 는다), jbroc-rules §3.2(이름·개수는 섰고 인자 **타입** 검사는 아직 없다).
+  (1) 전에는 C++ 생성기(`CppEmitter.cpp`)만 이 둘을 보아서 `jbroc: C++ emit error: unknown reflected field attribute: rnage` 처럼 위치·코드·번역 없는 영어 한 줄로 빌드에서야 멈췄고, 언어 서버는 아무것도 보이지 않았다.
+  (2) 목록은 요약·필드 설정 편집·생성기가 이미 쓰는 `FindFieldAttributeDefinition`(`Summary.cpp`) 하나다. 메시지 키 `jbroc.semantic.unknown_attribute`·`attribute_argument_count`, 두 번역표에 있다.
+  (3) 분석으로 옮기지 않은 생성기 오류(지원하지 않는 모양·내부 상태)는 `jbroc: C++ emit error: <경로>(<줄>,<열>): <영어 글>` 이다. 빈 enum·소유 필드 순환을 언어 규칙(새 진단)으로 둘지는 사용자 결정 대기다. 분류는 jbroc-rules §16.
+  (4) 시험: `lsp_process_tests.py` 의 `test_field_attribute_diagnostics_match_command_line`(같은 파일을 언어 서버와 `--emit-project` 로 - 코드·줄·열이 같다), `ScriptCompilerCommandLine` 의 `TestEmitErrorsNameTheSourcePosition`.
+
 - **D-371. 스크립트 프렐류드(`<JBro/ScriptAPI.h>`, 2D·3D)가 값 필드의 리플렉션 설명서(`CoreTypeDescriptors.h`·`Math2DReflection.h`·`Math3DReflection.h`·`AssetTypesReflection.h`)를 들인다. 에디터 `새 스크립트` 의 틀은 필드 타입마다 include 를 더하지 않는다.**
   (2026-11-17, Script QA 결함 1. 사용자 승인 "CLI 에게 작업시키고 검수는 너가 해라" - 보고서 `F:\AI\scriptqa\REPORT.md` §2 결함 1)
   Updates: D-266 (6)(그때는 `Vector3` 만 틀이 `Math3DReflection.h` 를 더 들였다), D-334(SDK 사본은 입구에서 닿는 헤더만 옮기므로 프렐류드가 들이면 사본에도 들어간다).

@@ -516,8 +516,32 @@ namespace
     }
 }
 
+namespace
+{
+    // **생성 단계의 오류도 자리를 말한다**(Script QA 결함 4). 전에는 `jbroc: C++ emit error: …` 한 줄이라 어느 파일 몇 줄인지 몰랐다.
+    void TestEmitErrorsNameTheSourcePosition()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_emit_error_position_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const fs::path source = scratch / L"EmptyEnum.jscript";
+        WriteBytes(source, "enum Nothing\n{\n}\n\nscript UsesNothing\n{\n    [prop] Nothing value\n}\n");
+        const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
+        if (result.ExitCode != 1)
+        {
+            Print(result);
+        }
+        Check(result.ExitCode == 1 && result.Err.find("EmptyEnum.jscript(1,1): ") != std::string::npos,
+            "an emitter error carries the source file, line and column");
+        fs::remove_all(scratch);
+    }
+}
+
 JBro::Int32 RunScriptCompilerCommandLineTests()
 {
+    TestEmitErrorsNameTheSourcePosition();
     TestNumbersAreStableAndUnique();
     TestTranslationTablesHoldDiagnosticAndCommandLineKeys();
     TestTheExecutable();

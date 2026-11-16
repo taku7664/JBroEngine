@@ -270,6 +270,30 @@ class ProcessTests(unittest.TestCase):
                 self.assertEqual(response["error"]["code"], -32602)
                 self.assertIn(expected, response["error"]["message"])
 
+    def test_field_attribute_diagnostics_match_command_line(self):
+        # The emitter used to be the only place that rejected these, as an English line with no position,
+        # while the server showed nothing. Both now report the analysis diagnostic at the attribute name.
+        cases = {
+            "UnknownAttribute.jscript": ("script A\n{\n    [rnage(0, 1)]\n    Int value = 0\n}\n", "JBC3045"),
+            "ArgumentCount.jscript": ("script B\n{\n    [range(1)]\n    Int value = 0\n}\n", "JBC3046"),
+            "PropArguments.jscript": ("script C\n{\n    [prop(1)]\n    Int value = 0\n}\n", "JBC3046"),
+        }
+        session = self.start()
+        for name, (source, code) in cases.items():
+            with self.subTest(name=name):
+                uri = self.document(name, source)
+                served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                          for item in self.open(session, uri, source)]
+                self.assertEqual(served, [(code, 3, 6)])
+                output = self.root / "emit" / name
+                process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(output),
+                                          str(self.scripts / name)], capture_output=True, timeout=30)
+                self.assertEqual(process.returncode, 1, process.stderr)
+                printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                           re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+                self.assertEqual(printed, served)
+                self.assertNotIn(b"C++ emit error", process.stderr)
+
     def test_unsaved_diagnostics_fix_and_close(self):
         valid = "script Enemy\n{\npublic Int hp = 1\n}\n"
         uri = self.document("Enemy.jscript", valid)

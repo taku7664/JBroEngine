@@ -420,8 +420,17 @@ namespace JBro::ScriptCompiler
                 return result;
             }
 
+            // 생성 단계의 오류에도 원본 파일과 줄·열을 붙인다 - 전에는 위치 없는 영어 한 줄이라 고칠 곳을 알 수 없었다(Script QA 결함 4).
+            // 자리는 마지막으로 들어간 선언·필드·함수·문장·식이다.
             void Error(std::string_view message)
             {
+                if (m_source != nullptr && m_tree != nullptr && m_errorNode != InvalidNode && m_errorNode < m_tree->GetNodeCount())
+                {
+                    const auto& at = m_tree->Get(m_errorNode).Range.Begin;
+                    m_errors.Add(String(m_source->GetPath()).Append("(").Append(std::to_string(at.Line.Get())).Append(",")
+                        .Append(std::to_string(at.Column.Get())).Append("): ").Append(message));
+                    return;
+                }
                 m_errors.Add(String(message));
             }
 
@@ -932,6 +941,7 @@ namespace JBro::ScriptCompiler
                 {
                     return;
                 }
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 if (node.Kind != SyntaxKind::ScriptDeclaration
                     && node.Kind != SyntaxKind::ClassDeclaration
@@ -1187,6 +1197,7 @@ namespace JBro::ScriptCompiler
 
             void Field(NodeIndex index, Bool isStruct, std::size_t reflectedIndex)
             {
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 const NodeIndex typeNode = Child(index, 1);
                 const Bool constant = typeNode != InvalidNode && (Node(typeNode).Flags & SyntaxFlagConst);
@@ -1442,6 +1453,7 @@ namespace JBro::ScriptCompiler
 
             void Function(NodeIndex index, Bool script, Bool declaration)
             {
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 const Bool constructor = FunctionName(node) == SimpleName(m_owner);
                 const Bool staticMethod = (node.Flags & SyntaxFlagStatic) != 0;
@@ -1759,6 +1771,7 @@ namespace JBro::ScriptCompiler
                 {
                     return {};
                 }
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 switch (node.Kind)
                 {
@@ -2217,6 +2230,7 @@ namespace JBro::ScriptCompiler
 
             void Statement(NodeIndex index, Int32 indent)
             {
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 const String pad(static_cast<std::size_t>(indent), ' ');
                 m_code += "#line " + std::to_string(node.Range.Begin.Line.Get()) + " "
@@ -2503,6 +2517,7 @@ namespace JBro::ScriptCompiler
             ArrayView<const CppSource> m_sources;
             const SourceText* m_source = nullptr;
             const SyntaxTree* m_tree = nullptr;
+            NodeIndex m_errorNode = InvalidNode;
             const ApiCatalog& m_api;
             Bool m_emitModuleEntry;
             const AnalysisResult* m_analysis;

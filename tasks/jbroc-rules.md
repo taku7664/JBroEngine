@@ -538,3 +538,22 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 - `JBroc` 의 진입점은 일을 스택을 256 MB 예약한 스레드에서 하고, 그래도 넘치면 SEH 로 받아 §11.3 의 결함 종료 코드 3 과 표준 에러 `jbroc: internal error: the source nests too deeply to compile (stack overflow)` 로 끝낸다. 명령줄과 `--lsp` 가 같은 진입점이다.
 - Debug 실측: `--emit-project` 와 언어 서버 모두 깊이 2,000(덧셈·괄호·`and`·문자열·곱셈)까지 정상, 괄호 20,000·60,000 은 종료 3. 재귀 자체와 깊이 상한(새 진단)은 정하지 않았다 - 사용자 결정 대기.
 - 시험: `ScriptCompilerCommandLine` 의 `TestDeepExpressionsDoNotCrash`(깊이 64 의 다섯 모양은 종료 0, 괄호 60,000 은 종료 3 과 까닭). 고치기 전 `JBroc` 으로는 깊이 64 에서 종료 3221225725 로 실패한다.
+
+## 16. 생성기 오류의 분류 (2026-11-17, Script QA 결함 4, D-372)
+
+`CppEmitter.cpp`·`CppProjectEmitter.cpp` 의 생성 단계 오류를 둘로 나눈다. (가) §3.2 [확정] 의 타입체커 검사라 분석으로 옮겨야 하는 것, (나) 분석이 허용한 뒤의 지원하지 않는 모양·내부 상태라 생성기에 남아도 되는 것.
+(나) 는 모두 `jbroc: C++ emit error: <경로>(<줄>,<열>): <글>` 로 자리를 붙인다(줄·열은 마지막으로 들어간 선언·필드·함수·문장·식).
+
+| 생성기 오류 | 분류 | 지금 |
+|---|---|---|
+| `unknown reflected field attribute` | (가) §3.2 "모르는 이름" | 분석 `JBC3045` 가 먼저 막는다 |
+| `reflected field attribute argument count`, `prop attribute takes no arguments` | (가) §3.2 "인자 개수" | 분석 `JBC3046` |
+| `C++ emitter cannot reflect an enum without members` | 언어 규칙인지 미정 - §3.2 에 근거가 없다 | (나) 로 남김, 사용자 결정 대기 |
+| `owned field cycle cannot be represented in C++` | 언어 규칙인지 미정 - §3.2 에 근거가 없다 | (나) 로 남김, 사용자 결정 대기 |
+| `does not support this declaration/member/expression/statement yet`, `methods without a body yet`, `the output projection of …` | (나) 지원하지 않는 모양 | 자리 붙임 |
+| `encountered an invalid switch clause`, `for requires an Array<T> iterable`, `two-variable … requires a Table<K, V>`, `switch requires a comparable scalar`, `a range loop variable cannot borrow`, `compound property assignment has no getter` | (나) 분석이 이미 막는 것과 같은 조건의 방어선 | 자리 붙임 |
+| `unresolved name/generic name/member/enum member in C++ emitter` | (나) 내부 상태(분석과 생성기의 어긋남). 카탈로그 자유 함수 이름은 실제로 여기에 걸린다(§14) | 자리 붙임 |
+| `duplicate C++ declaration across files`, `generated file name collision`, `duplicate project type` | (나) 생성 파일 단위 | 자리 붙임(가능한 곳) |
+| `no source files`, `empty syntax tree`, `a game DLL needs at least one script declaration` | (나) 입력 전체의 상태 | 자리 없음(파일이 없거나 프로젝트 단위) |
+
+어트리뷰트 인자의 **타입**(§3.2 "인자 개수·타입")은 아직 검사하지 않는다 - `[range("a", 1)]` 은 생성 C++ 에서 멈출 수 있다.

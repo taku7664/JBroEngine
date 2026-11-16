@@ -70,6 +70,8 @@ Entries:
   jbroc.semantic.switch_value_type: "A switch condition must be Int, Float, Bool, String, or an enum value: {0}"
   jbroc.semantic.equality_operator_signature: "{0} must be an instance method on a class or struct, take one value parameter, and return Bool."
   jbroc.semantic.uninitialized_field: "Field {0} has not finished initialization. Fields initialize in declaration order."
+  jbroc.semantic.unknown_attribute: "Unknown field attribute: {0}"
+  jbroc.semantic.attribute_argument_count: "The {0} attribute takes {1} argument(s)."
   jbroc.summary.syntax_errors: "The document has syntax errors; field settings are unavailable."
   jbroc.summary.field_required: "Select the current field declaration name before editing its settings."
   jbroc.summary.invalid_attribute: "A field attribute is unknown, duplicated, or has an incorrect argument count."
