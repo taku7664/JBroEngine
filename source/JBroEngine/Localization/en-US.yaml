@@ -552,6 +552,8 @@ Entries:
   sprite_viewer.select: Select
   assets.icon_view: Icons
   assets.list_view: List
+  assets.expand: Show sub-assets
+  assets.collapse: Hide sub-assets
   assets.view_tooltip: switch between the list and the icons
   menu.new_project: New Project
   menu.register_project_file_type: Open .jproject Files with This Editor

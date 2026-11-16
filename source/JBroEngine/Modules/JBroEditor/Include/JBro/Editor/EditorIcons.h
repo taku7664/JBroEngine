@@ -55,6 +55,8 @@ namespace JBro::Icons
     inline constexpr const char* Menu         = "\xF3\xB0\x87\x99"; // F01D9 dots-vertical - 컴포넌트 메뉴
     inline constexpr const char* ArrowUp      = "\xF3\xB0\x81\x9D"; // F005D arrow-up - 위로
     inline constexpr const char* ArrowDown    = "\xF3\xB0\x81\x85"; // F0045 arrow-down - 아래로
+    inline constexpr const char* ChevronRight = "\xF3\xB0\x85\x82"; // F0142 chevron-right - 에셋 브라우저 아이콘 칸의 하위 에셋 펼치기(D-338)
+    inline constexpr const char* ChevronLeft  = "\xF3\xB0\x85\x81"; // F0141 chevron-left - 그 접기
     inline constexpr const char* Copy         = "\xF3\xB0\x86\x8F"; // F018F content-copy - 복사
     inline constexpr const char* Play         = "\xF3\xB0\x90\x8A"; // F040A play - 재생
     inline constexpr const char* Stop         = "\xF3\xB0\x93\x9B"; // F04DB stop - 정지
@@ -75,7 +77,7 @@ namespace JBro::Icons
         GripLines, Xmark, Eye, EyeSlash, Search, FolderOpen, Move, Rotate, Scale, SpaceLocal, SpaceWorld, Grid, GridSnap,
         Colliders, Lighting, Frame, ViewWorld, ViewScreen, Language, Ruler, EditCollider, Success, Warning, Error, Info, Plus,
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,
-        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, Copy, Play, Stop, Pause, StepFrame,
+        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, ChevronRight, ChevronLeft, Copy, Play, Stop, Pause, StepFrame,
         ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker
     };
 

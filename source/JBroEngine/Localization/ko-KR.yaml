@@ -552,6 +552,8 @@ Entries:
   sprite_viewer.select: 선택
   assets.icon_view: 아이콘
   assets.list_view: 목록
+  assets.expand: 하위 에셋 펼치기
+  assets.collapse: 하위 에셋 접기
   assets.view_tooltip: 목록과 아이콘 보기를 오갑니다
   menu.new_project: 새 프로젝트
   menu.register_project_file_type: .jproject 파일을 이 에디터로 열기

@@ -5046,6 +5046,155 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **하위 에셋은 ▶ 로 펼친다**(D-338, model-import-plan 1 단계). 그림 파일은 Texture 와 그 짝 Sprite 두 레코드다 - Sprite 는 제 줄이 없고
+    // 파일 줄 아래에 펼친다. 목록 보기는 트리 화살표, 아이콘 보기는 칸 오른쪽의 단추다. 화살표로 펼치는 것은 고르기가 아니고,
+    // 하위 줄을 누르면 인스펙터가 그 하위 에셋을 본다. 펼친 상태는 두 보기가 함께 쓴다.
+    void TestTheAssetBrowserExpandsSubAssets()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAssetExpandProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "art", ignored);
+        for (const char* name : {"hero.png", "slime.png"})
+        {
+            std::ofstream png(root / "Assets" / "art" / name, std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroAssetExpandProbe\\Expand.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; asset expansion not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const JBro::AssetRecord* hero = editor.GetAssetRegistry().FindByPath("art/hero.png");
+        Check(hero != nullptr, "the scan must have registered art/hero.png");
+        JBro::AssetId heroSprite;
+        for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
+        {
+            const JBro::AssetRecord& record = editor.GetAssetRegistry().GetRecord(index);
+            if (record.type == JBro::AssetType::Sprite && record.owner == hero->id)
+            {
+                heroSprite = record.id;
+            }
+        }
+        Check(false == heroSprite.IsNull(), "the image has its paired sprite");
+        char spriteText[JBro::Uuid::TextCapacity] = {};
+        Check(heroSprite.ToText(spriteText, sizeof(spriteText)), "the sprite id has a text form");
+
+        // 에셋 탭을 앞으로 꺼내고 `art` 폴더를 연다.
+        ImGuiWindow* assets = ImGui::FindWindowByName("Assets");
+        Check(assets != nullptr, "the asset browser must have a window");
+        if (false == assets->DockTabIsVisible && assets->DockNode != nullptr && assets->DockNode->TabBar != nullptr)
+        {
+            ImGuiTabBar* tabBar = assets->DockNode->TabBar;
+            ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, assets->TabId);
+            Check(tab != nullptr, "the asset browser must have a tab in its dock");
+            Spot tabSpot;
+            tabSpot.x = static_cast<JBro::Int32>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<JBro::Int32>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            ClickAt(editor, hwnd, tabSpot);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the tab");
+            }
+            assets = ImGui::FindWindowByName("Assets");
+        }
+        {
+            ImGuiWindow* tree = FindChildWindow(assets, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            Spot folder;
+            Check(FindItemAnywhereInWindow(editor, hwnd, tree, LabelId(LabelId(tree->ID, "art"), "##folder"), folder),
+                "the art folder must be a row in the tree");
+            ClickAt(editor, hwnd, folder);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the folder");
+            }
+        }
+        assets = ImGui::FindWindowByName("Assets");
+        ImGuiWindow* contents = FindChildWindow(assets, "##contents");
+        Check(contents != nullptr, "the contents pane must exist");
+        const ImGuiID heroScope = LabelId(contents->ID, "art/hero.png");
+        const ImGuiID heroRow = LabelId(heroScope, "##file");
+        const ImGuiID spriteRow = LabelId(LabelId(heroScope, spriteText), "##file");
+        Spot unused;
+        Check(LocateItem(editor, hwnd, spriteRow, -1, unused) != Located::Found, "folded, the sprite has no row of its own");
+
+        // ── 목록 보기: 화살표로 펼친다 ─────────────
+        JBro::Widget::ItemLocator::Watch(heroRow);
+        Check(editor.Tick(Frame), "the editor must tick while locating hero");
+        JBro::Widget::ItemLocator::ItemRect heroRect;
+        Check(JBro::Widget::ItemLocator::Take(heroRect), "hero.png is a row in the art folder");
+        Spot arrow;
+        arrow.x = static_cast<JBro::Int32>(heroRect.minX.Get() + ImGui::GetStyle().FramePadding.x + ImGui::GetFontSize() * 0.5f);
+        arrow.y = static_cast<JBro::Int32>((heroRect.minY.Get() + heroRect.maxY.Get()) * 0.5f);
+        ClickAt(editor, hwnd, arrow);
+        Check(editor.Tick(Frame), "the row unfolds");
+        Spot spriteSpot;
+        Check(LocateItem(editor, hwnd, spriteRow, -1, spriteSpot) == Located::Found, "the arrow unfolds the sprite under hero.png");
+        Check(editor.GetSelectedAsset().IsNull(), "unfolding is not choosing - the inspector keeps what it showed");
+        ClickAt(editor, hwnd, spriteSpot);
+        Check(editor.Tick(Frame), "the sprite row takes the click");
+        Check(editor.GetSelectedAsset() == heroSprite, "clicking the sub-asset row shows the sprite in the inspector");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_expanded_list");
+        ClickAt(editor, hwnd, arrow);
+        Check(editor.Tick(Frame), "the row folds");
+        Check(LocateItem(editor, hwnd, spriteRow, -1, unused) != Located::Found, "the arrow folds it again");
+        ClickAt(editor, hwnd, arrow);
+        Check(editor.Tick(Frame), "the row unfolds again");
+
+        // ── 아이콘 보기: 펼친 것이 그대로이고, 칸의 단추로 접는다 ─────────────
+        Spot iconButton;
+        Check(FindItemAnywhereInWindow(editor, hwnd, assets, LabelId(assets->ID, "##assets_view_icons"), iconButton),
+            "the view button must be on the asset browser tool bar");
+        ClickAt(editor, hwnd, iconButton);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the icon view");
+        }
+        contents = FindChildWindow(ImGui::FindWindowByName("Assets"), "##contents");
+        Check(contents != nullptr, "the contents pane must still exist");
+        const ImGuiID spriteTile = LabelId(LabelId(heroScope, spriteText), "##tile");
+        Check(LocateItem(editor, hwnd, spriteTile, -1, unused) == Located::Found, "the icon view keeps hero.png unfolded");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_expanded_icons");
+        Spot expander;
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(heroScope, "##expand"), expander),
+            "an unfolded tile has its fold button");
+        ClickAt(editor, hwnd, expander);
+        Check(editor.Tick(Frame), "the tile folds");
+        Check(LocateItem(editor, hwnd, spriteTile, -1, unused) != Located::Found, "the button folds the tile");
+        Check(LocateItem(editor, hwnd, LabelId(LabelId(contents->ID, "art/slime.png"), "##expand"), -1, unused) == Located::Found,
+            "every file with sub-assets has its own button");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_folded_icons");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // 프레임마다 **처음 보는 글자**를 그리는 패널이다. ImGui 1.92 는 글리프를
     // 필요할 때 아틀라스에 굽고 백엔드에 "이 텍스처를 고쳐 올려라" 라고 말하므로,
     // 이 패널이 도는 동안에는 프레임마다 텍스처 업로드가 일어난다.
@@ -17372,6 +17521,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheNodeGraphEditorFindsAnnotatesAndEditsInPlace();
     TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
+    TestTheAssetBrowserExpandsSubAssets();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestAScriptFaultStopsPlayAndTellsTheUser();
     TestPlayingRunsPhysicsAndStoppingPutsItBack();

@@ -524,6 +524,8 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorSpritePpuMismatch = "inspector.sprite_ppu_mismatch";
     inline constexpr const char* AssetsIconView = "assets.icon_view";
     inline constexpr const char* AssetsListView = "assets.list_view";
+    inline constexpr const char* AssetsExpand = "assets.expand";
+    inline constexpr const char* AssetsCollapse = "assets.collapse";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
     inline constexpr const char* CommonCancel = "common.cancel";
     // 경로 칸의 단추(D-164, 기존 `CommonBrowse`)
