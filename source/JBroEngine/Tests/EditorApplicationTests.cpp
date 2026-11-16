@@ -19008,6 +19008,78 @@ JBro::Int32 RunEditorApplicationTests()
     return 0;
 }
 
+namespace
+{
+    // **오류 알림은 들어온 뒤 창 안에 서고 끝까지 읽힌다**(Script QA 결함 7). 시나리오 B 의 `b12` 그림은 알림이 오른쪽에서 미끄러져
+    // 들어오는 0.18 초 사이(시나리오 화면은 3 프레임 뒤에 찍는다)라 오른쪽 끝이 잘려 보였다. 같은 세 알림을 두 언어로 띄워 들어오는 중과
+    // 끝난 뒤를 찍고(`JBRO_EDITOR_SHOT`), 끝난 뒤에는 비킴이 없고 불투명한지 본다.
+    void ShowTheCrashNotifications(const char* locale, const char* shotSuffix)
+    {
+        // 시험 실행 파일 옆에는 에디터 번역표가 없어(jbroc 것만 복사된다) 그대로 두면 어느 언어로 띄워도 영어 기본 글로 그린다.
+        // 언어마다 실제 글자로 재려고 엔진 소스의 번역표를 쓴다.
+        JBro::String localization;
+        {
+            JBro::WindowsPlatform probe;
+            JBro::JMemoryContext memory;
+            Check(probe.Initialize(memory), "the platform initializes");
+            const JBro::String engineRoot = JBro::ScriptProject::FindEngineRoot(probe, probe.GetExecutableFolder().c_str());
+            probe.Shutdown();
+            Check(false == engineRoot.empty(), "the engine sources are found from the test executable");
+            localization = engineRoot + "/Localization";
+        }
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.locale = locale;
+        config.localizationDirectory = localization.c_str();
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the notification layout not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor lays out its docks before the notifications");
+        }
+        char created[256] = {};
+        std::snprintf(created, sizeof(created), JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptCreated, "Created the script %s"), "Hero");
+        JBro::EditorNotifications& notifications = editor.GetNotifications();
+        notifications.Notify(JBro::NotificationLevel::Success, created,
+            JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptCreatedNext, "Click to open it in your code editor."));
+        notifications.Notify(JBro::NotificationLevel::Success, JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptsBuilt, "The scripts were built"),
+            JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptsBuiltNext, "Attach them with Add Component in the inspector"));
+        char message[512] = {};
+        std::snprintf(message, sizeof(message), JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFaultAt, "%s - %s:%u (%s)"),
+            JBro::Loc::TextOr(JBro::LocKeys::ScriptFaultAccessViolation, "The script accessed invalid memory"), "Hero.cpp", 20u, "OnUpdate");
+        notifications.Notify(JBro::NotificationLevel::Error,
+            JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFaultStopped, "A script error stopped the simulation"), message);
+        Check(editor.Tick(Frame), "the editor draws the arriving notifications");
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, (std::string("notification_entering_") + shotSuffix).c_str());
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor keeps drawing the notifications");
+        }
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, (std::string("notification_settled_") + shotSuffix).c_str());
+        Check(notifications.GetVisibleCount() == 3, "the three notifications are on screen");
+        for (JBro::UInt32 index = 0; index < notifications.GetVisibleCount(); ++index)
+        {
+            const JBro::NotificationView view = notifications.GetVisible(index);
+            Check(std::fabs(view.offsetX.Get()) < 0.5f && view.alpha.Get() > 0.99f,
+                "a notification that has arrived stands inside the window, not pushed past its right edge");
+        }
+        editor.Shutdown();
+    }
+
+    void TestTheCrashNotificationFitsTheWindow()
+    {
+        ShowTheCrashNotifications("ko-KR", "ko");
+        ShowTheCrashNotifications("en-US", "en");
+    }
+}
+
 // 사용자 시나리오(tasks/script-user-scenario.md)는 실제 MSBuild 로 스크립트를 빌드해 오래 걸리므로 묶음을 따로 둔다.
 JBro::Int32 RunUserScenarioTests()
 {
@@ -19016,6 +19088,7 @@ JBro::Int32 RunUserScenarioTests()
     TestScenarioCJBroScript();
     TestScenarioDUiBuilder();
     TestScenarioETextEntry();
+    TestTheCrashNotificationFitsTheWindow();
     std::cout << "User scenario tests passed.\n";
     return 0;
 }
