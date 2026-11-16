@@ -129,6 +129,9 @@
     <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
       <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)ufbx\ufbx.vcxproj">
+      <Project>{1b000003-0000-4000-8000-0000000fb0c0}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroAudioTypes\JBroAudioTypes.vcxproj">
       <Project>{1a000018-0000-4000-8000-0000000a0d17}</Project>
     </ProjectReference>

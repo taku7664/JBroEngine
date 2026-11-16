@@ -35,6 +35,7 @@ JBro::Int32 RunDelegateTests();
 JBro::Int32 RunInterpolationTests();
 JBro::Int32 RunFixedStringTests();
 JBro::Int32 RunUuidTests();
+JBro::Int32 RunModelDecoderTests();
 JBro::Int32 RunAssetRegistryTests();
 JBro::Int32 RunAssetSystemTests();
 JBro::Int32 RunSpriteLibraryTests();
@@ -636,6 +637,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("Uuid", &RunUuidTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ModelDecoder", &RunModelDecoderTests))
         {
             return 1;
         }

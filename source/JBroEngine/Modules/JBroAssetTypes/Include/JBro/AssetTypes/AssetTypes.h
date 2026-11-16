@@ -105,6 +105,28 @@ namespace JBro
         TextureFilter filter = TextureFilter::Default;
     };
 
+    // 모델의 법선을 어디서 얻는가(D-339). `Import` 는 파일의 것이고 파일에 없으면 계산한다. `Calculate` 는 파일의 것을 버리고 늘 계산한다.
+    enum class ModelNormals : std::uint8_t
+    {
+        Import,
+        Calculate
+    };
+
+    // `.jmeta` 의 `Model.ImportOptions` 블록이다(D-338·D-339, model-import-plan §2.7). 모델 파일 하나(`.fbx .gltf .glb .obj`)의 옵션이고
+    // 하위 메시·재질은 따로 옵션이 없다.
+    struct ModelImportOptions
+    {
+        // 단위를 바꾼 뒤 한 번 더 곱하는 배율이다.
+        Float scale = 1.0f;
+        // 파일의 단위를 미터로 바꾼다. FBX 는 흔히 센티미터라 끄면 100 배 크다. glTF 는 늘 미터다.
+        Bool convertUnits = true;
+        ModelNormals normals = ModelNormals::Import;
+        // `Calculate` 일 때만 쓴다. 두 면이 이 각(도)보다 크게 꺾이면 모서리를 각지게, 작으면 매끈하게 잇는다.
+        Float smoothingAngle = 60.0f;
+        // 끄면 재질과 내장 그림을 하위 에셋으로 만들지 않는다 - 메시만 쓰려고 가져온 모델의 브라우저가 지저분해지지 않는다.
+        Bool importMaterials = true;
+    };
+
     // 오디오 에셋의 디코드 방식이다(`.jmeta` 의 `Audio.ImportOptions.mode`, D-197). 파일의 속성이라 에셋 몫이다(D-198).
     enum class AudioImportMode : std::uint8_t
     {

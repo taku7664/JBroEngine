@@ -70,6 +70,17 @@ Camera·MeshRender·Text·Audio, 캔버스 뷰는 궤도 카메라·3D 집기·�
   비우고 `MeshRender3DSystem` 이 매 Update 에 `MeshLibrary` 로 다시 푼다. 메시 에셋(`.obj`·`.gltf`)이 레지스트리에 들어오면
   `SpriteLibrary` 와 같은 모양으로 정리한다.
 
+## 모델 임포트의 남은 일 (D-339)
+
+세부는 `model-import-plan.md` §4. 재질 단계에 묶인 것은 그 단계에서 함께 한다.
+
+- `[남은 일]` 텍스처 `colorSpace`·`mipmaps` 의 효과(sRGB 뷰·밉 체인) - 재질 단계(우선순위 4)·RHI 확장(D-322). 값은 모델 임포트 2 단계부터 저장된다.
+- `[남은 일]` 탄젠트 계산(MikkTSpace) - 노멀맵 재질과 함께.
+- `[남은 일]` 메시 최적화·압축(meshoptimizer) - 성능을 잰 뒤.
+- `[남은 일]` 라이트맵 UV(xatlas) - 라이트맵 계획과 함께.
+- `[남은 일]` `readable`(CPU 사본 유지) - 메시 콜라이더(우선순위 9)와 함께.
+- `[남은 일]` 애니메이션·뼈대·블렌드셰이프, 카메라·조명·노드 계층 가져오기, OBJ `upAxis`.
+
 ## 프레임워크
 
 - `[열림]` 물리 3D 시스템이 없다. `Rigidbody3D`·`Collider3D` 는 골격이다.

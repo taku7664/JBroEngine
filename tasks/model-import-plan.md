@@ -34,6 +34,12 @@
   메시마다 정점(위치·법선·UV)·인덱스·재질 번호, 재질마다 이름·기본색·텍스처 칸(번호), 그림마다 바깥 경로 또는 내장 바이트, 노드 계층과 변환.
 - 좌표: glTF 는 엔진과 같은 오른손·Y 위·미터라 그대로다. FBX·OBJ 는 ufbx 의 축·단위 변환(`target_axes`·`target_unit_meters`)으로 엔진 좌표에 맞춘다.
 - 법선이 없으면 계산해 채운다. 삼각형이 아닌 면은 디코더가 삼각형으로 나눈다.
+- **선 모양(2 단계)**: 두 디코더는 "삼각형 꼭짓점 목록"(합치지 않음, 파일의 반시계 감김)을 내고 공통 마무리가 법선(옵션)·배율·감김 뒤집기(엔진은 바깥에서 볼 때 시계)·
+  정점 합치기(바이트로 정렬해 이웃끼리)를 한다. 메시 하나 = 재질 하나라 glTF 의 프리미티브·FBX 의 재질 부분마다 `ModelMesh` 하나이고 이름은 `메시/재질` 이다(겹치면 ` (2)`).
+  정점은 메시 자신의 좌표다 - ufbx 의 축·단위·기하 변환은 정점에 굽고(`MODIFY_GEOMETRY`), 노드 변환은 `ModelNode` 에 따로 든다. FBX·OBJ 의 UV 는 세로를 뒤집는다(아래가 0 → 위가 0).
+  디코더는 파일을 열지 않는다(D-112) - `.gltf` 의 바깥 버퍼와 OBJ 의 `.mtl` 은 `ModelFileReader` 로 받는다(ufbx 는 `load_external_files` 를 켜야 `.mtl` 을 읽고, 없으면 재질만 빠진다).
+  법선 계산은 같은 자리 꼭짓점 가운데 면 법선이 `smoothingAngle` 안에 드는 면들의 넓이 가중 합이다. 법선을 다시 계산하면 파일의 탄젠트는 버린다.
+  cgltf 구현은 `fopen`·`strncpy` 경고(C4996, SDL 이 오류로 올린다)를 내서 그 include 동안만 경고를 끈다 - 서드파티는 고치지 않는다.
 
 ### 2.3 첫 판의 범위
 
@@ -78,15 +84,26 @@
 
 ### 2.7 임포트 옵션 (`.jmeta` 의 `ImportOptions`)
 
-`ModelImportOptions { scale, recalculateNormals }` 둘로 시작한다. 스프라이트 옵션과 같은 자리(브라우저에서 고른 에셋의 인스펙터)에서 고치고 커밋으로 되돌린다.
-하위 Texture 는 2D 의 Texture 옵션(색 공간·필터)을 그대로 쓴다.
+사용자와 추렸다(D-339): **비용이 싸거나 빠지면 결과가 틀리는 것**은 첫 판에 넣고, 비싸거나 쓰는 곳이 없는 것은 남은 일(§4)로 둔다.
+스프라이트 옵션과 같은 자리(브라우저에서 고른 에셋의 인스펙터)에서 고치고 커밋으로 되돌린다.
+
+- **`ModelImportOptions`**: `scale`(1.0, 단위를 바꾼 뒤 곱하는 배율) · `convertUnits`(켬, 파일의 단위를 미터로 - FBX 는 흔히 cm) ·
+  `normals`(`Import` 파일의 것·없으면 계산 / `Calculate` 늘 다시 계산) · `smoothingAngle`(60°, `Calculate` 일 때만, 이보다 크게 꺾인 모서리는 각지게) ·
+  `importMaterials`(켬, 끄면 재질·내장 그림 하위 에셋을 만들지 않는다).
+- **`TextureImportOptions` 에 둘을 더한다**(모델 내장 그림과 일반 그림 공통): `colorSpace`(`Auto`·`Srgb`·`Linear` - `Auto` 는 재질의 기본색 칸이면 sRGB,
+  노멀·거칠기 따위 칸이면 선형, 일반 그림은 sRGB) · `mipmaps`(모델 텍스처는 켬, 일반 그림은 끔 - 2D 픽셀 아트는 밉이 없어야 한다).
+  **둘은 지금 값을 저장하고 인스펙터에 보이기만 한다(사용자 선택 (a))** - 효과(sRGB 텍스처 뷰·밉 체인 업로드)는 3D 가 텍스처를 처음 그리는 재질 단계(todo-3d 우선순위 4)
+  에서 켠다. 그때 검증할 수 있어서다. 지금 2D 그림에는 아무 변화가 없다.
+- **옵션이 아니라 늘 한다**: 정점 합치기와 인덱스 버퍼 만들기(ufbx 는 면마다 정점을 따로 준다), 인덱스 16·32 비트 자동(정점 65,536 미만이면 16),
+  삼각형 나누기, 파일에 탄젠트가 있으면 CPU 자료에 읽어 두기(노멀맵 단계에서 다시 읽지 않는다).
+- 축은 옵션이 아니다 - glTF 는 고정, FBX 는 파일이 말하고 ufbx 가 엔진 축으로 바꾼다, OBJ 는 Y 위로 가정한다(틀리는 파일이 나오면 `upAxis` 를 더한다).
 
 ## 3. 단계
 
 | 단계 | 내용 | 상태 |
 |---|---|---|
 | 1 | 브라우저 ▶ 펼치기 화면 - 그림의 Texture·Sprite 로 먼저 세우고 화면을 찍어 확인받는다 | `[완료]` 2026-11-16 · 사용자 확인("이대로 커밋") · `AssetBrowserPanel`(`Collect` 가 `owner` 있는 레코드를 파일 줄에 단다, `DrawFile` 의 트리 화살표, `DrawFileTile` 의 `DrawTileExpander`·묶음 띠, `HandleChildInput`) · 시험 `TestTheAssetBrowserExpandsSubAssets`(화면 `assets_expanded_list`·`assets_expanded_icons`·`assets_folded_icons`) |
-| 2 | ufbx·cgltf 를 `ThirdParty/` 에 들인다(내려받기는 파일·출처·크기를 밝히고 확인) · `ModelDecoder` 와 `ModelData` · 시험 모델(작은 `.glb`·`.fbx`·`.obj`) | `[진행]` 2026-11-16 ufbx v0.23.1(자기 정적 라이브러리 `ufbx.vcxproj`, 빌드 확인)·cgltf v1.15(헤더) 를 들였다(사용자 확인, 판·해시는 ThirdParty/README). 디코더는 아직 |
+| 2 | ufbx·cgltf 를 `ThirdParty/` 에 들인다(내려받기는 파일·출처·크기를 밝히고 확인) · `ModelDecoder` 와 `ModelData` · 시험 모델(작은 `.glb`·`.fbx`·`.obj`) | `[완료]` 2026-11-16 · ufbx v0.23.1(자기 정적 라이브러리)·cgltf v1.15(헤더, 구현은 `ModelDecoder.cpp` 한 곳) · `JBroAsset` 의 `ModelDecoder.h` (`ModelData`·`DecodeModel`·`ModelFileReader`·`HashModelBytes`)와 `AssetTypes.h` 의 `ModelImportOptions`(D-339) · 시험 묶음 `ModelDecoder` 가 모델을 직접 짓는다(데이터 URI `.gltf`·바깥 `.bin` `.gltf`·`.glb`·`.mtl` 있는 `.obj`·ASCII `.fbx`) · 뮤테이션 여덟(감김·UV 뒤집기·단위·매끈함 각·합치기·`importMaterials`·해시·배율)이 모두 잡힌다 - 처음 해시 시험은 길이만 달라 지나갔다. 세부는 §2.2 의 "선 모양" |
 | 3 | `AssetType::Model` · 확장자 표 · 레지스트리의 하위 레코드와 `.jmeta` 하위 아이디 고정 · `ModelImportOptions` | |
 | 4 | `AssetSystem` 의 메시 풀 · `MeshLibrary` 등록과 해석 패스 · 메시 칸 목록의 `모델 / 메시` · 파일 감시로 다시 읽기 | |
 | 5 | 내장 그림의 하위 Texture · 해시 기록 · 브라우저 배지와 인스펙터 `같은 그림` 줄 | |
@@ -100,3 +117,14 @@
 - 모델 미리보기 창과 썸네일 렌더링 - 3D 만의 화면이라 할 때 묻는다.
 - 텍스처 꺼내기(내장 그림을 파일로 풀어 일반 Texture 로).
 - 정점 형식에 UV 를 더하는 것(재질 단계). 그때까지 UV 는 CPU 자료에만 있다.
+
+**남은 일 - 옵션과 기능 (D-339 에서 미룬 것, 사용자: "남은 작업으로 둬")**
+
+- `[남은 일]` `colorSpace`·`mipmaps` 의 **효과**: sRGB 텍스처 뷰, 밉 체인 만들기와 업로드, 샘플러. 재질 단계(우선순위 4)와 RHI 확장(D-322)에서. 옵션 값은 2 단계부터 저장된다.
+- `[남은 일]` 탄젠트 **계산**(파일에 없을 때) - MikkTSpace 를 들여야 한다(서드파티, 확인 대상). 노멀맵 재질과 함께.
+- `[남은 일]` 메시 최적화(정점 캐시 차례)·압축 - meshoptimizer 를 들여야 한다(서드파티, 확인 대상). 성능을 잰 뒤에.
+- `[남은 일]` 라이트맵 UV - xatlas 를 들여야 한다(서드파티, 확인 대상). 라이트맵 계획과 함께.
+- `[남은 일]` 읽기 가능(`readable`, CPU 사본 유지) - GPU 에 올린 뒤 CPU 사본을 버리는 경로와 함께. 메시 콜라이더(3D 물리, 우선순위 9)가 읽을 때.
+- `[남은 일]` 애니메이션·뼈대·블렌드셰이프 가져오기 - 스켈레탈 애니메이션 단계.
+- `[남은 일]` 카메라·조명·노드 계층 가져오기 - 모델을 노드 트리째 놓기(위 첫 줄)와 함께.
+- `[남은 일]` `upAxis`(OBJ) - 축이 틀린 OBJ 가 실제로 나오면.
