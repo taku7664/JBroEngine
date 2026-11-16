@@ -203,11 +203,11 @@ namespace JBro
             m_privateClipboard = false == config.windowVisible;
             m_openPath = config.openPath;
             m_openPathUser = config.openPathUser;
+            m_fileTypeClassesKey = config.fileTypeClassesKey != nullptr ? config.fileTypeClassesKey : "";
             m_platform = MakeOwnerPtr<WindowsPlatform>();
             if (false == m_platform->Initialize(config.memory))
             {
                 ReleaseProcessResources();
-            m_fileTypeClassesKey = config.fileTypeClassesKey != nullptr ? config.fileTypeClassesKey : "";
                 return false;
             }
             // **스크립트가 죽어도 에디터는 산다**(D-330). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
@@ -2261,18 +2261,14 @@ namespace JBro
 
     void EditorApplication::RequestOpenProject()
     {
-        m_openProjectRequested = true;
-    }
-
-    void EditorApplication::PerformOpenProjectRequest()
         if (false == CanSwitchProject())
         {
             Log::Write(LogLevel::Warning, "project", "a project is open; open another .jproject from the file browser instead");
             return;
         }
-    {
-        if (false == m_openProjectRequested)
-        {
+        m_openProjectRequested = true;
+    }
+
     Bool EditorApplication::CanSwitchProject() const
     {
         return m_projectFilePath.empty();
@@ -2304,6 +2300,10 @@ namespace JBro
         return false;
     }
 
+    void EditorApplication::PerformOpenProjectRequest()
+    {
+        if (false == m_openProjectRequested)
+        {
             return;
         }
         m_openProjectRequested = false;
@@ -2356,15 +2356,15 @@ namespace JBro
 
     void EditorApplication::RequestNewProject()
     {
-        m_newProjectRequested = true;
-    }
-
-    ProjectCreateFailure EditorApplication::CheckProjectName(const char* parentFolder, const char* name)
         if (false == CanSwitchProject())
         {
             Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
             return;
         }
+        m_newProjectRequested = true;
+    }
+
+    ProjectCreateFailure EditorApplication::CheckProjectName(const char* parentFolder, const char* name)
     {
         return JBro::CheckProjectName(*m_platform, parentFolder, name);
     }
@@ -2614,6 +2614,12 @@ namespace JBro
     Bool EditorApplication::CreateProject(
         const char* parentFolder, const char* name, FrameworkKind framework, ProjectCreateFailure* failure)
     {
+        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-336). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
+        if (false == CanSwitchProject())
+        {
+            Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
+            return false;
+        }
         String path;
         ProjectFileError error;
         if (false == CreateProjectFile(*m_platform, parentFolder, name, framework, EngineVersionText, path, error))
@@ -2642,12 +2648,6 @@ namespace JBro
             return;
         }
         String path = m_canvasPath;
-        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-336). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
-        if (false == CanSwitchProject())
-        {
-            Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
-            return false;
-        }
         if (path.empty())
         {
             // 경로를 모른다. 대화상자로 받는다 - **막히는 호출이라 프레임 밖이어야 한다.**
@@ -5916,7 +5916,6 @@ namespace JBro
                 }
                 ImGui::Separator();
             }
-            ImGui::Separator();
             DrawShortcutItem(EditorShortcut::SaveCanvas,
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), Icons::Save);
             {
@@ -5951,6 +5950,7 @@ namespace JBro
                     BuildScripts();
                 }
             }
+            ImGui::Separator();
             if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
             {
                 m_exitRequested = true;
@@ -6956,6 +6956,20 @@ namespace JBro
                     popup.OnEnter(*this);
                 }
                 popup.OnDraw(*this);
+                // **붙드는 프레임이 지난 뒤에 크기가 바뀌어도, 사람이 옮기지 않았으면 다시 가운데에 붙든다.** 내용에 맞추는 높이가
+                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-336 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
+                const ImVec2 size = ImGui::GetWindowSize();
+                const ImVec2 pos = ImGui::GetWindowPos();
+                const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                const Bool resized = size.x != popup.m_lastWidth || size.y != popup.m_lastHeight;
+                const Bool stillCentered = std::fabs(pos.x + popup.m_lastWidth * 0.5f - center.x) < 1.0f
+                    && std::fabs(pos.y + popup.m_lastHeight * 0.5f - center.y) < 1.0f;
+                if (popup.m_framesShown >= SettleFrames && resized && stillCentered)
+                {
+                    popup.m_framesShown = 0;
+                }
+                popup.m_lastWidth = size.x;
+                popup.m_lastHeight = size.y;
                 // **Esc 는 취소다**(사용자 시나리오 B). 닫기 단추(X)가 있는 팝업은 Esc 로도 닫힌다 - 이름 칸에 글자를 치던 중이어도 그렇다.
                 // 단추가 없는 것(진행 표시)은 코드로만 닫히므로 Esc 를 받지 않는다.
                 if (popup.HasCloseButton() && popup.IsAlive() && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
@@ -6984,20 +6998,6 @@ namespace JBro
     PopupHandle EditorApplication::OpenPopup(OwnerPtr<EditorPopup> popup)
     {
         if (popup.Get() == nullptr || false == m_uiEnabled)
-                // **붙드는 프레임이 지난 뒤에 크기가 바뀌어도, 사람이 옮기지 않았으면 다시 가운데에 붙든다.** 내용에 맞추는 높이가
-                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-336 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
-                const ImVec2 size = ImGui::GetWindowSize();
-                const ImVec2 pos = ImGui::GetWindowPos();
-                const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-                const Bool resized = size.x != popup.m_lastWidth || size.y != popup.m_lastHeight;
-                const Bool stillCentered = std::fabs(pos.x + popup.m_lastWidth * 0.5f - center.x) < 1.0f
-                    && std::fabs(pos.y + popup.m_lastHeight * 0.5f - center.y) < 1.0f;
-                if (popup.m_framesShown >= SettleFrames && resized && stillCentered)
-                {
-                    popup.m_framesShown = 0;
-                }
-                popup.m_lastWidth = size.x;
-                popup.m_lastHeight = size.y;
         {
             return InvalidPopupHandle;
         }

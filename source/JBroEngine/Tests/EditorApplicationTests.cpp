@@ -8314,12 +8314,12 @@ namespace
             return;
         }
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.CanSwitchProject(), "an editor with no project can make one");
         // **시간이 흐르지 않은 프레임에 에디터가 멈추지 않는다**(D-160). 호스트의 첫 프레임이 0 초로 재어지면 UI 가
         // 프레임을 거절해 에디터가 켜지자마자 꺼졌다.
         Check(editor.Tick(0.0f), "a frame in which no time passed does not stop the editor");
         Check(editor.Tick(Frame), "the editor must settle");
 
-        Check(editor.CanSwitchProject(), "an editor with no project can make one");
         editor.RequestNewProject();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -14450,11 +14450,6 @@ namespace
         return nullptr;
     }
 
-    // **몸통을 잡아 끌면 지금 기즈모 모드의 중립 손잡이를 잡은 것과 같다**(D-298). 옮기기 모드는 두 축으로 옮기고(고르지 않은 것을 끌면
-    // 그것을 고르고 옮긴다), 돌리기 모드는 돌리고, 크기 모드는 두 축을 같은 비율로 키운다. 한 번 끄는 것은 되돌리기 한 번이다.
-    // 빈 곳에서 끌면 여전히 상자 선택이다(아무것도 바꾸지 않는다).
-    void TestDraggingABodyUsesTheNeutralHandle()
-    {
     // **파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·`.jproject 연결` 은 프로젝트가 없을 때만 있다**(D-336). 프로젝트가 없는 에디터에서 메뉴로
     // 프로젝트를 열면 그 항목들이 사라지고, `프로젝트 저장` 은 두 때 모두 있다(훑기가 항목을 찾을 수 있다는 대조다).
     void TestProjectItemsShowOnlyWithoutAProject()
@@ -14602,6 +14597,11 @@ namespace
         editor.Shutdown();
     }
 
+    // **몸통을 잡아 끌면 지금 기즈모 모드의 중립 손잡이를 잡은 것과 같다**(D-298). 옮기기 모드는 두 축으로 옮기고(고르지 않은 것을 끌면
+    // 그것을 고르고 옮긴다), 돌리기 모드는 돌리고, 크기 모드는 두 축을 같은 비율로 키운다. 한 번 끄는 것은 되돌리기 한 번이다.
+    // 빈 곳에서 끌면 여전히 상자 선택이다(아무것도 바꾸지 않는다).
+    void TestDraggingABodyUsesTheNeutralHandle()
+    {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
@@ -17328,6 +17328,8 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheEditorFindsItsFilesFromAnywhere();
     TestTheMenuBarSpeaksTheLoadedLocale();
     TestTheDebugMenuShowsStartDebugging();
+    TestProjectItemsShowOnlyWithoutAProject();
+    TestRegisteringTheProjectFileTypeFromTheEditor();
     TestTheEditorForwardsInputToItsUi();
     TestThePanelRegistryRefusesWhatItCannotHold();
     TestUniqueAndInstancePanels();
@@ -17465,5 +17467,3 @@ JBro::Int32 RunUserScenarioTests()
     std::cout << "User scenario tests passed.\n";
     return 0;
 }
-    TestProjectItemsShowOnlyWithoutAProject();
-    TestRegisteringTheProjectFileTypeFromTheEditor();
