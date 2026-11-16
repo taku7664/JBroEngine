@@ -1,7 +1,7 @@
 # JBroScript 문법
 
 > **현재 상태(2026-10-14, D-317)**: `ref` 단일 표기와 실행 시 자동 검사가 §16에서 D-262·§8~9를 갱신한다.
-> 파서·의미 분석과 공용/2D 언어 서버는 있으며, C++ 이미터와 실제 자동 검사는 아직 없다.
+> 파서·의미 분석·공용/2D 언어 서버·2D C++ 이미터와 실행 시 자동 검사가 있다(2026-10-15 이미터·실행 검사, [ref-log 계획](./jbroscript-ref-log-plan.md); 2026-11-17 Script QA 로 §14 예시 전체가 생성 C++ `/W4` 로 빌드됨, jbroc-rules §14). 3D 생성은 없다.
 > 아래 초기·중단 설명과 §15는 결정 당시의 이력이다. 현재 적용 문법은 §16을 따른다.
 >
 > 2026-09-15 까지 빡대리와 논의한 **사용자가 쓰는 문법**을 모은 문서다. **언어도 `jbroc` 도 아직 구현하지 않았다.**
@@ -700,7 +700,7 @@ script Enemy : IDamageable
 
 ## 14. 전체 예시 - 새 문법 (D-262)
 
-§13 과 같은 적을 새 문법으로 쓴다. 훅은 델타를 인자로 받지 않는다(D-242). 서비스 이름(`Time`·`Physics`)은 §12 의 9번이다.
+§13 과 같은 적을 새 문법으로 쓴다. 훅은 델타를 인자로 받지 않는다(D-242). 서비스 이름(`Time`·`Physics`)은 §12 의 9번이다. 이름은 카탈로그의 것이다 - 델타는 `Time.DeltaTime()` 이고, `ally.IsDead()` 가 부르는 `IsDead` 를 함께 선언한다(2026-11-17 Script QA, 예시가 그대로 분석되도록). 이 예시는 생성 시험 `Tests/JBroScriptGeneratedProbe/Source/Section14Enemy.jscript` 가 `/W4 /WX` 로 빌드한다.
 
 ```
 // Enemy.jscript
@@ -747,7 +747,7 @@ script Enemy : IDamageable
                     state = EnemyState.Idle
                     return
                 }
-                target.position.x += MoveSpeed * Time.Delta   // 위에서 좁혔다
+                target.position.x += MoveSpeed * Time.DeltaTime()   // 위에서 좁혔다
             }
             case EnemyState.Dead
             {
@@ -766,6 +766,11 @@ script Enemy : IDamageable
         }
         ref RaycastHit2D hit = Physics.Raycast(target.position, down, 1.0)
         return hit is not null
+    }
+
+    fn IsDead() -> Bool
+    {
+        return hp <= 0
     }
 
     fn TargetHeight() -> Float

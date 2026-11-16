@@ -435,6 +435,8 @@ JBRO_SCRIPT_API(Service::Physics2DService, Raycast, "origin", "direction", "dist
 JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...
 ```
 
+> 2026-11-17 덧붙임(Script QA): 이 파일 모드는 지금도 **렉서·파서 진단만** 낸다. 의미 분석 진단은 `--emit-cpp`·`--emit-project`(스크립트 빌드)와 `--lsp` 에서 나온다(language-server-plan §2). 그래서 타입 오류만 있는 파일은 이 모드에서 0 으로 끝난다.
+
 | 항목 | 정한 것 | 이유 |
 |---|---|---|
 | 진단 한 줄 | `<절대 경로>(<줄>,<열>): error JBC<번호>: <메시지>` 를 표준 출력에 | MSVC 모양이라 VS Code 의 `$msCompile` 매처가 그대로 읽는다. **그 매처는 `fileLocation: Absolute` 라** 상대 경로를 받지 못해서, 사용자가 상대 경로를 줘도 절대 경로로 바꿔 낸다 |

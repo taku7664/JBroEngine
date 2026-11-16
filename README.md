@@ -53,7 +53,7 @@ tools/mutate.py      뮤테이션 테스트 도구
 ## 빌드
 
 Visual Studio 2026(MSVC 툴셋 `v145`, Windows SDK `10.0.22621.0`. 둘 다 `JBro.Common.props` 에 고정돼 있다), C++20, x64.
-솔루션 파일은 없다. 모듈이 각자 vcxproj 를 갖고 프로젝트 참조로 의존을 끌어오므로, 원하는 실행 파일의 vcxproj 를 바로 빌드한다.
+모듈이 각자 vcxproj 를 갖고 프로젝트 참조로 의존을 끌어오므로, 원하는 실행 파일의 vcxproj 를 바로 빌드한다(`JBroTests`·`JBroEditorHost`·`JBroc`). 전체를 한 번에 열거나 빌드하는 `source/JBroEngine/JBroEngine.slnx` 도 있다. 게임 호스트 `JBroGameHost` 는 구성이 `Debug_Game2D` 같은 게임 구성이라 vcxproj 를 바로 빌드하면 참조 모듈에 그 구성이 없어 MSB8013 이다 - 에디터의 `게임 빌드` 나 솔루션 구성으로 빌드한다.
 
 ```bash
 msbuild source/JBroEngine/Tests/JBroTests.vcxproj -p:Configuration=Debug -p:Platform=x64
@@ -69,7 +69,7 @@ msbuild source/JBroEngine/Modules/JBroEditorHost/JBroEditorHost.vcxproj -p:Confi
 ```
 
 JBroScript 컴파일러 `JBroc` 은 따로 빌드할 수도 있다(`JBroTests` 를 빌드하면 같이 빌드된다).
-`JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...` 로 쓰고, 에러를 `경로(줄,열): error JBC2010: 메시지` 로 낸다.
+`JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...` 는 **렉서·파서 진단만** 내고(`경로(줄,열): error JBC2010: 메시지`), 타입 오류가 있어도 0 으로 끝날 수 있다. 의미 분석까지 보려면 `JBroc --emit-project <출력 폴더> <파일.jscript>...`(스크립트 빌드가 쓰는 길)나 `--lsp` 를 쓴다.
 `JBroc --lsp [--locale ko-KR|en-US]`는 stdin/stdout의 LSP 서버다. 초기화에서 활성 `.jproject`를 명시하고,
 공용 분석은 `JBroScriptCompiler`, 엔진 선언은 `JBroScriptApiCatalog2D`, 프로토콜은 `JBroScriptLanguageServer`가 맡는다.
 

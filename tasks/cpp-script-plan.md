@@ -135,7 +135,7 @@ class Player final : public JBro::GameScript2D
     JBRO_SCRIPT_BODY(Player)
 public:
     void OnUpdate() override;
-    JBRO_FIELD(float, Speed) = 3.0f;
+    JBRO_FIELD(Float, Speed) = 3.0f;   // 리플렉션은 엔진 값 타입만 받는다(D-290) - 원시 float 는 컴파일되지 않는다
 };
 
 // Contents/Scripts/Player.cpp

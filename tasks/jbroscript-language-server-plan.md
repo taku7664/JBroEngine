@@ -36,7 +36,7 @@ MSBuild.exe source/JBroEngine/Modules/JBroc/JBroc.vcxproj /m:3 /p:Configuration=
 `Localization/jbroc/ko-KR.yaml`과 `en-US.yaml`을 복사한다.
 
 ```powershell
-& .\source\JBroEngine\Build\x64\Debug\JBroc.exe --lsp --locale ko-KR
+& "$(Get-Content BuildOutput.txt)Engine\x64\Debug\JBroc.exe" --lsp --locale ko-KR   # 산출물 자리는 D-370 의 BuildOutput.txt
 ```
 
 이는 에디터가 자식 프로세스로 띄울 명령이다. `--lsp`는 소스 파일 인자나 `--dump-tree`와 함께 쓸 수 없다.
@@ -174,10 +174,12 @@ UTF-16/BOM·버전·취소·전체 편집 기능·엔진 투영·읽기 전용·
 ```powershell
 MSBuild.exe source/JBroEngine/Tests/JBroTests.vcxproj /m:3 /p:Configuration=Debug /p:Platform=x64 /nr:false
 $env:JBRO_TESTS = "Script"
-& .\source\JBroEngine\Build\x64\Debug\JBroTests.exe
+& "$(Get-Content BuildOutput.txt)Engine\x64\Debug\JBroTests.exe"
 $env:JBRO_TESTS = $null
-py -3.12 source/JBroEngine/Tests/lsp_process_tests.py --exe source/JBroEngine/Build/x64/Debug/JBroc.exe
+py -3.12 source/JBroEngine/Tests/lsp_process_tests.py --exe "$(Get-Content BuildOutput.txt)Engine\x64\Debug\JBroc.exe"
 ```
+
+> 2026-11-17 덧붙임: 아래 표와 문단의 시험 개수(34·35 개)와 `source/JBroEngine/Build/...` 경로는 그날의 기록이다. 지금 `lsp_process_tests.py` 는 32 개이고(Script QA 결함 4 로 하나가 늘었다), 산출물은 D-370 의 자리(체크아웃 뿌리의 `BuildOutput.txt`)에 있다.
 
 2026-10-14 실행 결과다. 빌드·서버 시험과 게임·에디터 실제 사용을 구분한다.
 
