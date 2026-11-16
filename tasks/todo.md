@@ -3043,6 +3043,38 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-336. `.jproject` 를 두 번 누르면 에디터가 그 프로젝트를 열고, 프로젝트가 열린 에디터는 다른 프로젝트를 들이지 않는다.** (2026-11-16,
+  사용자: "JBroEngine에서 사용하는 .jproject 확장자를 더블 클릭하면 바로 열리게 만들거야. 난 애초에 기본적으로 프로젝트가 열려있으면 메뉴에 프로젝트 열기나 등등
+  다른 프로젝트 로드를 지원하고 싶지 않고, 프로젝트가 열려있지 않을 떄만 프로젝트 열기가 뜨게 하고싶어", 등록 자리는 "에디터 명령 + 메뉴" 를 골랐다)
+  Updates: D-97 의 인자 규약(옵션 둘·종료 코드 `4` 를 더하고, 인자를 UTF-8 로 받는다), D-160 의 `파일 → 새 프로젝트`(프로젝트가 없을 때만).
+  **연결.** 에디터가 사람이 고를 때만 쓴다 - `JBroEditorHost --register-file-type`(지우기는 `--unregister-file-type`)과 프로젝트가 없을 때의 파일 메뉴
+  `.jproject 파일을 이 에디터로 열기`. 켤 때마다 몰래 쓰지 않는다. 현재 사용자의 자리(`HKCU\Software\Classes`)에만 쓰므로 관리자 권한이 없다.
+  ProgID 는 `JBroEngine.Project`, 명령은 `"<JBroEditorHost.exe>" "%1"`, 아이콘은 실행 파일의 것이다. 탐색기는 작업 폴더를 프로젝트 쪽으로 주지만
+  에디터는 글자 표와 아이콘 글꼴을 실행 파일 옆에서 먼저 찾으므로(D-176) `--content-root` 를 적지 않는다. 지울 때는 확장자가 이 연결을 가리킬 때만
+  확장자의 기본 값을 지운다. 플랫폼에 `IPlatform::RegisterFileType`·`UnregisterFileType`·`ReadFileTypeCommand`·`GetExecutablePath` 가 섰다(`WindowsFileType.cpp`).
+  런처가 버전을 골라 중계하는 길(유니티 허브식)은 고르지 않았다 - 엔진 버전이 여럿이면 마지막에 등록한 에디터가 연다. 런처 L3 와 함께 다시 본다.
+  **인자를 UTF-8 로.** 에디터 진입점을 `wmain`(`wmainCRTStartup`)으로 바꿨다. 좁은 `main` 의 `argv` 는 ANSI(949)로 오는데 플랫폼은 경로를 UTF-8 로 읽어서(D-112)
+  `문서` 아래의 프로젝트가 두 번 눌러도 열리지 않았다. 해석은 호스트 `main` 에서 `JBro/Editor/EditorHostArguments.h` 로 옮겨 시험이 실행 파일 없이 본다.
+  **프로젝트 바꾸기를 막았다.** `CanSwitchProject()` 는 파일로 연 프로젝트가 없을 때만 참이다. 파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·연결 항목은 그때만 그리고,
+  `RequestOpenProject`·`RequestNewProject` 는 경고만 남기고 돌아가며, `CreateProject` 도 파일을 쓰지 않는다(만들고 넘어가는 길이라).
+  확인한 다른 길: 두 메뉴는 행동 표(`EditorActionRegistry`)가 아니라 `DrawRootMenuBar` 가 직접 그리고, 단축키·가이드(`EditorGuide`)·제어 포트에는 프로젝트를 여는 행동이
+  없으며 최근 프로젝트 목록도 없다. `SwitchToProject` 는 비공개이고 위의 두 요청만 부른다. 확인용 씬(프로젝트 파일 없이 띄운 에디터)은 "프로젝트가 없다" 로 본다.
+  저장하지 않은 것을 묻는 `AskBeforeLeaving(OpenProject·NewProject)` 는 그 상태에서만 닿는다.
+  **시험.** `EditorHostArgument` 묶음(해석·연결 명령의 모양·시험 자리 `HKCU\Software\JBroEngineTests` 에 쓰고 읽고 지우기·남의 연결을 지키는 지우기·
+  진짜 `JBroEditorHost.exe` 를 한글 폴더의 `.jproject` 로 띄워 종료 코드 0, 없는 프로젝트 2, 모르는 옵션 64), `EditorApplication` 묶음의
+  `TestProjectItemsShowOnlyWithoutAProject`(프로젝트가 없으면 파일 메뉴에 세 항목이 있고, 메뉴와 같은 요청으로 열면 사라지며 `프로젝트 저장` 은 두 때 모두 있다)와
+  `TestRegisteringTheProjectFileTypeFromTheEditor`(`fileTypeClassesKey` 로 시험 자리에 쓴다). 열린 프로젝트에서 새 프로젝트·열기를 부르던 두 시험
+  (`TestNewProjectCreatesAndOpensIt`, 노드 그래프의 저장 안 한 변경)은 새 규칙에 맞게 고쳤다 - 3D 새 프로젝트는 프로젝트 없는 두 번째 에디터에서 만든다.
+  진짜 연결(`HKCU\Software\Classes`)은 시험이 건드리지 않는다.
+  **시험이 잡은 것 둘.** (1) 지우기가 남의 연결까지 지웠다 - `RegDeleteKeyW` 는 값이 남은 키도 지우므로(하위 키만 막는다) 다른 프로그램을 가리키는
+  확장자 키가 통째로 사라졌다. 값도 하위 키도 없을 때만 지운다. (2) 프로젝트 없는 에디터에서 연 새 프로젝트 팝업이 세로로 5.5px 치우쳤다 - 내용에 맞추는
+  높이가 가운데를 붙드는 세 프레임이 지난 뒤 160 → 149 로 줄었다. 사람이 옮기지 않은 팝업은 크기가 바뀌면 다시 가운데에 붙든다(`EditorPopup` 의 지난 크기).
+  **실측(2026-11-16, 이 PC, 스마트 앱 컨트롤을 끈 뒤).** `EditorHostArgument`·`EditorApplication`(850 초) 통과. 전체 시험은 이 변경에 닿지 않는 세 묶음이
+  이 PC 에서 실패한다: `PlatformContract`(종료 뒤 COM 상태 `shutdown must turn off exactly the COM the platform turned on`), `TextureBinding`
+  (`the validation handle must actually report` - D3D12 디버그 계층), `DebugAdapter`(`No loaded script module has code on this line yet`, 두 번 재현).
+  셋을 빼고 나머지 묶음은 모두 통과했다(첫 실패에서 멈추는 시험기라 실패한 묶음 뒤를 나눠 돌렸다). 기즈모 `E must switch to rotation` 은 세 번 중 두 번
+  흔들렸다 - 위의 `[열림]`(키보드 시험) 그대로이고 이번 변경은 키를 보내지 않는다. 탐색기에서 실제로 두 번 눌러 보기는 하지 않았다(진짜 연결을 쓰지 않았다).
+
 - **D-335. 2D 를 잠시 멈추고 3D 를 먼저 한다. 3D 남은 일은 사용자 흐름에서 막히는 순서로 매긴다.** (2026-11-16,
   사용자: "2d 잠정 중단하고 3d 우선 작업할건데 사용자 흐름에서 필요한 기능 우선순위로 나열해봐", "문서에 반영")
   Updates: D-116 의 "3D 는 2D 뒤의 순서다". 나누어 적는 방식(공용·2D·3D)은 그대로다.

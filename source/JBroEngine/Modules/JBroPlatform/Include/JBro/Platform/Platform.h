@@ -136,6 +136,24 @@ namespace JBro
         Bool pickFolder = false;
     };
 
+    // 확장자 하나를 프로그램과 잇는 것이다(D-336). 글자는 전부 UTF-8 이다.
+    struct FileTypeAssociation
+    {
+        // `.jproject` 처럼 점을 붙여 쓴다.
+        String extension;
+        // 연결의 이름이다(Windows 의 ProgID). `JBroEngine.Project` 처럼 프로그램마다 하나다.
+        String progId;
+        // 탐색기의 "유형" 칸에 보이는 말이다.
+        String description;
+        // 두 번 누르면 도는 명령줄 전체다. 파일 경로가 들어갈 자리는 `"%1"` 로 적는다.
+        String command;
+        // 파일 아이콘이다. `"<실행 파일>",0` 처럼 적는다. 비면 두지 않는다.
+        String icon;
+        // **어디에 쓰는가.** 현재 사용자의 클래스 자리이고, 시험은 진짜 연결을 건드리지 않으려고 자기 자리를 준다.
+        // 이 자리일 때만 탐색기에 바뀌었다고 알린다.
+        String classesKey = "Software\\Classes";
+    };
+
     // 폴더 열거의 방문자다. `relativeUtf8Path` 는 열거를 시작한 폴더 기준 상대경로이고 구분자는 `/` 다.
     // 폴더에 대해 거짓을 돌려주면 그 아래로 내려가지 않는다. 파일에 대한 반환값은 뜻이 없다.
     using DirectoryVisitor = Bool (*)(const char* relativeUtf8Path, Bool isDirectory, void* user);
@@ -382,6 +400,33 @@ namespace JBro
         {
             (void)utf8Path;
             return false;
+        }
+        // **확장자를 이 프로그램과 잇는다**(D-336). 탐색기에서 그 확장자의 파일을 두 번 누르면 `desc.command` 가 돈다.
+        // 현재 사용자의 자리(Windows 는 `HKEY_CURRENT_USER` 아래 `desc.classesKey`)에만 쓰고 관리자 권한을 묻지 않는다.
+        // 없는 플랫폼이면 거짓이다.
+        virtual Bool RegisterFileType(const FileTypeAssociation& desc)
+        {
+            (void)desc;
+            return false;
+        }
+        // 잇기를 지운다. 확장자가 다른 프로그램을 가리키고 있으면 그 연결은 건드리지 않고 이 프로그램의 것만 지운다.
+        virtual Bool UnregisterFileType(const FileTypeAssociation& desc)
+        {
+            (void)desc;
+            return false;
+        }
+        // 그 확장자를 두 번 누르면 도는 명령이다(UTF-8). 잇지 않았거나 없는 플랫폼이면 빈 글자다.
+        virtual String ReadFileTypeCommand(const char* classesKey, const char* extension) const
+        {
+            (void)classesKey;
+            (void)extension;
+            return String();
+        }
+        // **실행 파일 자체의 경로**다(D-336). `GetExecutableFolder` 와 달리 구분자를 운영체제의 것(Windows 는 `\`)으로 둔다 -
+        // 운영체제에 넘길 명령줄을 짓는 데 쓴다. 없는 플랫폼이면 빈 글자다.
+        virtual String GetExecutablePath() const
+        {
+            return String();
         }
         virtual Bool RevealInFileBrowser(const char* utf8Path)
         {

@@ -114,6 +114,11 @@
       <Project>{1a000016-0000-4000-8000-00000000b20c}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
+    <!-- 에디터 실행 파일을 띄워 실행 인자로 프로젝트를 여는지 본다(D-336). 링크하지 않고 먼저 빌드만 시킨다. -->
+    <ProjectReference Include="$(JBroModulesDir)JBroEditorHost\JBroEditorHost.vcxproj">
+      <Project>{1a000014-0000-4000-8000-0000000ed1f0}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroScriptCompiler\JBroScriptCompiler.vcxproj">
       <Project>{1a000015-0000-4000-8000-000000005cc0}</Project>
     </ProjectReference>

@@ -4,6 +4,7 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorControlPort.h>
+#include <JBro/Editor/EditorHostArguments.h>
 #include <JBro/Editor/ScriptDebugServer.h>
 #include <JBro/Network/Socket.h>
 #include <JBro/Editor/Command/AssetFileCommands.h>
@@ -202,6 +203,7 @@ namespace JBro
             if (false == m_platform->Initialize(config.memory))
             {
                 ReleaseProcessResources();
+            m_fileTypeClassesKey = config.fileTypeClassesKey != nullptr ? config.fileTypeClassesKey : "";
                 return false;
             }
             // **스크립트가 죽어도 에디터는 산다**(D-330). 스크립트 훅의 예외를 받고, 그 자리의 스택은 플랫폼이 읽는다.
@@ -2259,9 +2261,45 @@ namespace JBro
     }
 
     void EditorApplication::PerformOpenProjectRequest()
+        if (false == CanSwitchProject())
+        {
+            Log::Write(LogLevel::Warning, "project", "a project is open; open another .jproject from the file browser instead");
+            return;
+        }
     {
         if (false == m_openProjectRequested)
         {
+    Bool EditorApplication::CanSwitchProject() const
+    {
+        return m_projectFilePath.empty();
+    }
+
+    Bool EditorApplication::RegisterProjectFileType()
+    {
+        FileTypeAssociation desc;
+        Bool registered = m_platform.Get() != nullptr && MakeProjectFileType(*m_platform, desc);
+        if (registered)
+        {
+            if (false == m_fileTypeClassesKey.empty())
+            {
+                desc.classesKey = m_fileTypeClassesKey;
+            }
+            registered = m_platform->RegisterFileType(desc);
+        }
+        if (registered)
+        {
+            Log::Write(LogLevel::Info, "project", "registered .jproject: %s", desc.command.c_str());
+            OpenPopup(MakeOwnerPtr<MessagePopup>(Loc::TextOr(LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor"),
+                Loc::TextOr(LocKeys::PopupProjectFileTypeRegistered,
+                    "Double-clicking a .jproject file in the file browser now opens it in this editor."),
+                "project_file_type"));
+            return true;
+        }
+        OpenPopup(MakeOwnerPtr<MessagePopup>(Loc::TextOr(LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor"),
+            Loc::TextOr(LocKeys::PopupProjectFileTypeFailed, "The .jproject file type could not be registered."), "project_file_type"));
+        return false;
+    }
+
             return;
         }
         m_openProjectRequested = false;
@@ -2318,6 +2356,11 @@ namespace JBro
     }
 
     ProjectCreateFailure EditorApplication::CheckProjectName(const char* parentFolder, const char* name)
+        if (false == CanSwitchProject())
+        {
+            Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
+            return;
+        }
     {
         return JBro::CheckProjectName(*m_platform, parentFolder, name);
     }
@@ -2571,6 +2614,12 @@ namespace JBro
             return;
         }
         String path = m_canvasPath;
+        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-336). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
+        if (false == CanSwitchProject())
+        {
+            Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
+            return false;
+        }
         if (path.empty())
         {
             // 경로를 모른다. 대화상자로 받는다 - **막히는 호출이라 프레임 밖이어야 한다.**
@@ -5821,14 +5870,23 @@ namespace JBro
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             // 기존과 같은 차례다: 새 프로젝트 · 구분선 · 열기 · 저장.
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
+            // **프로젝트가 열려 있으면 다른 프로젝트를 들이는 항목은 없다**(D-336). 다른 프로젝트는 그 `.jproject` 를 두 번 눌러 새 에디터로 연다.
+            if (CanSwitchProject())
             {
-                RequestNewProject();
-            }
-            ImGui::Separator();
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
-            {
-                RequestOpenProject();
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
+                {
+                    RequestNewProject();
+                }
+                ImGui::Separator();
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
+                {
+                    RequestOpenProject();
+                }
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor")))
+                {
+                    RegisterProjectFileType();
+                }
+                ImGui::Separator();
             }
             ImGui::Separator();
             DrawShortcutItem(EditorShortcut::SaveCanvas,
@@ -5865,7 +5923,6 @@ namespace JBro
                     BuildScripts();
                 }
             }
-            ImGui::Separator();
             if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
             {
                 m_exitRequested = true;
@@ -6899,6 +6956,20 @@ namespace JBro
     PopupHandle EditorApplication::OpenPopup(OwnerPtr<EditorPopup> popup)
     {
         if (popup.Get() == nullptr || false == m_uiEnabled)
+                // **붙드는 프레임이 지난 뒤에 크기가 바뀌어도, 사람이 옮기지 않았으면 다시 가운데에 붙든다.** 내용에 맞추는 높이가
+                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-336 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
+                const ImVec2 size = ImGui::GetWindowSize();
+                const ImVec2 pos = ImGui::GetWindowPos();
+                const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                const Bool resized = size.x != popup.m_lastWidth || size.y != popup.m_lastHeight;
+                const Bool stillCentered = std::fabs(pos.x + popup.m_lastWidth * 0.5f - center.x) < 1.0f
+                    && std::fabs(pos.y + popup.m_lastHeight * 0.5f - center.y) < 1.0f;
+                if (popup.m_framesShown >= SettleFrames && resized && stillCentered)
+                {
+                    popup.m_framesShown = 0;
+                }
+                popup.m_lastWidth = size.x;
+                popup.m_lastHeight = size.y;
         {
             return InvalidPopupHandle;
         }

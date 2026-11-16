@@ -554,6 +554,9 @@ Entries:
   assets.list_view: 목록
   assets.view_tooltip: 목록과 아이콘 보기를 오갑니다
   menu.new_project: 새 프로젝트
+  menu.register_project_file_type: .jproject 파일을 이 에디터로 열기
+  popup.project_file_type_registered: 이제 탐색기에서 .jproject 파일을 두 번 클릭하면 이 에디터로 열립니다.
+  popup.project_file_type_failed: .jproject 파일 연결을 등록하지 못했습니다.
   dialog.new_project_folder: 프로젝트를 만들 폴더 선택
   new_project.location: 위치
   new_project.name: 이름

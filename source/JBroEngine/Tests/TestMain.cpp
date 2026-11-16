@@ -47,6 +47,7 @@ JBro::Int32 RunNodeGraphTests();
 JBro::Int32 RunNodeGraphViewTests();
 JBro::Int32 RunLightGizmoModelTests();
 JBro::Int32 RunGameHostArgumentTests();
+JBro::Int32 RunEditorHostArgumentTests();
 JBro::Int32 RunPlatformFileTests();
 JBro::Int32 RunReflectedYamlTests();
 JBro::Int32 RunCanvasFileTests();
@@ -651,6 +652,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("GameHostArgument", &RunGameHostArgumentTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("EditorHostArgument", &RunEditorHostArgumentTests))
         {
             return 1;
         }

@@ -554,6 +554,9 @@ Entries:
   assets.list_view: List
   assets.view_tooltip: switch between the list and the icons
   menu.new_project: New Project
+  menu.register_project_file_type: Open .jproject Files with This Editor
+  popup.project_file_type_registered: Double-clicking a .jproject file in the file browser now opens it in this editor.
+  popup.project_file_type_failed: The .jproject file type could not be registered.
   dialog.new_project_folder: Choose a folder for the project
   new_project.location: Location
   new_project.name: Name

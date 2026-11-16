@@ -2,6 +2,9 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorControlPort.h>
+#include <JBro/Editor/EditorHostArguments.h>
+#include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Types/Array.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -31,147 +34,58 @@ namespace
     constexpr JBro::Int32 ExitInitializeFailed = 1;
     constexpr JBro::Int32 ExitProjectFailed = 2;
     constexpr JBro::Int32 ExitEditorUiFailed = 3;
+    // 확장자 연결을 바꾸지 못했다(D-336).
+    constexpr JBro::Int32 ExitFileTypeFailed = 4;
     constexpr JBro::Int32 ExitUsageError = 64;
-
-    struct HostOptions
-    {
-        // 열 `.jproject` 파일이다. 널이면 프로젝트 없이 확인용 씬을 띄운다.
-        const char* projectFilePath = nullptr;
-        // 로컬라이징 표와 아이콘 글꼴을 찾을 기준 폴더다. 널이면 현재 작업 폴더가 기준이고,
-        // 그것이 기존 동작이다. 런처는 작업 폴더를 옮기는 대신 이 값을 넘긴다.
-        const char* contentRoot = nullptr;
-        // 0 이면 창을 닫을 때까지 돈다. 양수면 그만큼만 돌고 끝난다 - 사람 없이 돌리는 확인용이다.
-        long long frameLimit = 0;
-        // 제어 포트다(D-270). 0 이면 열지 않는다 - 에디터를 둘 띄워 시험할 때 뒤의 것이 포트를 다투지 않게 한다.
-        long long controlPort = JBro::EditorControlPort::DefaultPort;
-        JBro::Bool showHelp = false;
-    };
 
     void PrintUsage()
     {
         std::printf(
             "usage: JBroEditorHost [options] [<project.jproject>]\n"
             "\n"
-            "  --project <path>      open this .jproject file\n"
-            "  --content-root <path> where Localization/ and ThirdParty/ live "
+            "  --project <path>         open this .jproject file\n"
+            "  --content-root <path>    where Localization/ and ThirdParty/ live "
             "(default: the working directory)\n"
-            "  --frames <count>      run this many frames and exit "
+            "  --frames <count>         run this many frames and exit "
             "(default: until the window closes)\n"
-            "  --control-port <port> listen for tools on 127.0.0.1:<port>, 0 to turn it off "
+            "  --control-port <port>    listen for tools on 127.0.0.1:<port>, 0 to turn it off "
             "(default: 3663)\n"
-            "  -h, --help            print this text\n"
+            "  --register-file-type     open .jproject files with this editor when double-clicked, "
+            "for the current user, then exit\n"
+            "  --unregister-file-type   undo --register-file-type, then exit\n"
+            "  -h, --help               print this text\n"
             "\n"
             "exit codes: 0 ok, 1 initialize failed, 2 project failed, 3 editor UI failed, "
-            "64 bad arguments\n");
+            "4 file type not changed, 64 bad arguments\n");
     }
 
-    JBro::Bool ParseFrameLimit(const char* text, long long& result)
+    // **확장자 연결만 하고 끝낸다**(D-336). 창도 엔진도 띄우지 않는다 - 레지스트리 함수는 플랫폼의 초기화가 필요 없다.
+    JBro::Int32 ChangeProjectFileType(JBro::Bool add)
     {
-        char* end = nullptr;
-        const long long value = std::strtoll(text, &end, 10);
-        if (end == text || end == nullptr || *end != '\0' || value < 0)
+        JBro::WindowsPlatform platform;
+        JBro::FileTypeAssociation desc;
+        if (false == JBro::MakeProjectFileType(platform, desc))
         {
-            return false;
+            std::printf("the editor could not find its own path\n");
+            return ExitFileTypeFailed;
         }
-        result = value;
-        return true;
-    }
-
-    // 값을 받는 옵션이 값 없이 마지막에 오면 다음 인자를 읽다가 배열 밖으로 나간다.
-    // 여기서 한 번에 막고, 무엇이 빠졌는지 옵션 이름으로 알린다.
-    JBro::Bool TakeValue(
-        JBro::Int32 argumentCount,
-        char** arguments,
-        JBro::Int32& index,
-        const char* optionName,
-        const char*& value,
-        JBro::String& error)
-    {
-        if (index + 1 >= argumentCount)
+        if (add)
         {
-            error = "this option needs a value: ";
-            error.append(optionName);
-            return false;
+            if (false == platform.RegisterFileType(desc))
+            {
+                std::printf("the .jproject file type could not be registered\n");
+                return ExitFileTypeFailed;
+            }
+            std::printf("registered .jproject: %s\n", desc.command.c_str());
+            return ExitOk;
         }
-        ++index;
-        value = arguments[index];
-        return true;
-    }
-
-    JBro::Bool ParseOptions(JBro::Int32 argumentCount, char** arguments, HostOptions& options, JBro::String& error)
-    {
-        for (JBro::Int32 index = 1; index < argumentCount; ++index)
+        if (false == platform.UnregisterFileType(desc))
         {
-            const char* argument = arguments[index];
-            if (std::strcmp(argument, "--help") == 0 || std::strcmp(argument, "-h") == 0)
-            {
-                options.showHelp = true;
-                return true;
-            }
-            if (std::strcmp(argument, "--project") == 0)
-            {
-                if (false
-                    == TakeValue(argumentCount, arguments, index, argument, options.projectFilePath, error))
-                {
-                    return false;
-                }
-                continue;
-            }
-            if (std::strcmp(argument, "--content-root") == 0)
-            {
-                if (false
-                    == TakeValue(argumentCount, arguments, index, argument, options.contentRoot, error))
-                {
-                    return false;
-                }
-                continue;
-            }
-            if (std::strcmp(argument, "--frames") == 0)
-            {
-                const char* value = nullptr;
-                if (false == TakeValue(argumentCount, arguments, index, argument, value, error))
-                {
-                    return false;
-                }
-                if (false == ParseFrameLimit(value, options.frameLimit))
-                {
-                    error = "the frame count must be zero or more, not: ";
-                    error.append(value);
-                    return false;
-                }
-                continue;
-            }
-            if (std::strcmp(argument, "--control-port") == 0)
-            {
-                const char* value = nullptr;
-                if (false == TakeValue(argumentCount, arguments, index, argument, value, error))
-                {
-                    return false;
-                }
-                if (false == ParseFrameLimit(value, options.controlPort) || options.controlPort > 65535)
-                {
-                    error = "the control port must be 0 to 65535, not: ";
-                    error.append(value);
-                    return false;
-                }
-                continue;
-            }
-            if (argument[0] == '-' && argument[1] != '\0')
-            {
-                error = "this option is not known: ";
-                error.append(argument);
-                return false;
-            }
-            // 이름 없는 인자는 프로젝트 경로다. 런처가 아니라 사람이 손으로 열 때 쓴다.
-            if (options.projectFilePath != nullptr)
-            {
-                error = "the project was given twice: ";
-                error.append(argument);
-                return false;
-            }
-            options.projectFilePath = argument;
+            std::printf("the .jproject file type could not be removed\n");
+            return ExitFileTypeFailed;
         }
-        return true;
+        std::printf("removed the .jproject file type\n");
+        return ExitOk;
     }
 
     // 기준 폴더에 상대경로를 붙인다. 기준이 없으면 상대경로를 그대로 둔다 -
@@ -252,15 +166,28 @@ namespace
 // 않으면 예전처럼 확인용 씬이 뜬다. 인자 규약과 종료 코드는 D-97 이다.
 // `ParentConsole.cpp` 의 것이다. 터미널에서 띄웠으면 그 콘솔로 출력을 낸다.
 void AttachToParentConsole();
+// 같은 파일의 것이다. 넓은 문자 인자 하나를 UTF-8 로 바꾼다.
+JBro::String ToUtf8Argument(const wchar_t* argument);
 
-int main(int argumentCount, char** arguments)
+// **인자를 넓은 문자로 받는다**(D-336). 좁은 `main` 의 `argv` 는 이 기계의 ANSI 코드 페이지로 오고, 엔진은 경로를 UTF-8 로 읽는다 -
+// 탐색기에서 `문서` 아래의 `.jproject` 를 두 번 누르면 경로가 깨져 열리지 않았다.
+int wmain(int argumentCount, wchar_t** wideArguments)
 {
     AttachToParentConsole();
-    HostOptions options;
-    JBro::String optionError;
-    if (false == ParseOptions(argumentCount, arguments, options, optionError))
+    JBro::Array<JBro::String> utf8;
+    JBro::Array<const char*> arguments;
+    for (JBro::Int32 index = 0; index < argumentCount; ++index)
     {
-        std::printf("%s\n\n", optionError.c_str());
+        utf8.Add(ToUtf8Argument(wideArguments[index]));
+    }
+    for (std::size_t index = 0; index < utf8.Size(); ++index)
+    {
+        arguments.Add(utf8[index].c_str());
+    }
+    const JBro::EditorHostArguments options = JBro::ParseEditorHostArguments(argumentCount, arguments.Data());
+    if (false == options.IsValid())
+    {
+        std::printf("%s\n\n", options.error.c_str());
         PrintUsage();
         return ExitUsageError;
     }
@@ -269,10 +196,16 @@ int main(int argumentCount, char** arguments)
         PrintUsage();
         return ExitOk;
     }
+    if (options.registerFileType || options.unregisterFileType)
+    {
+        return ChangeProjectFileType(options.registerFileType);
+    }
 
-    const JBro::String localizationDirectory = JoinContentPath(options.contentRoot, "Localization");
+    const char* const contentRoot = options.contentRoot.empty() ? nullptr : options.contentRoot.c_str();
+    const char* const projectFilePath = options.projectFile.empty() ? nullptr : options.projectFile.c_str();
+    const JBro::String localizationDirectory = JoinContentPath(contentRoot, "Localization");
     const JBro::String iconFontPath = JoinContentPath(
-        options.contentRoot,
+        contentRoot,
         "ThirdParty/MaterialDesignIcons/materialdesignicons-webfont.ttf");
 
     JBro::EditorApplication editor;
@@ -287,23 +220,23 @@ int main(int argumentCount, char** arguments)
     // 사람의 에디터 환경설정(바꾼 단축키 등)을 읽고 쓴다(D-228). 테스트는 이것을 켜지 않는다.
     config.userPreferences = true;
     // 밖의 도구(에이전트)가 가이드를 켜는 자리다(D-270). 루프백에만 열린다.
-    config.controlPort = static_cast<std::uint16_t>(options.controlPort);
+    config.controlPort = static_cast<std::uint16_t>(options.controlPort.Get());
     if (false == editor.Initialize(config))
     {
         std::printf("the editor could not initialize\n");
         return ExitInitializeFailed;
     }
 
-    if (options.projectFilePath != nullptr)
+    if (projectFilePath != nullptr)
     {
         JBro::ProjectFileError error;
-        if (false == editor.OpenProjectFile(options.projectFilePath, error))
+        if (false == editor.OpenProjectFile(projectFilePath, error))
         {
             // 줄 번호가 0 이면 파일 자체를 열지 못한 것이다(ProjectFile.h).
             // 런처가 그대로 사람에게 보여 줄 수 있도록 경로와 같이 낸다.
             std::printf(
                 "the editor could not open %s (line %u): %s\n",
-                options.projectFilePath,
+                projectFilePath,
                 error.line.Get(),
                 error.message.c_str());
             editor.Shutdown();
@@ -314,7 +247,7 @@ int main(int argumentCount, char** arguments)
         const JBro::ProjectFile& opened = editor.GetProjectFile();
         std::printf(
             "the editor opened %s (engine %s, %s)\n",
-            options.projectFilePath,
+            projectFilePath,
             opened.engineVersion.c_str(),
             opened.framework == JBro::FrameworkKind::Framework3D ? "3D" : "2D");
         // 스크립트가 안 실려도 프로젝트는 열린다(D-98). 조용히 넘어가면 사람은 스크립트가
@@ -350,7 +283,7 @@ int main(int argumentCount, char** arguments)
         return ExitEditorUiFailed;
     }
 
-    if (options.projectFilePath == nullptr)
+    if (projectFilePath == nullptr)
     {
         if (JBro::Canvas* canvas = editor.GetCanvas())
         {
@@ -371,7 +304,7 @@ int main(int argumentCount, char** arguments)
             break;
         }
         ++frames;
-        if (options.frameLimit > 0 && frames >= options.frameLimit)
+        if (options.frameLimit > 0 && frames >= options.frameLimit.Get())
         {
             break;
         }

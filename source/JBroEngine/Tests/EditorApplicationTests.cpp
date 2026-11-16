@@ -26,6 +26,7 @@
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/EditorHostArguments.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
@@ -8283,23 +8284,15 @@ namespace
 
     // **파일 → 새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 폴더를 고르면 이름과 프레임워크를
     // 받는 팝업이 뜨고, 이름을 치고 Enter 를 누르면 그 폴더에 프로젝트가 서고 에디터가 그리로 넘어간다.
-    // 2D 프로젝트를 연 채로 3D 를 골라 프레임워크까지 바뀌는지 본다.
+    // **프로젝트가 없는 에디터에서만 된다**(D-336). 새 프로젝트로 넘어간 뒤에는 또 만들지도 열지도 못하고, 3D 는 프로젝트 없는
+    // 새 에디터에서 만들어 프레임워크까지 바뀌는지 본다.
     void TestNewProjectCreatesAndOpensIt()
     {
         namespace fs = std::filesystem;
         const fs::path root(TempPath("JBroNewProjectProbe").c_str());
         std::error_code ignored;
         fs::remove_all(root, ignored);
-        fs::create_directories(root / "Current" / "Assets", ignored);
         fs::create_directories(root / "Parent", ignored);
-        const JBro::String currentPath = TempPath("JBroNewProjectProbe\\Current\\Current.jproject");
-        Check(WriteTextFile(currentPath,
-            "Version: 1\n"
-            "EngineVersion: 0.1.0\n"
-            "Framework: 2D\n"
-            "RootPath: .\n"
-            "AssetDirectory: Assets\n"),
-            "the test must be able to write its own project file");
 
         DialogProbe dialog;
         dialog.path = TempPath("JBroNewProjectProbe\\Parent");
@@ -8315,14 +8308,13 @@ namespace
             std::cout << "  [skip] no D3D12 device; new project not verified" << std::endl;
             return;
         }
-        JBro::ProjectFileError error;
-        Check(editor.OpenProjectFile(currentPath.c_str(), error), "the current project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         // **시간이 흐르지 않은 프레임에 에디터가 멈추지 않는다**(D-160). 호스트의 첫 프레임이 0 초로 재어지면 UI 가
         // 프레임을 거절해 에디터가 켜지자마자 꺼졌다.
         Check(editor.Tick(0.0f), "a frame in which no time passed does not stop the editor");
         Check(editor.Tick(Frame), "the editor must settle");
 
+        Check(editor.CanSwitchProject(), "an editor with no project can make one");
         editor.RequestNewProject();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -8409,24 +8401,49 @@ namespace
             dialog.path = TempPath("JBroNewProjectProbe\\Parent");
         }
 
-        // 3D 를 고르면 프레임워크까지 바뀐다.
+        // **열린 프로젝트에서는 다른 프로젝트를 만들거나 열지 않는다**(D-336). 요청은 대화상자를 띄우지 않고, 직접 불러도 파일을 쓰지 않는다.
+        Check(false == editor.CanSwitchProject(), "with the new project open the editor offers no other");
+        dialog.calls = 0;
+        editor.RequestNewProject();
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick past the refused request");
+        }
+        Check(dialog.calls == 0 && false == editor.IsPopupOpenById("new_project"), "a new project is not asked for");
         JBro::ProjectCreateFailure failure = JBro::ProjectCreateFailure::None;
-        Check(false == editor.CreateProject(dialog.path.c_str(), "Space Game", JBro::FrameworkKind::Framework3D, &failure)
+        Check(false == editor.CreateProject(dialog.path.c_str(), "Other Game", JBro::FrameworkKind::Framework3D, &failure)
+                && false == fs::exists(root / "Parent" / "Other Game", ignored),
+            "and creating one directly writes nothing");
+        editor.RequestOpenProject();
+        Check(editor.Tick(Frame) && dialog.calls == 0, "opening another project is not asked for either");
+        Check(editor.GetProjectFile().build.productName == "Space Game", "the open project stays");
+        editor.Shutdown();
+
+        // 3D 를 고르면 프레임워크까지 바뀐다. 프로젝트가 없는 새 에디터에서 만든다.
+        JBro::EditorApplication second;
+        if (false == second.Initialize(config))
+        {
+            std::cout << "  [skip] the second editor did not start; the 3D project not verified" << std::endl;
+            fs::remove_all(root, ignored);
+            return;
+        }
+        Check(second.EnableEditorUi({64, 48}), "the second editor UI must turn on");
+        Check(false == second.CreateProject(dialog.path.c_str(), "Space Game", JBro::FrameworkKind::Framework3D, &failure)
                 && failure == JBro::ProjectCreateFailure::AlreadyExists,
             "the same name again is refused, saying why");
-        Check(false == editor.CreateProject(dialog.path.c_str(), "a/b", JBro::FrameworkKind::Framework3D, &failure)
+        Check(false == second.CreateProject(dialog.path.c_str(), "a/b", JBro::FrameworkKind::Framework3D, &failure)
                 && failure == JBro::ProjectCreateFailure::InvalidName,
             "and a name that cannot be a folder is refused as such");
-        Check(editor.CreateProject(dialog.path.c_str(), "Deep Space", JBro::FrameworkKind::Framework3D, &failure),
+        Check(second.CreateProject(dialog.path.c_str(), "Deep Space", JBro::FrameworkKind::Framework3D, &failure),
             "a 3D project is made");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must switch again");
+            Check(second.Tick(Frame), "the editor must switch again");
         }
-        Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
+        Check(second.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
             "and the editor now runs the 3D framework");
 
-        editor.Shutdown();
+        second.Shutdown();
         fs::remove_all(root, ignored);
     }
 
@@ -14433,6 +14450,153 @@ namespace
     // 빈 곳에서 끌면 여전히 상자 선택이다(아무것도 바꾸지 않는다).
     void TestDraggingABodyUsesTheNeutralHandle()
     {
+    // **파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·`.jproject 연결` 은 프로젝트가 없을 때만 있다**(D-336). 프로젝트가 없는 에디터에서 메뉴로
+    // 프로젝트를 열면 그 항목들이 사라지고, `프로젝트 저장` 은 두 때 모두 있다(훑기가 항목을 찾을 수 있다는 대조다).
+    void TestProjectItemsShowOnlyWithoutAProject()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroProjectMenuProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        const JBro::String projectPath = TempPath("JBroProjectMenuProbe\\Menu.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        DialogProbe dialog;
+        dialog.path = projectPath;
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the project menu items not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND window = FindOwnEditorWindow();
+        Check(window != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick");
+        }
+
+        const char* fileLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuFile, "File");
+        const char* newLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuNewProject, "New Project");
+        const char* openLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuOpenProject, "Open Project");
+        const char* registerLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor");
+        const char* saveLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuSaveProject, "Save Project");
+        // 뿌리 창(`##EditorRoot`)의 메뉴 막대를 훑어 `파일` 을 찾는다. 디버그 메뉴와 달리 파일 메뉴는 메인 도크가 아니라 뿌리에 있다(D-134).
+        ImGuiWindow* main = ImGui::FindWindowByName("##EditorRoot");
+        Check(main != nullptr, "the editor root must be there");
+        const ImGuiID bar = LabelId(main->ID, "##MenuBar");
+        const ImRect rect = main->MenuBarRect();
+        const JBro::Int32 y = static_cast<JBro::Int32>(rect.GetCenter().y);
+        JBro::Int32 fileX = 0;
+        for (JBro::Int32 x = static_cast<JBro::Int32>(rect.Min.x); x < static_cast<JBro::Int32>(rect.Max.x); x += 3)
+        {
+            PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking for the File menu");
+            if (ImGui::GetHoveredID() == LabelId(bar, fileLabel))
+            {
+                fileX = x;
+                break;
+            }
+        }
+        Check(fileX != 0, "the File menu is in the bar");
+        // 파일 메뉴를 열어 그 이름의 항목이 있는지 본다. 보고 나면 같은 자리를 다시 눌러 닫는다.
+        struct Seen
+        {
+            JBro::Bool newProject = false;
+            JBro::Bool openProject = false;
+            JBro::Bool registerFileType = false;
+            JBro::Bool saveProject = false;
+        };
+        const auto lookInFileMenu = [&]() {
+            Seen seen;
+            ClickAt(editor, window, Spot{fileX, y});
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the File menu must open");
+            }
+            ImGuiWindow* menu = FindSubmenuWindow();
+            Check(menu != nullptr, "the File menu opens");
+            Spot at;
+            seen.newProject = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, newLabel), at);
+            seen.openProject = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, openLabel), at);
+            seen.registerFileType = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, registerLabel), at);
+            seen.saveProject = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, saveLabel), at);
+            ClickAt(editor, window, Spot{fileX, y});
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the File menu must close");
+            }
+            return seen;
+        };
+
+        Check(editor.CanSwitchProject(), "with no project the editor may open one");
+        const Seen empty = lookInFileMenu();
+        Check(empty.saveProject, "the scan finds the save item with no project");
+        Check(empty.newProject && empty.openProject && empty.registerFileType,
+            "with no project the File menu offers new, open and the file type");
+
+        // 메뉴가 부르는 것과 같은 요청으로 연다. 대화상자는 프레임 밖에서 그 프로젝트를 준다.
+        editor.RequestOpenProject();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must open the chosen project");
+        }
+        Check(dialog.calls == 1 && editor.GetProjectFilePath() == projectPath, "the chosen project is open");
+        Check(false == editor.CanSwitchProject(), "with a project open the editor offers no other");
+        const Seen open = lookInFileMenu();
+        Check(open.saveProject, "the scan finds the save item with a project open");
+        Check(false == open.newProject && false == open.openProject && false == open.registerFileType,
+            "with a project open the File menu has no new, open or file type item");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
+    // **`.jproject` 연결은 메뉴에서 이 실행 파일로 선다**(D-336). 사람의 연결을 덮지 않으려고 시험의 자리(`fileTypeClassesKey`)에 쓰고 지운다.
+    void TestRegisteringTheProjectFileTypeFromTheEditor()
+    {
+        constexpr const char* TestClasses = "Software\\JBroEngineTests\\EditorClasses";
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        config.fileTypeClassesKey = TestClasses;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the file type from the editor not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::WindowsPlatform platform;
+        JBro::FileTypeAssociation desc;
+        Check(JBro::MakeProjectFileType(platform, desc), "the test knows its own executable");
+        desc.classesKey = TestClasses;
+        platform.UnregisterFileType(desc);
+        Check(editor.RegisterProjectFileType(), "the editor registers the file type");
+        Check(editor.Tick(Frame) && editor.IsPopupOpenById("project_file_type"), "and says so");
+        const JBro::String command = platform.ReadFileTypeCommand(TestClasses, ".jproject");
+        Check(command == desc.command, "double-clicking runs this executable on the file");
+        Check(platform.UnregisterFileType(desc) && platform.ReadFileTypeCommand(TestClasses, ".jproject").empty(),
+            "the test leaves nothing behind");
+        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\JBroEngineTests");
+        editor.Shutdown();
+    }
+
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
         config.windowVisible = false;
@@ -15756,16 +15920,16 @@ namespace
         answer("##NodeGraphClose", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
         Check(editor.FindPanels("NodeGraph", panels) == 1 && dirty(), "cancelling keeps the window and the change");
 
-        // ── 저장하지 않은 그래프가 있으면 다른 프로젝트를 열기·창 닫기 전에 묻는다(D-324) ──
+        // ── 저장하지 않은 그래프가 있으면 창 닫기 전에 묻는다(D-324) ──
+        // 다른 프로젝트 열기는 파일로 연 프로젝트에서는 아예 돌지 않는다(D-336) - 묻지도 닫지도 않는다.
         Check(dirty() && editor.HasUnsavedWork(), "an unsaved graph is unsaved work");
         editor.RequestOpenProject();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must settle while it asks");
+            Check(editor.Tick(Frame), "the editor must settle after the refused request");
         }
-        Check(editor.IsPopupOpenById("##UnsavedWork"), "opening another project over unsaved work asks first");
-        answer("##UnsavedWork", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
-        Check(dirty() && editor.FindPanels("NodeGraph", panels) == 1, "cancelling keeps the project and the change");
+        Check(false == editor.IsPopupOpenById("##UnsavedWork"), "opening another project is not offered while a project is open");
+        Check(dirty() && editor.FindPanels("NodeGraph", panels) == 1, "the project and the change stay");
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -17051,3 +17215,5 @@ JBro::Int32 RunUserScenarioTests()
     std::cout << "User scenario tests passed.\n";
     return 0;
 }
+    TestProjectItemsShowOnlyWithoutAProject();
+    TestRegisteringTheProjectFileTypeFromTheEditor();
