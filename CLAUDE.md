@@ -72,7 +72,7 @@
 - [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 폐기된 스크립트 객체 안전성 초안
 - [tasks/todo.md](./tasks/todo.md) — 공용 남은 일과 확정 결정(Decisions) 기록. **남은 일은 공용·2D·3D 로 나눈다**(D-116):
   [tasks/todo-2d.md](./tasks/todo-2d.md)(2D 프레임워크·에디터 화면·스프라이트, `[논의]` 항목 포함),
-  [tasks/todo-3d.md](./tasks/todo-3d.md)(재질·물리 3D·3D 기즈모, 2D 뒤의 순서)
+  [tasks/todo-3d.md](./tasks/todo-3d.md)(재질·물리 3D·3D 기즈모. **지금은 2D 를 멈추고 3D 를 먼저 한다** - 순서는 그 문서의 "우선순위" 절, D-335)
 - [tasks/jbroscript-plan.md](./tasks/jbroscript-plan.md) — JBroScript(`.jscript`) 언어와 리플렉션 계획(D-56).
   언어는 **미구현**이고 리플렉션(`PropertyInfo`·`JBRO_FIELD`·컨테이너 조작)은 섰다.
   기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
