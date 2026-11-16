@@ -16,6 +16,12 @@
 #include <JBro/Runtime/ScriptRefReflection.h>
 #include <JBro/Runtime/NullableReflection.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
+// 에디터 `새 스크립트` 가 내놓는 값 필드(`Vector2`·`Vector3`·`Color`·에셋)의 설명서다. 값 타입과 따로 두는 헤더라(D-241)
+// 프렐류드가 들이지 않으면 `JBRO_FIELD(Vector2, ...)` 가 설명서 없음으로 멈춘다. 두 프렐류드가 같은 줄을 공유한다.
+#include <JBro/Reflection/CoreTypeDescriptors.h>
+#include <JBro/Reflection/Math2DReflection.h>
+#include <JBro/Reflection/Math3DReflection.h>
+#include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Script/Macros.h>
 // 네트워크 값 서비스(D-122). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.

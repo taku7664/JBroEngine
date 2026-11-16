@@ -308,17 +308,8 @@ namespace JBro::ScriptProject
         String out;
         Line(out, "#pragma once");
         Line(out);
+        // 값 필드의 설명서는 두 프렐류드가 모두 들인다 - 필드 타입마다 include 를 더하지 않는다.
         Line(out, "#include <JBro/ScriptAPI.h>");
-        // 2D 프렐류드는 3D 수학 타입의 리플렉션 설명자를 들이지 않는다. `Vector3` 필드가 있으면 그것만 더 들인다(MSBuild 로 확인했다).
-        Bool needsMath3D = false;
-        for (const FieldSpec& field : fields)
-        {
-            needsMath3D = needsMath3D || field.type == FieldType::Vector3;
-        }
-        if (needsMath3D)
-        {
-            Line(out, "#include <JBro/Reflection/Math3DReflection.h>");
-        }
         Line(out);
         LineF(out, "class %s final : public %s", className,
             framework == FrameworkKind::Framework3D ? "GameScript3D" : "GameScript2D");

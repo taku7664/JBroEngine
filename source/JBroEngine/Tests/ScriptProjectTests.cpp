@@ -132,13 +132,12 @@ namespace
                 "every handle field type has its own C++ name");
         }
 
-        // 2D 프렐류드는 `Vector3` 의 설명자를 들이지 않는다. 그 필드가 있을 때만 더 들인다(MSBuild 로 확인했다).
-        Check(false == Contains(header, "Math3DReflection.h"), "a script without a Vector3 field does not pull in 3D reflection");
+        // 값 필드의 설명서는 프렐류드가 들인다 - 필드 타입마다 include 를 더하지 않는다. 실제로 컴파일되는지는
+        // `TestEveryOfferedFieldTypeBuilds` 가 MSBuild 로 본다.
         Array<ScriptProject::FieldSpec> spatial;
         spatial.Add({String("Offset"), ScriptProject::FieldType::Vector3});
-        Check(Contains(ScriptProject::MakeScriptHeader("Mover", spatial, FrameworkKind::Framework2D),
-                "#include <JBro/Reflection/Math3DReflection.h>\r\n"),
-            "a Vector3 field brings the header that describes it");
+        Check(false == Contains(ScriptProject::MakeScriptHeader("Mover", spatial, FrameworkKind::Framework2D), "Reflection/"),
+            "a value field needs no include beyond the prelude");
 
         const String header3D = ScriptProject::MakeScriptHeader("Orbit", {}, FrameworkKind::Framework3D);
         const String source3D = ScriptProject::MakeScriptSource("Orbit", FrameworkKind::Framework3D);
@@ -645,6 +644,87 @@ namespace
     }
 }
 
+namespace
+{
+    // **에디터가 내놓는 필드 타입은 모두 사용자 프로젝트에서 컴파일된다.** 만든 글자만 보면 SDK 사본에 설명서가 없는 타입
+    // (`Vector2`·`Color`·에셋)을 놓쳤다 - 글자는 맞는데 `TypeDescriptorOf` 가 없어 C2338 로 멈췄다. 목록은 `FieldType` 에서
+    // 읽으므로 종류가 늘면 시험도 따라 는다. JBroScript 의 `[prop]` 값 필드도 같은 설명서를 쓴다.
+    void BuildEveryOfferedFieldType(FrameworkKind framework, const char* folder, const char* frameworkName)
+    {
+        const fs::path root = FreshFolder(folder);
+        fs::create_directories(root / "Contents" / "Assets");
+        const fs::path projectPath = root / "Fields.jproject";
+        std::ofstream(projectPath, std::ios::binary) <<
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: " << frameworkName << "\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Contents/Assets\n"
+            "ScriptSourceDirectory: Contents\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: Fields\n";
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; building every field type not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the field type project opens");
+
+        using ScriptProject::FieldType;
+        Array<ScriptProject::FieldSpec> fields;
+        for (Int32 index = 0; index < static_cast<Int32>(FieldType::Count); ++index)
+        {
+            const FieldType type = static_cast<FieldType>(index.Get());
+            if (ScriptProject::IsFieldTypeOffered(type, framework))
+            {
+                fields.Add({String("Field").Append(std::to_string(index.Get())), type});
+            }
+        }
+        Check(fields.Size() > 10, "the editor offers the value and handle field types");
+        String failure;
+        Check(false == editor.CreateScript("", "EveryField", fields, failure).empty(), "a script with every offered field type is created");
+        if (framework == FrameworkKind::Framework2D)
+        {
+            std::ofstream(root / "Contents" / "Scripts" / "ValueProps.jscript") <<
+                "script ValueProps\n{\n    [prop] Vector2 offset\n    [prop] Color tint\n}\n";
+        }
+        Check(editor.BuildScripts(), "the build of every field type starts");
+        for (Int32 step = 0; step < 6000 && editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Running; ++step)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the editor keeps ticking while scripts build");
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+        {
+            if (diagnostic.isError)
+            {
+                std::cout << "  " << diagnostic.file.c_str() << "(" << diagnostic.line.Get() << "): " << diagnostic.code.c_str()
+                          << " " << diagnostic.message.c_str() << std::endl;
+            }
+        }
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
+            "every field type the editor offers compiles in a user script project");
+        editor.Shutdown();
+    }
+
+    void TestEveryOfferedFieldTypeBuilds()
+    {
+        BuildEveryOfferedFieldType(FrameworkKind::Framework2D, "fields2d", "2D");
+        BuildEveryOfferedFieldType(FrameworkKind::Framework3D, "fields3d", "3D");
+    }
+}
+
 Int32 RunScriptProjectTests()
 {
     TestTheScriptFilesSayWhatTheUserAskedFor();
@@ -654,6 +734,7 @@ Int32 RunScriptProjectTests()
     TestTheEngineIsFoundFromWhereTheEditorRuns();
     TestTheEditorCreatesAScriptAndItsProject();
     TestA3DScriptBuildsAgainstTheScreenUi();
+    TestEveryOfferedFieldTypeBuilds();
     std::cout << "Script project tests passed.\n";
     return 0;
 }

@@ -478,7 +478,6 @@ namespace
             "JBro/Runtime/ScriptInitialization.h",
             "JBro/Runtime/ScriptStatics.h",
             "JBro/Reflection/EnumDescriptor.h",
-            "JBro/Reflection/Math3DReflection.h",
         };
         for (const auto& entry : fs::directory_iterator(engine / "Modules" / "JBroCore" / "Include" / "JBro" / "Types"))
         {

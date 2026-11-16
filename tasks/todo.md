@@ -3057,6 +3057,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-371. 스크립트 프렐류드(`<JBro/ScriptAPI.h>`, 2D·3D)가 값 필드의 리플렉션 설명서(`CoreTypeDescriptors.h`·`Math2DReflection.h`·`Math3DReflection.h`·`AssetTypesReflection.h`)를 들인다. 에디터 `새 스크립트` 의 틀은 필드 타입마다 include 를 더하지 않는다.**
+  (2026-11-17, Script QA 결함 1. 사용자 승인 "CLI 에게 작업시키고 검수는 너가 해라" - 보고서 `F:\AI\scriptqa\REPORT.md` §2 결함 1)
+  Updates: D-266 (6)(그때는 `Vector3` 만 틀이 `Math3DReflection.h` 를 더 들였다), D-334(SDK 사본은 입구에서 닿는 헤더만 옮기므로 프렐류드가 들이면 사본에도 들어간다).
+  (1) 전에는 에디터가 내놓는 `Vector2`·`Color`·에셋 필드가 사용자 프로젝트에서 `TypeDescriptorOf.h C2338` 로 멈췄다 - 세 설명서를 include 하는 곳이 컴포넌트 데이터 헤더(스크립트 대상에서 `#error`)뿐이라
+  SDK 사본(D-334)에 들어가지 않았고, 사용자가 직접 include 해도 C1083 이었다. D-266 (6) 의 "필드 타입 아홉이 모두 컴파일된다" 는 SDK 사본 전의 실측이다. JBroScript 의 `[prop] Vector2`·`Color` 도 같았다.
+  (2) 설명서는 값 타입과 따로 두는 규칙(D-241)을 지킨다 - 값 타입 헤더(`Types/*`)는 그대로이고, 스크립트 입구인 프렐류드만 설명서를 들인다. 네 헤더는 `Field.h`·`Types/*`·`AssetTypes.h` 만 끌고 와서 데이터 헤더를 들이지 않는다.
+  (3) 시험: `ScriptProject` 묶음의 `TestEveryOfferedFieldTypeBuilds` 가 `FieldType` 에서 에디터가 내놓는 종류를 읽어 한 스크립트에 모두 넣고(2D·3D), 2D 에는 JBroScript `[prop] Vector2`·`Color` 를 더해 실제 MSBuild 로 빌드한다. 고치기 전 코드에서 C2338 로 실패하는 것을 봤다.
+
 - **D-370. 빌드 산출물은 `source/JBro.BuildPaths.props` 가 정한 한 자리에 쌓인다. `JBRO_BUILD_ROOT` 가 있으면 그 아래 체크아웃마다 `<폴더 이름>-<경로 해시>`, 없으면 체크아웃의 `BuildOutput` 이다.**
   (2026-11-05. 사용자 지시 "모든 산출물은 F에 쌓여야된다? 빠짐없이 빌드 경로 관리하게 바꿔" - 엔진 빌드 폴더가 C 드라이브의 체크아웃 안에 수 GB 쌓였다)
   Updates: D-334(스크립트 SDK 사본의 자리가 `Build/ScriptSdk` 에서 `<엔진 산출물>/ScriptSdk` 로), D-122(네트워크 산출물이 `source/JBroNetwork/Build` 에서 `<산출물>/Network` 로).
