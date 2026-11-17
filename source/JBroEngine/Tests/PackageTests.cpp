@@ -1,7 +1,9 @@
 ﻿#include "TestCases.h"
+#include "TestModels.h"
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/AssetSource.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
@@ -326,6 +328,124 @@ namespace
         Check(assets.ComputeAudioPeaks(assets.Find(soundId), 8, peaks) && peaks.Size() == 8, "peaks stream from the package too");
         assets.Shutdown();
         package.Close();
+        fs::remove_all(root);
+        platform.Shutdown();
+    }
+
+    // **모델은 꺼낸 메시와 그림으로 실린다**(model-import-plan 6 단계). 패키지에 모델 원본·곁 파일은 없고, 하위 메시는 엔진이 바로 읽는 메시(`CookedMesh`),
+    // 내장 그림은 디코드한 픽셀(`CookedTexture`)이다. 원본 폴더를 지운 뒤에도 게임은 느슨한 파일로 읽은 것과 같은 메시·픽셀을 받는다.
+    void TestAModelShipsAsCookedMeshesAndImages()
+    {
+        WindowsPlatform platform;
+        JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes");
+        const fs::path root = ProcessTempFolder(L"JBroPackageModels·모델");
+        fs::remove_all(root);
+        const fs::path assetsFolder = root / "Assets";
+        // 버퍼는 곁 파일(`crate.bin`)이고 그림은 내장이다 - 게임이 곁 파일을 찾지 않는지 함께 본다.
+        const std::string buffer = TestModels::QuadBuffer();
+        const std::string png(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        const std::string gltf = TestModels::QuadGltf("crate.bin", buffer.size(),
+            "{\"name\":\"Bricks\",\"uri\":\"data:image/png;base64," + TestModels::Base64(png) + "\"}");
+        WriteRaw(assetsFolder / "Props" / "crate.gltf", gltf.data(), gltf.size());
+        WriteRaw(assetsFolder / "Props" / "crate.bin", buffer.data(), buffer.size());
+
+        AssetRegistry loose;
+        AssetScanOptions options;
+        options.createMissingMeta = true;
+        AssetScanReport report;
+        const String assetRoot = Utf8(assetsFolder);
+        Check(loose.Scan(platform, assetRoot.c_str(), options, report), "the loose folder scans");
+        const AssetRecord* model = loose.FindByPath("Props/crate.gltf");
+        Check(model != nullptr && model->type == AssetType::Model, "the glTF is a model");
+        const AssetId modelId = model->id;
+        Array<AssetId> owned;
+        loose.CollectOwned(modelId, owned);
+        AssetId meshId;
+        AssetId imageId;
+        AssetId materialId;
+        for (const AssetId& id : owned)
+        {
+            const AssetType type = loose.Find(id)->type;
+            meshId = type == AssetType::Mesh ? id : meshId;
+            imageId = type == AssetType::Texture ? id : imageId;
+            materialId = type == AssetType::Material ? id : materialId;
+        }
+        Check(false == meshId.IsNull() && false == imageId.IsNull() && false == materialId.IsNull(), "the model has a mesh, an image and a material");
+
+        // 느슨한 파일로 읽은 것이 기준이다.
+        AssetSystem looseAssets;
+        Check(looseAssets.Initialize(memory), "the loose asset system initializes");
+        looseAssets.Bind(platform, loose, assetRoot.c_str());
+        const MeshData looseMesh = *looseAssets.GetMesh(looseAssets.Load(meshId));
+        const TextureData looseImage = *looseAssets.GetTexture(looseAssets.Load(imageId));
+        looseAssets.Shutdown();
+
+        // 캔버스가 메시 하나만 가리켜도 모델과 그 하위 에셋이 모두 따라간다.
+        Array<AssetId> seeds;
+        seeds.Add(meshId);
+        Array<AssetId> ids;
+        CollectReport collectReport;
+        CollectAssets(platform, loose, assetRoot.c_str(), ArrayView<const AssetId>(seeds.Data(), seeds.Size()), ids, collectReport);
+        Check(ids.Size() == 4 && collectReport.warnings.IsEmpty(), "a mesh takes its model and the model's other sub-assets along");
+        PackageWriter writer(0x0DE10DE10DE10DE1ull);
+        CookReport cooked;
+        Check(CookAssets(platform, loose, assetRoot.c_str(), ArrayView<const AssetId>(ids.Data(), ids.Size()), writer, cooked),
+            "the model cooks");
+        Check(cooked.cookedMeshes == 1 && cooked.cookedTextures == 1 && cooked.failures.IsEmpty(), "one cooked mesh and one cooked image");
+        const String packagePath = Utf8(root / "game.jpak");
+        String error;
+        Check(writer.Save(platform, packagePath.c_str(), error), "the package is written");
+        fs::remove_all(assetsFolder);
+
+        PackageReader package;
+        Check(package.Open(platform, packagePath.c_str(), error), "the package opens");
+        Check(package.Find(modelId, BlobKind::Meta) != nullptr && package.Find(modelId, BlobKind::Source) == nullptr,
+            "the model ships as its meta only - no model file for the game to decode");
+        Check(package.Find(meshId, BlobKind::CookedMesh) != nullptr, "its mesh ships cooked");
+        Check(package.Find(imageId, BlobKind::CookedTexture) != nullptr, "its embedded image ships as pixels");
+        Check(package.Find(materialId, BlobKind::Record) != nullptr, "its material is a record for now");
+        AssetRegistry packed;
+        Check(FillRegistry(package, packed) == 4, "the registry is filled from the index");
+        Check(packed.Find(meshId) != nullptr && packed.Find(meshId)->owner == modelId, "the mesh keeps its model as owner");
+        PackageAssetSource source(package);
+        AssetSystem assets;
+        Check(assets.Initialize(memory), "the packaged asset system initializes");
+        assets.Bind(platform, packed, source);
+        const MeshData* mesh = assets.GetMesh(assets.Load(meshId));
+        Check(mesh != nullptr && mesh->vertices.Size() == looseMesh.vertices.Size() && mesh->indices.Size() == looseMesh.indices.Size()
+                && mesh->hasUvs == looseMesh.hasUvs
+                && std::memcmp(mesh->vertices.Data(), looseMesh.vertices.Data(), mesh->vertices.Size() * sizeof(ModelVertex)) == 0
+                && std::memcmp(mesh->indices.Data(), looseMesh.indices.Data(), mesh->indices.Size() * sizeof(JBro::UInt32)) == 0,
+            "the cooked mesh is the loose mesh, vertex for vertex");
+        const TextureData* image = assets.GetTexture(assets.Load(imageId));
+        Check(image != nullptr && image->width == looseImage.width && image->height == looseImage.height
+                && std::memcmp(image->pixels.Data(), looseImage.pixels.Data(), image->pixels.Size()) == 0
+                && image->options.mipmaps == looseImage.options.mipmaps,
+            "the cooked image is the loose image, with its own options from the model's meta");
+        assets.Shutdown();
+        package.Close();
+
+        // 깨진 메시 블롭은 읽지 않는다.
+        Array<ModelVertex> vertices;
+        vertices.Resize(3);
+        Array<JBro::UInt32> indices;
+        indices.Add(0);
+        indices.Add(1);
+        indices.Add(2);
+        Array<std::byte> blob;
+        WriteCookedMesh(vertices, indices, true, blob);
+        Array<ModelVertex> readVertices;
+        Array<JBro::UInt32> readIndices;
+        JBro::Bool readUvs = false;
+        Check(ReadCookedMesh(blob, readVertices, readIndices, readUvs) && readVertices.Size() == 3 && readIndices.Size() == 3 && readUvs,
+            "a cooked mesh round-trips");
+        Array<std::byte> shortBlob = blob;
+        shortBlob.Resize(blob.Size() - 1);
+        Check(false == ReadCookedMesh(shortBlob, readVertices, readIndices, readUvs), "a short blob is refused");
+        indices[2] = 3;
+        WriteCookedMesh(vertices, indices, true, blob);
+        Check(false == ReadCookedMesh(blob, readVertices, readIndices, readUvs), "an index past the vertices is refused");
         fs::remove_all(root);
         platform.Shutdown();
     }
@@ -736,6 +856,7 @@ JBro::Int32 RunPackageTests()
     {
         JBRO_CASE(TestAPackageRoundTrips());
         JBRO_CASE(TestAssetsLoadTheSameFromAPackage());
+        JBRO_CASE(TestAModelShipsAsCookedMeshesAndImages());
         JBRO_CASE(TestIdsAreFoundInText());
         JBRO_CASE(TestAGameBuildRunsWithoutTheSourceProject());
     }

@@ -4,6 +4,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ImageDecoder.h>
+#include <JBro/Asset/ModelImport.h>
 #include <JBro/TextRendering/TextLibrary.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
@@ -41,6 +42,90 @@ namespace JBro::Package
             report.blobBytes += bytes.Size();
             return true;
         }
+
+        // 굽는 동안 마지막으로 읽은 모델 하나를 든다. 하위 에셋은 모델 아래에 이어 오므로 모델마다 한 번 읽는다.
+        struct ModelCache
+        {
+            AssetId id;
+            Bool ok = false;
+            ModelData model;
+            Array<ModelSubAsset> listed;
+        };
+
+        const ModelData* DecodeOwner(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRecord& owner,
+            ModelCache& cache, String& error)
+        {
+            if (cache.id != owner.id)
+            {
+                cache = ModelCache{};
+                cache.id = owner.id;
+                Array<std::byte> metaBytes;
+                AssetMetaFile meta;
+                AssetMetaError metaError;
+                if (false == loose.Read(owner, AssetBlob::Meta, metaBytes)
+                    || false == ParseAssetMetaFile(reinterpret_cast<const char*>(metaBytes.Data()), metaBytes.Size(), meta, metaError))
+                {
+                    error = "the model's meta file could not be read";
+                    return nullptr;
+                }
+                cache.ok = DecodeModelFile(platform, assetRoot, owner.relativePath,
+                    meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, cache.model, error);
+                if (cache.ok)
+                {
+                    ListModelSubAssets(cache.model, cache.listed);
+                }
+            }
+            if (false == cache.ok && error.empty())
+            {
+                error = "the model could not be decoded";
+            }
+            return cache.ok ? &cache.model : nullptr;
+        }
+
+        // 모델의 하위 메시·내장 그림 하나를 굽는다. 실패는 보고에 적는다.
+        void CookModelPart(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRecord& owner,
+            const AssetRecord& record, ModelCache& cache, PackageWriter& writer, CookReport& report)
+        {
+            String error;
+            const ModelData* model = DecodeOwner(platform, loose, assetRoot, owner, cache, error);
+            if (model == nullptr)
+            {
+                Fail(report, record, error.c_str());
+                return;
+            }
+            const ModelSubAsset* sub = FindModelSubAsset(cache.listed, record.type, record.name);
+            if (sub == nullptr)
+            {
+                Fail(report, record, "the model no longer has this sub-asset - reopen the project in the editor to refresh its list");
+                return;
+            }
+            Array<std::byte> cooked;
+            if (record.type == AssetType::Mesh)
+            {
+                const ModelMesh& mesh = model->meshes[sub->index.Get()];
+                WriteCookedMesh(mesh.vertices, mesh.indices, mesh.hasUvs, cooked);
+                if (AddBlob(writer, report, record, BlobKind::CookedMesh, cooked))
+                {
+                    ++report.cookedMeshes;
+                }
+                return;
+            }
+            const ModelImage& image = model->images[sub->index.Get()];
+            JArrayView<std::byte> view;
+            view.data = image.embedded.Data();
+            view.size = static_cast<JBro::UInt32>(image.embedded.Size());
+            DecodedImage pixels;
+            if (false == DecodeImage(view, pixels))
+            {
+                Fail(report, record, "the embedded image could not be decoded");
+                return;
+            }
+            WriteCookedTexture(pixels.width, pixels.height, pixels.pixels.Data(), cooked);
+            if (AddBlob(writer, report, record, BlobKind::CookedTexture, cooked))
+            {
+                ++report.cookedTextures;
+            }
+        }
     }
 
     Bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
@@ -48,6 +133,7 @@ namespace JBro::Package
     {
         LooseAssetSource loose;
         loose.Bind(&platform, assetRoot);
+        ModelCache models;
         for (const AssetId& id : ids)
         {
             const AssetRecord* record = registry.Find(id);
@@ -61,6 +147,14 @@ namespace JBro::Package
                 continue;
             }
             ++report.assets;
+            // 모델의 하위 메시·내장 그림은 모델에서 꺼내 굽는다(6 단계). 재질은 아직 레코드만이다.
+            const AssetRecord* owner = record->owner.IsNull() ? nullptr : registry.Find(record->owner);
+            if (owner != nullptr && owner->type == AssetType::Model
+                && (record->type == AssetType::Mesh || record->type == AssetType::Texture))
+            {
+                CookModelPart(platform, loose, assetRoot, *owner, *record, models, writer, report);
+                continue;
+            }
             // 이미지의 Sprite 는 주인의 메타와 픽셀을 쓴다. 레코드만 둔다.
             if (false == record->owner.IsNull())
             {
@@ -77,6 +171,11 @@ namespace JBro::Package
                 continue;
             }
             if (false == AddBlob(writer, report, *record, BlobKind::Meta, meta))
+            {
+                continue;
+            }
+            // 모델은 메타만이다 - 하위 에셋이 제 블롭을 갖고, 게임은 원본을 읽지 않는다.
+            if (record->type == AssetType::Model)
             {
                 continue;
             }

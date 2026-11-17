@@ -12,6 +12,67 @@ namespace JBro
     namespace
     {
         constexpr char CookedTextureMagic[4] = { 'J', 'T', 'E', 'X' };
+        constexpr char CookedMeshMagic[4] = { 'J', 'M', 'S', 'H' };
+    }
+
+    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, Array<std::byte>& out)
+    {
+        const std::uint32_t vertexCount = static_cast<std::uint32_t>(vertices.Size());
+        const std::uint32_t indexCount = static_cast<std::uint32_t>(indices.Size());
+        const std::uint32_t flags = hasUvs ? 1u : 0u;
+        const std::size_t vertexBytes = static_cast<std::size_t>(vertexCount) * sizeof(ModelVertex);
+        const std::size_t indexBytes = static_cast<std::size_t>(indexCount) * sizeof(std::uint32_t);
+        out.Resize(CookedMeshHeaderSize + vertexBytes + indexBytes);
+        std::memcpy(out.Data(), CookedMeshMagic, sizeof(CookedMeshMagic));
+        std::memcpy(out.Data() + 4, &vertexCount, sizeof(vertexCount));
+        std::memcpy(out.Data() + 8, &indexCount, sizeof(indexCount));
+        std::memcpy(out.Data() + 12, &flags, sizeof(flags));
+        if (vertexBytes > 0)
+        {
+            std::memcpy(out.Data() + CookedMeshHeaderSize, vertices.Data(), vertexBytes);
+        }
+        if (indexBytes > 0)
+        {
+            std::memcpy(out.Data() + CookedMeshHeaderSize + vertexBytes, indices.Data(), indexBytes);
+        }
+    }
+
+    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs)
+    {
+        if (bytes.Size() < CookedMeshHeaderSize || std::memcmp(bytes.Data(), CookedMeshMagic, sizeof(CookedMeshMagic)) != 0)
+        {
+            return false;
+        }
+        std::uint32_t vertexCount = 0;
+        std::uint32_t indexCount = 0;
+        std::uint32_t flags = 0;
+        std::memcpy(&vertexCount, bytes.Data() + 4, sizeof(vertexCount));
+        std::memcpy(&indexCount, bytes.Data() + 8, sizeof(indexCount));
+        std::memcpy(&flags, bytes.Data() + 12, sizeof(flags));
+        const std::size_t vertexBytes = static_cast<std::size_t>(vertexCount) * sizeof(ModelVertex);
+        const std::size_t indexBytes = static_cast<std::size_t>(indexCount) * sizeof(std::uint32_t);
+        if (vertexCount == 0 || indexCount == 0 || indexCount % 3 != 0 || (flags & ~1u) != 0
+            || bytes.Size() != CookedMeshHeaderSize + vertexBytes + indexBytes)
+        {
+            return false;
+        }
+        Array<UInt32> readIndices;
+        readIndices.Resize(indexCount);
+        std::memcpy(readIndices.Data(), bytes.Data() + CookedMeshHeaderSize + vertexBytes, indexBytes);
+        for (std::size_t index = 0; index < readIndices.Size(); ++index)
+        {
+            if (readIndices[index] >= vertexCount)
+            {
+                return false;
+            }
+        }
+        Array<ModelVertex> readVertices;
+        readVertices.Resize(vertexCount);
+        std::memcpy(readVertices.Data(), bytes.Data() + CookedMeshHeaderSize, vertexBytes);
+        vertices = std::move(readVertices);
+        indices = std::move(readIndices);
+        hasUvs = (flags & 1u) != 0;
+        return true;
     }
 
     void WriteCookedTexture(UInt32 width, UInt32 height, const std::byte* rgba, Array<std::byte>& out)

@@ -48,7 +48,7 @@
 ```
 
 - **한 에셋에 블롭이 여럿**이다. `kind` 가 가른다: `Record`(블롭 없음 - 이미지의 Sprite 레코드), `Meta`(`.jmeta` 원문),
-  `Source`(원본 바이트), `CookedTexture`(RGBA8 과 폭·높이), `FontAtlas`(미리 뜬 아틀라스). 같은 (id, kind) 는 하나다.
+  `Source`(원본 바이트), `CookedTexture`(RGBA8 과 폭·높이), `FontAtlas`(미리 뜬 아틀라스), `CookedMesh`(모델에서 꺼낸 메시, D-345). 같은 (id, kind) 는 하나다.
 - 경로는 에셋 폴더 기준 상대경로를 그대로 둔다. 시작 캔버스·빌드 캔버스를 경로로 찾기 때문이다. 색인이 난독화되어 겉으로 보이지 않는다.
 - 해시는 64 비트 FNV-1a(평문). 색인 해시가 틀리면 열지 않고, 블롭 해시가 틀리면 그 블롭을 읽지 않는다 - 깨진 패키지를 조용히 쓰지 않는다.
 
@@ -74,6 +74,7 @@
   포함된 에셋의 메타(패밀리의 칸이 여기 있다)와 캔버스 원문에서 32 자리 아이디를 읽어 레지스트리에 있는 것을 더한다. 다른 타입의 원문은 읽지 않는다.
   이미지는 Texture 와 그 Sprite 들이 함께 간다. 레지스트리에 없는 아이디는 빌드를 멈추지 않고 경고로 모은다(지운 에셋을 가리키는 옛 캔버스가 흔하다).
 - **쿡**: Texture 는 `CookedTexture`(디코드한 RGBA8), 폰트는 `Source` + 미리 채우기가 켜진 폰트의 `FontAtlas`(§2.5), 나머지는 `Source`.
+  모델은 메타만이고, 하위 Mesh 는 `CookedMesh`, 내장 그림은 `CookedTexture`, 재질은 레코드다 - 게임은 모델 디코더도 곁 파일도 쓰지 않는다(D-345).
   모든 에셋은 `Meta` 블롭을 가진다.
 - **내놓는 것**: `<OutputDirectory>/<ProductName>/` 에 게임 호스트 실행 파일, 스크립트 DLL(있으면), `<ProductName>.jproject`(`AssetPackage` 를 적은 사본),
   `Content/game.jpak`. 게임 호스트는 `--project` 가 없으면 실행 파일 옆의 `.jproject` 를 연다.

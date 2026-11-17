@@ -6,6 +6,14 @@
 
 namespace JBro::Package
 {
+    // 에셋 시스템의 블롭 번호를 패키지 블롭 종류로 그대로 바꿔 찾는다 - 둘이 어긋나면 엉뚱한 블롭을 읽으므로 빌드가 멈춘다.
+    static_assert(static_cast<std::uint8_t>(AssetBlob::Meta) == static_cast<std::uint8_t>(BlobKind::Meta)
+            && static_cast<std::uint8_t>(AssetBlob::Source) == static_cast<std::uint8_t>(BlobKind::Source)
+            && static_cast<std::uint8_t>(AssetBlob::CookedTexture) == static_cast<std::uint8_t>(BlobKind::CookedTexture)
+            && static_cast<std::uint8_t>(AssetBlob::FontAtlas) == static_cast<std::uint8_t>(BlobKind::FontAtlas)
+            && static_cast<std::uint8_t>(AssetBlob::CookedMesh) == static_cast<std::uint8_t>(BlobKind::CookedMesh),
+        "AssetBlob and BlobKind must keep the same numbers");
+
     namespace
     {
         constexpr char StreamPrefix[] = "jpak:";

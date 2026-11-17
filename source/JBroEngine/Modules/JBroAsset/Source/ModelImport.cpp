@@ -98,6 +98,20 @@ namespace JBro
         }
     }
 
+    const ModelSubAsset* FindModelSubAsset(const Array<ModelSubAsset>& listed, AssetType type, std::string_view name)
+    {
+        for (std::size_t index = 0; index < listed.Size(); ++index)
+        {
+            AssetType listedType = AssetType::Unknown;
+            std::string_view listedName;
+            if (listed[index].type == type && SplitSubAssetKey(listed[index].key, listedType, listedName) && listedName == name)
+            {
+                return &listed[index];
+            }
+        }
+        return nullptr;
+    }
+
     TextureImportOptions ModelTextureDefaults()
     {
         TextureImportOptions options;
@@ -128,10 +142,9 @@ namespace JBro
         return key != 0 ? UInt64(key) : UInt64(1);
     }
 
-    Bool RefreshModelSubAssets(IPlatform& platform, const char* assetRoot, std::string_view relativePath,
-        AssetMetaFile& meta, Bool& changed, String& error)
+    Bool DecodeModelFile(IPlatform& platform, const char* assetRoot, std::string_view relativePath, const ModelImportOptions& options,
+        ModelData& model, String& error)
     {
-        changed = false;
         const String path = JoinPath(assetRoot, relativePath);
         Array<std::byte> bytes;
         if (false == platform.ReadWholeFile(path.c_str(), bytes))
@@ -146,9 +159,15 @@ namespace JBro
         ModelFileReader reader;
         reader.read = &SideReader::Read;
         reader.user = &side;
-        const ModelImportOptions options = meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{};
+        return DecodeModel({bytes.Data(), static_cast<UInt32>(bytes.Size())}, ModelFormatFromPath(relativePath), options, reader, model, error);
+    }
+
+    Bool RefreshModelSubAssets(IPlatform& platform, const char* assetRoot, std::string_view relativePath,
+        AssetMetaFile& meta, Bool& changed, String& error)
+    {
+        changed = false;
         ModelData model;
-        if (false == DecodeModel({bytes.Data(), static_cast<UInt32>(bytes.Size())}, ModelFormatFromPath(relativePath), options, reader, model, error))
+        if (false == DecodeModelFile(platform, assetRoot, relativePath, meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, model, error))
         {
             return false;
         }

@@ -1,6 +1,6 @@
 # 모델 임포트 계획 (D-338)
 
-> 상태: **진행** (2026-11-16 시작, 1~5 단계 완료, 남은 것은 6 단계 `.jpak`). todo-3d 우선순위 3. 사용자와 토론해 정한 것(2026-11-16): 가져오는 단위는 메시가 아니라 **모델**,
+> 상태: **완료** (2026-11-16 시작, 2026-11-17 여섯 단계 완료). 남은 것은 §4(재질 단계와 함께 할 것·`[남은 일]`). todo-3d 우선순위 3. 사용자와 토론해 정한 것(2026-11-16): 가져오는 단위는 메시가 아니라 **모델**,
 > 디코더는 **ufbx + cgltf**("범용적인 걸 쓰되 하나로 안 되면 여럿 허용"), 하위 에셋은 에셋 브라우저에서 **▶ 로 펼친다**(그림의 Texture·Sprite 도 같이),
 > 모델에 **내장된 같은 그림은 자동으로 묶되 묶인 것을 보이게** 한다. 에디터 화면은 2D 를 따르고, 3D 만의 것이라 달라야 하면 먼저 묻는다.
 
@@ -119,7 +119,7 @@
 | 3 | `AssetType::Model` · 확장자 표 · 레지스트리의 하위 레코드와 `.jmeta` 하위 아이디 고정 · `ModelImportOptions` | `[완료]` 2026-11-16 · D-341 · `AssetType::Model`(`.fbx .obj .gltf .glb`), `AssetRecord::name`, `.jmeta` 의 `Model.ImportOptions`·`Model.SubAssets`(`Key`·`Id`), `RefreshModelSubAssets`(`ModelImport.h`), 스캔이 하위 레코드를 세움, 인스펙터의 모델 임포트 옵션(블록 종류를 열거형 하나로), 메시 칸 목록의 `모델 / 메시`, 브라우저의 모델·메시·재질 아이콘, `TextureImportOptions` 의 `colorSpace`·`mipmaps`(값만, D-339 (a)) · 시험 `AssetRegistry` 의 `TestModelsRegisterTheirSubAssets`·브라우저 펼치기 시험의 모델(화면 `assets_model_icons`·`assets_model_inspector`) |
 | 4 | `AssetSystem` 의 메시 풀 · `MeshLibrary` 등록과 해석 패스 · 메시 칸 목록의 `모델 / 메시` · 파일 감시로 다시 읽기 | `[완료]` 2026-11-16 · D-342 · `MeshData` 풀(`AssetSystem::ReadMesh` - 모델을 읽어 그 이름의 메시, 마지막 모델 하나를 들고 있음, 곁 파일은 에셋 폴더에서 바로), `MeshLibrary::ResolveAsset`(처음 만날 때·자료 세대가 오를 때 올림), `MeshRender3DSystem` 이 컴포넌트 핸들을 되쓰지 않음, 호스트 감시가 모델 파일 변경 때 하위 목록을 맞춤 · 시험 `MeshPixel` 의 `TestAModelMeshIsDrawnAndFollowsAReload`(세 백엔드), `D3D12Smoke` 의 모델 파일 변경 · 시험 도우미 `RenderOnce` 를 호스트와 같은 차례(갱신 → 프레임)로 고침 |
 | 5 | 내장 그림의 하위 Texture · 해시 기록 · 브라우저 배지와 인스펙터 `같은 그림` 줄 | `[완료]` 2026-11-17 · D-343 · `ListModelSubAssets`·`MakeSharedImageKey`·`ModelTextureDefaults`(`ModelImport.h`), `.jmeta` 그림 항목의 `Hash`·`ImportOptions`, `AssetRecord::sharedImageKey`, `AssetSystem::ReadEmbeddedTexture`, `Widget::OverlayBadge`·`ShowTooltip`·`LinkText`, `EditorApplication::FindSameImages`, 인스펙터의 하위 에셋 머리와 `같은 그림` 줄 · 시험 `AssetRegistry` 의 `TestEmbeddedImagesAreSubAssetsGroupedByContent`, `AssetSystem` 의 `TestAModelsEmbeddedImageLoadsAsATexture`, 브라우저 펼치기 시험의 두 glTF(화면 `assets_same_image_badge`·`assets_same_image_inspector`) · 시험 모델 짓는 도우미를 `Tests/TestModels.h` 로 옮겼다 · 세부는 §2.5 의 "선 모양" |
-| 6 | `.jpak` 에 엔진이 바로 읽는 이진 메시로 구워 넣기(2D 의 미리 뜬 아틀라스와 같은 자리) | |
+| 6 | `.jpak` 에 엔진이 바로 읽는 이진 메시로 구워 넣기(2D 의 미리 뜬 아틀라스와 같은 자리) | `[완료]` 2026-11-17 · D-345 · 블롭 `CookedMesh`(`JMSH` 머리 16 바이트 + `ModelVertex` 그대로 + 32 비트 인덱스, `WriteCookedMesh`·`ReadCookedMesh`), `PackageCook` 이 모델을 한 번 읽어 하위 Mesh 는 `CookedMesh`·내장 그림은 `CookedTexture` 로 그 하위 아이디에 두고 모델은 메타만, `AssetSystem` 은 쿡된 블롭을 먼저 본다, `DecodeModelFile`·`FindModelSubAsset`(`ModelImport.h`)을 메타 맞추기·쿡·에셋 시스템이 같이 쓴다 · 시험 `Package` 의 `TestAModelShipsAsCookedMeshesAndImages`(곁 `.bin` 이 있는 glTF 를 굽고 원본 폴더를 지운 뒤 메시·그림이 느슨한 것과 같음, 깨진 블롭 거절) |
 
 각 단계는 시험·뮤테이션·문서·커밋을 끝내고 다음으로 간다.
 

@@ -303,12 +303,7 @@ namespace JBro
         {
             return false;
         }
-        // 모델의 내장 그림은 모델 안의 바이트다(5 단계). 패키지에도 레코드만 있고 바이트는 모델에 있다.
-        if (const AssetRecord* model = OwnerModelOf(record))
-        {
-            return ReadEmbeddedTexture(record, *model, data);
-        }
-        // 빌드가 디코드해 둔 픽셀이 있으면 그것이다(D-232) - 게임에 이미지 디코더가 돌지 않는다.
+        // 빌드가 디코드해 둔 픽셀이 있으면 그것이다(D-232) - 게임에 이미지 디코더가 돌지 않는다. 모델의 내장 그림도 빌드가 꺼내 둔다(6 단계).
         if (m_source->Has(record, AssetBlob::CookedTexture))
         {
             Array<std::byte> cooked;
@@ -324,6 +319,11 @@ namespace JBro
             std::memcpy(data.pixels.Data(), cooked.Data() + CookedTextureHeaderSize, data.pixels.Size());
             data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
             return true;
+        }
+        // 모델의 내장 그림은 모델 안의 바이트다(5 단계).
+        if (const AssetRecord* model = OwnerModelOf(record))
+        {
+            return ReadEmbeddedTexture(record, *model, data);
         }
         // 원본은 워커 로드와 같은 디코드를 부른다(D-236). 동기 로드는 메인에서 부를 뿐이다.
         AssetDecodeJob job;
@@ -865,26 +865,20 @@ namespace JBro
         return &m_decodedModel;
     }
 
-    namespace
-    {
-        // 하위 레코드의 이름이 가리키는 것을 키 목록에서 찾는다 - 키를 짓는 곳(`ListModelSubAssets`)이 하나라 겹친 이름의 ` (2)` 도 같다.
-        const ModelSubAsset* FindSubAsset(const Array<ModelSubAsset>& listed, AssetType type, const String& name)
-        {
-            for (std::size_t index = 0; index < listed.Size(); ++index)
-            {
-                AssetType listedType = AssetType::Unknown;
-                std::string_view listedName;
-                if (listed[index].type == type && SplitSubAssetKey(listed[index].key, listedType, listedName) && listedName == name)
-                {
-                    return &listed[index];
-                }
-            }
-            return nullptr;
-        }
-    }
-
     Bool AssetSystem::ReadMesh(const AssetRecord& record, MeshData& data)
     {
+        // 빌드가 꺼내 둔 메시가 있으면 그것이다(6 단계) - 게임은 모델을 읽지 않는다. 패키지의 레코드는 이름이 없어 아이디로 찾는다.
+        if (m_source != nullptr && m_source->Has(record, AssetBlob::CookedMesh))
+        {
+            Array<std::byte> cooked;
+            if (false == m_source->Read(record, AssetBlob::CookedMesh, cooked)
+                || false == ReadCookedMesh(cooked, data.vertices, data.indices, data.hasUvs))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the cooked mesh is damaged", record.relativePath.c_str());
+                return false;
+            }
+            return true;
+        }
         // 하위 메시는 모델 파일 안의 이름이 그 메시다(`AssetRecord::name`). 모델 레코드의 메타가 옵션을 든다.
         const AssetRecord* model = OwnerModelOf(record);
         const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
@@ -894,7 +888,7 @@ namespace JBro
         }
         Array<ModelSubAsset> listed;
         ListModelSubAssets(*decoded, listed);
-        if (const ModelSubAsset* sub = FindSubAsset(listed, AssetType::Mesh, record.name))
+        if (const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Mesh, record.name))
         {
             const ModelMesh& mesh = decoded->meshes[sub->index.Get()];
             data.vertices = mesh.vertices;
@@ -916,7 +910,7 @@ namespace JBro
         }
         Array<ModelSubAsset> listed;
         ListModelSubAssets(*decoded, listed);
-        const ModelSubAsset* sub = FindSubAsset(listed, AssetType::Texture, record.name);
+        const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Texture, record.name);
         if (sub == nullptr)
         {
             Log::Write(LogLevel::Warning, "asset", "%s: the model has no embedded image named %s", model.relativePath.c_str(), record.name.c_str());

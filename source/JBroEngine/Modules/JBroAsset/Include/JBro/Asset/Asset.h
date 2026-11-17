@@ -293,7 +293,7 @@ namespace JBro
         const ModelData* DecodeOwnerModel(const AssetRecord& model);
         // 하위 에셋 레코드의 주인이 모델이면 그 레코드, 아니면 nullptr.
         const AssetRecord* OwnerModelOf(const AssetRecord& record) const;
-        // 곁 파일(`.gltf` 의 `.bin`, OBJ 의 `.mtl`)은 에셋이 아니라 레지스트리에 없다 - 에셋 폴더에서 바로 읽는다. 패키지에서는 아직 읽지 못한다(6 단계).
+        // 곁 파일(`.gltf` 의 `.bin`, OBJ 의 `.mtl`)은 에셋이 아니라 레지스트리에 없다 - 에셋 폴더에서 바로 읽는다. 패키지에는 곁 파일이 없다 - 빌드가 메시를 꺼내 두므로(`CookedMesh`) 게임은 여기에 오지 않는다.
         Bool ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const;
         AssetId m_decodedModelId;
         ModelData m_decodedModel;
