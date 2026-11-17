@@ -93,6 +93,8 @@ MSBuild.exe source/JBroEngine/Modules/JBroc/JBroc.vcxproj /m:3 /p:Configuration=
 `didClose`와 파일 삭제에서는 이전 진단을 비운다. 종료는 `shutdown` 요청의 응답을 받은 뒤 `exit` 알림을 보낸다.
 `$/cancelRequest`를 처리하며 취소된 요청은 `-32800`으로 끝난다.
 
+`jbro/editFieldSettings` 의 `position` 은 **요약 응답(`jbro/scriptSummary`)이 그 필드에 준 `selectionRange.start`** 를 그대로 보낸다 - 필드 이름의 첫 글자다. 서버는 이름 범위의 시작과 정확히 같은 위치만 받고(`Summary.cpp` 의 `NameRange(…).Begin.Offset == selectionOffset`), 다르면 `-32602` 다. 이름 안의 다른 위치는 받지 않는다(다른 필드와 겹치는 판정을 두지 않기 위해서다). (2026-11-17, DECISIONS-NEEDED Q5-4 사용자 결정 "권고대로" - 지금 에디터 요약 패널이 이렇게 쓴다) (MUST)
+
 서버는 `positionEncoding: "utf-16"`을 반환한다. 내부 UTF-8 바이트 범위를 LSP의 0부터 시작하는 줄·UTF-16 열로 변환한다.
 BOM은 화면 열에 포함하지 않고, 비 BMP 글자는 UTF-16 두 단위로 센다. `initialize.params.locale`이 CLI 기본 locale보다 우선하며
 번역 파일을 찾지 못하면 영어를 시도한다. 소스 진단 번역과 프로토콜 오류 문구는 별도이며, 프로토콜 오류 문구는 현재 영어다.

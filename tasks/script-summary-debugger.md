@@ -24,7 +24,7 @@
 | 계층 | 공개 경계와 책임 |
 |---|---|
 | 컴파일러 | `Summary.h`의 `SummarizeScript`는 소스·AST·기존 분석 결과로 선언/필드 속성과 유효 설정을 만든다. `GetFieldAttributeDefinitions`는 이미터와 공통 속성 이름·인자 개수를 사용한다. `EditFieldSettings`는 분석한 소스를 쓰지 않고 겹치지 않는 UTF-8 바이트 범위 편집을 반환한다. |
-| 언어 서버 | `jbro/scriptSummary`와 `jbro/editFieldSettings`는 문서 URI와 정확한 `textDocument.version`을 요구한다. 편집 요청은 현재 필드 선택 위치와 설정을 받고 UTF-16 `TextEdit`를 반환한다. 버전 불일치는 `-32801`, 잘못된 설정·위치는 `-32602`다. capability는 `experimental.jbroScriptSummary`·`jbroEditFieldSettings`다. |
+| 언어 서버 | `jbro/scriptSummary`와 `jbro/editFieldSettings`는 문서 URI와 정확한 `textDocument.version`을 요구한다. 편집 요청은 현재 필드 선택 위치(요약 응답의 `selectionRange.start` 그대로, lsp-plan §3)와 설정을 받고 UTF-16 `TextEdit`를 반환한다. 버전 불일치는 `-32801`, 잘못된 설정·위치는 `-32602`다. capability는 `experimental.jbroScriptSummary`·`jbroEditFieldSettings`다. |
 | 엔진 클라이언트 | `Code::ScriptSummary`, `SummaryEntry`, `FieldSettings`, `FieldEditResult`에는 엔진 값 타입을 사용한다. `LanguageClient::{GetSummary,EditFieldSettings,GetFieldEditResult}`가 요청 수명·버전 일치를 소유한다. JSON과 AST는 공개 에디터 API를 넘지 않는다. |
 | 버퍼·패널 | `CodeEditorPanel::ApplySourceEdits`가 문서 버전과 읽기 전용 상태를 재검사하고 `Widget::CodeEditor::ApplyEdits`로 하나의 Undo 작업으로 적용한다. 요약 패널에 포커스가 있어도 저장·Undo·Redo는 해당 코드 문서에 연결한다. |
 | 스크립트 빌드 구성 | `JBroScriptHostConfiguration` MSBuild 속성은 실행 에디터의 Debug/Release를 전달한다. 지정하지 않으면 기존 `Configuration`을 따른다. 스크립트의 디버깅 산출물 구성과 별개로 CRT·전처리 정의·엔진 정적 라이브러리는 호스트 구성에 맞춘다. 실제 빌드는 실행 폴더의 `JBroc.exe` 경로를 넘기며 테스트 전용 번역기 덮어쓰기를 요구하지 않는다. |

@@ -3057,6 +3057,11 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-378. 문서가 정하지 않았던 JBroScript 계약 둘을 지금 동작대로 적는다: 엔진 훅에는 `callback`·`override` 를 둘 다 쓸 수 있고(권장 `callback`), `jbro/editFieldSettings` 의 `position` 은 요약 응답의 `selectionRange.start`(필드 이름의 첫 글자)다.**
+  (2026-11-17, Script QA REPORT §3 문서 어긋남 3·13, DECISIONS-NEEDED Q5-1·Q5-4 사용자 결정 "1. 둘다 허용 … 4. 권고대로")
+  Updates: jbroscript-syntax §5.2(엔진 훅의 `override` 를 금하지 않는다), jbroscript-language-server-plan §3(편집 요청의 위치), script-summary-debugger 의 언어 서버 줄.
+  (1) 코드는 바뀌지 않는다 - 분석기는 전부터 엔진 훅의 `override` 를 훅으로 표시했고(`ScriptSummaryTests`), 서버는 이름 범위의 시작과 정확히 같은 위치만 받는다(`Summary.cpp` `EditFieldSettings`). 다른 위치는 `-32602`.
+
 - **D-377. 멤버 없는 enum 은 C++ 처럼 받는다(생성기가 이름 붙은 값이 없는 설명서 `DefineEmptyEnumTypeDescriptor` 를 낸다). 값으로 담는 필드가 돌아서 자기 타입을 담으면 분석 진단 `JBC3048` 이다.**
   (2026-11-17, Script QA 결함 4 의 나머지, DECISIONS-NEEDED Q2 사용자 결정 "빈enum건은 권고안대로" - 빈 enum 허용, 소유 순환은 새 진단)
   Updates: D-372 (3)(빈 enum·소유 순환은 사용자 결정 대기 → 정함), jbroc-rules §16 표의 두 줄, jbroscript-syntax §7.2·§8.3, D-105(진단 번호표에 3048. 3047 은 쓰지 않았다 - 결정 줄이 3048 을 적었다).
