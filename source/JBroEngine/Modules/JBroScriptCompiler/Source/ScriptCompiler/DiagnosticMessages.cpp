@@ -135,14 +135,15 @@ namespace JBro::ScriptCompiler
         return result;
     }
 
-    String FormatDiagnosticLine(std::string_view path, const Diagnostic& diagnostic, const DiagnosticMessages& messages)
+    String FormatDiagnosticLine(std::string_view path, std::string_view text, const Diagnostic& diagnostic,
+        const DiagnosticMessages& messages)
     {
         String line;
         line.Append(path);
         line.Append("(");
         line.Append(std::to_string(diagnostic.Range.Begin.Line));
         line.Append(",");
-        line.Append(std::to_string(diagnostic.Range.Begin.Column));
+        line.Append(std::to_string(CharacterColumn(text, diagnostic.Range.Begin).Get()));
         line.Append("): error JBC");
         line.Append(std::to_string(GetDiagnosticNumber(diagnostic.Code)));
         line.Append(": ");

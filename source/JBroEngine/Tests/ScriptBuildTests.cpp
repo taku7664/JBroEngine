@@ -621,7 +621,7 @@ namespace
             "Build:\n"
             "  ProductName: Typo\n";
         std::ofstream(root / "Contents" / "Scripts" / "Typo.jscript", std::ios::binary)
-            << "script Typo\n{\n    fn F() -> Int\n    {\n        return missingName\n    }\n}\n";
+            << "script Typo\n{\n    fn F() -> String\n    {\n        return \"\xea\xb0\x80\xeb\x82\x98\xeb\x8b\xa4\" + missingName\n    }\n}\n";
 
         EditorApplication editor;
         EditorApplicationConfig config;
@@ -641,13 +641,16 @@ namespace
         Bool found = false;
         for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
         {
-            found = found || (diagnostic.code == "JBC3004" && diagnostic.message.find(expected) != String::npos);
+            // 한글 셋 뒤의 `missingName` 은 글자로 24 열이다(바이트로는 30). 빌드 결과도 글자 열을 받는다(D-379).
+            found = found || (diagnostic.code == "JBC3004" && diagnostic.message.find(expected) != String::npos
+                && diagnostic.line == 5 && diagnostic.column == 24);
         }
         if (false == found)
         {
             for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
             {
-                std::cout << "  " << diagnostic.code.c_str() << " " << diagnostic.message.c_str() << std::endl;
+                std::cout << "  " << diagnostic.code.c_str() << " (" << diagnostic.line.Get() << "," << diagnostic.column.Get() << ") "
+                          << diagnostic.message.c_str() << std::endl;
             }
         }
         Check(found, message);

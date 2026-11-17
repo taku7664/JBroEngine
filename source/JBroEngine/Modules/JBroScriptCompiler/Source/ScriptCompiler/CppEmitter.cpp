@@ -428,7 +428,7 @@ namespace JBro::ScriptCompiler
                 {
                     const auto& at = m_tree->Get(m_errorNode).Range.Begin;
                     m_errors.Add(String(m_source->GetPath()).Append("(").Append(std::to_string(at.Line.Get())).Append(",")
-                        .Append(std::to_string(at.Column.Get())).Append("): ").Append(message));
+                        .Append(std::to_string(CharacterColumn(m_source->GetText(), at).Get())).Append("): ").Append(message));
                     return;
                 }
                 m_errors.Add(String(message));

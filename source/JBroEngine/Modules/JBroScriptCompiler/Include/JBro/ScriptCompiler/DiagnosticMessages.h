@@ -49,6 +49,8 @@ namespace JBro::ScriptCompiler
     //
     //     Enemy.jscript(5,12): error JBC2010: if의 조건은 괄호로 감싸야 합니다.
     //
-    // MSVC 의 모양이라 VS Code 의 `$msCompile` 문제 매처가 그대로 읽는다(ide-plan §6 P0).
-    String FormatDiagnosticLine(std::string_view path, const Diagnostic& diagnostic, const DiagnosticMessages& messages);
+    // MSVC 의 모양이라 VS Code 의 `$msCompile` 문제 매처가 그대로 읽는다(ide-plan §6 P0). 열은 글자 단위다(D-379) -
+    // 그래서 그 자리가 든 원문 `text` 를 받는다.
+    String FormatDiagnosticLine(std::string_view path, std::string_view text, const Diagnostic& diagnostic,
+        const DiagnosticMessages& messages);
 }

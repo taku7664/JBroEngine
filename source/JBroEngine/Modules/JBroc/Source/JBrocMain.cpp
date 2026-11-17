@@ -454,13 +454,13 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
             const DocumentAnalysis& document = *ownedDocument;
             for (const Diagnostic& diagnostic : document.ParseDiagnostics.GetItems())
             {
-                WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(document.Input.Path.View(), diagnostic, messages).View());
+                WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(document.Input.Path.View(), document.Input.Text.View(), diagnostic, messages).View());
             }
             for (const SemanticDiagnostic& diagnostic : document.Diagnostics)
             {
                 String line(document.Input.Path);
                 line.Append("(").Append(std::to_string(diagnostic.Range.Begin.Line)).Append(",")
-                    .Append(std::to_string(diagnostic.Range.Begin.Column)).Append("): ")
+                    .Append(std::to_string(CharacterColumn(document.Input.Text.View(), diagnostic.Range.Begin).Get())).Append("): ")
                     .Append(diagnostic.Warning ? "warning " : "error ").Append(diagnostic.Code.View())
                     .Append(": ").Append(messages.FormatKey(diagnostic.MessageKey.c_str(), diagnostic.Arguments.View()).View());
                 WriteLine(STD_OUTPUT_HANDLE, line.View());
@@ -569,7 +569,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         const SyntaxTree tree = Parse(source, diagnostics);
         for (const Diagnostic& diagnostic : diagnostics.GetItems())
         {
-            WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(path.View(), diagnostic, messages).View());
+            WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(path.View(), source.GetText(), diagnostic, messages).View());
         }
         if (diagnostics.HasErrors() && ExitSuccess == exitCode)
         {

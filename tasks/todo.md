@@ -3057,6 +3057,13 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-379. `jbroc` 명령줄 진단 줄(구문·의미·생성기 오류)의 열은 글자(코드 포인트) 단위다. 내부 위치(`SourceLocation.Column`)는 UTF-8 바이트 그대로이고 줄을 쓸 때 `CharacterColumn` 으로 바꾼다.**
+  (2026-11-17, Script QA REPORT §3 문서 어긋남 7, DECISIONS-NEEDED Q5-2 사용자 결정 "ㅇㅇ")
+  Updates: jbroc-rules §11.3(진단 한 줄의 열 단위), D-105.
+  (1) 전에는 바이트 열이라 `return "가나다" + missingName` 의 이름이 30 열로 나왔다(글자로 24). VS Code `$msCompile` 와 에디터 `빌드 결과` 는 글자로 읽는다.
+  (2) `FormatDiagnosticLine` 이 원문을 받는다(열을 세려면 줄의 글이 필요하다). 생성기 오류(`CppEmitter` 의 `Error`)도 같은 함수로 센다.
+  (3) 시험: `ScriptCompilerCommandLine` 의 `TestColumnsCountCharacters`(의미·구문·BOM·생성기 오류 넷), `ScriptBuild` 의 `TestTheCompilerSpeaksTheEditorLanguage` 가 한국어·영어 에디터의 빌드 결과에서 한글 뒤 진단이 5 줄 24 열인지 본다.
+
 - **D-378. 문서가 정하지 않았던 JBroScript 계약 둘을 지금 동작대로 적는다: 엔진 훅에는 `callback`·`override` 를 둘 다 쓸 수 있고(권장 `callback`), `jbro/editFieldSettings` 의 `position` 은 요약 응답의 `selectionRange.start`(필드 이름의 첫 글자)다.**
   (2026-11-17, Script QA REPORT §3 문서 어긋남 3·13, DECISIONS-NEEDED Q5-1·Q5-4 사용자 결정 "1. 둘다 허용 … 4. 권고대로")
   Updates: jbroscript-syntax §5.2(엔진 훅의 `override` 를 금하지 않는다), jbroscript-language-server-plan §3(편집 요청의 위치), script-summary-debugger 의 언어 서버 줄.

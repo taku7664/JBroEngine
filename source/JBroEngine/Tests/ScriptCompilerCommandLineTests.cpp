@@ -158,7 +158,7 @@ namespace
         DiagnosticList diagnostics;
         Parse(source, diagnostics);
         Check(1 == diagnostics.GetCount(), "the bad probe has exactly one error");
-        return FormatDiagnosticLine(path, diagnostics.GetItems()[0], messages).Std() + "\n";
+        return FormatDiagnosticLine(path, source.GetText(), diagnostics.GetItems()[0], messages).Std() + "\n";
     }
 
     void TestNumbersAreStableAndUnique()
@@ -765,10 +765,58 @@ namespace
     }
 }
 
+namespace
+{
+    // **명령줄 진단의 열은 글자 단위다(D-379).** 전에는 UTF-8 바이트 열이라 한글 뒤의 자리가 편집기·빌드 결과와 어긋났다
+    // (한글 셋 뒤의 이름이 글자로 24 열인데 30 열). 구문 진단·의미 진단·생성기 오류가 같은 단위다. BOM 은 열에 들지 않는다.
+    void TestColumnsCountCharacters()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_column_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const std::string korean = "\xea\xb0\x80\xeb\x82\x98\xeb\x8b\xa4";
+        struct Case
+        {
+            const char* Name;
+            std::string Text;
+            const char* Expected;
+        };
+        const Case cases[] = {
+            {"Semantic.jscript", "script A\n{\n    fn F() -> String\n    {\n        return \"" + korean + "\" + missingName\n    }\n}\n",
+                "Semantic.jscript(5,24): error JBC3004"},
+            {"Syntax.jscript", "script B\n{\n    fn F() -> String\n    {\n        return \"" + korean + "\" + )\n    }\n}\n",
+                "Syntax.jscript(5,24): error JBC2005"},
+            {"Bom.jscript", "\xef\xbb\xbfscript C\n{\n    Int hp = \"" + korean + "\"\n}\n", "Bom.jscript(3,14): error JBC3003"},
+            {"Emit.jscript", "script D\n{\n    ref Text2D label\n    fn F() -> String\n    {\n        return \"" + korean + "\" + Text.CopyText(label!)\n    }\n}\n",
+                "Emit.jscript(6,"},
+        };
+        for (const Case& item : cases)
+        {
+            const fs::path source = scratch / item.Name;
+            WriteBytes(source, item.Text);
+            const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
+            const Bool placed = (result.Out + result.Err).find(item.Expected) != std::string::npos;
+            if (false == placed)
+            {
+                std::cout << "  " << item.Name << " expected " << item.Expected << std::endl;
+                Print(result);
+            }
+            Check(placed, "a diagnostic after Korean text names the character column");
+        }
+        // 생성기 오류도 글자 열이다: `return "가나다" + Text.CopyText(…)` 의 투영 호출은 글자로 24 열.
+        const RunResult emitted = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(scratch / L"Emit.jscript"), scratch);
+        Check((emitted.Out + emitted.Err).find("Emit.jscript(6,24)") != std::string::npos, "an emitter error after Korean text names the character column");
+        fs::remove_all(scratch);
+    }
+}
+
 JBro::Int32 RunScriptCompilerCommandLineTests()
 {
     TestEmitErrorsNameTheSourcePosition();
     TestEmptyEnumsAndOwnedCycles();
+    TestColumnsCountCharacters();
     TestNumbersAreStableAndUnique();
     TestTranslationTablesHoldDiagnosticAndCommandLineKeys();
     TestTheExecutable();
