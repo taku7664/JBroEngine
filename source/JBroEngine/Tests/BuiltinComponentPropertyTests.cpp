@@ -1,4 +1,5 @@
-﻿#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+﻿#include "TestCases.h"
+#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -383,17 +384,17 @@ namespace
 
 JBro::Int32 RunBuiltinComponentPropertyTests()
 {
-    TestEveryBuiltinComponentIsThere();
-    TestEvery3DBuiltinComponentIsThere();
-    TestA3DPositionHasThreeAxes();
-    TestA3DRotationIsStoredAsFourComponents();
-    Test3DFollowsTheSameSaveRulesAs2D();
-    TestAPropertyReachesTheRealMember();
-    TestTheCachesAreNotSavedAndNotEditable();
-    TestAColorComesOutAsFourChannels();
-    TestAnEnumFieldSavesItsName();
-    TestRuntimeOnlyFieldsStayOutOfTheSaveFile();
-    TestEveryLeafOfEveryBuiltinCanBeSaved();
+    JBRO_CASE(TestEveryBuiltinComponentIsThere());
+    JBRO_CASE(TestEvery3DBuiltinComponentIsThere());
+    JBRO_CASE(TestA3DPositionHasThreeAxes());
+    JBRO_CASE(TestA3DRotationIsStoredAsFourComponents());
+    JBRO_CASE(Test3DFollowsTheSameSaveRulesAs2D());
+    JBRO_CASE(TestAPropertyReachesTheRealMember());
+    JBRO_CASE(TestTheCachesAreNotSavedAndNotEditable());
+    JBRO_CASE(TestAColorComesOutAsFourChannels());
+    JBRO_CASE(TestAnEnumFieldSavesItsName());
+    JBRO_CASE(TestRuntimeOnlyFieldsStayOutOfTheSaveFile());
+    JBRO_CASE(TestEveryLeafOfEveryBuiltinCanBeSaved());
     std::cout << "Builtin component property tests passed.\n";
     return 0;
 }

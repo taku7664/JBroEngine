@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D12RHI/D3D12RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -547,9 +548,9 @@ namespace
 
 JBro::Int32 RunEditorUITests()
 {
-    TestTheDemoWindowPaintsSomething();
-    TestInputReachesTheUi();
-    TestTheFrameOrderIsEnforced();
+    JBRO_CASE(TestTheDemoWindowPaintsSomething());
+    JBRO_CASE(TestInputReachesTheUi());
+    JBRO_CASE(TestTheFrameOrderIsEnforced());
     std::cout << "Editor UI tests passed.\n";
     return 0;
 }

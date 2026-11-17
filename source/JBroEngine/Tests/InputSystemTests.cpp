@@ -1,4 +1,5 @@
-﻿#include <JBro/Input/InputSystem.h>
+﻿#include "TestCases.h"
+#include <JBro/Input/InputSystem.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
@@ -348,16 +349,16 @@ namespace
 
 JBro::Int32 RunInputSystemTests()
 {
-    TestATapInsideOneFrameIsBothPressedAndReleased();
-    TestAHeldKeyStaysDownWithoutNewEvents();
-    TestARepeatIsNotAPress();
-    TestLosingFocusReleasesEverything();
-    TestTextComesInOrderAndIsCapped();
-    TestTheMouseIsMappedToTheGameSurface();
-    TestOutOfRangeNamesAreIgnored();
-    TestPlatformEventsFoldIntoState();
-    TestTheServiceReadsThisFrame();
-    TestFoldingDoesNotAllocate();
+    JBRO_CASE(TestATapInsideOneFrameIsBothPressedAndReleased());
+    JBRO_CASE(TestAHeldKeyStaysDownWithoutNewEvents());
+    JBRO_CASE(TestARepeatIsNotAPress());
+    JBRO_CASE(TestLosingFocusReleasesEverything());
+    JBRO_CASE(TestTextComesInOrderAndIsCapped());
+    JBRO_CASE(TestTheMouseIsMappedToTheGameSurface());
+    JBRO_CASE(TestOutOfRangeNamesAreIgnored());
+    JBRO_CASE(TestPlatformEventsFoldIntoState());
+    JBRO_CASE(TestTheServiceReadsThisFrame());
+    JBRO_CASE(TestFoldingDoesNotAllocate());
     std::cout << "Input system tests passed.\n";
     return 0;
 }

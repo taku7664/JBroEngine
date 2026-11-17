@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/EditorHostArguments.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/EditorHostArguments.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #ifndef NOMINMAX
@@ -224,10 +225,10 @@ JBro::Int32 RunEditorHostArgumentTests()
 {
     try
     {
-        TestArgumentsAreParsed();
-        TestTheProjectFileTypeRunsThisExecutable();
-        TestTheRegistryRoundTrip();
-        TestTheEditorOpensAProjectGivenOnTheCommandLine();
+        JBRO_CASE(TestArgumentsAreParsed());
+        JBRO_CASE(TestTheProjectFileTypeRunsThisExecutable());
+        JBRO_CASE(TestTheRegistryRoundTrip());
+        JBRO_CASE(TestTheEditorOpensAProjectGivenOnTheCommandLine());
     }
     catch (const std::exception&)
     {

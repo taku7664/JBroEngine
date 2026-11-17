@@ -1,4 +1,5 @@
-﻿#include <JBro/Text/FontFace.h>
+﻿#include "TestCases.h"
+#include <JBro/Text/FontFace.h>
 #include <JBro/Text/TextLayout.h>
 
 #include "TestFontNotoSansKR.generated.h"
@@ -857,23 +858,23 @@ JBro::Int32 RunTextLayoutTests()
 {
     try
     {
-        TestFaceReadsTheFont();
-        TestFaceRejectsGarbageAndMoves();
-        TestKerningIsAppliedAcrossTheRun();
-        TestKerningSurvivesGposShapesStbSkipped();
-        TestCombiningMarksAttachToTheirBase();
-        TestOldHangulJoinsThroughGsub();
-        TestRichTextMarkup();
-        TestBoldAndItalicTagsPickStyleFaces();
-        TestWordWrap();
-        TestHangulWrapModes();
-        TestTabStopsAndLineBreakRules();
-        TestBuildToFitFindsTheLargestSize();
-        TestDecoding();
-        TestAlignment();
-        TestClip();
-        TestErrorsAndFaceChoice();
-        TestRebuildKeepsStorage();
+        JBRO_CASE(TestFaceReadsTheFont());
+        JBRO_CASE(TestFaceRejectsGarbageAndMoves());
+        JBRO_CASE(TestKerningIsAppliedAcrossTheRun());
+        JBRO_CASE(TestKerningSurvivesGposShapesStbSkipped());
+        JBRO_CASE(TestCombiningMarksAttachToTheirBase());
+        JBRO_CASE(TestOldHangulJoinsThroughGsub());
+        JBRO_CASE(TestRichTextMarkup());
+        JBRO_CASE(TestBoldAndItalicTagsPickStyleFaces());
+        JBRO_CASE(TestWordWrap());
+        JBRO_CASE(TestHangulWrapModes());
+        JBRO_CASE(TestTabStopsAndLineBreakRules());
+        JBRO_CASE(TestBuildToFitFindsTheLargestSize());
+        JBRO_CASE(TestDecoding());
+        JBRO_CASE(TestAlignment());
+        JBRO_CASE(TestClip());
+        JBRO_CASE(TestErrorsAndFaceChoice());
+        JBRO_CASE(TestRebuildKeepsStorage());
     }
     catch (const std::exception&)
     {

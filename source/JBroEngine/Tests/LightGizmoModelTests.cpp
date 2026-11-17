@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Gizmo/LightGizmoModel.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/Gizmo/LightGizmoModel.h>
 
 #include <cmath>
 #include <iostream>
@@ -143,11 +144,11 @@ namespace
 
 JBro::Int32 RunLightGizmoModelTests()
 {
-    TestThePoseFollowsTheObject();
-    TestWhichHandlesALightHas();
-    TestHandlesSitOnWhatTheyChange();
-    TestDraggingChangesTheValue();
-    TestHandlesNameTheirFields();
+    JBRO_CASE(TestThePoseFollowsTheObject());
+    JBRO_CASE(TestWhichHandlesALightHas());
+    JBRO_CASE(TestHandlesSitOnWhatTheyChange());
+    JBRO_CASE(TestDraggingChangesTheValue());
+    JBRO_CASE(TestHandlesNameTheirFields());
     std::cout << "Light gizmo model tests passed.\n";
     return 0;
 }

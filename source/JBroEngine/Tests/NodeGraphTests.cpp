@@ -1,4 +1,5 @@
-﻿#include <JBro/NodeGraph/Domain.h>
+﻿#include "TestCases.h"
+#include <JBro/NodeGraph/Domain.h>
 #include <JBro/NodeGraph/Graph.h>
 #include <JBro/NodeGraph/GraphYaml.h>
 #include <JBro/NodeGraph/MathDomain.h>
@@ -308,14 +309,14 @@ namespace
 
 JBro::Int32 RunNodeGraphTests()
 {
-    TestConnectRules();
-    TestUniqueOutputAndInsert();
-    TestTopologicalOrder();
-    TestEvaluate();
-    TestYamlRoundTrip();
-    TestYamlProblems();
-    TestCommentsAndWaypoints();
-    TestRegistry();
+    JBRO_CASE(TestConnectRules());
+    JBRO_CASE(TestUniqueOutputAndInsert());
+    JBRO_CASE(TestTopologicalOrder());
+    JBRO_CASE(TestEvaluate());
+    JBRO_CASE(TestYamlRoundTrip());
+    JBRO_CASE(TestYamlProblems());
+    JBRO_CASE(TestCommentsAndWaypoints());
+    JBRO_CASE(TestRegistry());
     std::cout << "Node graph tests passed.\n";
     return 0;
 }

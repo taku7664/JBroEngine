@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/NodeGraph/NodeGraphView.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/NodeGraph/NodeGraphView.h>
 #include <JBro/NodeGraph/MathDomain.h>
 
 #include <cmath>
@@ -532,19 +533,19 @@ namespace
 
 JBro::Int32 RunNodeGraphViewTests()
 {
-    TestCamera();
-    TestFollowIsSmoothAndFrameRateFree();
-    TestPick();
-    TestMoveIsOneEventOnRelease();
-    TestLinking();
-    TestBoxSelectAndModifiers();
-    TestRightButtonAndAlt();
-    TestFrame();
-    TestDoubleClickNode();
-    TestInputFieldsSitLeftOfUnlinkedInputs();
-    TestCommentsCarryTheirNodes();
-    TestWaypointsBendALink();
-    TestTheMinimapMovesTheCamera();
+    JBRO_CASE(TestCamera());
+    JBRO_CASE(TestFollowIsSmoothAndFrameRateFree());
+    JBRO_CASE(TestPick());
+    JBRO_CASE(TestMoveIsOneEventOnRelease());
+    JBRO_CASE(TestLinking());
+    JBRO_CASE(TestBoxSelectAndModifiers());
+    JBRO_CASE(TestRightButtonAndAlt());
+    JBRO_CASE(TestFrame());
+    JBRO_CASE(TestDoubleClickNode());
+    JBRO_CASE(TestInputFieldsSitLeftOfUnlinkedInputs());
+    JBRO_CASE(TestCommentsCarryTheirNodes());
+    JBRO_CASE(TestWaypointsBendALink());
+    JBRO_CASE(TestTheMinimapMovesTheCamera());
     std::cout << "Node graph view tests passed.\n";
     return 0;
 }

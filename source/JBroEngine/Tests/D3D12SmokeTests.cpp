@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
@@ -511,10 +512,10 @@ namespace
 
 JBro::Int32 RunD3D12SmokeTests()
 {
-    TestD3D12AnAbortedFrameRollsTrackedStatesBack();
-    TestD3D12ResourceHandleLifecycle();
-    TestD3D12HiddenSurfaceClear();
-    TestD3D12EngineHost();
+    JBRO_CASE(TestD3D12AnAbortedFrameRollsTrackedStatesBack());
+    JBRO_CASE(TestD3D12ResourceHandleLifecycle());
+    JBRO_CASE(TestD3D12HiddenSurfaceClear());
+    JBRO_CASE(TestD3D12EngineHost());
     std::cout << "D3D12 smoke tests passed.\n";
     return 0;
 }

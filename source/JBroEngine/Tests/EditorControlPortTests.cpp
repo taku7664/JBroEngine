@@ -2,6 +2,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include "TestCases.h"
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
@@ -125,7 +126,7 @@ JBro::Int32 RunEditorControlPortTests()
 {
     try
     {
-        TestTheControlPortIsNotReachableFromOutside();
+        JBRO_CASE(TestTheControlPortIsNotReachableFromOutside());
     }
     catch (const std::exception& error)
     {

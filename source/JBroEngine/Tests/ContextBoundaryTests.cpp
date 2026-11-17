@@ -1,4 +1,5 @@
-﻿#include <JBro/Runtime/ServiceContext.h>
+﻿#include "TestCases.h"
+#include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/SystemContext.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Framework2D/Internal/SystemContext.h>
@@ -284,8 +285,8 @@ namespace
 
 JBro::Int32 RunContextBoundaryTests()
 {
-    TestContextLayoutsAndBinding();
-    TestPhysicsServiceBinding();
+    JBRO_CASE(TestContextLayoutsAndBinding());
+    JBRO_CASE(TestPhysicsServiceBinding());
     std::cout << "Context boundary tests passed.\n";
     return 0;
 }

@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
@@ -320,12 +321,12 @@ namespace
 
 JBro::Int32 RunFramework3DSystemTests()
 {
-    TestQuaternionsRotateRightHanded();
-    TestMatricesFollowTheRendererConvention();
-    TestTransformHierarchyPropagates();
-    TestOnePrimaryCameraIsExtracted();
-    TestMeshesAreExtractedAndResolved();
-    TestTheFrameworkRunsWithoutARenderer();
+    JBRO_CASE(TestQuaternionsRotateRightHanded());
+    JBRO_CASE(TestMatricesFollowTheRendererConvention());
+    JBRO_CASE(TestTransformHierarchyPropagates());
+    JBRO_CASE(TestOnePrimaryCameraIsExtracted());
+    JBRO_CASE(TestMeshesAreExtractedAndResolved());
+    JBRO_CASE(TestTheFrameworkRunsWithoutARenderer());
     std::cout << "Framework3D system tests passed.\n";
     return 0;
 }

@@ -1,4 +1,5 @@
-﻿#include <JBro/Host/DebugDrawSystem.h>
+﻿#include "TestCases.h"
+#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Host/RandomSystem.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Core/Log.h>
@@ -1868,16 +1869,16 @@ JBro::Int32 RunScriptDLLLoaderTests()
         payloadFailureCaught = true;
     }
     Check(payloadFailureCaught, "owned payload failure propagates through nullable null construction");
-    TestRejectsInvalidModuleAbiBeforeCallingModule();
-    TestTheLoadContextNeedsEveryHostTable();
-    TestRequiresExactUniqueContextBlocks();
-    TestActivationErrorGenerationsAreNeverReused();
-    TestRejectsCommonContextAbiBeforeOpeningDll();
-    TestFailedModuleActivationRollsBack();
-    TestLoadReloadAndUnloadOrder();
-    TestFailedReloadInvalidatesOldModule();
-    TestRealDllRoundTripFromKoreanPath();
-    TestHostOpensAProjectWithItsScriptModule();
+    JBRO_CASE(TestRejectsInvalidModuleAbiBeforeCallingModule());
+    JBRO_CASE(TestTheLoadContextNeedsEveryHostTable());
+    JBRO_CASE(TestRequiresExactUniqueContextBlocks());
+    JBRO_CASE(TestActivationErrorGenerationsAreNeverReused());
+    JBRO_CASE(TestRejectsCommonContextAbiBeforeOpeningDll());
+    JBRO_CASE(TestFailedModuleActivationRollsBack());
+    JBRO_CASE(TestLoadReloadAndUnloadOrder());
+    JBRO_CASE(TestFailedReloadInvalidatesOldModule());
+    JBRO_CASE(TestRealDllRoundTripFromKoreanPath());
+    JBRO_CASE(TestHostOpensAProjectWithItsScriptModule());
     std::cout << "Script DLL loader tests passed.\n";
     return 0;
 }

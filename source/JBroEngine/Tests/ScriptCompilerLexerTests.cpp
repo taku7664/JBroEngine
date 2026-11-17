@@ -3,6 +3,7 @@
 // 토큰 열은 종류 이름을 공백으로 이은 한 줄 글로 바꿔 비교한다. 틀렸을 때 기대와 실제를 나란히 보이기 위해서다.
 // 문법 문서(jbroscript-syntax.md)가 정한 규칙마다, 그 규칙이 틀렸을 때 달라지는 입력을 하나씩 둔다.
 
+#include "TestCases.h"
 #include <JBro/ScriptCompiler/DiagnosticMessages.h>
 #include <JBro/ScriptCompiler/Lexer.h>
 
@@ -417,17 +418,17 @@ namespace
 
 JBro::Int32 RunScriptCompilerLexerTests()
 {
-    TestReservedWordsAreKeywordsAndContextualWordsAreNames();
-    TestNewlinesEndStatementsOutsideBrackets();
-    TestNumbers();
-    TestStrings();
-    TestOperatorsAndPunctuation();
-    TestCOperatorsPointToTheWords();
-    TestUnexpectedCharactersAndNames();
-    TestLocations();
-    TestTheWholeExampleLexesClean();
-    TestEveryDiagnosticHasBothTranslations();
-    TestMessagesFillArgumentsAndFallBack();
+    JBRO_CASE(TestReservedWordsAreKeywordsAndContextualWordsAreNames());
+    JBRO_CASE(TestNewlinesEndStatementsOutsideBrackets());
+    JBRO_CASE(TestNumbers());
+    JBRO_CASE(TestStrings());
+    JBRO_CASE(TestOperatorsAndPunctuation());
+    JBRO_CASE(TestCOperatorsPointToTheWords());
+    JBRO_CASE(TestUnexpectedCharactersAndNames());
+    JBRO_CASE(TestLocations());
+    JBRO_CASE(TestTheWholeExampleLexesClean());
+    JBRO_CASE(TestEveryDiagnosticHasBothTranslations());
+    JBRO_CASE(TestMessagesFillArgumentsAndFallBack());
     std::cout << "Script compiler lexer tests passed.\n";
     return 0;
 }

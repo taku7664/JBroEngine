@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/EditorApplication.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorShortcutManager.h>
 
@@ -483,19 +484,19 @@ namespace
 
 JBro::Int32 RunEditorGuideFocusTests()
 {
-    TestAPathRefusesWhatItCannotHold();
-    TestAllowedRectsStartEmptyAndHaveACapacity();
-    TestAnInactiveFocusPassesEverything();
-    TestClicksOutsideTheHoleAreDropped();
-    TestADragStartedInsideKeepsItsRealPositionAndItsRelease();
-    TestAButtonHeldBeforeTheVeilIsReleasedAfterIt();
-    TestAReleaseWithoutAPassedPressIsDropped();
-    TestKeysAreHeldBackUnlessTheStepTypes();
-    TestEscapeAsksToSkipOnce();
-    TestFocusEventsAlwaysPassAndLosingFocusForgetsHeldButtons();
-    TestTouchesFollowTheSameRules();
-    TestEndingBringsThePointerBack();
-    TestTheEditorFeedsImGuiOnlyWhatTheGateLetsThrough();
+    JBRO_CASE(TestAPathRefusesWhatItCannotHold());
+    JBRO_CASE(TestAllowedRectsStartEmptyAndHaveACapacity());
+    JBRO_CASE(TestAnInactiveFocusPassesEverything());
+    JBRO_CASE(TestClicksOutsideTheHoleAreDropped());
+    JBRO_CASE(TestADragStartedInsideKeepsItsRealPositionAndItsRelease());
+    JBRO_CASE(TestAButtonHeldBeforeTheVeilIsReleasedAfterIt());
+    JBRO_CASE(TestAReleaseWithoutAPassedPressIsDropped());
+    JBRO_CASE(TestKeysAreHeldBackUnlessTheStepTypes());
+    JBRO_CASE(TestEscapeAsksToSkipOnce());
+    JBRO_CASE(TestFocusEventsAlwaysPassAndLosingFocusForgetsHeldButtons());
+    JBRO_CASE(TestTouchesFollowTheSameRules());
+    JBRO_CASE(TestEndingBringsThePointerBack());
+    JBRO_CASE(TestTheEditorFeedsImGuiOnlyWhatTheGateLetsThrough());
     std::cout << "Editor guide focus tests passed.\n";
     return 0;
 }

@@ -1732,6 +1732,9 @@ Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 
 - **묶음을 골라 돌릴 때는 정식 장치를 쓴다.** (MUST) (D-292)
   `JBRO_TESTS=조각,조각` 은 이름에 그 조각이 든 묶음만 돌리고(끝 줄 `selected tests passed`), 비면 모두 돈다(끝 줄 `all tests passed.` - 전체가 지났다는 표시는 이 줄뿐이다).
   묶음마다 `[suite] 이름 초` 가 찍힌다. 고치는 동안은 관련 묶음만 돌리고, 전체는 main 에 합치기 직전에 한 번 돌린다. 새 묶음은 `RunSuite("이름", &RunXTests)` 로 등록한다.
+  **묶음 안의 시험도 같은 장치로 고른다**(D-344): `JBRO_TEST_CASES=조각,조각` 은 고른 묶음에서 호출 글자(`TestX(...)`)에 그 조각이 든 시험만 돌린다
+  (끝 줄 `selected tests passed (N tests in M suites)`, 하나도 걸리지 않으면 실패). 그래서 `Run…Tests` 의 시험 호출은 모두 `JBRO_CASE(TestX(...));` 로 적는다 -
+  감싸지 않은 호출은 고르기와 상관없이 늘 돈다. 시험 하나만 돌리려고 러너를 손으로 고치는 것은 임시 시험 코드다(위 규칙).
   `JBRO_GPU_VALIDATION=0` 은 D3D12 의 GPU 기반 검증만 끈다(디버그 레이어는 켜진다) - 기본은 켜짐이다(D-64).
 - **에디터 시험은 항목의 자리를 ImGui 에서 받고, 마우스는 그 자리에 한 번만 보낸다.** (SHOULD) (D-292)
   `Widget::ItemLocator`(ImGui 시험 훅 `IMGUI_ENABLE_TEST_ENGINE`)가 지켜본 Id 의 그려진 사각형을 준다. 마우스를 픽셀마다 옮기며 프레임을 그려 훑는 것은 자리를 받지 못할 때의

@@ -4,6 +4,7 @@
 // src/vs/workbench/contrib/tasks/common/problemMatcher.ts 의 원문)에 걸려야 한다 - 편집기가 에러를 문제 패널로 받는 길이다.
 // JBroc.exe 는 이 테스트 실행 파일 옆에 빌드된다(JBroTests 가 프로젝트로 참조한다).
 
+#include "TestCases.h"
 #include <JBro/ScriptCompiler/Diagnostic.h>
 #include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptCompiler/DiagnosticMessages.h>
@@ -445,10 +446,10 @@ namespace
 
 JBro::Int32 RunScriptCompilerCommandLineTests()
 {
-    TestNumbersAreStableAndUnique();
-    TestTranslationTablesHoldDiagnosticAndCommandLineKeys();
-    TestTheExecutable();
-    TestProjectOutputPreservesUnchangedFiles();
+    JBRO_CASE(TestNumbersAreStableAndUnique());
+    JBRO_CASE(TestTranslationTablesHoldDiagnosticAndCommandLineKeys());
+    JBRO_CASE(TestTheExecutable());
+    JBRO_CASE(TestProjectOutputPreservesUnchangedFiles());
     std::cout << "Script compiler command line tests passed.\n";
     return 0;
 }

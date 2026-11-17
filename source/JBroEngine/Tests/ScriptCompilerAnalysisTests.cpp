@@ -1,3 +1,4 @@
+#include "TestCases.h"
 #include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/CppEmitter.h>
@@ -712,27 +713,27 @@ namespace
 
 JBro::Int32 RunScriptCompilerAnalysisTests()
 {
-    TestSingleRefSyntax();
-    TestCppEmitterChecksEveryRefLink();
-    TestCppEmitterCombinesProjectFiles();
-    TestCppEmitterRejectsRecursiveOwnedRefs();
-    TestCppEmitterClassConstructionAndStaticMembers();
-    TestCppEmitterPreservesFieldVisibilityAndReflection();
-    TestStaticPropertiesAreSharedAndNotSerialized();
-    TestSwitchRejectsNonComparableValues();
-    TestEqualityOperatorsNeedAnExplicitOverload();
-    TestCppEmitterFloatLiteralMatchesEngineValueType();
-    TestWitnessRegressions();
-    TestJumpControlFlowAndContainerEffects();
-    TestNullableGrammar();
-    TestCrossFileSymbolsAndOverloads();
-    TestSemanticNegatives();
-    TestLexicalScopesAndRecovery();
-    TestIncrementalDependenciesAndOwnership();
-    TestBorrowingContainersAndAbstractTypes();
-    TestInheritanceAccessAndSwitchChecks();
-    TestCompletionReceiverTypesAndRenameSafety();
-    TestRenameContractGroups();
+    JBRO_CASE(TestSingleRefSyntax());
+    JBRO_CASE(TestCppEmitterChecksEveryRefLink());
+    JBRO_CASE(TestCppEmitterCombinesProjectFiles());
+    JBRO_CASE(TestCppEmitterRejectsRecursiveOwnedRefs());
+    JBRO_CASE(TestCppEmitterClassConstructionAndStaticMembers());
+    JBRO_CASE(TestCppEmitterPreservesFieldVisibilityAndReflection());
+    JBRO_CASE(TestStaticPropertiesAreSharedAndNotSerialized());
+    JBRO_CASE(TestSwitchRejectsNonComparableValues());
+    JBRO_CASE(TestEqualityOperatorsNeedAnExplicitOverload());
+    JBRO_CASE(TestCppEmitterFloatLiteralMatchesEngineValueType());
+    JBRO_CASE(TestWitnessRegressions());
+    JBRO_CASE(TestJumpControlFlowAndContainerEffects());
+    JBRO_CASE(TestNullableGrammar());
+    JBRO_CASE(TestCrossFileSymbolsAndOverloads());
+    JBRO_CASE(TestSemanticNegatives());
+    JBRO_CASE(TestLexicalScopesAndRecovery());
+    JBRO_CASE(TestIncrementalDependenciesAndOwnership());
+    JBRO_CASE(TestBorrowingContainersAndAbstractTypes());
+    JBRO_CASE(TestInheritanceAccessAndSwitchChecks());
+    JBRO_CASE(TestCompletionReceiverTypesAndRenameSafety());
+    JBRO_CASE(TestRenameContractGroups());
     std::cout << "Script compiler analysis tests passed.\n";
     return 0;
 }

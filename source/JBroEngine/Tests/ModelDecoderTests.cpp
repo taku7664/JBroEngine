@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/ModelDecoder.h>
+﻿#include "TestCases.h"
+#include <JBro/Asset/ModelDecoder.h>
 
 #include <cmath>
 #include <cstring>
@@ -455,13 +456,13 @@ namespace
 
 JBro::Int32 RunModelDecoderTests()
 {
-    TestFormatsComeFromTheExtension();
-    TestAGltfWithDataUrisDecodes();
-    TestAGltfReadsItsSideFilesThroughTheReader();
-    TestAGlbDecodes();
-    TestAnObjWithItsMaterialFileDecodes();
-    TestCalculatedNormalsFollowTheSmoothingAngle();
-    TestAnFbxDecodesWithItsUnits();
+    JBRO_CASE(TestFormatsComeFromTheExtension());
+    JBRO_CASE(TestAGltfWithDataUrisDecodes());
+    JBRO_CASE(TestAGltfReadsItsSideFilesThroughTheReader());
+    JBRO_CASE(TestAGlbDecodes());
+    JBRO_CASE(TestAnObjWithItsMaterialFileDecodes());
+    JBRO_CASE(TestCalculatedNormalsFollowTheSmoothingAngle());
+    JBRO_CASE(TestAnFbxDecodesWithItsUnits());
     std::cout << "Model decoder tests passed.\n";
     return 0;
 }

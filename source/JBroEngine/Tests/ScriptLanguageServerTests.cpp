@@ -1,3 +1,4 @@
+#include "TestCases.h"
 #include <JBro/ScriptLanguageServer/Server.h>
 
 #include <iostream>
@@ -173,7 +174,7 @@ JBro::Int32 RunScriptLanguageServerTests()
     Check(unicodeResult.Contains("\"character\":22,\"line\":4"), "diagnostic columns must count emoji as two UTF-16 units");
     Check(unicodeResult.Contains("\"diagnostics\":[],\"uri\":\"file:///C:/project/Contents/Reader.jscript\""),
         "closing an unsaved file must clear its diagnostics");
-    TestClientLocaleTags();
+    JBRO_CASE(TestClientLocaleTags());
     for (const Bool repair : {false, true})
     {
         String ordered = Frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"initializationOptions":{"projectFile":"C:/project/game.jproject"}}})");

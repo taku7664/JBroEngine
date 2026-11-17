@@ -1,4 +1,5 @@
-﻿#include <JBro/Framework3D/Internal/ScriptModuleContext.h>
+﻿#include "TestCases.h"
+#include <JBro/Framework3D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework2D/Scripting/ScriptModule.h>
 #include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Framework3D/Scripting/ScriptModule.h>
@@ -140,7 +141,7 @@ namespace
 
 JBro::Int32 RunScriptModuleEntryTests()
 {
-    TestThe3DModuleAsksForThe3DBlocks();
+    JBRO_CASE(TestThe3DModuleAsksForThe3DBlocks());
     const auto moduleApiSize = static_cast<JBro::UInt32>(sizeof(JBro::ScriptModuleApi));
     const JBro::ScriptModuleApi* native2D = JBro::Internal::GetScriptModuleApi2D(
         JBro::ScriptModuleAbiVersion, moduleApiSize);
@@ -148,8 +149,8 @@ JBro::Int32 RunScriptModuleEntryTests()
         JBro::ScriptModuleAbiVersion, moduleApiSize);
     Check(native2D != nullptr && generated2D != nullptr && generated2D->Load != native2D->Load,
         "generated scripts validate the error sink payload as well as the block ABI");
-    TestRegistrationWaitsUntilItIsAskedFor();
-    TestRefGuardStopsOnlyTheCurrentCallback();
+    JBRO_CASE(TestRegistrationWaitsUntilItIsAskedFor());
+    JBRO_CASE(TestRefGuardStopsOnlyTheCurrentCallback());
     std::cout << "Script module entry tests passed.\n";
     return 0;
 }

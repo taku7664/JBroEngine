@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Gizmo/PolygonEditModel.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/Gizmo/PolygonEditModel.h>
 
 #include <cmath>
 #include <iostream>
@@ -116,10 +117,10 @@ namespace
 
 JBro::Int32 RunPolygonEditModelTests()
 {
-    TestChainPointEditing();
-    TestPickPrefersAVertexOverItsEdges();
-    TestSeedStartsFromWhatIsDrawn();
-    TestInsertAndRemove();
+    JBRO_CASE(TestChainPointEditing());
+    JBRO_CASE(TestPickPrefersAVertexOverItsEdges());
+    JBRO_CASE(TestSeedStartsFromWhatIsDrawn());
+    JBRO_CASE(TestInsertAndRemove());
     std::cout << "Polygon edit model tests passed.\n";
     return 0;
 }

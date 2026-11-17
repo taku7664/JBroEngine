@@ -1,4 +1,5 @@
-﻿#include <JBro/Types/Easing.h>
+﻿#include "TestCases.h"
+#include <JBro/Types/Easing.h>
 #include <JBro/Types/SpringDamper.h>
 
 #include <cmath>
@@ -430,26 +431,26 @@ JBro::Int32 RunInterpolationTests()
 {
     try
     {
-        TestEveryKindStartsAtZeroAndEndsAtOne();
-        TestLinearIsIdentity();
-        TestProgressIsClamped();
-        TestOutIsTheMirrorOfIn();
-        TestInOutIsHalfwayAtTheMiddle();
-        TestMonotonicKindsNeverGoBackwards();
-        TestBackAndElasticLeaveTheUnitRange();
-        TestBounceActuallyBounces();
-        TestUnknownKindFallsBackToLinear();
-        TestEaseBetweenMixesTheTwoEnds();
+        JBRO_CASE(TestEveryKindStartsAtZeroAndEndsAtOne());
+        JBRO_CASE(TestLinearIsIdentity());
+        JBRO_CASE(TestProgressIsClamped());
+        JBRO_CASE(TestOutIsTheMirrorOfIn());
+        JBRO_CASE(TestInOutIsHalfwayAtTheMiddle());
+        JBRO_CASE(TestMonotonicKindsNeverGoBackwards());
+        JBRO_CASE(TestBackAndElasticLeaveTheUnitRange());
+        JBRO_CASE(TestBounceActuallyBounces());
+        JBRO_CASE(TestUnknownKindFallsBackToLinear());
+        JBRO_CASE(TestEaseBetweenMixesTheTwoEnds());
 
-        TestItReachesTheTarget();
-        TestItNeverOvershoots();
-        TestItIsIndependentOfTheFrameRate();
-        TestZeroDeltaChangesNothing();
-        TestZeroSmoothTimeSnapsAndClearsSpeed();
-        TestSmoothTimeMeansHowLongItTakes();
-        TestMaxSpeedSlowsItDown();
-        TestVectorFormsMatchTheScalarPerAxis();
-        TestTheseArePlainData();
+        JBRO_CASE(TestItReachesTheTarget());
+        JBRO_CASE(TestItNeverOvershoots());
+        JBRO_CASE(TestItIsIndependentOfTheFrameRate());
+        JBRO_CASE(TestZeroDeltaChangesNothing());
+        JBRO_CASE(TestZeroSmoothTimeSnapsAndClearsSpeed());
+        JBRO_CASE(TestSmoothTimeMeansHowLongItTakes());
+        JBRO_CASE(TestMaxSpeedSlowsItDown());
+        JBRO_CASE(TestVectorFormsMatchTheScalarPerAxis());
+        JBRO_CASE(TestTheseArePlainData());
     }
     catch (const std::exception&)
     {

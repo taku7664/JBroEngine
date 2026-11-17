@@ -1,4 +1,5 @@
-﻿#include <JBro/Platform/WindowsPlatform.h>
+﻿#include "TestCases.h"
+#include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
 #include <objbase.h>
@@ -207,9 +208,9 @@ namespace
 
 JBro::Int32 RunPlatformContractTests()
 {
-    TestHiddenWindowLifecycle();
-    TestThePlatformThreadStaysSingleThreadedForDialogs();
-    TestLocalPipeCarriesMessagesBothWays();
+    JBRO_CASE(TestHiddenWindowLifecycle());
+    JBRO_CASE(TestThePlatformThreadStaysSingleThreadedForDialogs());
+    JBRO_CASE(TestLocalPipeCarriesMessagesBothWays());
     std::cout << "Platform contract tests passed.\n";
     return 0;
 }

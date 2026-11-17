@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Log.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Log.h>
 
 #include <cstdio>
 #include <cstring>
@@ -184,13 +185,13 @@ namespace
 
 JBro::Int32 RunLogTests()
 {
-    TestEntriesComeBackOldestFirst();
-    TestTheRingDropsTheOldest();
-    TestALongLineSaysItWasCut();
-    TestClearingMovesTheRevisionForward();
-    TestExplicitKeysGroupDifferentMessagesAndKeepOccurrenceTimes();
-    TestGroupTotalsSurviveOccurrenceEvictionAndClearResetsThem();
-    TestMatchingTextDoesNotGroupWithoutTheSameWriterKey();
+    JBRO_CASE(TestEntriesComeBackOldestFirst());
+    JBRO_CASE(TestTheRingDropsTheOldest());
+    JBRO_CASE(TestALongLineSaysItWasCut());
+    JBRO_CASE(TestClearingMovesTheRevisionForward());
+    JBRO_CASE(TestExplicitKeysGroupDifferentMessagesAndKeepOccurrenceTimes());
+    JBRO_CASE(TestGroupTotalsSurviveOccurrenceEvictionAndClearResetsThem());
+    JBRO_CASE(TestMatchingTextDoesNotGroupWithoutTheSameWriterKey());
     // 검사가 남긴 줄은 치운다. 뒤따르는 테스트의 로그 창이 이것을 보지 않게.
     JBro::Log::Clear();
     std::cout << "Log tests passed.\n";

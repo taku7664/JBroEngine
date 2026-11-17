@@ -1,4 +1,5 @@
-﻿#include <JBro/Reflection/Field.h>
+﻿#include "TestCases.h"
+#include <JBro/Reflection/Field.h>
 #include <JBro/Types/NameTable.h>
 
 #include <cstring>
@@ -222,12 +223,12 @@ namespace
 
 JBro::Int32 RunReflectionFieldTests()
 {
-    TestTableHasEveryFieldInOrder();
-    TestAccessorReachesTheFieldPastTheVtable();
-    TestFieldTypeComesFromTheTypeDescriptor();
-    TestAttributesArriveWhereTheInspectorLooks();
-    TestTheTableIsBuiltOnce();
-    TestATypeWithNoFieldsSaysSo();
+    JBRO_CASE(TestTableHasEveryFieldInOrder());
+    JBRO_CASE(TestAccessorReachesTheFieldPastTheVtable());
+    JBRO_CASE(TestFieldTypeComesFromTheTypeDescriptor());
+    JBRO_CASE(TestAttributesArriveWhereTheInspectorLooks());
+    JBRO_CASE(TestTheTableIsBuiltOnce());
+    JBRO_CASE(TestATypeWithNoFieldsSaysSo());
     std::cout << "Reflection field tests passed.\n";
     return 0;
 }

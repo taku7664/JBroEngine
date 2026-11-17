@@ -1,4 +1,5 @@
-﻿#include <JBro/Framework2DSystem/PhysicsThreads.h>
+﻿#include "TestCases.h"
+#include <JBro/Framework2DSystem/PhysicsThreads.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
@@ -987,26 +988,26 @@ namespace
 
 JBro::Int32 RunProjectFileTests()
 {
-    TestTheTimeSettings();
-    TestThePhysicsThreadsSetting();
-    TestThePhysicsLayerSettings();
-    TestAnEmptyStringIsAValueNotABlock();
-    TestReadsTheLegacyProjectShape();
-    TestRefusesARealLegacyProjectFileIfPresent();
-    TestRefusesWhatItDoesNotUnderstand();
-    TestRequiresTheEngineVersionAndTheFramework();
-    TestScriptModulePathResolution();
-    TestDefaultsSurviveAnEmptyProject();
-    TestRewritingKeepsWhatItDoesNotKnow();
-    TestRewritingTheIgnorePatterns();
-    TestTheProjectFontList();
-    TestTheLocaleSettings();
-    TestTheTagList();
-    TestAnEmptiedValueStaysEmpty();
-    TestSavingTwiceDoesNotGrowTheFile();
-    TestSavingCollapsesKeysThatWereWrittenTwice();
-    TestCreatesANewProject();
-    TestPathsAreMadeRelativeToTheProject();
+    JBRO_CASE(TestTheTimeSettings());
+    JBRO_CASE(TestThePhysicsThreadsSetting());
+    JBRO_CASE(TestThePhysicsLayerSettings());
+    JBRO_CASE(TestAnEmptyStringIsAValueNotABlock());
+    JBRO_CASE(TestReadsTheLegacyProjectShape());
+    JBRO_CASE(TestRefusesARealLegacyProjectFileIfPresent());
+    JBRO_CASE(TestRefusesWhatItDoesNotUnderstand());
+    JBRO_CASE(TestRequiresTheEngineVersionAndTheFramework());
+    JBRO_CASE(TestScriptModulePathResolution());
+    JBRO_CASE(TestDefaultsSurviveAnEmptyProject());
+    JBRO_CASE(TestRewritingKeepsWhatItDoesNotKnow());
+    JBRO_CASE(TestRewritingTheIgnorePatterns());
+    JBRO_CASE(TestTheProjectFontList());
+    JBRO_CASE(TestTheLocaleSettings());
+    JBRO_CASE(TestTheTagList());
+    JBRO_CASE(TestAnEmptiedValueStaysEmpty());
+    JBRO_CASE(TestSavingTwiceDoesNotGrowTheFile());
+    JBRO_CASE(TestSavingCollapsesKeysThatWereWrittenTwice());
+    JBRO_CASE(TestCreatesANewProject());
+    JBRO_CASE(TestPathsAreMadeRelativeToTheProject());
     std::cout << "Project file tests passed.\n";
     return 0;
 }

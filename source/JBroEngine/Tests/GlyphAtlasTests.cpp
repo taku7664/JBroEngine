@@ -1,4 +1,5 @@
-﻿#include <JBro/Text/FontFace.h>
+﻿#include "TestCases.h"
+#include <JBro/Text/FontFace.h>
 #include <JBro/Text/GlyphAtlas.h>
 
 #include "TestFontNotoSansKR.generated.h"
@@ -338,13 +339,13 @@ JBro::Int32 RunGlyphAtlasTests()
 {
     try
     {
-        TestBitmapBoxMatchesTheOutline();
-        TestEnsureRasterizesOnce();
-        TestSdfCellsCarryADistanceField();
-        TestPrewarmFillsTheAtlasOnce();
-        TestPagesDoNotMoveCells();
-        TestErrors();
-        TestABakedAtlasRestores();
+        JBRO_CASE(TestBitmapBoxMatchesTheOutline());
+        JBRO_CASE(TestEnsureRasterizesOnce());
+        JBRO_CASE(TestSdfCellsCarryADistanceField());
+        JBRO_CASE(TestPrewarmFillsTheAtlasOnce());
+        JBRO_CASE(TestPagesDoNotMoveCells());
+        JBRO_CASE(TestErrors());
+        JBRO_CASE(TestABakedAtlasRestores());
     }
     catch (const std::exception&)
     {

@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/AssetMetaFile.h>
+﻿#include "TestCases.h"
+#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Asset/ModelImport.h>
@@ -470,12 +471,12 @@ namespace
 
 JBro::Int32 RunAssetRegistryTests()
 {
-    TestTypeRules();
-    TestModelsRegisterTheirSubAssets();
-    TestMetaFileRoundTrip();
-    TestIgnorePatterns();
-    TestRegisterUnregisterAndRename();
-    TestScanRegistersWhatItShouldAndSkipsTheRest();
+    JBRO_CASE(TestTypeRules());
+    JBRO_CASE(TestModelsRegisterTheirSubAssets());
+    JBRO_CASE(TestMetaFileRoundTrip());
+    JBRO_CASE(TestIgnorePatterns());
+    JBRO_CASE(TestRegisterUnregisterAndRename());
+    JBRO_CASE(TestScanRegistersWhatItShouldAndSkipsTheRest());
     std::cout << "Asset registry tests passed.\n";
     return 0;
 }

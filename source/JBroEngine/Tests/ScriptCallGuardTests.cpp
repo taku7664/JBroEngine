@@ -1,4 +1,5 @@
-﻿#include <JBro/Platform/WindowsPlatform.h>
+﻿#include "TestCases.h"
+#include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
 
 #include <cstring>
@@ -172,11 +173,11 @@ namespace
 
 JBro::Int32 RunScriptCallGuardTests()
 {
-    TestAnOffGuardJustCalls();
-    TestAnAccessViolationIsCaughtAndLocated();
-    TestHooksAfterAFaultAreSkippedUntilCleared();
-    TestAStackOverflowIsCaughtTwice();
-    TestACppExceptionIsCaught();
+    JBRO_CASE(TestAnOffGuardJustCalls());
+    JBRO_CASE(TestAnAccessViolationIsCaughtAndLocated());
+    JBRO_CASE(TestHooksAfterAFaultAreSkippedUntilCleared());
+    JBRO_CASE(TestAStackOverflowIsCaughtTwice());
+    JBRO_CASE(TestACppExceptionIsCaught());
     std::cout << "ScriptCallGuard tests passed.\n";
     return 0;
 }

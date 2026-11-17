@@ -1,4 +1,5 @@
-﻿#include <JBro/Physics2D/Geometry.h>
+﻿#include "TestCases.h"
+#include <JBro/Physics2D/Geometry.h>
 
 #include <algorithm>
 #include <cmath>
@@ -400,14 +401,14 @@ namespace
 
 JBro::Int32 RunPhysics2DGeometryTests()
 {
-    TestOutlineMassOfTheUMatchesTheAnalyticValue();
-    TestPieceMassEqualsOutlineMass();
-    TestAConvexOutlineStaysWhole();
-    TestCollinearAndDuplicatePointsLeaveNoHole();
-    TestClockwiseInputIsNormalized();
-    TestInvalidOutlinesAreRefused();
-    TestRandomStarPolygonsDecomposeWithoutLoss();
-    TestCircleAndCombinedMass();
+    JBRO_CASE(TestOutlineMassOfTheUMatchesTheAnalyticValue());
+    JBRO_CASE(TestPieceMassEqualsOutlineMass());
+    JBRO_CASE(TestAConvexOutlineStaysWhole());
+    JBRO_CASE(TestCollinearAndDuplicatePointsLeaveNoHole());
+    JBRO_CASE(TestClockwiseInputIsNormalized());
+    JBRO_CASE(TestInvalidOutlinesAreRefused());
+    JBRO_CASE(TestRandomStarPolygonsDecomposeWithoutLoss());
+    JBRO_CASE(TestCircleAndCombinedMass());
     std::cout << "Physics2D geometry tests passed.\n";
     return 0;
 }

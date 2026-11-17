@@ -1,4 +1,5 @@
-﻿#include <JBro/Reflection/PropertyInfo.h>
+﻿#include "TestCases.h"
+#include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/ScalarCodec.h>
 #include <JBro/Types/NameTable.h>
 
@@ -156,11 +157,11 @@ namespace
 
 JBro::Int32 RunReflectionShapeTests()
 {
-    TestScalarCodecRoundTrip();
-    TestCodecRefusesRatherThanGuessing();
-    TestBoolCodecUsesWords();
-    TestPropertyReachesAFieldWithoutAnOffset();
-    TestPropertyCarriesNoTypeOfItsOwn();
+    JBRO_CASE(TestScalarCodecRoundTrip());
+    JBRO_CASE(TestCodecRefusesRatherThanGuessing());
+    JBRO_CASE(TestBoolCodecUsesWords());
+    JBRO_CASE(TestPropertyReachesAFieldWithoutAnOffset());
+    JBRO_CASE(TestPropertyCarriesNoTypeOfItsOwn());
     std::cout << "Reflection shape tests passed.\n";
     return 0;
 }

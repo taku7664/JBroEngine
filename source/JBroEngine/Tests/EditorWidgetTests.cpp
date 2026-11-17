@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Widget/GuideFocus.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Localization.h>
@@ -1684,31 +1685,31 @@ namespace
 
 JBro::Int32 RunEditorWidgetTests()
 {
-    TestTheGuideScrollsAHalfHiddenTargetIntoView();
-    TestScopesUnwindThemselves();
-    TestTheFormLayoutOpensAndClosesCleanly();
-    TestTheListAsksItsCallbacksForEverything();
-    TestAListRowIsAsTallAsWhatItDraws();
-    TestTheArrayWrapperMovesElementsCorrectly();
-    TestARowsBackgroundCoversEverythingItDraws();
-    TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing();
-    TestAListRowDroppedOnAnotherListMovesNothing();
-    TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind();
-    TestTheTreeHandsBackItsRowAndContent();
-    TestTheTextFieldLeavesUntouchedValuesAlone();
-    TestTheFilterComboPicksByTypingAndEnter();
-    TestTheFilterComboGroupsItemsAndSkipsTheDisabled();
-    TestAnEmptyFilterComboDrawsAndChangesNothing();
-    TestTheLayerMaskFieldTogglesNamedBits();
-    TestTheObjectFieldPicksByName();
-    TestTheEnumComboChangesTheValueWhenAnItemIsClicked();
-    TestTheAssetFieldWritesTheIdOfTheChosenName();
-    TestTheNameListEditKeepsTheBufferAndTheListInStep();
-    TestAWeightedButtonLooksDifferentFromAPlainOne();
-    TestSeverityColoursDiffer();
-    TestATooltipWaitsForTheMouseToRest();
-    TestTheNumberFieldSpinsWithStackedArrowsInsideIt();
-    TestEveryNumberTypeSpinsTheSameWay();
+    JBRO_CASE(TestTheGuideScrollsAHalfHiddenTargetIntoView());
+    JBRO_CASE(TestScopesUnwindThemselves());
+    JBRO_CASE(TestTheFormLayoutOpensAndClosesCleanly());
+    JBRO_CASE(TestTheListAsksItsCallbacksForEverything());
+    JBRO_CASE(TestAListRowIsAsTallAsWhatItDraws());
+    JBRO_CASE(TestTheArrayWrapperMovesElementsCorrectly());
+    JBRO_CASE(TestARowsBackgroundCoversEverythingItDraws());
+    JBRO_CASE(TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing());
+    JBRO_CASE(TestAListRowDroppedOnAnotherListMovesNothing());
+    JBRO_CASE(TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind());
+    JBRO_CASE(TestTheTreeHandsBackItsRowAndContent());
+    JBRO_CASE(TestTheTextFieldLeavesUntouchedValuesAlone());
+    JBRO_CASE(TestTheFilterComboPicksByTypingAndEnter());
+    JBRO_CASE(TestTheFilterComboGroupsItemsAndSkipsTheDisabled());
+    JBRO_CASE(TestAnEmptyFilterComboDrawsAndChangesNothing());
+    JBRO_CASE(TestTheLayerMaskFieldTogglesNamedBits());
+    JBRO_CASE(TestTheObjectFieldPicksByName());
+    JBRO_CASE(TestTheEnumComboChangesTheValueWhenAnItemIsClicked());
+    JBRO_CASE(TestTheAssetFieldWritesTheIdOfTheChosenName());
+    JBRO_CASE(TestTheNameListEditKeepsTheBufferAndTheListInStep());
+    JBRO_CASE(TestAWeightedButtonLooksDifferentFromAPlainOne());
+    JBRO_CASE(TestSeverityColoursDiffer());
+    JBRO_CASE(TestATooltipWaitsForTheMouseToRest());
+    JBRO_CASE(TestTheNumberFieldSpinsWithStackedArrowsInsideIt());
+    JBRO_CASE(TestEveryNumberTypeSpinsTheSameWay());
     std::cout << "Editor widget tests passed.\n";
     return 0;
 }

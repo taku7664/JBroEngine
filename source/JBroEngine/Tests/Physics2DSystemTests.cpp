@@ -1,4 +1,5 @@
-﻿#include <cstring>
+﻿#include "TestCases.h"
+#include <cstring>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Canvas/CanvasFile.h>
@@ -1196,33 +1197,33 @@ namespace
 
 JBro::Int32 RunPhysics2DSystemTests()
 {
-    TestAFallingBoxLandsAndBothScriptsHearIt();
-    TestAConcavePolygonColliderHoldsWhatFallsOnAndIntoIt();
-    TestATriggerReportsWithoutPushing();
-    TestStayHooksComeEveryStepWhileTouching();
-    TestAOneWayColliderLetsThingsUpThrough();
-    TestJointComponents();
-    TestTheLayerTableReachesTheKernel();
-    TestAnObjectReferenceSurvivesTheCanvasFile();
-    TestLosingAPartnerEndsTheContact();
-    TestSwitchingOffAMovingBodysColliderLetsItFall();
-    TestRestartingDoesNotReplayOldContacts();
-    TestQueriesSeePolygonsAndRotatedBoxes();
-    TestTheWiderQueries();
-    TestQueriesSkipFarColliders();
-    TestAStaticBodyFollowsItsTransform();
-    TestCapsuleColliders();
-    TestTheWorkerCountReachesTheKernel();
-    TestCountingPhysicsWork();
-    TestRigidbodyForcesLocksAndDamping();
-    TestChangingTheMassKeepsTheContact();
-    TestChainCollidersAndSleep();
-    TestAnAnimatedColliderKeepsItsContact();
-    TestTheFixedStepDoesNotAllocate();
-    TestABodyUnderASkewedOrMirroredParentKeepsItsRotation();
-    TestAnEmptyPolygonCollidesAsItsSizeBox();
-    TestScaleGrowsTheShape();
-    TestAnOffCenterBodyTurnsAboutItsCenterOfMass();
+    JBRO_CASE(TestAFallingBoxLandsAndBothScriptsHearIt());
+    JBRO_CASE(TestAConcavePolygonColliderHoldsWhatFallsOnAndIntoIt());
+    JBRO_CASE(TestATriggerReportsWithoutPushing());
+    JBRO_CASE(TestStayHooksComeEveryStepWhileTouching());
+    JBRO_CASE(TestAOneWayColliderLetsThingsUpThrough());
+    JBRO_CASE(TestJointComponents());
+    JBRO_CASE(TestTheLayerTableReachesTheKernel());
+    JBRO_CASE(TestAnObjectReferenceSurvivesTheCanvasFile());
+    JBRO_CASE(TestLosingAPartnerEndsTheContact());
+    JBRO_CASE(TestSwitchingOffAMovingBodysColliderLetsItFall());
+    JBRO_CASE(TestRestartingDoesNotReplayOldContacts());
+    JBRO_CASE(TestQueriesSeePolygonsAndRotatedBoxes());
+    JBRO_CASE(TestTheWiderQueries());
+    JBRO_CASE(TestQueriesSkipFarColliders());
+    JBRO_CASE(TestAStaticBodyFollowsItsTransform());
+    JBRO_CASE(TestCapsuleColliders());
+    JBRO_CASE(TestTheWorkerCountReachesTheKernel());
+    JBRO_CASE(TestCountingPhysicsWork());
+    JBRO_CASE(TestRigidbodyForcesLocksAndDamping());
+    JBRO_CASE(TestChangingTheMassKeepsTheContact());
+    JBRO_CASE(TestChainCollidersAndSleep());
+    JBRO_CASE(TestAnAnimatedColliderKeepsItsContact());
+    JBRO_CASE(TestTheFixedStepDoesNotAllocate());
+    JBRO_CASE(TestABodyUnderASkewedOrMirroredParentKeepsItsRotation());
+    JBRO_CASE(TestAnEmptyPolygonCollidesAsItsSizeBox());
+    JBRO_CASE(TestScaleGrowsTheShape());
+    JBRO_CASE(TestAnOffCenterBodyTurnsAboutItsCenterOfMass());
     std::cout << "Physics2D system tests passed.\n";
     return 0;
 }

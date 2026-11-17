@@ -1,4 +1,5 @@
-﻿#include <JBro/Audio/AudioMixer.h>
+﻿#include "TestCases.h"
+#include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioEffectResponse.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Types/Array.h>
@@ -2280,41 +2281,41 @@ JBro::Int32 RunAudioMixerTests()
     JBro::Log::SetEchoToConsole(false);
     try
     {
-        TestSilenceWithoutVoices();
-        TestVolumeAndBuses();
-        TestMasterVolumeSparesThePreview();
-        TestPitchLoopAndEnd();
-        TestDelayAndFade();
-        TestSpatialization();
-        TestEncodedClip();
-        TestSeekWhilePlaying();
-        TestBusEffects();
-        TestEffectsChangeWhileRendering();
-        TestBusRouting();
-        TestVoiceFilter();
-        TestOutputGainAndSpectrum();
-        TestBusFadesDuckingAndTrim();
-        TestBusProcessor();
-        TestEqualizer();
-        TestDistortionChorusAndPitch();
-        TestCompressorAndLimiter();
-        TestExtendedEffectsAreRealtimeSafe();
-        TestVoiceEffectChains();
-        TestEffectGraphsMatchTheSound();
-        TestVoiceEffectChainLimitsAndRouting();
-        TestVoiceEffectChainsAreRealtimeSafe();
-        TestStealing();
-        TestInstanceLimitAndCooldown();
-        TestInaudibleStartsAreCulled();
+        JBRO_CASE(TestSilenceWithoutVoices());
+        JBRO_CASE(TestVolumeAndBuses());
+        JBRO_CASE(TestMasterVolumeSparesThePreview());
+        JBRO_CASE(TestPitchLoopAndEnd());
+        JBRO_CASE(TestDelayAndFade());
+        JBRO_CASE(TestSpatialization());
+        JBRO_CASE(TestEncodedClip());
+        JBRO_CASE(TestSeekWhilePlaying());
+        JBRO_CASE(TestBusEffects());
+        JBRO_CASE(TestEffectsChangeWhileRendering());
+        JBRO_CASE(TestBusRouting());
+        JBRO_CASE(TestVoiceFilter());
+        JBRO_CASE(TestOutputGainAndSpectrum());
+        JBRO_CASE(TestBusFadesDuckingAndTrim());
+        JBRO_CASE(TestBusProcessor());
+        JBRO_CASE(TestEqualizer());
+        JBRO_CASE(TestDistortionChorusAndPitch());
+        JBRO_CASE(TestCompressorAndLimiter());
+        JBRO_CASE(TestExtendedEffectsAreRealtimeSafe());
+        JBRO_CASE(TestVoiceEffectChains());
+        JBRO_CASE(TestEffectGraphsMatchTheSound());
+        JBRO_CASE(TestVoiceEffectChainLimitsAndRouting());
+        JBRO_CASE(TestVoiceEffectChainsAreRealtimeSafe());
+        JBRO_CASE(TestStealing());
+        JBRO_CASE(TestInstanceLimitAndCooldown());
+        JBRO_CASE(TestInaudibleStartsAreCulled());
         MeasureResampleCost();
-        TestVirtualVoices();
-        TestVirtualVoicesDoNotAllocate();
-        TestVoiceAuditRegressions();
-        TestFailedLoopingStreamIsCollected();
-        TestEffectAuditRegressions();
-        TestSteadyStateDoesNotAllocate();
-        TestUnregisterWhileRendering();
-        TestLifetimeRepeats();
+        JBRO_CASE(TestVirtualVoices());
+        JBRO_CASE(TestVirtualVoicesDoNotAllocate());
+        JBRO_CASE(TestVoiceAuditRegressions());
+        JBRO_CASE(TestFailedLoopingStreamIsCollected());
+        JBRO_CASE(TestEffectAuditRegressions());
+        JBRO_CASE(TestSteadyStateDoesNotAllocate());
+        JBRO_CASE(TestUnregisterWhileRendering());
+        JBRO_CASE(TestLifetimeRepeats());
     }
     catch (const std::exception&)
     {

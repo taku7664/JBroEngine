@@ -1,4 +1,5 @@
-﻿#include <JBro/Reflection/ContainerTypeDescriptors.h>
+﻿#include "TestCases.h"
+#include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Types/NameTable.h>
@@ -269,10 +270,10 @@ namespace
 
 JBro::Int32 RunReflectionContainerTests()
 {
-    TestAnArrayCanBeWorkedWithoutKnowingItsType();
-    TestAnArrayMovesElementsWithoutKnowingItsType();
-    TestATableCanBeWalkedWithoutKnowingItsType();
-    TestAComponentCanDeclareContainerFields();
+    JBRO_CASE(TestAnArrayCanBeWorkedWithoutKnowingItsType());
+    JBRO_CASE(TestAnArrayMovesElementsWithoutKnowingItsType());
+    JBRO_CASE(TestATableCanBeWalkedWithoutKnowingItsType());
+    JBRO_CASE(TestAComponentCanDeclareContainerFields());
     std::cout << "Reflection container tests passed.\n";
     return 0;
 }

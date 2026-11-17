@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Profiler.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Profiler.h>
 
 #include <cstring>
 #include <iostream>
@@ -135,10 +136,10 @@ namespace
 
 JBro::Int32 RunProfilerTests()
 {
-    TestNothingIsMeasuredWhileItIsOff();
-    TestNestedScopesKeepTheirDepthAndMerge();
-    TestTheLastFrameStaysReadableWhileTheNextIsBuilt();
-    TestOverflowingTheDepthDoesNotUnbalance();
+    JBRO_CASE(TestNothingIsMeasuredWhileItIsOff());
+    JBRO_CASE(TestNestedScopesKeepTheirDepthAndMerge());
+    JBRO_CASE(TestTheLastFrameStaysReadableWhileTheNextIsBuilt());
+    JBRO_CASE(TestOverflowingTheDepthDoesNotUnbalance());
     std::cout << "Profiler tests passed.\n";
     return 0;
 }

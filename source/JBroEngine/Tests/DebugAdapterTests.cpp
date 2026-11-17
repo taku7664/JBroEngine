@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/ScriptProject.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/ScriptProject.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Canvas/Canvas.h>
@@ -724,9 +725,9 @@ JBro::Int32 RunDebugAdapterTests()
 {
     try
     {
-        TestTheAdapterDebugsAScriptAcrossAReload();
-        TestConditionalBreakpointsAndLogpoints();
-        TestTheRealEditorAndAdapterStopAtABreakpoint();
+        JBRO_CASE(TestTheAdapterDebugsAScriptAcrossAReload());
+        JBRO_CASE(TestConditionalBreakpointsAndLogpoints());
+        JBRO_CASE(TestTheRealEditorAndAdapterStopAtABreakpoint());
     }
     catch (const std::exception&)
     {

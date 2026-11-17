@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Yaml.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorShortcutManager.h>
 
@@ -578,22 +579,22 @@ namespace
 
 JBro::Int32 RunEditorShortcutTests()
 {
-    TestRegistrationRefusesBadAndDuplicateNames();
-    TestRemappingAndResetting();
-    TestAnUnregisteredShortcutKeepsTheUsersKeys();
-    TestPreferencesRoundTrip();
-    TestAnUnreadableLineIsDropped();
-    TestDescribeAndParseAgree();
-    TestAThumbButtonIsCapturedAndRunsAShortcut();
-    TestConflictsAreFoundAndKindsDiffer();
-    TestGlobalShortcutsFireAndModifiersAreExact();
-    TestTheFocusedPanelGoesFirstAndBlocksTheGlobalOne();
-    TestANonBlockingPanelShortcutLetsBothRun();
-    TestAPanelShortcutThatCannotRunFallsThrough();
-    TestTypingAndGameInputSilenceShortcutsUnlessAllowed();
-    TestCapturingAKeyReadsTheCombination();
-    TestSearchLooksAtNamesAndKeys();
-    TestASuspendedManagerRunsNothing();
+    JBRO_CASE(TestRegistrationRefusesBadAndDuplicateNames());
+    JBRO_CASE(TestRemappingAndResetting());
+    JBRO_CASE(TestAnUnregisteredShortcutKeepsTheUsersKeys());
+    JBRO_CASE(TestPreferencesRoundTrip());
+    JBRO_CASE(TestAnUnreadableLineIsDropped());
+    JBRO_CASE(TestDescribeAndParseAgree());
+    JBRO_CASE(TestAThumbButtonIsCapturedAndRunsAShortcut());
+    JBRO_CASE(TestConflictsAreFoundAndKindsDiffer());
+    JBRO_CASE(TestGlobalShortcutsFireAndModifiersAreExact());
+    JBRO_CASE(TestTheFocusedPanelGoesFirstAndBlocksTheGlobalOne());
+    JBRO_CASE(TestANonBlockingPanelShortcutLetsBothRun());
+    JBRO_CASE(TestAPanelShortcutThatCannotRunFallsThrough());
+    JBRO_CASE(TestTypingAndGameInputSilenceShortcutsUnlessAllowed());
+    JBRO_CASE(TestCapturingAKeyReadsTheCombination());
+    JBRO_CASE(TestSearchLooksAtNamesAndKeys());
+    JBRO_CASE(TestASuspendedManagerRunsNothing());
     std::cout << "Editor shortcut tests passed.\n";
     return 0;
 }

@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/Asset.h>
+﻿#include "TestCases.h"
+#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
@@ -733,10 +734,10 @@ JBro::Int32 RunPackageTests()
 {
     try
     {
-        TestAPackageRoundTrips();
-        TestAssetsLoadTheSameFromAPackage();
-        TestIdsAreFoundInText();
-        TestAGameBuildRunsWithoutTheSourceProject();
+        JBRO_CASE(TestAPackageRoundTrips());
+        JBRO_CASE(TestAssetsLoadTheSameFromAPackage());
+        JBRO_CASE(TestIdsAreFoundInText());
+        JBRO_CASE(TestAGameBuildRunsWithoutTheSourceProject());
     }
     catch (const std::exception&)
     {

@@ -1,4 +1,5 @@
-﻿#include <JBro/Reflection/PropertyRegistry.h>
+﻿#include "TestCases.h"
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Types/NameTable.h>
 
 #include <cstring>
@@ -220,14 +221,14 @@ namespace
 
 JBro::Int32 RunPropertyRegistryTests()
 {
-    TestABuiltinTypeIsFoundByName();
-    TestTheSameNameIsRefusedTwice();
-    TestATypeWithNoFieldsStillRegisters();
-    TestAMalformedRegistrationIsRefused();
-    TestScriptsLiveInTheOtherTable();
-    TestAScriptCannotShadowAnEngineType();
-    TestClearingTheScriptTableLeavesTheEngineAlone();
-    TestBindingSendsRegistrationsToTheHostTable();
+    JBRO_CASE(TestABuiltinTypeIsFoundByName());
+    JBRO_CASE(TestTheSameNameIsRefusedTwice());
+    JBRO_CASE(TestATypeWithNoFieldsStillRegisters());
+    JBRO_CASE(TestAMalformedRegistrationIsRefused());
+    JBRO_CASE(TestScriptsLiveInTheOtherTable());
+    JBRO_CASE(TestAScriptCannotShadowAnEngineType());
+    JBRO_CASE(TestClearingTheScriptTableLeavesTheEngineAlone());
+    JBRO_CASE(TestBindingSendsRegistrationsToTheHostTable());
     std::cout << "Property registry tests passed.\n";
     return 0;
 }

@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
@@ -542,25 +543,25 @@ JBro::Int32 RunTimeTests()
 {
     try
     {
-        TestStreamMatchesTheReferenceSequence();
-        TestStreamsAreDeterministicAndSeparate();
-        TestIntegerRangeCoversBothEnds();
-        TestIntegerRangeIsUnbiased();
-        TestBoundedRejectsTheBiasedZone();
-        TestFloatRangeIsHalfOpen();
-        TestChance();
-        TestOneFrameIsOneFixedStep();
-        TestFractionsCarryOver();
-        TestLongFramesAreClampedAndDroppedStepsStopTheClock();
-        TestTimeScale();
-        TestPauseAndStep();
-        TestRejectsBadInput();
-        TestResetGameTime();
-        TestServiceReadsFixedStepValuesInsideSteps();
-        TestUnboundServicesAreHarmless();
-        TestRandomServiceUsesTheEngineStream();
-        TestScriptsReadTheClockThroughTheService();
-        TestThreeDimensionalFrameworkHonoursPause();
+        JBRO_CASE(TestStreamMatchesTheReferenceSequence());
+        JBRO_CASE(TestStreamsAreDeterministicAndSeparate());
+        JBRO_CASE(TestIntegerRangeCoversBothEnds());
+        JBRO_CASE(TestIntegerRangeIsUnbiased());
+        JBRO_CASE(TestBoundedRejectsTheBiasedZone());
+        JBRO_CASE(TestFloatRangeIsHalfOpen());
+        JBRO_CASE(TestChance());
+        JBRO_CASE(TestOneFrameIsOneFixedStep());
+        JBRO_CASE(TestFractionsCarryOver());
+        JBRO_CASE(TestLongFramesAreClampedAndDroppedStepsStopTheClock());
+        JBRO_CASE(TestTimeScale());
+        JBRO_CASE(TestPauseAndStep());
+        JBRO_CASE(TestRejectsBadInput());
+        JBRO_CASE(TestResetGameTime());
+        JBRO_CASE(TestServiceReadsFixedStepValuesInsideSteps());
+        JBRO_CASE(TestUnboundServicesAreHarmless());
+        JBRO_CASE(TestRandomServiceUsesTheEngineStream());
+        JBRO_CASE(TestScriptsReadTheClockThroughTheService());
+        JBRO_CASE(TestThreeDimensionalFrameworkHonoursPause());
     }
     catch (const std::exception&)
     {

@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestCases.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
@@ -657,10 +658,10 @@ namespace
 
 JBro::Int32 RunScriptBreakTests()
 {
-    TestScriptBreakStopsOnlyTheGame();
-    TestSteppingAdvancesTheLine();
-    TestTheDebugServerRelaysAcrossThePipe();
-    TestDebugSessionOpensTheChannelAndPlays();
+    JBRO_CASE(TestScriptBreakStopsOnlyTheGame());
+    JBRO_CASE(TestSteppingAdvancesTheLine());
+    JBRO_CASE(TestTheDebugServerRelaysAcrossThePipe());
+    JBRO_CASE(TestDebugSessionOpensTheChannelAndPlays());
     std::cout << "ScriptBreak tests passed.\n";
     return 0;
 }

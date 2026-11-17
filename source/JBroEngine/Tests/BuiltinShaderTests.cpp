@@ -1,4 +1,5 @@
-﻿#include <JBro/Graphics/BuiltinShaders.generated.h>
+﻿#include "TestCases.h"
+#include <JBro/Graphics/BuiltinShaders.generated.h>
 
 #include <Windows.h>
 #include <d3d11shader.h>
@@ -162,7 +163,7 @@ namespace
 JBro::Int32 RunBuiltinShaderTests()
 {
     g_mismatches = 0;
-    TestEveryProgramMatchesItsShaders();
+    JBRO_CASE(TestEveryProgramMatchesItsShaders());
     if (g_mismatches != 0)
     {
         throw std::runtime_error("the built-in shader table disagrees with its shaders");

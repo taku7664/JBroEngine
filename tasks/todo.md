@@ -3043,6 +3043,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-344. 묶음 안의 시험도 이름으로 골라 돌린다(`JBRO_TEST_CASES`) - 러너의 시험 호출은 모두 `JBRO_CASE(...)` 다.** (2026-11-17)
+  Updates: D-292(묶음만 골랐다).
+  근거: 시험이 백 개 넘는 `EditorApplication` 은 시험 하나를 고쳐도 묶음 전체(5~6 분)를 돌아야 했고, 뮤테이션 하나도 그만큼 걸렸다(사용자: "빌드&런이 뭐 이리 오래걸리냐").
+  `Tests/TestCases.h` 의 `JBRO_CASE(...)`(가변 인자 - 쉼표가 든 호출도 받는다)가 호출 글자를 `TestCases::Wants` 에 물어, 비었거나 쉼표 조각 하나라도 들어 있으면 돈다.
+  `TestMain.cpp` 가 걸린 수를 세어 하나도 없으면 실패로 끝낸다(틀린 이름이 조용히 "지났다" 가 되지 않게). 묶음 고르기와 같은 조각 맞추기를 한 함수로 나눠 썼다.
+  여든여 개 묶음의 `Run…Tests` 에 있는 시험 호출 1,062 개를 감쌌다.
+  실측: `JBRO_TESTS=EditorApplication JBRO_TEST_CASES=ExpandsSubAssets` 가 5 초(묶음 전체 5~6 분), 없는 이름은 `matches no test` 실패.
+
 - **D-342. 3D 컴포넌트의 `mesh` 칸은 2D 의 `sprite` 처럼 에셋 시스템의 핸들이고, `MeshLibrary` 가 그것을 GPU 메시로 푼다.** (2026-11-16, model-import-plan 4 단계)
   Updates: D-106 의 `MeshRender3DSystem`(아이디로 렌더러 핸들을 풀어 컴포넌트에 되씀), D-337 의 빈 메시 대체(그대로 - 자리만 옮김).
   근거: 3D 만 라이브러리가 렌더러 핸들을 컴포넌트의 `mesh` 칸에 되써서, 해석 패스(`BindComponentAssets`)가 쓰는 에셋 핸들과 같은 칸에 두 종류의 핸들이 섞였다

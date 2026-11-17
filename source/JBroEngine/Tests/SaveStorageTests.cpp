@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Log.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Log.h>
 #include <JBro/Host/SaveStorage.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -332,11 +333,11 @@ JBro::Int32 RunSaveStorageTests()
 {
     const JBro::Bool echo = Log::GetEchoToConsole();
     Log::SetEchoToConsole(false);
-    TestSlotNamesStayInsideTheFolder();
-    TestTheFolderIsNamedAfterTheProduct();
-    TestThePlatformFindsTheUserFolder();
-    TestSavesRoundTripAndReplaceWhole();
-    TestAFailedWriteLeavesTheOldSaveAndNoSideFile();
+    JBRO_CASE(TestSlotNamesStayInsideTheFolder());
+    JBRO_CASE(TestTheFolderIsNamedAfterTheProduct());
+    JBRO_CASE(TestThePlatformFindsTheUserFolder());
+    JBRO_CASE(TestSavesRoundTripAndReplaceWhole());
+    JBRO_CASE(TestAFailedWriteLeavesTheOldSaveAndNoSideFile());
     Log::SetEchoToConsole(echo);
     std::cout << "Save storage tests passed.\n";
     return 0;

@@ -1,4 +1,5 @@
-﻿#include <JBro/Platform/WindowsPlatform.h>
+﻿#include "TestCases.h"
+#include <JBro/Platform/WindowsPlatform.h>
 
 #include <windows.h>
 
@@ -221,8 +222,8 @@ namespace
 
 JBro::Int32 RunPlatformFileTests()
 {
-    TestTheWindowsFileSystemRoundTrips();
-    TestTheWindowsFileWatcherReportsChanges();
+    JBRO_CASE(TestTheWindowsFileSystemRoundTrips());
+    JBRO_CASE(TestTheWindowsFileWatcherReportsChanges());
     std::cout << "Platform file tests passed.\n";
     return 0;
 }

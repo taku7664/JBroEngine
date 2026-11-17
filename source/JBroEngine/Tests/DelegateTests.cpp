@@ -1,4 +1,5 @@
-﻿#include <JBro/Types/Delegate.h>
+﻿#include "TestCases.h"
+#include <JBro/Types/Delegate.h>
 
 #include <cstring>
 #include <iostream>
@@ -224,15 +225,15 @@ JBro::Int32 RunDelegateTests()
 {
     try
     {
-        TestDefaultIsUnboundAndResetClearsBothFields();
-        TestFreeFunctionBinding();
-        TestInvokePassesItsOwnUserPointer();
-        TestMemberFunctionBindingKeepsInstancesApart();
-        TestConstMemberFunctionBinding();
-        TestReferenceArgumentsPassThrough();
-        TestInteropWithRawThunkPairs();
-        TestIsPlainDataAndSurvivesAByteCopy();
-        TestEquality();
+        JBRO_CASE(TestDefaultIsUnboundAndResetClearsBothFields());
+        JBRO_CASE(TestFreeFunctionBinding());
+        JBRO_CASE(TestInvokePassesItsOwnUserPointer());
+        JBRO_CASE(TestMemberFunctionBindingKeepsInstancesApart());
+        JBRO_CASE(TestConstMemberFunctionBinding());
+        JBRO_CASE(TestReferenceArgumentsPassThrough());
+        JBRO_CASE(TestInteropWithRawThunkPairs());
+        JBRO_CASE(TestIsPlainDataAndSurvivesAByteCopy());
+        JBRO_CASE(TestEquality());
     }
     catch (const std::exception&)
     {

@@ -1,4 +1,5 @@
-﻿#include <JBro/VulkanRHI/VulkanRHI.h>
+﻿#include "TestCases.h"
+#include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -143,7 +144,7 @@ namespace
 
 JBro::Int32 RunVulkanSmokeTests()
 {
-    TestVulkanClearsPresentsResizesAndReadsBack();
+    JBRO_CASE(TestVulkanClearsPresentsResizesAndReadsBack());
     std::cout << "Vulkan smoke tests passed.\n";
     return 0;
 }

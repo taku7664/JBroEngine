@@ -1,4 +1,5 @@
-﻿#include <JBro/ScriptAPI.h>
+﻿#include "TestCases.h"
+#include <JBro/ScriptAPI.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 
 #include <iostream>
@@ -72,8 +73,8 @@ namespace
 
 JBro::Int32 RunPublicHeaderCompositionTests()
 {
-    TestCanonicalColorComposition();
-    TestStringSplitUsesTheCanonicalArray();
+    JBRO_CASE(TestCanonicalColorComposition());
+    JBRO_CASE(TestStringSplitUsesTheCanonicalArray());
     std::cout << "Public header composition tests passed.\n";
     return 0;
 }

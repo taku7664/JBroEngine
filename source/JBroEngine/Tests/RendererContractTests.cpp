@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Graphics/Renderer.h>
 
 #include <JBro/Framework2DSystem/Framework2D.h>
@@ -1632,18 +1633,18 @@ namespace
 
 JBro::Int32 RunRendererContractTests()
 {
-    TestHandlesRemainCompactValues();
-    TestRendererCollectsBeforeRecording();
-    TestFrameworkSubmitsTransformedBatches();
-    TestAPixelPerfectCameraLetterboxesSnapsAndPicks();
-    TestAnUndrawableCameraIsSkippedNotFatal();
-    TestEngineHostLifecycle();
-    TestEngineHostAudioDevices();
-    TestTheHostHandsTheEditorItsFrame();
-    TestMeshRegistrationValidatesItsInput();
-    TestMeshesSharingAHandleDrawAsOneInstancedCall();
-    TestProjectSwitchPreservesProcessResources();
-    TestTheHostPollsGamepadsForTheGame();
+    JBRO_CASE(TestHandlesRemainCompactValues());
+    JBRO_CASE(TestRendererCollectsBeforeRecording());
+    JBRO_CASE(TestFrameworkSubmitsTransformedBatches());
+    JBRO_CASE(TestAPixelPerfectCameraLetterboxesSnapsAndPicks());
+    JBRO_CASE(TestAnUndrawableCameraIsSkippedNotFatal());
+    JBRO_CASE(TestEngineHostLifecycle());
+    JBRO_CASE(TestEngineHostAudioDevices());
+    JBRO_CASE(TestTheHostHandsTheEditorItsFrame());
+    JBRO_CASE(TestMeshRegistrationValidatesItsInput());
+    JBRO_CASE(TestMeshesSharingAHandleDrawAsOneInstancedCall());
+    JBRO_CASE(TestProjectSwitchPreservesProcessResources());
+    JBRO_CASE(TestTheHostPollsGamepadsForTheGame());
     std::cout << "Renderer contract tests passed.\n";
     return 0;
 }

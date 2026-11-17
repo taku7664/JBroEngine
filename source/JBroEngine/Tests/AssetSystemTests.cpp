@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -694,17 +695,17 @@ namespace
 
 JBro::Int32 RunAssetSystemTests()
 {
-    TestTheFrameworkBindsItsCanvasAssets();
-    TestTheDecoderReadsPngAndRefusesGarbage();
-    TestSpriteFramesFollowTheImportOptions();
-    TestLoadReleaseAndCollect();
-    TestReloadInPlaceKeepsHandles();
-    TestBindComponentAssetsFillsHandlesFromIds();
-    TestTheCanvasAssetsLoadOnWorkersThenBind();
-    TestASpriteAndItsTextureDecodeOnce();
-    TestAFailedDecodeIsCountedAndNotAdopted();
-    TestTheLoadYieldsToASyncLoadAndCancels();
-    TestASourceThatCannotReadOnWorkersLoadsInPlace();
+    JBRO_CASE(TestTheFrameworkBindsItsCanvasAssets());
+    JBRO_CASE(TestTheDecoderReadsPngAndRefusesGarbage());
+    JBRO_CASE(TestSpriteFramesFollowTheImportOptions());
+    JBRO_CASE(TestLoadReleaseAndCollect());
+    JBRO_CASE(TestReloadInPlaceKeepsHandles());
+    JBRO_CASE(TestBindComponentAssetsFillsHandlesFromIds());
+    JBRO_CASE(TestTheCanvasAssetsLoadOnWorkersThenBind());
+    JBRO_CASE(TestASpriteAndItsTextureDecodeOnce());
+    JBRO_CASE(TestAFailedDecodeIsCountedAndNotAdopted());
+    JBRO_CASE(TestTheLoadYieldsToASyncLoadAndCancels());
+    JBRO_CASE(TestASourceThatCannotReadOnWorkersLoadsInPlace());
     std::cout << "Asset system tests passed.\n";
     return 0;
 }

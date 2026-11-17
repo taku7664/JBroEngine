@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestCases.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -189,8 +190,8 @@ JBro::Int32 RunObjectServiceTests()
         Check(framework.BindScriptContexts(), "binding the script contexts plugs the object system in");
         Check(JBro::GetSystemContext().Objects != nullptr, "the object system is on the shared context");
 
-        TestCreateFindAndLayers(framework);
-        TestScriptsCreatedDuringUpdate(framework);
+        JBRO_CASE(TestCreateFindAndLayers(framework));
+        JBRO_CASE(TestScriptsCreatedDuringUpdate(framework));
 
         framework.UnbindScriptContexts();
         Check(JBro::GetSystemContext().Objects == nullptr, "unbinding takes it off again");
