@@ -2095,9 +2095,12 @@ namespace JBro
             }
         }
 
+        // UV·탄젠트는 7·8 번이다 - 인스턴스 속성(2..6)의 번호를 밀지 않으려고 뒤에 붙였다. 셰이더 입력 구조체의 차례도 같다(Vulkan 은 차례가 위치다).
         const VertexAttributeDesc vertexAttributes[] = {
             {0, static_cast<JBro::UInt32>(offsetof(MeshVertex, position)), VertexFormat::Float3},
-            {1, static_cast<JBro::UInt32>(offsetof(MeshVertex, normal)), VertexFormat::Float3}};
+            {1, static_cast<JBro::UInt32>(offsetof(MeshVertex, normal)), VertexFormat::Float3},
+            {7, static_cast<JBro::UInt32>(offsetof(MeshVertex, uv)), VertexFormat::Float2},
+            {8, static_cast<JBro::UInt32>(offsetof(MeshVertex, tangent)), VertexFormat::Float4}};
         // 월드 행렬은 행 넷으로 쪼개 넘긴다. 정점 포맷에 4x4 가 없다.
         const VertexAttributeDesc instanceAttributes[] = {
             {2, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 0, VertexFormat::Float4},
@@ -2106,7 +2109,7 @@ namespace JBro
             {5, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, world)) + 48, VertexFormat::Float4},
             {6, static_cast<JBro::UInt32>(offsetof(GpuMeshInstance, tint)), VertexFormat::Float4}};
         const VertexBufferLayoutDesc vertexLayouts[] = {
-            {static_cast<JBro::UInt32>(sizeof(MeshVertex)), VertexStepMode::Vertex, {vertexAttributes, 2}},
+            {static_cast<JBro::UInt32>(sizeof(MeshVertex)), VertexStepMode::Vertex, {vertexAttributes, 4}},
             {static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), VertexStepMode::Instance, {instanceAttributes, 5}}};
         const TextureFormat colorFormats[] = {m_config.backBufferFormat};
         GraphicsPipelineDesc pipelineDesc;

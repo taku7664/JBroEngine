@@ -9,6 +9,7 @@ namespace JBro
 {
     class AssetSystem;
     class Renderer;
+    struct MeshVertex;
 
     // **GPU 메시를 든다**(framework3d-plan §2.3, asset-plan §2.5). 두 갈래다.
     // - 빌트인 도형: 레지스트리에 없어 `AssetId → 렌더러 핸들` 표로 판다(`Resolve(AssetId)`).
@@ -31,6 +32,9 @@ namespace JBro
         static UInt32 GetBuiltinCount();
         // 범위 밖이면 이름이 널이다.
         static BuiltinMesh GetBuiltin(UInt32 index);
+        // 빌트인 도형 하나의 정점과 인덱스를 짓는다(올리지 않는다). UV 는 정육면체·평면이 면마다 0..1, 구·캡슐·원기둥 옆면이 원통 감기(u 가 둘레, v 가 위에서 아래),
+        // 원기둥 뚜껑이 위에서 내려다본 평면 투영이다. 탄젠트는 삼각형의 UV 에서 계산한다(+u 방향, w 는 +v 쪽 바이탄젠트의 부호). 범위 밖이면 false.
+        static Bool BuildBuiltin(UInt32 index, Array<MeshVertex>& vertices, Array<UInt32>& indices);
 
         // 빌트인 도형을 렌더러에 올린다. 렌더러가 없으면(테스트) 표만 비어 있고 참이다. 에셋 시스템이 없으면 모델의 메시는 풀리지 않는다.
         Bool Initialize(Renderer* renderer, AssetSystem* assets = nullptr);

@@ -246,12 +246,15 @@ namespace JBro
         std::uint8_t outlineColor[4] = {0, 0, 0, 0};
     };
 
-    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치와 법선만 있다 - 재질이 생기면 UV 가 붙는다
-    // (framework3d-plan §2.4). 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
+    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV·탄젠트(material-plan 1 단계, D-346). 모델의 CPU 정점(`ModelVertex`)과 같은 모양이라
+    // 모델 메시는 통째로 옮긴다(`MeshLibrary` 가 단언한다). UV 는 왼쪽 위가 0 이고, 탄젠트의 w 는 바이탄젠트의 방향(±1)이다.
+    // 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
     struct MeshVertex
     {
         Float position[3] = {0.0f, 0.0f, 0.0f};
         Float normal[3] = {0.0f, 0.0f, 1.0f};
+        Float uv[2] = {0.0f, 0.0f};
+        Float tangent[4] = {1.0f, 0.0f, 0.0f, 1.0f};
     };
 
     struct RendererFrameStats
@@ -595,8 +598,10 @@ namespace JBro
             Matrix4x4 world;
             Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         };
-        static_assert(sizeof(MeshVertex) == 24, "mesh vertex stride is part of the shader ABI");
+        static_assert(sizeof(MeshVertex) == 48, "mesh vertex stride is part of the shader ABI");
         static_assert(offsetof(MeshVertex, normal) == 12, "attribute 1 reads the normal from offset 12");
+        static_assert(offsetof(MeshVertex, uv) == 24, "attribute 7 reads the UV from offset 24");
+        static_assert(offsetof(MeshVertex, tangent) == 32, "attribute 8 reads the tangent from offset 32");
         static_assert(sizeof(GpuMeshInstance) == 80, "mesh instance stride is part of the shader ABI");
         static_assert(offsetof(GpuMeshInstance, tint) == 64, "attribute 6 reads the tint from offset 64");
 

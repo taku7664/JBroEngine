@@ -37,7 +37,7 @@
 
 | 단계 | 내용 | 상태 |
 |---|---|---|
-| 1 | **정점 형식**: 렌더러 `MeshVertex` 에 UV·탄젠트(48 바이트), 메시 셰이더의 입력, `MeshLibrary` 가 모델 메시의 UV·탄젠트를 올림, 빌트인 도형 다섯에 UV(정육면체·평면은 면마다 0..1, 구·캡슐·원기둥은 경위도). 그림은 바뀌지 않는다(기존 픽셀 시험 그대로) | |
+| 1 | **정점 형식**: 렌더러 `MeshVertex` 에 UV·탄젠트(48 바이트), 메시 셰이더의 입력, `MeshLibrary` 가 모델 메시의 UV·탄젠트를 올림, 빌트인 도형 다섯에 UV(정육면체·평면은 면마다 0..1, 구·캡슐·원기둥은 경위도). 그림은 바뀌지 않는다(기존 픽셀 시험 그대로) | `[완료]` 2026-11-17 · D-347 · `MeshVertex` 48 바이트(UV 24·탄젠트 32, 속성 7·8 - 인스턴스 속성 2..6 의 번호를 밀지 않으려고 뒤에 붙였다), 모델 메시는 같은 모양이라 통째로 옮김(`static_assert`), 빌트인 다섯을 모두 `MeshBuilder` 로 짓고(정육면체도) 탄젠트는 `ComputeTangents` 한 곳, `MeshLibrary::BuildBuiltin` · 시험 `Framework3DSystem` 의 `TestBuiltinShapesCarryUvsAndTangents` · 이 단계에서 Vulkan SDK 1.4.363.1 을 이 기계에 설치했다(SPIR-V 를 다시 굽고, Vulkan 시험이 검증 레이어로 돈다) |
 | 2 | **재질 자료**: `MaterialData`(셰이더·기본색·metallic·roughness·발광·알파 모드와 문턱·그림 칸) 와 `AssetSystem` 의 Material 풀. 출처는 모델의 하위 Material(그림 칸은 내장 그림의 하위 아이디, 바깥 그림은 레지스트리의 Texture)과 `.jmat`(YAML, 리플렉션). 메시 자료에 제 재질의 하위 아이디. 패키지 쿡(모델 재질도 게임이 모델을 읽지 않고 읽는다) | |
 | 3 | **렌더러**: `Standard`(PBR·GGX·고정 방향광)·`Unlit` 셰이더, 재질 상수 버퍼(b1)와 그림 칸·샘플러, 묶음 키 (파이프라인, 재질, 메시), sRGB 뷰와 밉 체인(D-339 의 효과), 컷아웃. `MaterialLibrary`(Framework3DSystem, `MeshLibrary` 와 같은 모양)와 `MeshRender3DSystem` 의 고르기(칸 → 메시의 재질 → 기본 회색) | |
 | 4 | **에디터**: 브라우저 우클릭 `새 재질`(`.jmat`), 재질 인스펙터(셰이더·파라미터·그림 칸, 색 견본), 모델의 하위 Material 은 읽기 전용으로 보임, `materialId` 칸 목록에 `.jmat` 와 `모델 / 재질` | |

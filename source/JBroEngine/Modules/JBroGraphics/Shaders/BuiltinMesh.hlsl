@@ -15,6 +15,8 @@ cbuffer ViewConstants : register(b0)
 
 // Instance layout mirrors GpuMeshInstance in Renderer.h: a row-major 4x4 world matrix in four
 // float4 rows followed by the tint. Column-vector convention like the sprite shader.
+// The UV and tangent come last (ATTRIBUTE7/8, MeshVertex offsets 24/32) so the instance attributes keep their numbers.
+// Order matters: SPIR-V assigns input locations in declaration order, and the renderer binds location = attribute index.
 struct VertexInput
 {
     float3 position : ATTRIBUTE0;
@@ -24,6 +26,8 @@ struct VertexInput
     float4 worldRow2 : ATTRIBUTE4;
     float4 worldRow3 : ATTRIBUTE5;
     float4 tint : ATTRIBUTE6;
+    float2 uv : ATTRIBUTE7;
+    float4 tangent : ATTRIBUTE8;
 };
 
 struct VertexOutput
@@ -31,6 +35,9 @@ struct VertexOutput
     float4 position : SV_POSITION;
     float3 normal : NORMAL0;
     float4 tint : COLOR0;
+    // Carried for the material shaders (material-plan stage 3); this shader's pixel stage does not read them yet.
+    float2 uv : TEXCOORD0;
+    float4 tangent : TANGENT0;
 };
 
 VertexOutput VSMain(VertexInput input)
@@ -43,6 +50,8 @@ VertexOutput VSMain(VertexInput input)
     // a proper inverse transpose comes with materials.
     output.normal = normalize(mul((float3x3)world, input.normal));
     output.tint = input.tint;
+    output.uv = input.uv;
+    output.tangent = float4(normalize(mul((float3x3)world, input.tangent.xyz)), input.tangent.w);
     return output;
 }
 

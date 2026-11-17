@@ -317,6 +317,85 @@ namespace
         framework.Shutdown();
         Check(framework.GetCanvas() == nullptr, "shutdown drops the canvas");
     }
+    // **빌트인 도형의 UV 와 탄젠트**(material-plan 1 단계). 그림을 입힐 재질이 오기 전에 정점이 그것을 들고 있어야 한다. 모든 정점의 UV 가 0..1 이고,
+    // 탄젠트는 단위 길이에 법선과 수직이며, 삼각형마다 +u 쪽을 가리키고(위치 차이를 UV 차이로 풀어 견준다) 바이탄젠트의 부호가 +v 쪽이다.
+    // 정육면체 앞면과 평면은 모서리의 UV 를 직접 본다.
+    void TestBuiltinShapesCarryUvsAndTangents()
+    {
+        for (JBro::UInt32 shape = 0; shape < JBro::MeshLibrary::GetBuiltinCount(); ++shape)
+        {
+            JBro::Array<JBro::MeshVertex> vertices;
+            JBro::Array<JBro::UInt32> indices;
+            Check(JBro::MeshLibrary::BuildBuiltin(shape, vertices, indices) && vertices.Size() > 0 && indices.Size() % 3 == 0,
+                "every built-in shape builds");
+            for (const JBro::MeshVertex& vertex : vertices)
+            {
+                Check(vertex.uv[0] >= -0.0001f && vertex.uv[0] <= 1.0001f && vertex.uv[1] >= -0.0001f && vertex.uv[1] <= 1.0001f,
+                    "every UV lies in 0..1");
+                const JBro::Vector3 tangent{vertex.tangent[0], vertex.tangent[1], vertex.tangent[2]};
+                const JBro::Vector3 normal{vertex.normal[0], vertex.normal[1], vertex.normal[2]};
+                Check(Near(JBro::Length(tangent), 1.0f, 0.001f) && std::fabs(JBro::Dot(tangent, normal).Get()) < 0.001f,
+                    "every tangent is a unit vector across the normal");
+                Check(vertex.tangent[3] == 1.0f || vertex.tangent[3] == -1.0f, "the tangent's w is a sign");
+            }
+            JBro::UInt32 checked = 0;
+            for (std::size_t index = 0; index + 2 < indices.Size(); index += 3)
+            {
+                const JBro::MeshVertex& a = vertices[indices[index].Get()];
+                const JBro::MeshVertex& b = vertices[indices[index + 1].Get()];
+                const JBro::MeshVertex& c = vertices[indices[index + 2].Get()];
+                const JBro::Float du1 = b.uv[0] - a.uv[0];
+                const JBro::Float dv1 = b.uv[1] - a.uv[1];
+                const JBro::Float du2 = c.uv[0] - a.uv[0];
+                const JBro::Float dv2 = c.uv[1] - a.uv[1];
+                const JBro::Float determinant = du1 * dv2 - du2 * dv1;
+                if (std::fabs(determinant.Get()) < 0.000001f)
+                {
+                    continue;
+                }
+                const JBro::Vector3 edge1{b.position[0] - a.position[0], b.position[1] - a.position[1], b.position[2] - a.position[2]};
+                const JBro::Vector3 edge2{c.position[0] - a.position[0], c.position[1] - a.position[1], c.position[2] - a.position[2]};
+                const JBro::Vector3 alongU = JBro::Scale(JBro::Subtract(JBro::Scale(edge1, dv2), JBro::Scale(edge2, dv1)), 1.0f / determinant);
+                const JBro::Vector3 alongV = JBro::Scale(JBro::Subtract(JBro::Scale(edge2, du1), JBro::Scale(edge1, du2)), 1.0f / determinant);
+                const JBro::Vector3 tangent{a.tangent[0], a.tangent[1], a.tangent[2]};
+                const JBro::Vector3 normal{a.normal[0], a.normal[1], a.normal[2]};
+                Check(JBro::Dot(tangent, alongU) > 0.0f, "the tangent points along +u on every triangle");
+                Check(JBro::Dot(JBro::Scale(JBro::Cross(normal, tangent), a.tangent[3]), alongV) > 0.0f,
+                    "and the bitangent's sign points along +v");
+                ++checked;
+            }
+            Check(checked > 0, "each shape has triangles with real UVs");
+        }
+
+        // 정육면체 +Z 면: 바깥에서 볼 때 왼쪽 위가 (0, 0), 오른쪽 아래가 (1, 1) 이고 +u 는 +X 다.
+        JBro::Array<JBro::MeshVertex> cube;
+        JBro::Array<JBro::UInt32> cubeIndices;
+        JBro::MeshLibrary::BuildBuiltin(0, cube, cubeIndices);
+        JBro::Bool topLeft = false;
+        JBro::Bool bottomRight = false;
+        for (const JBro::MeshVertex& vertex : cube)
+        {
+            if (vertex.normal[2] == 1.0f)
+            {
+                topLeft = topLeft || (vertex.position[0] < 0.0f && vertex.position[1] > 0.0f && vertex.uv[0] == 0.0f && vertex.uv[1] == 0.0f);
+                bottomRight = bottomRight || (vertex.position[0] > 0.0f && vertex.position[1] < 0.0f && vertex.uv[0] == 1.0f && vertex.uv[1] == 1.0f);
+                Check(Near(vertex.tangent[0], 1.0f), "the front face's tangent is +X");
+            }
+        }
+        Check(topLeft && bottomRight, "the front face's top-left corner is UV (0, 0) and its bottom-right (1, 1)");
+        // 평면: 위에서 볼 때 -X·-Z 모서리가 (0, 0) 이다.
+        JBro::Array<JBro::MeshVertex> plane;
+        JBro::Array<JBro::UInt32> planeIndices;
+        JBro::MeshLibrary::BuildBuiltin(JBro::MeshLibrary::GetBuiltinCount() - 1, plane, planeIndices);
+        JBro::Bool corner = false;
+        for (const JBro::MeshVertex& vertex : plane)
+        {
+            corner = corner || (vertex.position[0] < 0.0f && vertex.position[2] < 0.0f && vertex.uv[0] == 0.0f && vertex.uv[1] == 0.0f);
+        }
+        Check(corner, "the plane's -X -Z corner is UV (0, 0)");
+        JBro::Array<JBro::MeshVertex> none;
+        Check(false == JBro::MeshLibrary::BuildBuiltin(JBro::MeshLibrary::GetBuiltinCount(), none, planeIndices), "there is no shape past the last");
+    }
 }
 
 JBro::Int32 RunFramework3DSystemTests()
@@ -326,6 +405,7 @@ JBro::Int32 RunFramework3DSystemTests()
     JBRO_CASE(TestTransformHierarchyPropagates());
     JBRO_CASE(TestOnePrimaryCameraIsExtracted());
     JBRO_CASE(TestMeshesAreExtractedAndResolved());
+    JBRO_CASE(TestBuiltinShapesCarryUvsAndTangents());
     JBRO_CASE(TestTheFrameworkRunsWithoutARenderer());
     std::cout << "Framework3D system tests passed.\n";
     return 0;

@@ -11,6 +11,8 @@
 #include <JBro/Types/UInt.h>
 
 #include <cmath>
+#include <cstddef>
+#include <cstring>
 
 namespace JBro
 {
@@ -41,6 +43,9 @@ namespace JBro
             {{0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}},   {{-0.5f, -0.5f, 0.5f}, {0.0f, -1.0f, 0.0f}},
         };
 
+        // 면마다 네 꼭짓점은 바깥에서 볼 때 왼쪽 아래·오른쪽 아래·오른쪽 위·왼쪽 위 차례다. 그 차례의 UV(왼쪽 위가 0)다.
+        constexpr Float CubeCornerUvs[4][2] = {{0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}};
+
         constexpr UInt32 CubeIndices[36] = {
             0, 2, 1, 0, 3, 2,
             4, 6, 5, 4, 7, 6,
@@ -67,7 +72,7 @@ namespace JBro
         class MeshBuilder
         {
         public:
-            UInt32 AddVertex(const Vector3& position, const Vector3& normal)
+            UInt32 AddVertex(const Vector3& position, const Vector3& normal, Float u, Float v)
             {
                 MeshVertex vertex;
                 vertex.position[0] = position.x;
@@ -76,6 +81,8 @@ namespace JBro
                 vertex.normal[0] = normal.x;
                 vertex.normal[1] = normal.y;
                 vertex.normal[2] = normal.z;
+                vertex.uv[0] = u;
+                vertex.uv[1] = v;
                 m_vertices.Add(vertex);
                 return static_cast<UInt32>(m_vertices.Size() - 1);
             }
@@ -103,10 +110,13 @@ namespace JBro
                 AddTriangle(a, c, d);
             }
 
-            // 고리마다 `RoundSegments + 1` 개의 정점을 둔다(이음매의 첫·끝 정점은 자리가 같다).
-            void AddLathe(const Ring* rings, UInt32 count)
+            // 고리마다 `RoundSegments + 1` 개의 정점을 둔다(이음매의 첫·끝 정점은 자리가 같고 u 가 0 과 1 이다).
+            // `planar` 가 거짓이면 원통 감기(u 는 둘레, v 는 첫 고리의 높이에서 마지막 고리의 높이로 0..1), 참이면 위에서 내려다본 평면 투영(뚜껑)이다.
+            void AddLathe(const Ring* rings, UInt32 count, Bool planar)
             {
                 const UInt32 first = static_cast<UInt32>(m_vertices.Size());
+                const Float top = rings[0].y;
+                const Float span = rings[count - 1].y - top;
                 for (UInt32 ring = 0; ring < count; ++ring)
                 {
                     for (UInt32 segment = 0; segment <= RoundSegments; ++segment)
@@ -116,7 +126,10 @@ namespace JBro
                         const Float sine = std::sin(angle);
                         const Ring& at = rings[ring];
                         const Vector3 normal = Normalize(Vector3{at.normalRadial * cosine, at.normalY, at.normalRadial * sine});
-                        AddVertex(Vector3{at.radius * cosine, at.y, at.radius * sine}, normal);
+                        const Vector3 position{at.radius * cosine, at.y, at.radius * sine};
+                        const Float u = planar ? Float(0.5f + position.x) : Float(static_cast<Float>(segment) / static_cast<Float>(RoundSegments));
+                        const Float v = planar ? Float(0.5f + position.z) : (span != 0.0f ? Float((at.y - top) / span) : Float(0.0f));
+                        AddVertex(position, normal, u, v);
                     }
                 }
                 const UInt32 stride = RoundSegments + 1;
@@ -131,11 +144,65 @@ namespace JBro
                 }
             }
 
-            AssetHandle Upload(Renderer& renderer) const
+            // **탄젠트는 여기 한 곳에서 계산한다.** 삼각형마다 위치의 차이를 UV 의 차이로 풀어 +u 방향(T)과 +v 방향(B)을 얻고 정점에 더한 뒤,
+            // 법선에 수직이 되게 깎아 정규화한다. w 는 cross(N, T) 가 B 와 같은 쪽이면 +1 이다. UV 가 퇴화한 삼각형(극의 한 점)은 더하지 않는다.
+            void ComputeTangents()
             {
-                const JArrayView<MeshVertex> vertices{m_vertices.Data(), static_cast<UInt32>(m_vertices.Size())};
-                const JArrayView<UInt32> indices{m_indices.Data(), static_cast<UInt32>(m_indices.Size())};
-                return renderer.RegisterMesh(vertices, indices);
+                Array<Vector3> tangents;
+                Array<Vector3> bitangents;
+                tangents.Resize(m_vertices.Size());
+                bitangents.Resize(m_vertices.Size());
+                for (std::size_t index = 0; index + 2 < m_indices.Size(); index += 3)
+                {
+                    const UInt32 corner[3] = {m_indices[index], m_indices[index + 1], m_indices[index + 2]};
+                    const MeshVertex& a = m_vertices[corner[0].Get()];
+                    const MeshVertex& b = m_vertices[corner[1].Get()];
+                    const MeshVertex& c = m_vertices[corner[2].Get()];
+                    const Vector3 edge1 = Subtract(PositionOf(corner[1]), PositionOf(corner[0]));
+                    const Vector3 edge2 = Subtract(PositionOf(corner[2]), PositionOf(corner[0]));
+                    const Float du1 = b.uv[0] - a.uv[0];
+                    const Float dv1 = b.uv[1] - a.uv[1];
+                    const Float du2 = c.uv[0] - a.uv[0];
+                    const Float dv2 = c.uv[1] - a.uv[1];
+                    const Float determinant = du1 * dv2 - du2 * dv1;
+                    if (std::fabs(determinant.Get()) < 0.0000001f)
+                    {
+                        continue;
+                    }
+                    const Float inverse = 1.0f / determinant;
+                    const Vector3 tangent = Scale(Subtract(Scale(edge1, dv2), Scale(edge2, dv1)), inverse);
+                    const Vector3 bitangent = Scale(Subtract(Scale(edge2, du1), Scale(edge1, du2)), inverse);
+                    for (const UInt32 at : corner)
+                    {
+                        tangents[at.Get()] = Add(tangents[at.Get()], tangent);
+                        bitangents[at.Get()] = Add(bitangents[at.Get()], bitangent);
+                    }
+                }
+                for (std::size_t index = 0; index < m_vertices.Size(); ++index)
+                {
+                    const Vector3 normal = NormalOf(static_cast<UInt32>(index));
+                    Vector3 tangent = Subtract(tangents[index], Scale(normal, Dot(normal, tangents[index])));
+                    if (Length(tangent) < 0.000001f)
+                    {
+                        // 쓸 삼각형이 없던 정점(극)은 법선에 수직인 아무 방향이다 - 그 자리는 넓이가 없어 보이지 않는다.
+                        tangent = std::fabs(normal.y.Get()) < 0.99f ? Cross(Vector3{0.0f, 1.0f, 0.0f}, normal) : Vector3{1.0f, 0.0f, 0.0f};
+                    }
+                    tangent = Normalize(tangent);
+                    MeshVertex& vertex = m_vertices[index];
+                    vertex.tangent[0] = tangent.x;
+                    vertex.tangent[1] = tangent.y;
+                    vertex.tangent[2] = tangent.z;
+                    vertex.tangent[3] = Dot(Cross(normal, tangent), bitangents[index]) < 0.0f ? -1.0f : 1.0f;
+                }
+            }
+
+            void Take(Array<MeshVertex>& vertices, Array<UInt32>& indices)
+            {
+                ComputeTangents();
+                vertices = std::move(m_vertices);
+                indices = std::move(m_indices);
+                m_vertices.Clear();
+                m_indices.Clear();
             }
 
         private:
@@ -176,67 +243,70 @@ namespace JBro
                 const Float shift = row * 2 < SphereRows ? shiftAbove : shiftBelow;
                 rings[count++] = Ring{shift + 0.5f * up, 0.5f * out, up, out};
             }
-            builder.AddLathe(rings, count);
+            builder.AddLathe(rings, count, false);
         }
 
-        AssetHandle UploadSphere(Renderer& renderer)
+        void BuildSphere(MeshBuilder& builder)
         {
-            MeshBuilder builder;
             AddRoundRows(builder, 0.0f, 0.0f);
-            return builder.Upload(renderer);
         }
 
-        AssetHandle UploadCapsule(Renderer& renderer)
+        void BuildCapsule(MeshBuilder& builder)
         {
-            MeshBuilder builder;
             AddRoundRows(builder, 0.5f, -0.5f);
-            return builder.Upload(renderer);
         }
 
-        AssetHandle UploadCylinder(Renderer& renderer)
+        void BuildCylinder(MeshBuilder& builder)
         {
-            MeshBuilder builder;
             const Ring side[2] = {{1.0f, 0.5f, 0.0f, 1.0f}, {-1.0f, 0.5f, 0.0f, 1.0f}};
-            builder.AddLathe(side, 2);
+            builder.AddLathe(side, 2, false);
             // 뚜껑은 법선이 위·아래로 따로라 옆면과 정점을 나누지 않는다.
             const Ring top[2] = {{1.0f, 0.0f, 1.0f, 0.0f}, {1.0f, 0.5f, 1.0f, 0.0f}};
-            builder.AddLathe(top, 2);
+            builder.AddLathe(top, 2, true);
             const Ring bottom[2] = {{-1.0f, 0.5f, -1.0f, 0.0f}, {-1.0f, 0.0f, -1.0f, 0.0f}};
-            builder.AddLathe(bottom, 2);
-            return builder.Upload(renderer);
+            builder.AddLathe(bottom, 2, true);
         }
 
-        AssetHandle UploadPlane(Renderer& renderer)
+        // 위에서 내려다볼 때 -Z 가 화면 위다 - u 는 x 를, v 는 z 를 따라 0..1 이다.
+        void BuildPlane(MeshBuilder& builder)
         {
-            MeshBuilder builder;
             const Vector3 up{0.0f, 1.0f, 0.0f};
-            const UInt32 a = builder.AddVertex(Vector3{-5.0f, 0.0f, -5.0f}, up);
-            const UInt32 b = builder.AddVertex(Vector3{5.0f, 0.0f, -5.0f}, up);
-            const UInt32 c = builder.AddVertex(Vector3{5.0f, 0.0f, 5.0f}, up);
-            const UInt32 d = builder.AddVertex(Vector3{-5.0f, 0.0f, 5.0f}, up);
+            const UInt32 a = builder.AddVertex(Vector3{-5.0f, 0.0f, -5.0f}, up, 0.0f, 0.0f);
+            const UInt32 b = builder.AddVertex(Vector3{5.0f, 0.0f, -5.0f}, up, 1.0f, 0.0f);
+            const UInt32 c = builder.AddVertex(Vector3{5.0f, 0.0f, 5.0f}, up, 1.0f, 1.0f);
+            const UInt32 d = builder.AddVertex(Vector3{-5.0f, 0.0f, 5.0f}, up, 0.0f, 1.0f);
             builder.AddQuad(a, b, c, d);
-            return builder.Upload(renderer);
         }
 
-        AssetHandle UploadCube(Renderer& renderer)
+        void BuildCube(MeshBuilder& builder)
         {
-            return renderer.RegisterMesh({CubeVertices, 24}, {CubeIndices, 36});
+            for (UInt32 index = 0; index < 24; ++index)
+            {
+                const MeshVertex& corner = CubeVertices[index.Get()];
+                const Float* uv = CubeCornerUvs[(index % 4).Get()];
+                builder.AddVertex(Vector3{corner.position[0], corner.position[1], corner.position[2]},
+                    Vector3{corner.normal[0], corner.normal[1], corner.normal[2]}, uv[0], uv[1]);
+            }
+            for (UInt32 index = 0; index < 36; index += 3)
+            {
+                builder.AddTriangle(CubeIndices[index.Get()], CubeIndices[(index + 1).Get()], CubeIndices[(index + 2).Get()]);
+            }
         }
 
         struct BuiltinEntry
         {
             const char* name;
             const char* uuidName;
-            AssetHandle (*Upload)(Renderer& renderer);
+            void (*Build)(MeshBuilder& builder);
         };
 
         // 이름은 번역하지 않는다 - 컴포넌트 이름처럼 그 자리에서 무엇인지 가리키는 이름이다. 차례가 메뉴와 목록의 차례다.
         constexpr BuiltinEntry BuiltinEntries[] = {
-            {"Cube", "builtin/cube", &UploadCube},
-            {"Sphere", "builtin/sphere", &UploadSphere},
-            {"Capsule", "builtin/capsule", &UploadCapsule},
-            {"Cylinder", "builtin/cylinder", &UploadCylinder},
-            {"Plane", "builtin/plane", &UploadPlane},
+            {"Cube", "builtin/cube", &BuildCube},
+            {"Sphere", "builtin/sphere", &BuildSphere},
+            {"Capsule", "builtin/capsule", &BuildCapsule},
+            {"Cylinder", "builtin/cylinder", &BuildCylinder},
+            {"Plane", "builtin/plane", &BuildPlane},
         };
         constexpr UInt32 BuiltinEntryCount = static_cast<UInt32>(sizeof(BuiltinEntries) / sizeof(BuiltinEntries[0]));
     }
@@ -261,6 +331,18 @@ namespace JBro
         return BuiltinMesh{entry.name, Uuid::FromName(entry.uuidName)};
     }
 
+    Bool MeshLibrary::BuildBuiltin(UInt32 index, Array<MeshVertex>& vertices, Array<UInt32>& indices)
+    {
+        if (index >= BuiltinEntryCount)
+        {
+            return false;
+        }
+        MeshBuilder builder;
+        BuiltinEntries[index.Get()].Build(builder);
+        builder.Take(vertices, indices);
+        return true;
+    }
+
     Bool MeshLibrary::Initialize(Renderer* renderer, AssetSystem* assets)
     {
         m_renderer = renderer;
@@ -274,7 +356,11 @@ namespace JBro
         for (UInt32 index = 0; index < BuiltinEntryCount; ++index)
         {
             const BuiltinEntry& entry = BuiltinEntries[index.Get()];
-            const AssetHandle mesh = entry.Upload(*renderer);
+            Array<MeshVertex> vertices;
+            Array<UInt32> indices;
+            BuildBuiltin(index, vertices, indices);
+            const AssetHandle mesh = renderer->RegisterMesh({vertices.Data(), static_cast<UInt32>(vertices.Size())},
+                {indices.Data(), static_cast<UInt32>(indices.Size())});
             if (mesh.generation == 0)
             {
                 return false;
@@ -339,18 +425,13 @@ namespace JBro
             m_renderer->UnregisterMesh(entry.rendererMesh);
             entry.rendererMesh = {};
         }
-        // 렌더러의 정점은 위치·법선뿐이다(UV 는 재질 단계에서 붙는다, model-import-plan §4).
+        // 렌더러의 정점은 모델의 CPU 정점과 같은 모양이다(위치·법선·UV·탄젠트, material-plan 1 단계) - 통째로 옮긴다.
+        static_assert(sizeof(MeshVertex) == sizeof(ModelVertex) && offsetof(MeshVertex, normal) == offsetof(ModelVertex, normal)
+                && offsetof(MeshVertex, uv) == offsetof(ModelVertex, uv) && offsetof(MeshVertex, tangent) == offsetof(ModelVertex, tangent),
+            "the renderer's mesh vertex and the model vertex must keep one layout");
         Array<MeshVertex> vertices;
         vertices.Resize(mesh->vertices.Size());
-        for (std::size_t index = 0; index < vertices.Size(); ++index)
-        {
-            const ModelVertex& source = mesh->vertices[index];
-            for (Int32 axis = 0; axis < 3; ++axis)
-            {
-                vertices[index].position[axis.Get()] = source.position[axis.Get()];
-                vertices[index].normal[axis.Get()] = source.normal[axis.Get()];
-            }
-        }
+        std::memcpy(vertices.Data(), mesh->vertices.Data(), vertices.Size() * sizeof(MeshVertex));
         const JArrayView<MeshVertex> vertexView{vertices.Data(), static_cast<UInt32>(vertices.Size())};
         const JArrayView<UInt32> indexView{mesh->indices.Data(), static_cast<UInt32>(mesh->indices.Size())};
         entry.asset = meshAsset;
