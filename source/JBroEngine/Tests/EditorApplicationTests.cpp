@@ -18219,6 +18219,18 @@ namespace
         }
         Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Error, "an error is shown");
         ScenarioShot(editor, "b12_script_crashed");
+        // 같은 장면에서 들어오기 미끄럼(0.18 s)이 끝난 뒤 - 셋째 알림까지 창 안에 서 있다(REVIEW R7-2). `b12` 는 미끄럼 도중의 그림이다.
+        for (JBro::Int32 frame = 0; frame < 15; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor keeps drawing the crash notifications");
+        }
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, "b12b_script_crashed_settled");
+        for (JBro::UInt32 index = 0; index < editor.GetNotifications().GetVisibleCount(); ++index)
+        {
+            const JBro::NotificationView view = editor.GetNotifications().GetVisible(index);
+            Check(std::fabs(view.offsetX.Get()) < 0.5f && view.alpha.Get() > 0.99f,
+                "in the crash scene every arrived notification stands inside the window");
+        }
         // 알림은 그 스크립트의 그 줄을 가리킨다 - 로그에 적힌 첫 스크립트 프레임으로 본다.
         JBro::Bool pointed = false;
         char lineText[32];
@@ -19056,9 +19068,13 @@ namespace
             JBro::Loc::TextOr(JBro::LocKeys::ScriptFaultAccessViolation, "The script accessed invalid memory"), "Hero.cpp", 20u, "OnUpdate");
         notifications.Notify(JBro::NotificationLevel::Error,
             JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFaultStopped, "A script error stopped the simulation"), message);
-        Check(editor.Tick(Frame), "the editor draws the arriving notifications");
-        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, (std::string("notification_entering_") + shotSuffix).c_str());
-        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        // 1 프레임 뒤에는 알림이 아직 그려지지 않아 그림이 비었다(REVIEW R7-1). 미끄럼 도중(5 프레임 뒤, 0.18 s 의 절반쯤)을 찍는다.
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor draws the arriving notifications");
+        }
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, (std::string("notification_sliding_") + shotSuffix).c_str());
+        for (JBro::Int32 frame = 0; frame < 25; ++frame)
         {
             Check(editor.Tick(Frame), "the editor keeps drawing the notifications");
         }
