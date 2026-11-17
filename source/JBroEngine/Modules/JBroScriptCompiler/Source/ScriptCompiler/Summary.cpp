@@ -362,8 +362,30 @@ namespace JBro::ScriptCompiler
                     }
                     if (remaining == 0 && cleanGaps)
                     {
-                        // 남는 속성이 없으면 괄호까지 한 구간으로 지운다.
-                        edits.Add({{brackets[0]->Range.Begin, brackets[1]->Range.End}, {}});
+                        // 남는 속성이 없으면 괄호까지 한 구간으로 지운다. 괄호 묶음이 줄에 홀로 있으면 들여쓰기만 남은 빈 줄이 되므로
+                        // 그 줄을 줄바꿈까지 지운다(REVIEW R9-1). 줄에 다른 글이 있으면 괄호까지만 지운다.
+                        SourceLocation begin = brackets[0]->Range.Begin;
+                        SourceLocation end = brackets[1]->Range.End;
+                        const std::size_t lineStart = begin.Offset.Get() - (begin.Column.Get() - 1);
+                        Bool aloneBefore = true;
+                        for (std::size_t at = lineStart; at < begin.Offset.Get() && at < text.size(); ++at)
+                        {
+                            aloneBefore = aloneBefore && (text[at] == ' ' || text[at] == '\t');
+                        }
+                        std::size_t lineEnd = end.Offset.Get();
+                        while (lineEnd < text.size() && (text[lineEnd] == ' ' || text[lineEnd] == '\t' || text[lineEnd] == '\r'))
+                        {
+                            ++lineEnd;
+                        }
+                        if (aloneBefore && lineEnd < text.size() && text[lineEnd] == '\n')
+                        {
+                            begin.Offset = static_cast<std::uint32_t>(lineStart);
+                            begin.Column = 1;
+                            end.Offset = static_cast<std::uint32_t>(lineEnd + 1);
+                            end.Line = brackets[1]->Range.End.Line + 1;
+                            end.Column = 1;
+                        }
+                        edits.Add({{begin, end}, {}});
                     }
                     else if (remaining == 0)
                     {

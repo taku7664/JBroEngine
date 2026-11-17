@@ -287,6 +287,51 @@ namespace
     }
 }
 
+namespace
+{
+    // **알려진 속성을 모두 지우면 그 줄에 들여쓰기만 남지 않는다**(REVIEW R9-1). 괄호 묶음이 줄에 홀로 있으면 줄째 지우고,
+    // 같은 줄에 다른 글(필드·모르는 속성·주석)이 있으면 괄호까지만 지운다.
+    void TestRemovingTheLastAttributeRemovesItsLine()
+    {
+        struct Case
+        {
+            const char* Source;
+            const char* Expected;
+            const char* Message;
+        };
+        const Case cases[] = {
+            {"class C\n{\n    [range(1, 100)]\n    Int value = 1\n}\n", "class C\n{\n    Int value = 1\n}\n",
+                "an attribute line of its own goes away with its line break"},
+            {"class C\n{\n    [range(1, 100),\n     category(\"Stats\")]\n    Int value = 1\n}\n", "class C\n{\n    Int value = 1\n}\n",
+                "a multi-line attribute list of its own goes away with its lines"},
+            {"class C\n{\r\n    [range(1, 100)]  \r\n    Int value = 1\r\n}\r\n", "class C\n{\r\n    Int value = 1\r\n}\r\n",
+                "trailing spaces and a CRLF line end go too"},
+            {"class C\n{\n    [range(1, 100)] Int value = 1\n}\n", "class C\n{\n     Int value = 1\n}\n",
+                "an attribute list sharing its line with the field only loses the brackets, as before"},
+        };
+        for (const Case& item : cases)
+        {
+            const String source(item.Source);
+            const auto analysis = Analyze(source.View());
+            const DocumentAnalysis& document = *analysis->Documents.First();
+            const ScriptSummary original = SummarizeScript(*analysis, document);
+            Check(original.Valid, "the attribute line fixture is valid source");
+            FieldSettingsChange change;
+            change.ChangeAttributes = true;
+            Array<SummaryTextEdit> edits;
+            String error;
+            Check(EditFieldSettings(document, original.Types[0].Members[0].SelectionRange.Begin.Offset, change, edits, error),
+                "removing every attribute is accepted");
+            const String edited = Apply(source.View(), edits);
+            if (edited != item.Expected)
+            {
+                std::cout << "  got: [" << edited.c_str() << "]\n";
+            }
+            Check(edited == item.Expected, item.Message);
+        }
+    }
+}
+
 JBro::Int32 RunScriptSummaryTests()
 {
     TestSummary();
@@ -295,6 +340,7 @@ JBro::Int32 RunScriptSummaryTests()
     TestAddRemove();
     TestAttributeTriviaAndSeparators();
     TestRemovedAttributesTakeTheirSeparators();
+    TestRemovingTheLastAttributeRemovesItsLine();
     std::cout << "  ScriptSummary tests passed\n";
     return 0;
 }
