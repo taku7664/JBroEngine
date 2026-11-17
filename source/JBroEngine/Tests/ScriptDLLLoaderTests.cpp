@@ -1304,6 +1304,23 @@ namespace
         Check(nullableFailure != nullptr && nullableFailure() == 20
             && JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
             "an absent nullable payload construction failure aborts each callback and never terminates the process");
+        // **C++ 핸들의 무효 접근 경고는 호스트 로그로 간다**(D-380). 전에는 DLL 의 `stderr` 로만 가서 에디터 로그 창에 보이지 않았다.
+        // 같은 연산은 한 묶음이라 매 프레임 같은 자리에서 나도 줄이 쌓이지 않는다.
+        const auto invalidHandle = reinterpret_cast<DerivedRead>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InvalidHandleWarnings"));
+        JBro::Log::Clear();
+        Check(invalidHandle != nullptr && invalidHandle() == 0, "an invalid handle inside the game DLL ignores the write and reads the default");
+        const JBro::LogGroup* setActive = nullptr;
+        const JBro::LogGroup* isActive = nullptr;
+        for (std::size_t index = 0; index < JBro::Log::GetGroupCount(); ++index)
+        {
+            const JBro::LogGroup* group = JBro::Log::GetGroupAt(index);
+            setActive = group->key == "handle.GameObject.SetActive" ? group : setActive;
+            isActive = group->key == "handle.GameObject.IsActive" ? group : isActive;
+        }
+        Check(setActive != nullptr && setActive->count == 2 && setActive->latestLevel == JBro::LogLevel::Warning
+                && std::string(setActive->display).find("GameObject::SetActive on invalid handle") != std::string::npos,
+            "two invalid writes from the game DLL are one grouped host warning with the operation");
+        Check(isActive != nullptr && isActive->count == 1, "a different operation is its own group");
         const auto customOverrides = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CustomOverrides"));
         JBro::Log::Clear();

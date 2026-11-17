@@ -12,6 +12,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/ScriptModule.h>
 #include <JBro/Runtime/ScriptErrorContext.h>
+#include <JBro/Runtime/ScriptLogContext.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Runtime/ScriptStatics.h>
 #include <JBro/Runtime/ServiceContext.h>
@@ -74,6 +75,7 @@ namespace JBro::Internal
         void UnbindEverything() noexcept
         {
             BindScriptErrorContext({});
+            BindScriptLogContext({0, 0, nullptr, nullptr});
             BindFramework2DServiceContext({});
             BindFramework2DSystemContext({});
             BindInputServiceContext({});
@@ -113,6 +115,11 @@ namespace JBro::Internal
                 if (false == BindScriptModuleContexts(*context))
                 {
                     return false;
+                }
+                // 선택 블록이다 - 없는 호스트에서도 실린다(D-380).
+                if (const ScriptLogContext* logs = FindScriptLogContext(*context))
+                {
+                    BindScriptLogContext(*logs);
                 }
                 if (const ScriptErrorContext* errors = FindScriptErrorContext(*context))
                 {

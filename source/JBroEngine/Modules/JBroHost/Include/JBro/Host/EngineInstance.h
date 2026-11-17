@@ -7,6 +7,7 @@
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Runtime/ScriptErrorContext.h>
+#include <JBro/Runtime/ScriptLogContext.h>
 #include <JBro/Host/TimeSystem.h>
 #include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
@@ -362,6 +363,8 @@ namespace JBro
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.
         ScriptDLLLoader m_scripts;
         ScriptErrorContext m_scriptErrorContext;
+        // 게임 DLL 의 엔진 코드가 호스트 로그에 쓰는 길(D-380). 핸들의 무효 접근 경고가 쓴다.
+        ScriptLogContext m_scriptLogContext;
         ProjectFile m_project;
         FrameworkContext m_frameworkContext;
         FrameTarget m_simulationViewTarget;

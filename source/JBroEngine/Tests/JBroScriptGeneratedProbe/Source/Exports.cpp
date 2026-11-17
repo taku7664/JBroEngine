@@ -372,4 +372,14 @@ extern "C" __declspec(dllexport) void JBroGeneratedProbe_SetOptionalNumbers(JBro
     numbers.present = true;
 }
 
+// An invalid C++ handle inside the game DLL warns into the host log (D-380, ProjectRule 6.1); one group per operation.
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_InvalidHandleWarnings()
+{
+    JBro::Handle::GameObject nobody;
+    nobody.SetActive(false);
+    nobody.SetActive(false);
+    return nobody.IsActive() ? 1 : 0;
+}
+
 #pragma warning(pop)
+

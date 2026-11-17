@@ -19080,6 +19080,53 @@ namespace
     }
 }
 
+namespace
+{
+    // **핸들 무효 접근 경고는 에디터 로그 창에 한 줄로 묶여 보인다**(D-380, ProjectRule §6.1). 게임 DLL 에서 난 경고가 호스트 로그에
+    // 닿는 것은 `ScriptDLLLoader` 가 보고, 여기서는 그 로그가 창에 그려지는지 화면으로 남긴다. 같은 연산을 여러 번 해도 묶음은 하나다.
+    void TestHandleWarningsShowInTheLogPanel()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the log panel not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor lays out its docks");
+        }
+        JBro::Log::Clear();
+        JBro::Handle::GameObject nobody;
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
+        {
+            nobody.SetActive(false);
+            Check(editor.Tick(Frame), "the editor keeps ticking while a script pokes an invalid handle");
+        }
+        const JBro::LogGroup* group = nullptr;
+        for (std::size_t index = 0; index < JBro::Log::GetGroupCount(); ++index)
+        {
+            group = JBro::Log::GetGroupAt(index)->key == "handle.GameObject.SetActive" ? JBro::Log::GetGroupAt(index) : group;
+        }
+        Check(group != nullptr && group->count == 5 && group->latestLevel == JBro::LogLevel::Warning,
+            "five invalid writes are one warning group in the editor's log");
+        ImGui::SetWindowFocus("Log");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles on the log tab");
+        }
+        ImGuiWindow* log = ImGui::FindWindowByName("Log");
+        Check(log != nullptr && log->DockTabIsVisible, "the log tab is in front");
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, "handle_warning_log");
+        editor.Shutdown();
+    }
+}
+
 // 사용자 시나리오(tasks/script-user-scenario.md)는 실제 MSBuild 로 스크립트를 빌드해 오래 걸리므로 묶음을 따로 둔다.
 JBro::Int32 RunUserScenarioTests()
 {
@@ -19089,6 +19136,7 @@ JBro::Int32 RunUserScenarioTests()
     TestScenarioDUiBuilder();
     TestScenarioETextEntry();
     TestTheCrashNotificationFitsTheWindow();
+    TestHandleWarningsShowInTheLogPanel();
     std::cout << "User scenario tests passed.\n";
     return 0;
 }

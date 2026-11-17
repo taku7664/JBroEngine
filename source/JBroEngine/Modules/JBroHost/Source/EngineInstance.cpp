@@ -1812,6 +1812,22 @@ namespace JBro
             }
         };
         blocks.Add(MakeScriptErrorContextBlock(m_scriptErrorContext));
+        m_scriptLogContext.Owner = nullptr;
+        m_scriptLogContext.Write = [](void*, UInt32 level, const char* category, const char* groupKey, const char* message) noexcept {
+            if (level > static_cast<UInt32>(LogLevel::Error))
+            {
+                return;
+            }
+            try
+            {
+                Log::WriteGrouped(static_cast<LogLevel>(level.Get()), category, groupKey, "%s", message);
+            }
+            catch (...)
+            {
+                // No C++ exception may cross this host/DLL function pointer.
+            }
+        };
+        blocks.Add(MakeScriptLogContextBlock(m_scriptLogContext));
         if (m_input)
         {
             blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));

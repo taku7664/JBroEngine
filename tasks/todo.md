@@ -3057,6 +3057,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-380. C++ 핸들(`Handle::GameObject`·빌트인 컴포넌트 핸들·`Layer`)의 무효 접근 경고는 호스트 로그로 간다. 게임 DLL 안의 엔진 코드는 새 선택 컨텍스트 블록 `ScriptLogContext`(버전 붙은 POD, 함수 포인터 하나)로 호스트 `Log::WriteGrouped` 에 쓰고, 같은 연산은 한 묶음이다.**
+  (2026-11-17, Script QA REPORT §3 문서 어긋남 8, DECISIONS-NEEDED Q5-3 사용자 결정 "에디터로그로 보내야지")
+  Updates: ProjectRule §6.1("로그를 남기고" 의 자리), D-44(호스트가 DLL 에 주는 블록이 하나 는다 - 선택 블록이라 요구 목록과 옛 DLL 은 그대로), D-317(스크립트 오류는 그대로 `ScriptErrorContext`).
+  (1) 전에는 `fprintf(stderr, "JBro warning: …")` 라 에디터 창에서는 보이지 않았다. 게임 DLL 은 `JBroRuntime` 을 정적으로 링크하므로 그 사본의 `Log` 고리도 아무도 보지 않는다.
+  (2) `ScriptErrorContext` 를 넓히지 않은 까닭: 그 계약은 오류 수준 고정이고 크기가 `static_assert` 로 묶여 있어 바꾸면 모든 스크립트 DLL 이 다시 빌드돼야 한다. 새 블록은 요구 목록에 넣지 않으므로 이 블록이 없는 호스트·DLL 과도 실리고, 묶지 않은 프로세스(호스트 자신)에서는 같은 함수가 곧바로 `Log` 에 쓴다(`WriteEngineLog`).
+  (3) 무효한 경우에만 글자를 만든다(스택 버퍼, 힙 없음). 묶음 키는 `handle.<타입>.<연산>`, 분류 `script`, 수준 경고.
+  (4) 시험: `ScriptDLLLoader` - 생성 시험 DLL 안에서 무효 핸들에 `SetActive` 두 번·`IsActive` 한 번 → 호스트 로그에 경고 묶음 둘(2 회·1 회). `UserScenario` 의 `TestHandleWarningsShowInTheLogPanel` - 다섯 번이 한 묶음이고 로그 탭이 앞에 서며 화면(`editor_handle_warning_log`)에 `[script] GameObject::SetActive on invalid handle (id=0) (5)` 한 줄이 경고 색으로 보인다(직접 열어 봄).
+
 - **D-379. `jbroc` 명령줄 진단 줄(구문·의미·생성기 오류)의 열은 글자(코드 포인트) 단위다. 내부 위치(`SourceLocation.Column`)는 UTF-8 바이트 그대로이고 줄을 쓸 때 `CharacterColumn` 으로 바꾼다.**
   (2026-11-17, Script QA REPORT §3 문서 어긋남 7, DECISIONS-NEEDED Q5-2 사용자 결정 "ㅇㅇ")
   Updates: jbroc-rules §11.3(진단 한 줄의 열 단위), D-105.
