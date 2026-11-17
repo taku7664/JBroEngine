@@ -535,6 +535,8 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
   카탈로그의 자유 함수(`FindKeyByName`·`GetKeyName` 등)와 엔진 enum 멤버(`Key.A`)는 이제 이미터가 푼다. 엔진 함수의 `String`·`Int` 인자는 `ScriptGuard::Argument` 로 감싼다(D-383).
 - 시험: 생성 시험 프로젝트(`Tests/JBroScriptGeneratedProbe`, `/W4 /WX`)에 `Section14Enemy.jscript`(§14 예시)와 `EmitterShapes.jscript`(세 모양)를 더했다. 고치기 전 이미터로는 그 프로젝트가 C2664·C2660·C2440 으로 멈춘다.
 
+- (2026-11-17, D-386) 문자열 리터럴끼리의 `+`·`==` 도 같은 꼴이었다 - 왼쪽 리터럴을 `JBro::String` 으로 만든다. 시험은 생성 시험 DLL 의 `StringLiterals.jscript`.
+
 ## 15. 깊은 식에서 죽던 `jbroc` (2026-11-17, Script QA 결함 3)
 
 분석과 C++ 생성은 식의 깊이만큼 재귀한다. 기본 1 MB 주 스레드 스택은 Debug 에서 깊이 24(생성)·40(분석)에 넘쳐 `jbroc` 이 아무 말 없이 0xC00000FD 로 죽었다.

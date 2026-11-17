@@ -1333,6 +1333,9 @@ namespace
         }
         Check(chainResult == 210701 && JBro::Log::GetGroupCount() == 0,
             "a?.b.c, a?.b.c ?? d and a?.Method().x skip an absent a and the rest of the callback still runs, without an error log");
+        const auto stringLiterals = reinterpret_cast<DerivedRead>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StringLiterals"));
+        Check(stringLiterals != nullptr && stringLiterals() == 11,
+            "string literals join into a String and compare by their text in the game DLL (D-386)");
         const auto customOverrides = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CustomOverrides"));
         JBro::Log::Clear();

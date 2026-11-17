@@ -395,5 +395,12 @@ extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_NullSafeChain()
     return (script.reached * 10000 + script.coalesced * 100 + script.called).Get();
 }
 
+// String literals combine and compare by value, not as raw C++ pointers (D-386).
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_StringLiterals()
+{
+    const JBro::String joined = StringLiteralModel::Joined();
+    return (joined == "abc" ? 10 : 0) + (StringLiteralModel::SameText() ? 1 : 0);
+}
+
 #pragma warning(pop)
 

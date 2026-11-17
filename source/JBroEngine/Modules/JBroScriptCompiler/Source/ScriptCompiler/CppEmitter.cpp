@@ -2096,7 +2096,13 @@ namespace JBro::ScriptCompiler
                 }
                 case SyntaxKind::BinaryExpression:
                 {
-                    const Expression left = Expr(Child(index, 0));
+                    Expression left = Expr(Child(index, 0));
+                    // A string literal stays a raw C++ literal, so "a" + "b" added two pointers (C2110) and "a" == "a" compared them.
+                    // As the left operand it becomes a String first (Script QA, D-386).
+                    if (left.type.name == "String" && SyntaxKind::StringLiteral == Node(Child(index, 0)).Kind)
+                    {
+                        left.code = "JBro::String(" + left.code + ")";
+                    }
                     const Expression right = Expr(Child(index, 1));
                     if (node.Text == "??")
                     {
