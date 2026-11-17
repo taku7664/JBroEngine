@@ -890,7 +890,9 @@ namespace JBro::ScriptCompiler
                     Error("C++ emitter does not support this declaration yet");
                     return false;
                 }
-                Int32& state = m_declarationState[name];
+                // 표 원소의 참조를 쥔 채 재귀하지 않는다. 재귀가 새 이름을 넣어 표가 다시 잡히면 참조가 끊겨, 끝의 "다 했음" 이
+                // 엉뚱한 곳에 쓰이고 다이아몬드 상속이 순환으로 보였다(Script QA, 선언 수에 따라 나타남).
+                const Int32 state = m_declarationState[name];
                 if (state == 2)
                 {
                     return true;
@@ -900,7 +902,7 @@ namespace JBro::ScriptCompiler
                     Error("owned field cycle cannot be represented in C++: " + name);
                     return false;
                 }
-                state = 1;
+                m_declarationState[name] = 1;
                 const NodeIndex bases = found->tree->GetChild(found->index, 0);
                 if (bases != InvalidNode && found->tree->Get(bases).Kind == SyntaxKind::BaseList)
                 {
@@ -930,7 +932,7 @@ namespace JBro::ScriptCompiler
                         return false;
                     }
                 }
-                state = 2;
+                m_declarationState[name] = 2;
                 ordered.Add(*found);
                 return true;
             }
