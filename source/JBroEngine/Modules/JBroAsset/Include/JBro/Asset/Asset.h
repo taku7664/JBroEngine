@@ -287,6 +287,12 @@ namespace JBro
         Bool ReadAudioEffect(const AssetRecord& record, AudioEffectData& data);
         // 모델의 하위 메시 하나를 읽는다. 같은 모델의 메시를 연달아 읽는 일이 흔해 마지막으로 읽은 모델 하나를 들고 있는다.
         Bool ReadMesh(const AssetRecord& record, MeshData& data);
+        // 모델의 내장 그림 하나를 읽는다(model-import-plan 5 단계). 바이트는 모델 안에 있고 디코드는 그림 파일과 같은 이미지 디코더다.
+        Bool ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data);
+        // 하위 에셋의 주인 모델을 읽어 들고 있는다(메시·내장 그림이 함께 쓴다). 실패하면 nullptr.
+        const ModelData* DecodeOwnerModel(const AssetRecord& model);
+        // 하위 에셋 레코드의 주인이 모델이면 그 레코드, 아니면 nullptr.
+        const AssetRecord* OwnerModelOf(const AssetRecord& record) const;
         // 곁 파일(`.gltf` 의 `.bin`, OBJ 의 `.mtl`)은 에셋이 아니라 레지스트리에 없다 - 에셋 폴더에서 바로 읽는다. 패키지에서는 아직 읽지 못한다(6 단계).
         Bool ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const;
         AssetId m_decodedModelId;

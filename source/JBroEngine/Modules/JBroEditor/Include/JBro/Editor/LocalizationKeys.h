@@ -526,6 +526,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsListView = "assets.list_view";
     inline constexpr const char* AssetsExpand = "assets.expand";
     inline constexpr const char* AssetsCollapse = "assets.collapse";
+    inline constexpr const char* AssetsSameImageTooltip = "assets.same_image_tooltip";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
     inline constexpr const char* CommonCancel = "common.cancel";
     // 경로 칸의 단추(D-164, 기존 `CommonBrowse`)
@@ -538,6 +539,9 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorFontFamilyFaces = "inspector.font_family_faces";
     inline constexpr const char* InspectorStringTable = "inspector.string_table";
     inline constexpr const char* InspectorModelImportOptions = "inspector.model_import_options";
+    inline constexpr const char* InspectorSameImage = "inspector.same_image";
+    inline constexpr const char* InspectorSameImageSplitNote = "inspector.same_image_split_note";
+    inline constexpr const char* InspectorOwnerModel = "inspector.owner_model";
     inline constexpr const char* InspectorNoStringKey = "inspector.no_string_key";
     inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
     inline constexpr const char* InspectorAudioLength = "inspector.audio_length";

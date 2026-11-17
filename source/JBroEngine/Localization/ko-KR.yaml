@@ -189,6 +189,9 @@ Entries:
   inspector.font_family_faces: "폰트 패밀리"
   inspector.string_table: "문자열 표"
   inspector.model_import_options: "모델 임포트 옵션"
+  inspector.same_image: "같은 그림"
+  inspector.same_image_split_note: "옵션을 바꾸면 이 그림은 같은 그림들과 따로 읽힙니다"
+  inspector.owner_model: "모델"
   inspector.no_string_key: "(없음)"
   inspector.audio_format: "형식"
   inspector.audio_length: "길이"
@@ -555,6 +558,7 @@ Entries:
   assets.list_view: 목록
   assets.expand: 하위 에셋 펼치기
   assets.collapse: 하위 에셋 접기
+  assets.same_image_tooltip: 같은 그림이 여기에도 들어 있습니다
   assets.view_tooltip: 목록과 아이콘 보기를 오갑니다
   menu.new_project: 새 프로젝트
   menu.register_project_file_type: .jproject 파일을 이 에디터로 열기

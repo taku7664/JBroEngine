@@ -30,8 +30,13 @@ namespace JBro::Widget
     }
     // 칸 끝에서 줄을 바꾸는 글자다. 경로처럼 길이를 모르는 값이 잘리지 않게 한다(D-160).
     void WrappedText(const char* text);
+    // **누르면 그것을 찾아가는 글자**다(링크 색, 올리면 밑줄). 인스펙터의 `같은 그림` 줄처럼 다른 에셋을 가리키는 값에 쓴다. 눌렸으면 참이다.
+    // 같은 글자가 한 창에 여럿이면 부르는 쪽이 Id 를 쌓는다.
+    Bool LinkText(const char* text);
     // **흐린 안내 글자**다. "선택한 것이 없습니다" 처럼 값이 아니라 상태를 말하는 자리에 쓴다.
     void HintText(const char* text);
+    // 칸 끝에서 줄을 바꾸는 흐린 안내다. 문장 하나짜리 안내(인스펙터의 "옵션을 바꾸면…")가 좁은 칸에서 잘리지 않게 한다.
+    void WrappedHintText(const char* text);
     void HintTextFormatted(const char* format, ...) IM_FMTARGS(1);
     template<typename... Args>
     void HintTextF(const char* format, const Args&... args)

@@ -30,6 +30,50 @@ namespace JBro
             return Uuid::Parse(text.c_str(), text.size(), result);
         }
 
+        // 내장 그림의 해시는 16 자리 16 진수다. 0 은 "없음" 이라 받지 않는다.
+        Bool ParseHash(const String& text, UInt64& result)
+        {
+            if (text.size() != 16)
+            {
+                return false;
+            }
+            std::uint64_t value = 0;
+            for (const char digit : text)
+            {
+                value <<= 4;
+                if (digit >= '0' && digit <= '9')
+                {
+                    value |= static_cast<std::uint64_t>(digit - '0');
+                }
+                else if (digit >= 'a' && digit <= 'f')
+                {
+                    value |= static_cast<std::uint64_t>(digit - 'a' + 10);
+                }
+                else if (digit >= 'A' && digit <= 'F')
+                {
+                    value |= static_cast<std::uint64_t>(digit - 'A' + 10);
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            result = value;
+            return value != 0;
+        }
+
+        void FormatHash(UInt64 hash, char (&text)[17])
+        {
+            static constexpr char Digits[] = "0123456789abcdef";
+            std::uint64_t value = hash.Get();
+            for (std::size_t index = 16; index > 0; --index)
+            {
+                text[index - 1] = Digits[value & 0xF];
+                value >>= 4;
+            }
+            text[16] = '\0';
+        }
+
         // `owner` 맵의 `ImportOptions` 를 표로 읽는다. 맵이나 블록이 없으면 `present` 가 거짓이고 참이다.
         Bool ReadOptions(const YamlDocument& document, UInt32 owner, const TypeDescriptor& descriptor,
             void* options, Bool& present, AssetMetaError& error)
@@ -182,6 +226,26 @@ namespace JBro
                     {
                         return Fail(error, document.GetLine(item), "a sub-asset needs its own Id");
                     }
+                    // 내장 그림의 해시와 옵션. 다른 종류에 있으면 실패다 - 읽고 버리면 고친 값이 조용히 사라진다.
+                    const UInt32 hashNode = document.Find(item, "Hash");
+                    if (hashNode != YamlDocument::InvalidNode)
+                    {
+                        String hashText;
+                        if (subType != AssetType::Texture || false == document.FindScalar(item, "Hash", hashText)
+                            || false == ParseHash(hashText, entry.contentHash))
+                        {
+                            return Fail(error, document.GetLine(hashNode), "only a Texture sub-asset has a Hash of 16 hex digits");
+                        }
+                    }
+                    if (subType != AssetType::Texture && document.Find(item, "ImportOptions") != YamlDocument::InvalidNode)
+                    {
+                        return Fail(error, document.GetLine(item), "only a Texture sub-asset has ImportOptions");
+                    }
+                    if (false == ReadOptions(document, item, TypeDescriptorOf<TextureImportOptions>::Get(),
+                            &entry.textureOptions, entry.hasTextureOptions, error))
+                    {
+                        return false;
+                    }
                     for (std::size_t seen = 0; seen < parsed.subAssets.Size(); ++seen)
                     {
                         if (parsed.subAssets[seen].key == entry.key || parsed.subAssets[seen].id == entry.id)
@@ -314,6 +378,22 @@ namespace JBro
                     writer.WriteString("Key", entry.key.c_str());
                     entry.id.ToText(idText, sizeof(idText));
                     writer.WriteString("Id", idText);
+                    // 읽는 쪽이 거절할 것을 적지 않는다 - 메시·재질의 해시·옵션은 파일을 쓰지 않는다.
+                    if (subType != AssetType::Texture && (entry.contentHash != 0 || entry.hasTextureOptions))
+                    {
+                        return false;
+                    }
+                    if (entry.contentHash != 0)
+                    {
+                        char hashText[17];
+                        FormatHash(entry.contentHash, hashText);
+                        writer.WriteString("Hash", hashText);
+                    }
+                    if (entry.hasTextureOptions && false == WriteReflectedValue(writer, "ImportOptions",
+                            TypeDescriptorOf<TextureImportOptions>::Get(), &entry.textureOptions, error))
+                    {
+                        return false;
+                    }
                     writer.EndMap();
                 }
                 writer.EndSequence();

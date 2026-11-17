@@ -36,10 +36,23 @@ namespace JBro
     //     ImportOptions:
     //       sliceType: CellCount
     // 모델의 하위 에셋 하나다(D-338). `key` 는 `종류/이름`(`Mesh/Body`, `Material/Skin`)이고 다시 가져와도 같은 키면 같은 아이디다.
+    //
+    // 내장 그림(`Texture/`)만 둘을 더 든다(model-import-plan 5 단계). `Hash` 는 원본 바이트의 64 비트 FNV-1a 이고(16 자리 16 진수, 모델을 다시 읽을 때 늘 새로 적는다),
+    // `ImportOptions` 는 그 그림 하나의 텍스처 옵션이다 - 그림 파일의 `Texture.ImportOptions` 와 같은 표다. 메시·재질 항목에 둘이 있으면 파일 전체의 실패다.
+    //
+    //   - Key: Texture/Wood
+    //     Id: ...
+    //     Hash: 0123456789abcdef
+    //     ImportOptions:
+    //       mipmaps: true
     struct AssetSubEntry
     {
         String key;
         AssetId id;
+        // 0 이면 없다(메시·재질, 또는 해시를 적기 전의 메타).
+        UInt64 contentHash = 0;
+        Bool hasTextureOptions = false;
+        TextureImportOptions textureOptions;
     };
 
     // 하위 키를 종류와 이름으로 나눈다. 모르는 종류이거나 이름이 비면 false 다.

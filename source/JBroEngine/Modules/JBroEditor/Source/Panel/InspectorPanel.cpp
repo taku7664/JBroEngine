@@ -1569,7 +1569,13 @@ namespace JBro
 
     void InspectorPanel::DrawAsset(const AssetMetaFile& meta)
     {
-        const AssetRecord* record = m_editor->GetAssetRegistry().Find(meta.id);
+        // **모델의 하위 에셋을 골랐으면 그것을 보인다**(model-import-plan 5 단계). 메타는 모델의 것이고(하위 에셋은 제 메타가 없다),
+        // 머리·그림·옵션은 고른 하위 에셋의 것이다. 그림의 Sprite 는 그림 파일의 인스펙터 그대로다(두 블록이 한 파일의 옵션이다).
+        const AssetRegistry& registry = m_editor->GetAssetRegistry();
+        const AssetRecord* selected = registry.Find(m_editor->GetSelectedAsset());
+        const AssetRecord* owner = meta.type == AssetType::Model && selected != nullptr && selected->owner == meta.id ? registry.Find(meta.id) : nullptr;
+        const AssetRecord* record = owner != nullptr ? selected : registry.Find(meta.id);
+        const AssetId shownId = record != nullptr ? record->id : meta.id;
         // **무엇을 보고 있는지 머리에 적는다**(D-173, 기존 에셋 인스펙터의 첫 네 줄).
         // 경로 한 줄만 있으면 그 파일이 어떤 종류로 등록되었는지, 번호가 무엇인지 알 길이
         // 에디터 안에 없었다 - `.jmeta` 를 직접 열어 봐야 했다.
@@ -1578,7 +1584,12 @@ namespace JBro
             const char* path = record != nullptr ? record->relativePath.c_str() : "?";
             const char* leaf = EditorPaths::LeafOfPath(path);
             header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetName, "Asset")),
-                [&]() { Widget::WrappedText(leaf != nullptr ? leaf : path); });
+                [&]() { Widget::WrappedText(owner != nullptr ? record->name.c_str() : (leaf != nullptr ? leaf : path)); });
+            if (owner != nullptr)
+            {
+                header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorOwnerModel, "Model")),
+                    [&]() { Widget::WrappedText(leaf != nullptr ? leaf : path); });
+            }
             header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetType, "Type")),
                 [&]() {
                     const AssetType type = record != nullptr ? record->type : AssetType::Unknown;
@@ -1590,7 +1601,7 @@ namespace JBro
             header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetId, "Id")),
                 [&]() {
                     char text[Uuid::TextCapacity] = {};
-                    if (meta.id.ToText(text, sizeof(text)))
+                    if (shownId.ToText(text, sizeof(text)))
                     {
                         // 32 자리라 좁은 칸에서는 한 줄에 들어가지 않는다. 잘라 보이면
                         // 그 번호로 파일을 찾을 수 없다.
@@ -1602,7 +1613,7 @@ namespace JBro
 
         // **그림을 보여 준다**(D-147, 기존 `AssetInspectorPreview` 자리). 임포트 옵션을
         // 고치는 자리에 그림이 없으면 무엇을 고치고 있는지 이름으로만 알아야 한다.
-        const TextureHandle preview = m_editor->GetAssetThumbnail(meta.id);
+        const TextureHandle preview = m_editor->GetAssetThumbnail(shownId);
         if (preview.IsValid())
         {
             // 칸 너비에 맞추되 원본 비율을 지킨다. 늘여 붙이면 픽셀 아트가 기울어 보인다.
@@ -1610,7 +1621,7 @@ namespace JBro
             const Float side = width < PreviewMaxSide ? width : PreviewMaxSide;
             UInt32 sourceWidth = 0;
             UInt32 sourceHeight = 0;
-            m_editor->GetAssetSourceSize(meta.id, sourceWidth, sourceHeight);
+            m_editor->GetAssetSourceSize(shownId, sourceWidth, sourceHeight);
             Widget::Image(preview, Widget::FitInside(sourceWidth, sourceHeight, ImVec2(side, side)));
             ImGui::Spacing();
         }
@@ -1643,7 +1654,81 @@ namespace JBro
             }
             ImGui::Spacing();
         }
+        if (owner != nullptr)
+        {
+            DrawSubAssetOptions(meta, *record);
+            return;
+        }
         DrawAssetOptions(meta);
+    }
+
+    void InspectorPanel::DrawSubAssetOptions(const AssetMetaFile& meta, const AssetRecord& record)
+    {
+        // 메시·재질은 제 옵션이 없다 - 모델의 옵션이 정한다(모델을 고르면 보인다). 내장 그림은 그림마다 텍스처 옵션이 있다.
+        std::size_t subIndex = meta.subAssets.Size();
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            if (meta.subAssets[index].id == record.id)
+            {
+                subIndex = index;
+            }
+        }
+        if (record.type != AssetType::Texture || subIndex == meta.subAssets.Size())
+        {
+            return;
+        }
+        AssetMetaFile scratch = meta;
+        AssetSubEntry& entry = scratch.subAssets[subIndex];
+        if (false == entry.hasTextureOptions)
+        {
+            entry.textureOptions = ModelTextureDefaults();
+        }
+        AssetEditScope scope;
+        scope.scratch = &scratch;
+        scope.block = AssetEditScope::Block::SubTexture;
+        scope.subIndex = subIndex;
+        Context context;
+        context.asset = &scope;
+
+        // **같은 그림**(model-import-plan §2.5). 다른 모델에 든 같은 그림(원본과 옵션이 같음)을 줄마다 보이고, 누르면 브라우저가 그것을 찾아 준다.
+        Array<const AssetRecord*> same;
+        m_editor->FindSameImages(record.id, same);
+        if (same.Size() > 0)
+        {
+            Widget::FormLayout layout("##sameImage");
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorSameImage, "Same Image")),
+                [&]() {
+                    for (std::size_t index = 0; index < same.Size(); ++index)
+                    {
+                        ImGui::PushID(static_cast<int>(index));
+                        String label = same[index]->relativePath;
+                        label += " / ";
+                        label += same[index]->name;
+                        if (Widget::LinkText(label.c_str()))
+                        {
+                            m_editor->RevealAssetInBrowser(same[index]->id);
+                        }
+                        ImGui::PopID();
+                    }
+                });
+        }
+
+        ImGui::PushID("##subTexture");
+        if (Widget::CollapsingSection(Loc::TextOr(LocKeys::InspectorTextureImportOptions, "Texture Import Options")))
+        {
+            Widget::FormLayout layout("##import");
+            const TypeDescriptor& type = TypeDescriptorOf<TextureImportOptions>::Get();
+            if (type.fields != nullptr)
+            {
+                DrawFieldsInto(layout, *type.fields, &entry.textureOptions, context);
+            }
+        }
+        ImGui::PopID();
+        // 묶인 그림의 옵션을 고치면 그 그림만 따로 읽는다. 막지 않고 알린다 - 일부러 다르게 읽고 싶을 수 있다.
+        if (same.Size() > 0)
+        {
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorSameImageSplitNote, "Changing the options reads this image apart from its same images"));
+        }
     }
 
     void InspectorPanel::DrawAssetOptions(const AssetMetaFile& meta)
@@ -1753,6 +1838,12 @@ namespace JBro
             }
             break;
         }
+        case Block::SubTexture:
+            if (context.asset->subIndex < scratch.subAssets.Size())
+            {
+                scratch.subAssets[context.asset->subIndex].hasTextureOptions = true;
+            }
+            break;
         case Block::Texture:
         default:
             scratch.hasTextureOptions = true;

@@ -36,10 +36,24 @@ namespace JBro::Widget
         ImGui::PopTextWrapPos();
     }
 
+    Bool LinkText(const char* text)
+    {
+        return ImGui::TextLink(text != nullptr ? text : "");
+    }
+
     void HintText(const char* text)
     {
         // `TextDisabled(text)` 는 글자를 서식으로 읽는다. 파일 이름에 `%` 가 있으면 깨진다.
         ImGui::TextDisabled("%s", text != nullptr ? text : "");
+    }
+
+    void WrappedHintText(const char* text)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextUnformatted(text != nullptr ? text : "");
+        ImGui::PopTextWrapPos();
+        ImGui::PopStyleColor();
     }
 
     void HintTextFormatted(const char* format, ...)

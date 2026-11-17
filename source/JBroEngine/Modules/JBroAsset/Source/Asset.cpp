@@ -6,6 +6,7 @@
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Asset/AudioEffectFile.h>
 #include <JBro/Asset/ModelDecoder.h>
+#include <JBro/Asset/ModelImport.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -302,6 +303,11 @@ namespace JBro
         {
             return false;
         }
+        // 모델의 내장 그림은 모델 안의 바이트다(5 단계). 패키지에도 레코드만 있고 바이트는 모델에 있다.
+        if (const AssetRecord* model = OwnerModelOf(record))
+        {
+            return ReadEmbeddedTexture(record, *model, data);
+        }
         // 빌드가 디코드해 둔 픽셀이 있으면 그것이다(D-232) - 게임에 이미지 디코더가 돌지 않는다.
         if (m_source->Has(record, AssetBlob::CookedTexture))
         {
@@ -485,6 +491,19 @@ namespace JBro
         {
             return false;
         }
+        // 모델의 내장 그림은 하위 목록의 제 항목이 옵션을 든다. 항목에 옵션이 없으면 모델 그림의 기본이다.
+        if (meta.type == AssetType::Model)
+        {
+            options = ModelTextureDefaults();
+            for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+            {
+                if (meta.subAssets[index].id == record.id && meta.subAssets[index].hasTextureOptions)
+                {
+                    options = meta.subAssets[index].textureOptions;
+                }
+            }
+            return true;
+        }
         options = meta.hasTextureOptions ? meta.textureOptions : TextureImportOptions{};
         return true;
     }
@@ -540,6 +559,11 @@ namespace JBro
             }
         }
         if (record->type != AssetType::Texture && record->type != AssetType::Audio)
+        {
+            return false;
+        }
+        // 모델의 내장 그림은 모델을 읽어야 나온다 - 들고 있는 모델이 메인 스레드의 것이라 동기 로드에 둔다.
+        if (OwnerModelOf(*record) != nullptr)
         {
             return false;
         }
@@ -784,69 +808,136 @@ namespace JBro
         return m_platform->ReadWholeFile(path.c_str(), out);
     }
 
+    const AssetRecord* AssetSystem::OwnerModelOf(const AssetRecord& record) const
+    {
+        const AssetRecord* owner = record.owner.IsNull() || m_registry == nullptr ? nullptr : m_registry->Find(record.owner);
+        return owner != nullptr && owner->type == AssetType::Model ? owner : nullptr;
+    }
+
+    const ModelData* AssetSystem::DecodeOwnerModel(const AssetRecord& model)
+    {
+        if (m_source == nullptr)
+        {
+            return nullptr;
+        }
+        if (m_decodedModelId == model.id)
+        {
+            return &m_decodedModel;
+        }
+        AssetMetaFile meta;
+        if (false == ReadMeta(model, meta))
+        {
+            return nullptr;
+        }
+        Array<std::byte> bytes;
+        if (false == m_source->Read(model, AssetBlob::Source, bytes))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the model file could not be read", model.relativePath.c_str());
+            return nullptr;
+        }
+        struct SideReader
+        {
+            const AssetSystem* assets;
+            String folder;
+            static Bool Read(void* user, const char* relativePath, Array<std::byte>& out)
+            {
+                const SideReader& self = *static_cast<const SideReader*>(user);
+                String path = self.folder;
+                path += relativePath;
+                return self.assets->ReadLooseFile(path, out);
+            }
+        };
+        const std::size_t slash = model.relativePath.find_last_of('/');
+        SideReader side{this, slash == String::npos ? String() : String(model.relativePath.substr(0, slash + 1))};
+        ModelFileReader reader;
+        reader.read = &SideReader::Read;
+        reader.user = &side;
+        ModelData decoded;
+        String error;
+        if (false == DecodeModel({bytes.Data(), static_cast<UInt32>(bytes.Size())}, ModelFormatFromPath(model.relativePath),
+                meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, reader, decoded, error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: %s", model.relativePath.c_str(), error.c_str());
+            return nullptr;
+        }
+        m_decodedModel = std::move(decoded);
+        m_decodedModelId = model.id;
+        return &m_decodedModel;
+    }
+
+    namespace
+    {
+        // 하위 레코드의 이름이 가리키는 것을 키 목록에서 찾는다 - 키를 짓는 곳(`ListModelSubAssets`)이 하나라 겹친 이름의 ` (2)` 도 같다.
+        const ModelSubAsset* FindSubAsset(const Array<ModelSubAsset>& listed, AssetType type, const String& name)
+        {
+            for (std::size_t index = 0; index < listed.Size(); ++index)
+            {
+                AssetType listedType = AssetType::Unknown;
+                std::string_view listedName;
+                if (listed[index].type == type && SplitSubAssetKey(listed[index].key, listedType, listedName) && listedName == name)
+                {
+                    return &listed[index];
+                }
+            }
+            return nullptr;
+        }
+    }
+
     Bool AssetSystem::ReadMesh(const AssetRecord& record, MeshData& data)
     {
         // 하위 메시는 모델 파일 안의 이름이 그 메시다(`AssetRecord::name`). 모델 레코드의 메타가 옵션을 든다.
-        const AssetRecord* model = record.owner.IsNull() || m_registry == nullptr ? nullptr : m_registry->Find(record.owner);
-        if (model == nullptr || model->type != AssetType::Model || m_source == nullptr)
+        const AssetRecord* model = OwnerModelOf(record);
+        const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
+        if (decoded == nullptr)
         {
             return false;
         }
-        if (m_decodedModelId != model->id)
+        Array<ModelSubAsset> listed;
+        ListModelSubAssets(*decoded, listed);
+        if (const ModelSubAsset* sub = FindSubAsset(listed, AssetType::Mesh, record.name))
         {
-            AssetMetaFile meta;
-            if (false == ReadMeta(*model, meta))
-            {
-                return false;
-            }
-            Array<std::byte> bytes;
-            if (false == m_source->Read(*model, AssetBlob::Source, bytes))
-            {
-                Log::Write(LogLevel::Warning, "asset", "%s: the model file could not be read", model->relativePath.c_str());
-                return false;
-            }
-            struct SideReader
-            {
-                const AssetSystem* assets;
-                String folder;
-                static Bool Read(void* user, const char* relativePath, Array<std::byte>& out)
-                {
-                    const SideReader& self = *static_cast<const SideReader*>(user);
-                    String path = self.folder;
-                    path += relativePath;
-                    return self.assets->ReadLooseFile(path, out);
-                }
-            };
-            const std::size_t slash = model->relativePath.find_last_of('/');
-            SideReader side{this, slash == String::npos ? String() : String(model->relativePath.substr(0, slash + 1))};
-            ModelFileReader reader;
-            reader.read = &SideReader::Read;
-            reader.user = &side;
-            ModelData decoded;
-            String error;
-            if (false == DecodeModel({bytes.Data(), static_cast<UInt32>(bytes.Size())}, ModelFormatFromPath(model->relativePath),
-                    meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, reader, decoded, error))
-            {
-                Log::Write(LogLevel::Warning, "asset", "%s: %s", model->relativePath.c_str(), error.c_str());
-                return false;
-            }
-            m_decodedModel = std::move(decoded);
-            m_decodedModelId = model->id;
-        }
-        for (std::size_t index = 0; index < m_decodedModel.meshes.Size(); ++index)
-        {
-            const ModelMesh& mesh = m_decodedModel.meshes[index];
-            if (mesh.name == record.name)
-            {
-                data.vertices = mesh.vertices;
-                data.indices = mesh.indices;
-                data.hasUvs = mesh.hasUvs;
-                return true;
-            }
+            const ModelMesh& mesh = decoded->meshes[sub->index.Get()];
+            data.vertices = mesh.vertices;
+            data.indices = mesh.indices;
+            data.hasUvs = mesh.hasUvs;
+            return true;
         }
         // 메타의 목록이 파일보다 낡았다(파일이 바뀌고 목록을 아직 맞추지 않음). 에디터의 파일 감시가 맞춘다.
         Log::Write(LogLevel::Warning, "asset", "%s: the model has no mesh named %s", model->relativePath.c_str(), record.name.c_str());
         return false;
+    }
+
+    Bool AssetSystem::ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data)
+    {
+        const ModelData* decoded = DecodeOwnerModel(model);
+        if (decoded == nullptr)
+        {
+            return false;
+        }
+        Array<ModelSubAsset> listed;
+        ListModelSubAssets(*decoded, listed);
+        const ModelSubAsset* sub = FindSubAsset(listed, AssetType::Texture, record.name);
+        if (sub == nullptr)
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the model has no embedded image named %s", model.relativePath.c_str(), record.name.c_str());
+            return false;
+        }
+        const ModelImage& image = decoded->images[sub->index.Get()];
+        JArrayView<std::byte> view;
+        view.data = image.embedded.Data();
+        view.size = static_cast<JBro::UInt32>(image.embedded.Size());
+        DecodedImage pixels;
+        if (false == DecodeImage(view, pixels))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the embedded image %s is not one this engine can decode",
+                model.relativePath.c_str(), record.name.c_str());
+            return false;
+        }
+        data.width = pixels.width;
+        data.height = pixels.height;
+        data.pixels = std::move(pixels.pixels);
+        data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
+        return true;
     }
 
     const StringTableData* AssetSystem::GetStringTable(AssetHandle handle) const
@@ -1323,6 +1414,12 @@ namespace JBro
         }
         if (Slot<TextureData>* texture = FindSlot(m_textures, *loaded, AssetType::Texture))
         {
+            // 내장 그림이면 모델 파일이 바뀌었을 수 있다 - 메시와 같이 들고 있던 모델을 버린다.
+            if (OwnerModelOf(*record) != nullptr)
+            {
+                m_decodedModelId = {};
+                m_decodedModel = {};
+            }
             TextureData fresh;
             if (false == ReadTexture(*record, fresh))
             {

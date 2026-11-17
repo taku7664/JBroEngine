@@ -189,6 +189,9 @@ Entries:
   inspector.font_family_faces: "Font Family"
   inspector.string_table: "String Table"
   inspector.model_import_options: "Model Import Options"
+  inspector.same_image: "Same Image"
+  inspector.same_image_split_note: "Changing the options reads this image apart from its same images"
+  inspector.owner_model: "Model"
   inspector.no_string_key: "(none)"
   inspector.audio_format: "Format"
   inspector.audio_length: "Length"
@@ -555,6 +558,7 @@ Entries:
   assets.list_view: List
   assets.expand: Show sub-assets
   assets.collapse: Hide sub-assets
+  assets.same_image_tooltip: The same image is also embedded in
   assets.view_tooltip: switch between the list and the icons
   menu.new_project: New Project
   menu.register_project_file_type: Open .jproject Files with This Editor

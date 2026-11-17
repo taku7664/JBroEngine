@@ -1487,6 +1487,25 @@ namespace JBro
         }
     }
 
+    void EditorApplication::FindSameImages(AssetId asset, Array<const AssetRecord*>& others) const
+    {
+        others.Clear();
+        const AssetRegistry& registry = GetAssetRegistry();
+        const AssetRecord* self = registry.Find(asset);
+        if (self == nullptr || self->sharedImageKey == 0)
+        {
+            return;
+        }
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const AssetRecord& record = registry.GetRecord(index);
+            if (record.id != asset && record.sharedImageKey == self->sharedImageKey)
+            {
+                others.Add(&record);
+            }
+        }
+    }
+
     Bool EditorApplication::TakeBrowserRevealRequest(AssetId& asset)
     {
         if (m_revealInBrowser.IsNull())
@@ -1705,7 +1724,9 @@ namespace JBro
         target.metaPath = assets->GetMetaPath(*record);
         target.id = record->id;
         target.spriteId = m_selectedAssetMetaLoaded ? m_selectedAssetMeta->spriteId : AssetId{};
-        if (record->type == AssetType::Model)
+        // 모델 메타를 쓰면 레지스트리를 다시 훑는다 - 하위 목록이 바뀌었거나(모델 옵션), 내장 그림의 옵션이 묶음 열쇠를 바꿨다(하위 그림 옵션).
+        const AssetRecord* owner = record->owner.IsNull() ? nullptr : m_engine->GetAssetRegistry().Find(record->owner);
+        if (record->type == AssetType::Model || (owner != nullptr && owner->type == AssetType::Model))
         {
             target.afterWrite = [](void* user) { static_cast<EditorApplication*>(user)->RequestAssetRescan(); };
             target.afterWriteUser = const_cast<EditorApplication*>(this);

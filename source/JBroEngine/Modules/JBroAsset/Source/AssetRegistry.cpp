@@ -254,6 +254,11 @@ namespace JBro
                     child.relativePath = relativePath;
                     child.owner = meta.id;
                     child.name = String(subName);
+                    if (subType == AssetType::Texture)
+                    {
+                        const AssetSubEntry& entry = meta.subAssets[sub];
+                        child.sharedImageKey = MakeSharedImageKey(entry.contentHash, entry.hasTextureOptions ? entry.textureOptions : ModelTextureDefaults());
+                    }
                     if (Register(child))
                     {
                         added.Add(child.id);

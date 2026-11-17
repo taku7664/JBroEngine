@@ -41,6 +41,7 @@ namespace JBro
     }
 
     struct AssetLoadResult;
+    struct AssetRecord;
     class TaskManager;
     class Canvas;
     class EditorThumbnails;
@@ -347,6 +348,9 @@ namespace JBro
         // `RevealAsset` 은 탐색기를 여는 다른 일이다 - 이쪽은 에디터 안에서 찾아 준다.
         // 브라우저가 다음 프레임에 가져간다: 폴더를 열고 그 줄을 고른다.
         void RevealAssetInBrowser(AssetId asset);
+        // **같은 그림**(model-import-plan §2.5). 모델 내장 그림 `asset` 과 묶음 열쇠(`AssetRecord::sharedImageKey`)가 같은 다른 레코드들을 모은다.
+        // 열쇠가 없으면(그림 파일·메시·재질, 홀로인 그림) 비어 있다. 레지스트리를 한 번 훑는다 - 프레임마다 부르지 않고 바뀔 때·마우스를 올렸을 때 부른다.
+        void FindSameImages(AssetId asset, Array<const AssetRecord*>& others) const;
         // 브라우저가 부른다. 기다리는 것이 있으면 아이디를 주고 비운다.
         Bool TakeBrowserRevealRequest(AssetId& asset);
         // 엔진이 모르는 파일을 OS 의 기본 프로그램으로 연다. 열 프로그램이 없으면

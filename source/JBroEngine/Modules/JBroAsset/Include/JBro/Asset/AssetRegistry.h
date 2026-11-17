@@ -25,6 +25,9 @@ namespace JBro
         AssetId owner;
         // 하위 레코드의 이름이다(모델 안의 `Body`). 파일 자체의 레코드와 그림의 Sprite 는 비어 있다 - 에디터가 종류 이름으로 대신 보인다.
         String name;
+        // **모델 내장 그림의 묶음 열쇠**다(model-import-plan §2.5, `MakeSharedImageKey`). 원본 바이트와 적용되는 옵션이 같은 그림끼리 같고, 0 이면 묶지 않는다
+        // (그림 파일·메시·재질, 해시를 적기 전의 메타). 에디터는 이것으로 같은 그림을 보이고, 재질 단계의 `AssetSystem` 은 이것으로 한 번만 읽는다.
+        UInt64 sharedImageKey = 0;
     };
 
     struct AssetScanOptions

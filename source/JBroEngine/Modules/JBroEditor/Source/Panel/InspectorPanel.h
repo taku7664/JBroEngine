@@ -21,6 +21,7 @@ namespace JBro
     struct PropertyEditInfo;
     struct PropertyTable;
     struct TypeDescriptor;
+    struct AssetRecord;
 
     namespace Widget
     {
@@ -45,6 +46,8 @@ namespace JBro
         // `SpriteImportOptionsEditor` 처럼 두 창이 같은 값을 같은 길로 고친다. 각자 그리면
         // 한쪽의 편집이 다른 쪽에서 조용히 사라진다. 쓰는 길은 고른 에셋의 메타 하나다.
         void DrawAssetOptions(const AssetMetaFile& meta);
+        // 모델의 하위 에셋을 골랐을 때의 옵션 자리다. 내장 그림만 제 텍스처 옵션과 `같은 그림` 줄이 있다(model-import-plan 5 단계).
+        void DrawSubAssetOptions(const AssetMetaFile& meta, const AssetRecord& record);
 
         // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
         static constexpr const char* TypeName = "Inspector";
@@ -77,8 +80,10 @@ namespace JBro
             AssetMetaFile* scratch = nullptr;
             // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다. 블록마다 불 값을 두던 것을 하나로 모았다 -
             // 블록이 늘 때마다 불 값과 그 판정 사슬이 함께 늘었다(D-338 의 모델 블록을 더하며 바꿨다).
-            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model };
+            // `SubTexture` 는 모델 내장 그림 하나의 옵션이다 - 모델 메타의 하위 목록 `subIndex` 번째 항목에 적는다(model-import-plan 5 단계).
+            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model, SubTexture };
             Block block = Block::Texture;
+            std::size_t subIndex = 0;
         };
 
         struct Context

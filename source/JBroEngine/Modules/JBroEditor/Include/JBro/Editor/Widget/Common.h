@@ -32,6 +32,8 @@ namespace JBro::Widget
     ImVec4 ScaleColor(ImVec4 color, Float scale);
     // 빈 글자면 아무것도 하지 않는다. 부르는 쪽이 분기하지 않아도 되게.
     void HoveredTooltip(const char* text, ImGuiHoveredFlags flags = ImGuiHoveredFlags_None);
+    // 항목이 아닌 것(겹쳐 그린 표식) 위의 툴팁이다. 마우스가 위에 있는지는 부르는 쪽이 판다(`OverlayBadge`).
+    void ShowTooltip(const char* text);
 
     // 이번에 누른 것이 **끌기였는가**. 놓는 프레임에도 참이다.
     //

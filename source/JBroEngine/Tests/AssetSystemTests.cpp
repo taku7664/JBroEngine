@@ -1,5 +1,6 @@
 ﻿#include "TestCases.h"
 #include "TestClock.h"
+#include "TestModels.h"
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -21,6 +22,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
@@ -691,6 +693,89 @@ namespace
         Check(refused.finished, "and says it is finished so nobody waits for it");
         fixture.Close();
     }
+    // **모델의 내장 그림**(model-import-plan 5 단계). 하위 Texture 는 모델 안의 바이트를 그림 파일과 같은 디코더로 읽고, 옵션은 모델 메타의 제 하위 항목이다.
+    // 모델을 읽어야 나오므로 워커로 보내지 않고 동기로 싣는다 - 워커가 모델 파일을 그림으로 풀면 실패한다.
+    void TestAModelsEmbeddedImageLoadsAsATexture()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const std::string png(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        const std::string gltf = TestModels::SelfContainedQuadGltf("Bricks", png);
+        WriteBytes(fixture.root / "Art" / "crate.gltf", gltf.data(), gltf.size());
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(fixture.registry.Scan(fixture.platform, Utf8(fixture.root).c_str(), options, report), "the folder scans with the model");
+        const JBro::AssetRecord* model = fixture.registry.FindByPath("Art/crate.gltf");
+        Check(model != nullptr && model->type == JBro::AssetType::Model, "the glTF is a model");
+        JBro::Array<JBro::AssetId> owned;
+        fixture.registry.CollectOwned(model->id, owned);
+        JBro::AssetId textureId;
+        for (std::size_t index = 0; index < owned.Size(); ++index)
+        {
+            const JBro::AssetRecord* child = fixture.registry.Find(owned[index]);
+            if (child != nullptr && child->type == JBro::AssetType::Texture)
+            {
+                textureId = child->id;
+                Check(child->name == "Bricks", "the embedded image is a Texture named as in the file");
+            }
+        }
+        Check(false == textureId.IsNull(), "the embedded image is a sub-asset of the model");
+
+        // 워커 로드는 그것을 워커로 보내지 않는다(실패로도 세지 않는다).
+        {
+            JBro::TaskManager tasks;
+            Check(tasks.Initialize(LoadWorkers()), "the task manager starts");
+            JBro::AssetLoadResult result;
+            const JBro::AssetId ids[] = { textureId };
+            const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets,
+                JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", result);
+            Check(tasks.FindGroup(id) != nullptr && tasks.FindGroup(id)->GetTaskCount() == 0,
+                "an embedded image is not sent to a worker - it needs its model");
+            tasks.Wait(id);
+            tasks.Update();
+            Check(result.finished && result.failed == 0, "and nothing fails on the way");
+            tasks.Shutdown();
+        }
+
+        const JBro::AssetHandle handle = fixture.assets.Load(textureId);
+        const JBro::TextureData* texture = fixture.assets.GetTexture(handle);
+        Check(texture != nullptr && texture->width == 2 && texture->height == 2
+                && PixelIs(*texture, 0, 0, 255, 0, 0, 255) && PixelIs(*texture, 1, 0, 0, 255, 0, 255),
+            "the embedded PNG decodes to its pixels");
+        Check(texture->options.mipmaps, "a model's image keeps mipmaps on by default");
+
+        // 옵션은 하위 항목의 것이다. 고쳐 쓰고 제자리 재로드하면 같은 핸들이 새 옵션으로 읽힌다.
+        const JBro::String metaPath = Utf8(fixture.root / "Art" / "crate.gltf.jmeta");
+        JBro::AssetMetaFile meta;
+        JBro::AssetMetaError error;
+        Check(JBro::LoadAssetMetaFile(fixture.platform, metaPath.c_str(), meta, error), "the model's meta reads");
+        JBro::Bool found = false;
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            if (meta.subAssets[index].id == textureId)
+            {
+                meta.subAssets[index].hasTextureOptions = true;
+                meta.subAssets[index].textureOptions.filter = JBro::TextureFilter::Linear;
+                meta.subAssets[index].textureOptions.mipmaps = false;
+                found = true;
+            }
+        }
+        Check(found && JBro::SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the image's own options are written");
+        Check(fixture.assets.ReloadInPlace(textureId), "the image reloads in place");
+        texture = fixture.assets.GetTexture(handle);
+        Check(texture != nullptr && texture->options.filter == JBro::TextureFilter::Linear && texture->filter == JBro::TextureFilter::Linear
+                && false == texture->options.mipmaps,
+            "the reload reads the sub-asset's options, not the model's");
+        Check(PixelIs(*texture, 0, 0, 255, 0, 0, 255), "and still the same pixels");
+        // 모델 파일이 바뀌면 다시 읽기가 들고 있던 모델을 버리고 파일을 본다 - 그림이 깨졌으면 옛 픽셀로 성공하지 않는다.
+        const std::string broken = TestModels::SelfContainedQuadGltf("Bricks", "not an image at all");
+        WriteBytes(fixture.root / "Art" / "crate.gltf", broken.data(), broken.size());
+        Check(false == fixture.assets.ReloadInPlace(textureId), "a reload after the model file changed reads the file again, not the model it held");
+        fixture.assets.Release(handle);
+        fixture.Close();
+    }
+
 }
 
 JBro::Int32 RunAssetSystemTests()
@@ -706,6 +791,7 @@ JBro::Int32 RunAssetSystemTests()
     JBRO_CASE(TestAFailedDecodeIsCountedAndNotAdopted());
     JBRO_CASE(TestTheLoadYieldsToASyncLoadAndCancels());
     JBRO_CASE(TestASourceThatCannotReadOnWorkersLoadsInPlace());
+    JBRO_CASE(TestAModelsEmbeddedImageLoadsAsATexture());
     std::cout << "Asset system tests passed.\n";
     return 0;
 }

@@ -5,6 +5,8 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Uuid.h>
 
+#include <cstdint>
+
 #include <string>
 
 namespace JBro
@@ -66,6 +68,66 @@ namespace JBro
         }
     }
 
+    void ListModelSubAssets(const ModelData& model, Array<ModelSubAsset>& result)
+    {
+        result.Clear();
+        Array<String> taken;
+        const auto add = [&](const char* kind, const String& name, AssetType type, std::size_t index) {
+            ModelSubAsset sub;
+            sub.key = UniqueKey(taken, String(kind) + name);
+            sub.type = type;
+            sub.index = static_cast<UInt32>(index);
+            taken.Add(sub.key);
+            result.Add(std::move(sub));
+        };
+        for (std::size_t index = 0; index < model.meshes.Size(); ++index)
+        {
+            add("Mesh/", model.meshes[index].name, AssetType::Mesh, index);
+        }
+        // `importMaterials` 가 꺼져 있으면 디코더가 재질·그림을 내지 않는다 - 여기서 다시 거르지 않는다(같은 조건을 두 곳에 두면 한쪽만 고쳐지는 날이 온다).
+        for (std::size_t index = 0; index < model.materials.Size(); ++index)
+        {
+            add("Material/", model.materials[index].name, AssetType::Material, index);
+        }
+        for (std::size_t index = 0; index < model.images.Size(); ++index)
+        {
+            if (model.images[index].embedded.Size() > 0)
+            {
+                add("Texture/", model.images[index].name, AssetType::Texture, index);
+            }
+        }
+    }
+
+    TextureImportOptions ModelTextureDefaults()
+    {
+        TextureImportOptions options;
+        options.mipmaps = true;
+        return options;
+    }
+
+    UInt64 MakeSharedImageKey(UInt64 contentHash, const TextureImportOptions& options)
+    {
+        // 옵션 칸이 늘면 여기서 빌드가 멈춘다 - 새 칸을 열쇠에 섞을지 정하고 크기를 고친다.
+        static_assert(sizeof(TextureImportOptions) == 3, "a new texture option must be mixed into the shared image key or left out on purpose");
+        if (contentHash == 0)
+        {
+            return 0;
+        }
+        std::uint64_t key = 14695981039346656037ull;
+        const auto mix = [&](std::uint64_t value, std::size_t bytes) {
+            for (std::size_t at = 0; at < bytes; ++at)
+            {
+                key ^= (value >> (at * 8)) & 0xFF;
+                key *= 1099511628211ull;
+            }
+        };
+        mix(contentHash.Get(), 8);
+        mix(static_cast<std::uint64_t>(options.filter), 1);
+        mix(static_cast<std::uint64_t>(options.colorSpace), 1);
+        mix(options.mipmaps ? 1u : 0u, 1);
+        return key != 0 ? UInt64(key) : UInt64(1);
+    }
+
     Bool RefreshModelSubAssets(IPlatform& platform, const char* assetRoot, std::string_view relativePath,
         AssetMetaFile& meta, Bool& changed, String& error)
     {
@@ -91,33 +153,29 @@ namespace JBro
             return false;
         }
 
-        Array<String> keys;
-        for (std::size_t index = 0; index < model.meshes.Size(); ++index)
-        {
-            keys.Add(UniqueKey(keys, String("Mesh/") + model.meshes[index].name));
-        }
-        // `importMaterials` 가 꺼져 있으면 디코더가 재질을 내지 않는다 - 여기서 다시 거르지 않는다(같은 조건을 두 곳에 두면 한쪽만 고쳐지는 날이 온다).
-        for (std::size_t index = 0; index < model.materials.Size(); ++index)
-        {
-            keys.Add(UniqueKey(keys, String("Material/") + model.materials[index].name));
-        }
-
+        Array<ModelSubAsset> listed;
+        ListModelSubAssets(model, listed);
         Array<AssetSubEntry> merged;
-        for (std::size_t index = 0; index < keys.Size(); ++index)
+        for (std::size_t index = 0; index < listed.Size(); ++index)
         {
             AssetSubEntry entry;
-            entry.key = keys[index];
+            entry.key = listed[index].key;
+            const AssetSubEntry* previous = nullptr;
             for (std::size_t old = 0; old < meta.subAssets.Size(); ++old)
             {
                 if (meta.subAssets[old].key == entry.key)
                 {
-                    entry.id = meta.subAssets[old].id;
+                    previous = &meta.subAssets[old];
                     break;
                 }
             }
-            if (entry.id.IsNull())
+            entry.id = previous != nullptr ? previous->id : Uuid::Generate();
+            if (listed[index].type == AssetType::Texture)
             {
-                entry.id = Uuid::Generate();
+                // 해시는 파일에서 늘 새로 온다(그림이 바뀌면 묶음도 바뀐다). 옵션은 사용자가 고친 것이라 지킨다.
+                entry.contentHash = model.images[listed[index].index.Get()].contentHash;
+                entry.hasTextureOptions = true;
+                entry.textureOptions = previous != nullptr && previous->hasTextureOptions ? previous->textureOptions : ModelTextureDefaults();
             }
             merged.Add(std::move(entry));
         }
@@ -125,7 +183,9 @@ namespace JBro
         Bool same = meta.hasSubAssets && merged.Size() == meta.subAssets.Size();
         for (std::size_t index = 0; same && index < merged.Size(); ++index)
         {
-            same = merged[index].key == meta.subAssets[index].key && merged[index].id == meta.subAssets[index].id;
+            const AssetSubEntry& now = merged[index];
+            const AssetSubEntry& old = meta.subAssets[index];
+            same = now.key == old.key && now.id == old.id && now.contentHash == old.contentHash && now.hasTextureOptions == old.hasTextureOptions;
         }
         changed = false == same;
         meta.subAssets = std::move(merged);

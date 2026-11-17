@@ -1,4 +1,5 @@
 ﻿#include "TestCases.h"
+#include "TestModels.h"
 #include <JBro/Editor/Widget/ItemLocator.h>
 #include <JBro/Core/Version.h>
 #include <JBro/Host/DebugDrawSystem.h>
@@ -5069,6 +5070,14 @@ namespace
             std::ofstream mtl(root / "Assets" / "art" / "parts.mtl", std::ios::binary);
             mtl << "newmtl Wood\nKd 0.6 0.4 0.2\nnewmtl Metal\nKd 0.7 0.7 0.7\n";
         }
+        // 같은 그림이 내장된 모델 둘(5 단계) - 하위 Texture 에 고리 표식이 붙고 인스펙터가 `같은 그림` 을 보인다.
+        // 제 폴더에 둔다 - `art` 에 두면 이름순으로 앞에 서서 좁은 목록에서 위의 시험이 보는 줄을 밀어낸다.
+        fs::create_directories(root / "Assets" / "props", ignored);
+        for (const char* name : {"box.gltf", "barrel.gltf"})
+        {
+            std::ofstream gltf(root / "Assets" / "props" / name, std::ios::binary);
+            gltf << TestModels::SelfContainedQuadGltf("Bricks", std::string(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng)));
+        }
         const JBro::String projectPath = TempPath("JBroAssetExpandProbe\\Expand.jproject");
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
@@ -5231,6 +5240,95 @@ namespace
         Check(crateMeta != nullptr && crateMeta->type == JBro::AssetType::Model && crateMeta->subAssets.Size() == 4,
             "and the inspector reads its meta with the sub-asset list");
         SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_model_inspector");
+
+        // ── 내장 그림(5 단계): 두 모델에 든 같은 그림 ─────────────
+        const auto embeddedImageOf = [&](const char* path) {
+            const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath(path);
+            Check(model != nullptr && model->type == JBro::AssetType::Model, "the glTF is registered as a model");
+            JBro::Array<JBro::AssetId> parts;
+            editor.GetAssetRegistry().CollectOwned(model->id, parts);
+            JBro::AssetId image;
+            for (std::size_t part = 0; part < parts.Size(); ++part)
+            {
+                if (editor.GetAssetRegistry().Find(parts[part])->type == JBro::AssetType::Texture)
+                {
+                    image = parts[part];
+                }
+            }
+            Check(false == image.IsNull(), "the model's embedded image is a Texture sub-asset");
+            return image;
+        };
+        const JBro::AssetId boxImage = embeddedImageOf("props/box.gltf");
+        const JBro::AssetId barrelImage = embeddedImageOf("props/barrel.gltf");
+        Check(editor.GetAssetRegistry().Find(boxImage)->sharedImageKey != 0
+                && editor.GetAssetRegistry().Find(boxImage)->sharedImageKey == editor.GetAssetRegistry().Find(barrelImage)->sharedImageKey,
+            "the same image in two models shares one key");
+        JBro::Array<const JBro::AssetRecord*> same;
+        editor.FindSameImages(barrelImage, same);
+        Check(same.Size() == 1 && same[0]->id == boxImage, "the barrel's image finds the box's as its same image");
+
+        // `props` 폴더를 연다(아이콘 보기 그대로).
+        assets = ImGui::FindWindowByName("Assets");
+        {
+            ImGuiWindow* tree = FindChildWindow(assets, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            Spot folder;
+            Check(FindItemAnywhereInWindow(editor, hwnd, tree, LabelId(LabelId(tree->ID, "props"), "##folder"), folder),
+                "the props folder must be a row in the tree");
+            ClickAt(editor, hwnd, folder);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the props folder");
+            }
+        }
+        contents = FindChildWindow(ImGui::FindWindowByName("Assets"), "##contents");
+        Check(contents != nullptr, "the contents pane must still exist");
+        const ImGuiID barrelScope = LabelId(contents->ID, "props/barrel.gltf");
+        Spot barrelExpander;
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(barrelScope, "##expand"), barrelExpander), "the barrel tile has a fold button");
+        ClickAt(editor, hwnd, barrelExpander);
+        Check(editor.Tick(Frame), "the barrel unfolds");
+        char barrelImageText[JBro::Uuid::TextCapacity] = {};
+        Check(barrelImage.ToText(barrelImageText, sizeof(barrelImageText)), "the image id has a text form");
+        const ImGuiID barrelImageTile = LabelId(LabelId(barrelScope, barrelImageText), "##tile");
+        JBro::Widget::ItemLocator::Watch(barrelImageTile);
+        Check(editor.Tick(Frame), "the editor must tick while locating the image tile");
+        JBro::Widget::ItemLocator::ItemRect imageRect;
+        Check(JBro::Widget::ItemLocator::Take(imageRect), "the embedded image has its own tile");
+        // 고리 표식은 칸의 왼쪽 위에 있다. 올리면 같은 그림의 목록이 뜬다.
+        const JBro::Int32 badgeX = static_cast<JBro::Int32>(imageRect.minX.Get() + 8.0f);
+        const JBro::Int32 badgeY = static_cast<JBro::Int32>(imageRect.minY.Get() + 8.0f);
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(badgeX, badgeY));
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor ticks under the badge");
+        Check(FindActiveWindowContaining("##Tooltip") != nullptr, "the ring badge on the image tile lists where the same image is");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_same_image_badge");
+        Spot imageSpot;
+        Check(LocateItem(editor, hwnd, barrelImageTile, -1, imageSpot) == Located::Found, "the image tile is on screen");
+        ClickAt(editor, hwnd, imageSpot);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector shows the embedded image");
+        }
+        Check(editor.GetSelectedAsset() == barrelImage, "clicking the image tile chooses the embedded image");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_same_image_inspector");
+
+        // `같은 그림` 줄이 부르는 길: 브라우저가 다른 모델을 펼치고 그 그림을 고른다. 먼저 통을 접어 상자의 칸이 한 줄에 들게 한다.
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(barrelScope, "##expand"), barrelExpander), "the barrel keeps its fold button");
+        ClickAt(editor, hwnd, barrelExpander);
+        Check(editor.Tick(Frame), "the barrel folds");
+        char boxImageText[JBro::Uuid::TextCapacity] = {};
+        Check(boxImage.ToText(boxImageText, sizeof(boxImageText)), "the image id has a text form");
+        const ImGuiID boxImageTile = LabelId(LabelId(LabelId(contents->ID, "props/box.gltf"), boxImageText), "##tile");
+        Check(LocateItem(editor, hwnd, boxImageTile, -1, unused) != Located::Found, "folded, the box's image has no tile");
+        editor.RevealAssetInBrowser(boxImage);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the browser takes the reveal");
+        }
+        Check(editor.GetSelectedAsset() == boxImage, "revealing the same image chooses it");
+        JBro::Widget::ItemLocator::Watch(boxImageTile);
+        Check(editor.Tick(Frame), "the editor must tick while locating the box's image");
+        Check(JBro::Widget::ItemLocator::Take(imageRect), "and unfolds its model so it can be seen");
 
         editor.Shutdown();
         fs::remove_all(root, ignored);

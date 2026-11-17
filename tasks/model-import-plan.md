@@ -1,6 +1,6 @@
 # 모델 임포트 계획 (D-338)
 
-> 상태: **진행** (2026-11-16 시작, 1 단계 완료). todo-3d 우선순위 3. 사용자와 토론해 정한 것(2026-11-16): 가져오는 단위는 메시가 아니라 **모델**,
+> 상태: **진행** (2026-11-16 시작, 1~5 단계 완료, 남은 것은 6 단계 `.jpak`). todo-3d 우선순위 3. 사용자와 토론해 정한 것(2026-11-16): 가져오는 단위는 메시가 아니라 **모델**,
 > 디코더는 **ufbx + cgltf**("범용적인 걸 쓰되 하나로 안 되면 여럿 허용"), 하위 에셋은 에셋 브라우저에서 **▶ 로 펼친다**(그림의 Texture·Sprite 도 같이),
 > 모델에 **내장된 같은 그림은 자동으로 묶되 묶인 것을 보이게** 한다. 에디터 화면은 2D 를 따르고, 3D 만의 것이라 달라야 하면 먼저 묻는다.
 
@@ -68,6 +68,18 @@
   통계 패널에 묶은 수와 아낀 메모리 한 줄(선택).
 - 실제 메모리 공유는 텍스처가 GPU 에 쓰이는 재질 단계에서 붙는다. 첫 판은 해시 기록·배지·`같은 그림` 줄까지다.
 - 바깥 그림 파일은 원래 에셋 하나라 묶을 것이 없다.
+- **선 모양(5 단계, D-343)**: 키는 `Texture/그림 이름`이고 키를 짓는 곳은 `ListModelSubAssets` 하나다(메시·재질·내장 그림 차례, 겹치면 ` (2)`) - 목록을 맞추는 쪽과
+  읽는 쪽(`AssetSystem`)이 같은 이름으로 같은 것을 찾는다. `.jmeta` 의 그림 항목만 `Hash`(16 자리 16 진수)와 제 `ImportOptions` 를 든다 - 메시·재질 항목에 있으면 읽기도 쓰기도 실패다.
+  해시는 모델을 다시 맞출 때마다 파일에서 다시 적고, 옵션은 사용자가 고친 것을 지킨다. 새 그림은 `ModelTextureDefaults`(밉맵 켬)로 적는다.
+  레지스트리는 하위 레코드에 묶음 열쇠 `AssetRecord::sharedImageKey`(`MakeSharedImageKey` - 해시와 필터·색 공간·밉맵을 섞은 FNV-1a, 0 은 묶지 않음)를 단다.
+  옵션 칸이 늘면 `static_assert` 가 빌드를 멈춰 새 칸을 열쇠에 넣을지 정하게 한다. `Auto` 색 공간은 값 그대로 견준다 - 실제 공간은 재질의 칸이 정하고, 같은 그림을
+  다른 칸에 쓰는 일은 드물어 재질 단계에서 실제로 묶을 때 다시 본다.
+  `AssetSystem` 은 하위 Texture 를 주인 모델을 읽어(메시와 같이 마지막 모델 하나를 든다) 그 그림 바이트를 그림 파일과 같은 디코더로 푼다. 옵션은 모델 메타의 제 항목이다.
+  모델을 읽어야 나와 워커로 보내지 않는다. 제자리 재로드는 들고 있던 모델을 버린다(파일이 바뀌었을 수 있다). 썸네일·인스펙터 그림은 이 길로 그대로 선다.
+  에디터: 브라우저는 레지스트리가 바뀔 때 같은 열쇠의 수를 세어 하위 줄·칸에 고리 표식(`link-variant` 와 수)을 달고, 올리면 `모델 / 그림` 목록을 띄운다.
+  모델의 하위 에셋을 고르면 인스펙터 머리가 그 하위 에셋(이름·`모델`·종류·아이디)이다. 내장 그림은 `같은 그림` 줄(누르면 브라우저가 그 모델을 펼쳐 고른다)과 제 텍스처 옵션,
+  묶였으면 "옵션을 바꾸면 따로 읽힌다" 안내를 보인다. 옵션 편집은 모델 메타의 그 항목을 고치고 레지스트리를 다시 훑는다(열쇠가 바뀐다).
+  통계 패널의 "아낀 메모리" 한 줄은 실제로 나누어 읽는 재질 단계에서 붙인다(지금은 아끼는 것이 없다).
 
 ### 2.6 에셋 브라우저의 ▶ 펼치기
 
@@ -106,7 +118,7 @@
 | 2 | ufbx·cgltf 를 `ThirdParty/` 에 들인다(내려받기는 파일·출처·크기를 밝히고 확인) · `ModelDecoder` 와 `ModelData` · 시험 모델(작은 `.glb`·`.fbx`·`.obj`) | `[완료]` 2026-11-16 · ufbx v0.23.1(자기 정적 라이브러리)·cgltf v1.15(헤더, 구현은 `ModelDecoder.cpp` 한 곳) · `JBroAsset` 의 `ModelDecoder.h` (`ModelData`·`DecodeModel`·`ModelFileReader`·`HashModelBytes`)와 `AssetTypes.h` 의 `ModelImportOptions`(D-339) · 시험 묶음 `ModelDecoder` 가 모델을 직접 짓는다(데이터 URI `.gltf`·바깥 `.bin` `.gltf`·`.glb`·`.mtl` 있는 `.obj`·ASCII `.fbx`) · 뮤테이션 여덟(감김·UV 뒤집기·단위·매끈함 각·합치기·`importMaterials`·해시·배율)이 모두 잡힌다 - 처음 해시 시험은 길이만 달라 지나갔다. 세부는 §2.2 의 "선 모양" |
 | 3 | `AssetType::Model` · 확장자 표 · 레지스트리의 하위 레코드와 `.jmeta` 하위 아이디 고정 · `ModelImportOptions` | `[완료]` 2026-11-16 · D-341 · `AssetType::Model`(`.fbx .obj .gltf .glb`), `AssetRecord::name`, `.jmeta` 의 `Model.ImportOptions`·`Model.SubAssets`(`Key`·`Id`), `RefreshModelSubAssets`(`ModelImport.h`), 스캔이 하위 레코드를 세움, 인스펙터의 모델 임포트 옵션(블록 종류를 열거형 하나로), 메시 칸 목록의 `모델 / 메시`, 브라우저의 모델·메시·재질 아이콘, `TextureImportOptions` 의 `colorSpace`·`mipmaps`(값만, D-339 (a)) · 시험 `AssetRegistry` 의 `TestModelsRegisterTheirSubAssets`·브라우저 펼치기 시험의 모델(화면 `assets_model_icons`·`assets_model_inspector`) |
 | 4 | `AssetSystem` 의 메시 풀 · `MeshLibrary` 등록과 해석 패스 · 메시 칸 목록의 `모델 / 메시` · 파일 감시로 다시 읽기 | `[완료]` 2026-11-16 · D-342 · `MeshData` 풀(`AssetSystem::ReadMesh` - 모델을 읽어 그 이름의 메시, 마지막 모델 하나를 들고 있음, 곁 파일은 에셋 폴더에서 바로), `MeshLibrary::ResolveAsset`(처음 만날 때·자료 세대가 오를 때 올림), `MeshRender3DSystem` 이 컴포넌트 핸들을 되쓰지 않음, 호스트 감시가 모델 파일 변경 때 하위 목록을 맞춤 · 시험 `MeshPixel` 의 `TestAModelMeshIsDrawnAndFollowsAReload`(세 백엔드), `D3D12Smoke` 의 모델 파일 변경 · 시험 도우미 `RenderOnce` 를 호스트와 같은 차례(갱신 → 프레임)로 고침 |
-| 5 | 내장 그림의 하위 Texture · 해시 기록 · 브라우저 배지와 인스펙터 `같은 그림` 줄 | |
+| 5 | 내장 그림의 하위 Texture · 해시 기록 · 브라우저 배지와 인스펙터 `같은 그림` 줄 | `[완료]` 2026-11-17 · D-343 · `ListModelSubAssets`·`MakeSharedImageKey`·`ModelTextureDefaults`(`ModelImport.h`), `.jmeta` 그림 항목의 `Hash`·`ImportOptions`, `AssetRecord::sharedImageKey`, `AssetSystem::ReadEmbeddedTexture`, `Widget::OverlayBadge`·`ShowTooltip`·`LinkText`, `EditorApplication::FindSameImages`, 인스펙터의 하위 에셋 머리와 `같은 그림` 줄 · 시험 `AssetRegistry` 의 `TestEmbeddedImagesAreSubAssetsGroupedByContent`, `AssetSystem` 의 `TestAModelsEmbeddedImageLoadsAsATexture`, 브라우저 펼치기 시험의 두 glTF(화면 `assets_same_image_badge`·`assets_same_image_inspector`) · 시험 모델 짓는 도우미를 `Tests/TestModels.h` 로 옮겼다 · 세부는 §2.5 의 "선 모양" |
 | 6 | `.jpak` 에 엔진이 바로 읽는 이진 메시로 구워 넣기(2D 의 미리 뜬 아틀라스와 같은 자리) | |
 
 각 단계는 시험·뮤테이션·문서·커밋을 끝내고 다음으로 간다.

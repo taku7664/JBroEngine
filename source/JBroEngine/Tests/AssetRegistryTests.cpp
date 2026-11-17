@@ -1,7 +1,9 @@
 ﻿#include "TestCases.h"
+#include "TestModels.h"
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/ModelDecoder.h>
 #include <JBro/Asset/ModelImport.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
@@ -11,6 +13,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
@@ -467,12 +470,126 @@ namespace
         platform.Shutdown();
         fs::remove_all(root);
     }
+    const JBro::AssetSubEntry* SubEntry(const JBro::AssetMetaFile& meta, const char* key)
+    {
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            if (meta.subAssets[index].key == key)
+            {
+                return &meta.subAssets[index];
+            }
+        }
+        return nullptr;
+    }
+
+    // **모델의 내장 그림과 같은 그림 묶기**(model-import-plan 5 단계·§2.5). 내장 그림은 `Texture/이름` 하위 에셋이고 `.jmeta` 에 원본 해시와 제 옵션을 적는다.
+    // 다른 모델에 든 같은 바이트는 같은 묶음 열쇠를 갖고, 한쪽 옵션을 바꾸면 갈라진다. 바깥 그림 파일을 가리키는 그림은 하위 에셋이 아니다.
+    void TestEmbeddedImagesAreSubAssetsGroupedByContent()
+    {
+        const std::string bricks = std::string("\x89PNG\r\n\x1a\nbrick bytes", 19);
+        const std::string stones = std::string("\x89PNG\r\n\x1a\nstone bytes", 19);
+        const fs::path root = MakeProbeDirectory();
+        WriteFile(root / "crate.gltf", TestModels::SelfContainedQuadGltf("Bricks", bricks).c_str());
+        WriteFile(root / "barrel.gltf", TestModels::SelfContainedQuadGltf("Bricks", bricks).c_str());
+        WriteFile(root / "wall.gltf", TestModels::SelfContainedQuadGltf("Bricks", stones).c_str());
+        const std::string buffer = TestModels::QuadBuffer();
+        WriteFile(root / "outside.gltf", TestModels::QuadGltf("data:application/octet-stream;base64," + TestModels::Base64(buffer), buffer.size(),
+            "{\"uri\":\"bricks.png\"}").c_str());
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
+        JBro::AssetScanOptions editor;
+        editor.createMissingMeta = true;
+        JBro::AssetRegistry registry;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(platform, Utf8(root).c_str(), editor, report), "the folder scans");
+
+        const auto metaOf = [&](const char* name) {
+            JBro::AssetMetaFile meta;
+            JBro::AssetMetaError error;
+            Check(JBro::LoadAssetMetaFile(platform, Utf8(root / (std::string(name) + ".jmeta")).c_str(), meta, error), "a model's meta reads");
+            return meta;
+        };
+        const JBro::AssetMetaFile crate = metaOf("crate.gltf");
+        const JBro::AssetSubEntry* crateImage = SubEntry(crate, "Texture/Bricks");
+        Check(crateImage != nullptr, "the embedded image is a Texture/<name> sub-asset");
+        Check(crateImage->contentHash == JBro::HashModelBytes({reinterpret_cast<const std::byte*>(bricks.data()), static_cast<JBro::UInt32>(bricks.size())}),
+            "its meta entry records the hash of the image's bytes");
+        Check(crateImage->hasTextureOptions && crateImage->textureOptions.mipmaps, "and its own options, with mipmaps on for a model's image");
+        Check(SubEntry(crate, "Mesh/Quad") != nullptr && SubEntry(crate, "Mesh/Quad")->contentHash == 0, "a mesh entry has no hash");
+        const JBro::AssetMetaFile outside = metaOf("outside.gltf");
+        Check(outside.subAssets.Size() == 2 && SubEntry(outside, "Texture/bricks.png") == nullptr,
+            "an image the model only points at is not a sub-asset - that file is its own Texture");
+
+        const JBro::AssetRecord* crateRecord = registry.Find(crateImage->id);
+        const JBro::AssetRecord* barrelRecord = registry.Find(SubEntry(metaOf("barrel.gltf"), "Texture/Bricks")->id);
+        const JBro::AssetRecord* wallRecord = registry.Find(SubEntry(metaOf("wall.gltf"), "Texture/Bricks")->id);
+        Check(crateRecord != nullptr && barrelRecord != nullptr && wallRecord != nullptr, "every embedded image has a record");
+        Check(crateRecord->sharedImageKey != 0 && crateRecord->sharedImageKey == barrelRecord->sharedImageKey,
+            "the same bytes in two models share one key");
+        Check(wallRecord->sharedImageKey != crateRecord->sharedImageKey, "other bytes under the same name do not");
+        Check(registry.Find(SubEntry(crate, "Mesh/Quad")->id)->sharedImageKey == 0, "meshes are never grouped");
+
+        // 한쪽 옵션을 바꾸면 갈라진다. 모델을 다시 맞춰도 고친 옵션은 남고 해시는 다시 적힌다.
+        JBro::AssetMetaFile barrel = metaOf("barrel.gltf");
+        JBro::AssetSubEntry* barrelImage = const_cast<JBro::AssetSubEntry*>(SubEntry(barrel, "Texture/Bricks"));
+        barrelImage->textureOptions.colorSpace = JBro::TextureColorSpace::Linear;
+        barrelImage->contentHash = 1;
+        JBro::Bool changed = false;
+        JBro::String error;
+        Check(JBro::RefreshModelSubAssets(platform, Utf8(root).c_str(), "barrel.gltf", barrel, changed, error), "the model refreshes");
+        barrelImage = const_cast<JBro::AssetSubEntry*>(SubEntry(barrel, "Texture/Bricks"));
+        Check(changed && barrelImage->contentHash == crateImage->contentHash, "the refresh writes the hash from the file again");
+        Check(barrelImage->textureOptions.colorSpace == JBro::TextureColorSpace::Linear, "and keeps the options the user set");
+        Check(JBro::SaveAssetMetaFile(platform, Utf8(root / "barrel.gltf.jmeta").c_str(), barrel), "the meta writes");
+        JBro::AssetRegistry again;
+        Check(again.Scan(platform, Utf8(root).c_str(), editor, report), "the folder scans again");
+        Check(again.Find(crateImage->id)->sharedImageKey != again.Find(barrelImage->id)->sharedImageKey,
+            "different options split the same bytes into two images");
+
+        // 열쇠는 바이트와 옵션 세 칸에 달렸다.
+        JBro::TextureImportOptions options = JBro::ModelTextureDefaults();
+        const JBro::UInt64 base = JBro::MakeSharedImageKey(7, options);
+        Check(JBro::MakeSharedImageKey(0, options) == 0 && base != 0, "no hash, no key");
+        Check(JBro::MakeSharedImageKey(8, options) != base, "the bytes change the key");
+        options.filter = JBro::TextureFilter::Linear;
+        Check(JBro::MakeSharedImageKey(7, options) != base, "the filter changes the key");
+        options = JBro::ModelTextureDefaults();
+        options.mipmaps = false;
+        Check(JBro::MakeSharedImageKey(7, options) != base, "mipmaps change the key");
+
+        // 메타: 해시와 옵션은 그림 항목만 갖는다. 틀린 해시는 파일 전체의 실패다.
+        JBro::AssetMetaFile reread;
+        JBro::AssetMetaError metaError;
+        const JBro::String text = JBro::FormatAssetMetaFile(barrel);
+        Check(JBro::ParseAssetMetaFile(text.c_str(), text.size(), reread, metaError), "a meta with an image entry round-trips");
+        const JBro::AssetSubEntry* rereadImage = SubEntry(reread, "Texture/Bricks");
+        Check(rereadImage != nullptr && rereadImage->contentHash == barrelImage->contentHash && rereadImage->hasTextureOptions
+                && rereadImage->textureOptions.colorSpace == JBro::TextureColorSpace::Linear,
+            "with the image's hash and options");
+        const char* meshHash = "Version: 1\nId: 0123456789abcdeffedcba9876543210\nType: Model\nModel:\n  SubAssets:\n"
+                               "    - Key: Mesh/A\n      Id: 0123456789abcdeffedcba9876543211\n      Hash: 0123456789abcdef\n";
+        Check(false == JBro::ParseAssetMetaFile(meshHash, std::strlen(meshHash), reread, metaError), "a mesh may not carry a hash");
+        const char* materialOptions = "Version: 1\nId: 0123456789abcdeffedcba9876543210\nType: Model\nModel:\n  SubAssets:\n"
+                                      "    - Key: Material/A\n      Id: 0123456789abcdeffedcba9876543211\n      ImportOptions:\n        mipmaps: true\n";
+        Check(false == JBro::ParseAssetMetaFile(materialOptions, std::strlen(materialOptions), reread, metaError), "nor a material import options");
+        const char* shortHash = "Version: 1\nId: 0123456789abcdeffedcba9876543210\nType: Model\nModel:\n  SubAssets:\n"
+                                "    - Key: Texture/A\n      Id: 0123456789abcdeffedcba9876543211\n      Hash: 12ab\n";
+        Check(false == JBro::ParseAssetMetaFile(shortHash, std::strlen(shortHash), reread, metaError), "a hash is sixteen hex digits");
+        JBro::AssetMetaFile meshWithHash = barrel;
+        const_cast<JBro::AssetSubEntry*>(SubEntry(meshWithHash, "Mesh/Quad"))->contentHash = 5;
+        JBro::String refused;
+        Check(false == JBro::FormatAssetMetaFile(meshWithHash, refused), "and the writer refuses what the reader would refuse");
+        platform.Shutdown();
+        fs::remove_all(root);
+    }
 }
 
 JBro::Int32 RunAssetRegistryTests()
 {
     JBRO_CASE(TestTypeRules());
     JBRO_CASE(TestModelsRegisterTheirSubAssets());
+    JBRO_CASE(TestEmbeddedImagesAreSubAssetsGroupedByContent());
     JBRO_CASE(TestMetaFileRoundTrip());
     JBRO_CASE(TestIgnorePatterns());
     JBRO_CASE(TestRegisterUnregisterAndRename());
