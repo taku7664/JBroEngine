@@ -186,6 +186,9 @@ fn FindNearest() -> Enemy?           // 핸들 반환(D-262)
 | `override` | **사용자 타입끼리** 부모의 가상 함수를 재정의한다. `interface` 함수를 구현할 때도 쓴다 |
 | `require` | 순수 가상 함수다. **`interface` 안에서는 생략할 수 있다** |
 
+**엔진 훅에는 `callback` 과 `override` 를 둘 다 쓸 수 있다**(2026-11-17, DECISIONS-NEEDED Q5-1 사용자 결정 "둘다 허용"). [확정]
+권장 표기는 `callback` 이다 - 엔진이 부르는 자리라는 것이 이름에 보인다. 분석기는 전부터 엔진 훅의 `override` 도 받아 훅으로 표시했고(`ScriptSummaryTests` 가 단언한다), 저장소 시험 입력(`Control.jscript`)도 `override` 를 쓴다. 위 표의 "`override` 는 사용자 타입끼리" 는 `callback` 이 엔진 훅에만 쓰인다는 뜻이고, 엔진 훅에 `override` 를 금하지 않는다.
+
 ```
 class Weapon
 {
