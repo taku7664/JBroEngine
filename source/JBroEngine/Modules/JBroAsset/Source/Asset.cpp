@@ -872,7 +872,7 @@ namespace JBro
         {
             Array<std::byte> cooked;
             if (false == m_source->Read(record, AssetBlob::CookedMesh, cooked)
-                || false == ReadCookedMesh(cooked, data.vertices, data.indices, data.hasUvs))
+                || false == ReadCookedMesh(cooked, data.vertices, data.indices, data.hasUvs, data.material))
             {
                 Log::Write(LogLevel::Warning, "asset", "%s: the cooked mesh is damaged", record.relativePath.c_str());
                 return false;
@@ -894,11 +894,76 @@ namespace JBro
             data.vertices = mesh.vertices;
             data.indices = mesh.indices;
             data.hasUvs = mesh.hasUvs;
+            data.material = m_registry != nullptr ? FindModelMeshMaterialId(*m_registry, *model, listed, mesh) : AssetId{};
             return true;
         }
         // 메타의 목록이 파일보다 낡았다(파일이 바뀌고 목록을 아직 맞추지 않음). 에디터의 파일 감시가 맞춘다.
         Log::Write(LogLevel::Warning, "asset", "%s: the model has no mesh named %s", model->relativePath.c_str(), record.name.c_str());
         return false;
+    }
+
+    Bool AssetSystem::ReadMaterial(const AssetRecord& record, MaterialData& data)
+    {
+        if (m_source == nullptr)
+        {
+            return false;
+        }
+        String error;
+        // 빌드가 옮겨 둔 것이 먼저다 - 게임은 모델을 읽지 않는다. 그림 칸의 아이디까지 풀려 있다.
+        if (m_source->Has(record, AssetBlob::CookedMaterial))
+        {
+            Array<std::byte> cooked;
+            if (false == m_source->Read(record, AssetBlob::CookedMaterial, cooked)
+                || false == ParseMaterialFile(reinterpret_cast<const char*>(cooked.Data()), cooked.Size(), data.desc, error))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the cooked material is damaged", record.relativePath.c_str());
+                return false;
+            }
+            return true;
+        }
+        // 모델의 하위 Material 은 모델의 재질을 옮긴 것이다(읽기 전용, D-346 (2)).
+        if (const AssetRecord* model = OwnerModelOf(record))
+        {
+            const ModelData* decoded = DecodeOwnerModel(*model);
+            if (decoded == nullptr)
+            {
+                return false;
+            }
+            Array<ModelSubAsset> listed;
+            ListModelSubAssets(*decoded, listed);
+            const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Material, record.name);
+            if (sub == nullptr)
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the model has no material named %s", model->relativePath.c_str(), record.name.c_str());
+                return false;
+            }
+            UInt32 missing = 0;
+            data.desc = MakeModelMaterialDesc(*m_registry, *model, *decoded, listed, sub->index.Get(), missing);
+            if (missing > 0)
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: %u picture(s) of material %s are not in the project", model->relativePath.c_str(),
+                    static_cast<unsigned>(missing.Get()), record.name.c_str());
+            }
+            return true;
+        }
+        Array<std::byte> text;
+        if (false == m_source->Read(record, AssetBlob::Source, text))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the material file could not be read", record.relativePath.c_str());
+            return false;
+        }
+        if (false == ParseMaterialFile(reinterpret_cast<const char*>(text.Data()), text.Size(), data.desc, error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: %s", record.relativePath.c_str(), error.c_str());
+            return false;
+        }
+        return true;
+    }
+
+    const MaterialData* AssetSystem::GetMaterial(AssetHandle handle) const
+    {
+        const Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material);
+        return slot != nullptr ? &slot->data : nullptr;
     }
 
     Bool AssetSystem::ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data)
@@ -1140,6 +1205,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::Material:
+                if (Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -1247,6 +1319,16 @@ namespace JBro
             handle = Occupy(m_meshes, AssetType::Mesh, id, std::move(data));
             break;
         }
+        case AssetType::Material:
+        {
+            MaterialData data;
+            if (false == ReadMaterial(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_materials, AssetType::Material, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -1322,6 +1404,14 @@ namespace JBro
             {
                 --mesh->referenceCount;
             }
+            return;
+        }
+        if (Slot<MaterialData>* material = FindSlot(m_materials, handle, AssetType::Material))
+        {
+            if (material->referenceCount != 0)
+            {
+                --material->referenceCount;
+            }
         }
     }
 
@@ -1340,7 +1430,8 @@ namespace JBro
             || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr
             || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr
             || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr
-            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr;
+            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr
+            || FindSlot(m_materials, handle, AssetType::Material) != nullptr;
     }
 
     UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -1376,6 +1467,10 @@ namespace JBro
         if (const Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
         {
             return mesh->referenceCount;
+        }
+        if (const Slot<MaterialData>* material = FindSlot(m_materials, handle, AssetType::Material))
+        {
+            return material->referenceCount;
         }
         return 0;
     }
@@ -1518,6 +1613,23 @@ namespace JBro
             mesh->data = std::move(fresh);
             return true;
         }
+        if (Slot<MaterialData>* material = FindSlot(m_materials, *loaded, AssetType::Material))
+        {
+            // 모델의 재질이면 모델 파일이 바뀌었을 수 있다 - 들고 있던 모델을 버린다.
+            if (OwnerModelOf(*record) != nullptr)
+            {
+                m_decodedModelId = {};
+                m_decodedModel = {};
+            }
+            MaterialData fresh;
+            if (false == ReadMaterial(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = material->data.dataGeneration + 1;
+            material->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -1618,6 +1730,15 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_meshes, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_materials.slots.Size(); ++index)
+        {
+            Slot<MaterialData>& slot = m_materials.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_materials, index);
                 ++freed;
             }
         }

@@ -383,6 +383,15 @@ namespace JBro
                     material.images[static_cast<UInt32>(ModelTextureSlot::Normal).Get()] = ImageOf(data, source.normal_texture);
                     material.images[static_cast<UInt32>(ModelTextureSlot::Occlusion).Get()] = ImageOf(data, source.occlusion_texture);
                     material.images[static_cast<UInt32>(ModelTextureSlot::Emissive).Get()] = ImageOf(data, source.emissive_texture);
+                    for (Int32 channel = 0; channel < 3; ++channel)
+                    {
+                        material.emissive[channel.Get()] = source.emissive_factor[channel.Get()];
+                    }
+                    if (source.alpha_mode == cgltf_alpha_mode_mask)
+                    {
+                        material.alphaCutout = true;
+                        material.alphaCutoff = source.alpha_cutoff;
+                    }
                     for (UInt32 slot = 0; slot < ModelTextureSlotCount; ++slot)
                     {
                         NoteImageUse(model, material.images[slot.Get()], static_cast<ModelTextureSlot>(slot.Get()), used);
@@ -654,6 +663,11 @@ namespace JBro
                     material.images[static_cast<UInt32>(ModelTextureSlot::MetallicRoughness).Get()] = TextureImage(source->pbr.roughness.texture, imageOfTexture);
                     material.images[static_cast<UInt32>(ModelTextureSlot::Occlusion).Get()] = TextureImage(source->pbr.ambient_occlusion.texture, imageOfTexture);
                     material.images[static_cast<UInt32>(ModelTextureSlot::Emissive).Get()] = TextureImage(source->pbr.emission_color.texture, imageOfTexture);
+                    const ufbx_vec4 emission = source->pbr.emission_color.value_vec4;
+                    const ufbx_real emissionFactor = source->pbr.emission_factor.has_value ? source->pbr.emission_factor.value_real : 1.0;
+                    material.emissive[0] = static_cast<float>(emission.x * emissionFactor);
+                    material.emissive[1] = static_cast<float>(emission.y * emissionFactor);
+                    material.emissive[2] = static_cast<float>(emission.z * emissionFactor);
                     for (UInt32 slot = 0; slot < ModelTextureSlotCount; ++slot)
                     {
                         NoteImageUse(model, material.images[slot.Get()], static_cast<ModelTextureSlot>(slot.Get()), used);

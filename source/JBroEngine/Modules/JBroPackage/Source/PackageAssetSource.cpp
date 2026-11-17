@@ -11,7 +11,8 @@ namespace JBro::Package
             && static_cast<std::uint8_t>(AssetBlob::Source) == static_cast<std::uint8_t>(BlobKind::Source)
             && static_cast<std::uint8_t>(AssetBlob::CookedTexture) == static_cast<std::uint8_t>(BlobKind::CookedTexture)
             && static_cast<std::uint8_t>(AssetBlob::FontAtlas) == static_cast<std::uint8_t>(BlobKind::FontAtlas)
-            && static_cast<std::uint8_t>(AssetBlob::CookedMesh) == static_cast<std::uint8_t>(BlobKind::CookedMesh),
+            && static_cast<std::uint8_t>(AssetBlob::CookedMesh) == static_cast<std::uint8_t>(BlobKind::CookedMesh)
+            && static_cast<std::uint8_t>(AssetBlob::CookedMaterial) == static_cast<std::uint8_t>(BlobKind::CookedMaterial),
         "AssetBlob and BlobKind must keep the same numbers");
 
     namespace

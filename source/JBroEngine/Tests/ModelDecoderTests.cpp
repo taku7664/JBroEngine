@@ -154,6 +154,18 @@ namespace
             "the data-URI image is embedded byte for byte");
         Check(model.images[0].contentHash == JBro::HashModelBytes(View(FakeImage)), "with its content hash");
         Check(model.images[0].firstUse == JBro::ModelTextureSlot::BaseColor, "and knows it is first used as base colour (sRGB)");
+        Check(model.materials[0].emissive[0] == 0.0f && false == model.materials[0].alphaCutout, "a plain material glows nothing and is opaque");
+        {
+            // 발광 색과 `MASK`(컷아웃)를 읽는다(material-plan 2 단계).
+            std::string masked = json;
+            const std::string from = "\"materials\":[{\"name\":\"Brick\",";
+            masked.replace(masked.find(from), from.size(), from + "\"emissiveFactor\":[0.5,0.25,0],\"alphaMode\":\"MASK\",\"alphaCutoff\":0.3,");
+            JBro::ModelData glowing;
+            Check(JBro::DecodeModel(View(masked), JBro::ModelFormat::Gltf, {}, {}, glowing, error), "a glTF with a masked, glowing material decodes");
+            Check(Near(glowing.materials[0].emissive[0], 0.5f) && Near(glowing.materials[0].emissive[1], 0.25f) && Near(glowing.materials[0].emissive[2], 0.0f),
+                "the emissive factor is read");
+            Check(glowing.materials[0].alphaCutout && Near(glowing.materials[0].alphaCutoff, 0.3f), "and MASK becomes a cutout with its threshold");
+        }
         Check(model.nodes.Size() == 1 && model.nodes[0].name == "Root" && model.nodes[0].parent == -1, "the node comes through as a root");
         Check(Near(model.nodes[0].position.y, 2.0f) && Near(model.nodes[0].scale.x, 2.0f), "with its transform");
         Check(model.nodes[0].meshes.Size() == 1 && model.nodes[0].meshes[0] == 0, "and the mesh it draws");

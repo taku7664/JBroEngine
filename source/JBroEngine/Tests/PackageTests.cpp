@@ -378,6 +378,8 @@ namespace
         Check(looseAssets.Initialize(memory), "the loose asset system initializes");
         looseAssets.Bind(platform, loose, assetRoot.c_str());
         const MeshData looseMesh = *looseAssets.GetMesh(looseAssets.Load(meshId));
+        const MaterialData looseMaterial = *looseAssets.GetMaterial(looseAssets.Load(materialId));
+        Check(looseMesh.material == materialId && looseMaterial.desc.baseColorTexture == imageId, "loose, the mesh knows its material and the material its picture");
         const TextureData looseImage = *looseAssets.GetTexture(looseAssets.Load(imageId));
         looseAssets.Shutdown();
 
@@ -392,7 +394,8 @@ namespace
         CookReport cooked;
         Check(CookAssets(platform, loose, assetRoot.c_str(), ArrayView<const AssetId>(ids.Data(), ids.Size()), writer, cooked),
             "the model cooks");
-        Check(cooked.cookedMeshes == 1 && cooked.cookedTextures == 1 && cooked.failures.IsEmpty(), "one cooked mesh and one cooked image");
+        Check(cooked.cookedMeshes == 1 && cooked.cookedTextures == 1 && cooked.cookedMaterials == 1 && cooked.failures.IsEmpty(),
+            "one cooked mesh, one cooked image and one cooked material");
         const String packagePath = Utf8(root / "game.jpak");
         String error;
         Check(writer.Save(platform, packagePath.c_str(), error), "the package is written");
@@ -404,7 +407,7 @@ namespace
             "the model ships as its meta only - no model file for the game to decode");
         Check(package.Find(meshId, BlobKind::CookedMesh) != nullptr, "its mesh ships cooked");
         Check(package.Find(imageId, BlobKind::CookedTexture) != nullptr, "its embedded image ships as pixels");
-        Check(package.Find(materialId, BlobKind::Record) != nullptr, "its material is a record for now");
+        Check(package.Find(materialId, BlobKind::CookedMaterial) != nullptr, "its material ships as a material file with its pictures resolved");
         AssetRegistry packed;
         Check(FillRegistry(package, packed) == 4, "the registry is filled from the index");
         Check(packed.Find(meshId) != nullptr && packed.Find(meshId)->owner == modelId, "the mesh keeps its model as owner");
@@ -418,6 +421,11 @@ namespace
                 && std::memcmp(mesh->vertices.Data(), looseMesh.vertices.Data(), mesh->vertices.Size() * sizeof(ModelVertex)) == 0
                 && std::memcmp(mesh->indices.Data(), looseMesh.indices.Data(), mesh->indices.Size() * sizeof(JBro::UInt32)) == 0,
             "the cooked mesh is the loose mesh, vertex for vertex");
+        Check(mesh->material == materialId, "and still knows its material");
+        const MaterialData* packedMaterial = assets.GetMaterial(assets.Load(materialId));
+        Check(packedMaterial != nullptr && packedMaterial->desc.baseColorTexture == imageId
+                && packedMaterial->desc.baseColor == looseMaterial.desc.baseColor && packedMaterial->desc.roughness == looseMaterial.desc.roughness,
+            "the packaged material is the loose material, picture slot included, without reading the model");
         const TextureData* image = assets.GetTexture(assets.Load(imageId));
         Check(image != nullptr && image->width == looseImage.width && image->height == looseImage.height
                 && std::memcmp(image->pixels.Data(), looseImage.pixels.Data(), image->pixels.Size()) == 0
@@ -434,18 +442,19 @@ namespace
         indices.Add(1);
         indices.Add(2);
         Array<std::byte> blob;
-        WriteCookedMesh(vertices, indices, true, blob);
+        WriteCookedMesh(vertices, indices, true, AssetId{}, blob);
         Array<ModelVertex> readVertices;
         Array<JBro::UInt32> readIndices;
         JBro::Bool readUvs = false;
-        Check(ReadCookedMesh(blob, readVertices, readIndices, readUvs) && readVertices.Size() == 3 && readIndices.Size() == 3 && readUvs,
+        AssetId readMaterial;
+        Check(ReadCookedMesh(blob, readVertices, readIndices, readUvs, readMaterial) && readVertices.Size() == 3 && readIndices.Size() == 3 && readUvs,
             "a cooked mesh round-trips");
         Array<std::byte> shortBlob = blob;
         shortBlob.Resize(blob.Size() - 1);
-        Check(false == ReadCookedMesh(shortBlob, readVertices, readIndices, readUvs), "a short blob is refused");
+        Check(false == ReadCookedMesh(shortBlob, readVertices, readIndices, readUvs, readMaterial), "a short blob is refused");
         indices[2] = 3;
-        WriteCookedMesh(vertices, indices, true, blob);
-        Check(false == ReadCookedMesh(blob, readVertices, readIndices, readUvs), "an index past the vertices is refused");
+        WriteCookedMesh(vertices, indices, true, AssetId{}, blob);
+        Check(false == ReadCookedMesh(blob, readVertices, readIndices, readUvs, readMaterial), "an index past the vertices is refused");
         fs::remove_all(root);
         platform.Shutdown();
     }

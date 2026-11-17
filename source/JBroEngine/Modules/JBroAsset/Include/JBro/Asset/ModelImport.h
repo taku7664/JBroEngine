@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Asset/AssetMetaFile.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/String.h>
 
@@ -9,7 +10,10 @@
 namespace JBro
 {
     class IPlatform;
+    class AssetRegistry;
+    struct AssetRecord;
     struct ModelData;
+    struct ModelMesh;
 
     // 모델에서 나오는 하위 에셋 하나다. `index` 는 그 종류의 `ModelData` 배열(`meshes`·`materials`·`images`) 번호다.
     struct ModelSubAsset
@@ -27,6 +31,16 @@ namespace JBro
 
     // 모델 내장 그림을 처음 세울 때의 옵션이다. 일반 그림과 달리 밉맵을 켠다(D-339) - 3D 표면은 멀어지면 밉이 없을 때 반짝인다.
     TextureImportOptions ModelTextureDefaults();
+
+    // **모델의 하위 에셋 아이디를 레지스트리에서 찾는다**(material-plan 2 단계). `ListModelSubAssets` 의 그 종류·번호 항목의 이름과 같은 하위 레코드다. 없으면 빈 아이디.
+    AssetId FindModelSubAssetId(const AssetRegistry& registry, const AssetRecord& model, const Array<ModelSubAsset>& listed,
+        AssetType type, std::size_t index);
+    // 메시가 파일에서 쓰는 재질의 하위 아이디다(D-346 (3) - `materialId` 가 비면 이것이다). 재질이 없거나 `importMaterials` 가 꺼져 있으면 빈 아이디.
+    AssetId FindModelMeshMaterialId(const AssetRegistry& registry, const AssetRecord& model, const Array<ModelSubAsset>& listed, const ModelMesh& mesh);
+    // 모델의 재질 하나를 재질 값으로 옮긴다. 그림 칸은 내장 그림이면 그 하위 Texture, 바깥 그림이면 모델 폴더 기준 경로의 Texture 에셋이다
+    // (레지스트리에 없으면 그 칸은 비고 `missingTextures` 가 오른다). 셰이더는 `Standard` 다.
+    MaterialDesc MakeModelMaterialDesc(const AssetRegistry& registry, const AssetRecord& model, const ModelData& data,
+        const Array<ModelSubAsset>& listed, std::size_t materialIndex, UInt32& missingTextures);
 
     // **같은 그림인지 가르는 열쇠**다(model-import-plan §2.5). 원본 바이트의 해시와 실제로 적용되는 옵션(필터·색 공간·밉맵)을 섞는다 -
     // 둘 다 같아야 같은 그림으로 묶고, 한쪽 옵션을 바꾸면 열쇠가 달라져 저절로 갈라진다. 해시가 0 이면 0(묶지 않음)이다.

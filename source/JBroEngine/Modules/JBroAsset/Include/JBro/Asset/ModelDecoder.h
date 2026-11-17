@@ -60,6 +60,11 @@ namespace JBro
         Float baseColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         Float metallic = 0.0f;
         Float roughness = 1.0f;
+        // 발광 색(그림에 곱한다). glTF 의 `emissiveFactor`, FBX 의 발광 색 × 세기다.
+        Float emissive[3] = {0.0f, 0.0f, 0.0f};
+        // glTF 의 `alphaMode: MASK` 다. 문턱 아래의 알파를 버린다(D-346 (6)). `BLEND` 는 반투명이 서기 전까지 불투명으로 읽는다.
+        Bool alphaCutout = false;
+        Float alphaCutoff = 0.5f;
         // 칸마다 `ModelData::images` 의 번호다. 없으면 -1.
         Int32 images[ModelTextureSlotCount] = {-1, -1, -1, -1, -1};
     };

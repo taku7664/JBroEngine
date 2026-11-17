@@ -15,7 +15,7 @@ namespace JBro
         constexpr char CookedMeshMagic[4] = { 'J', 'M', 'S', 'H' };
     }
 
-    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, Array<std::byte>& out)
+    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, AssetId material, Array<std::byte>& out)
     {
         const std::uint32_t vertexCount = static_cast<std::uint32_t>(vertices.Size());
         const std::uint32_t indexCount = static_cast<std::uint32_t>(indices.Size());
@@ -27,6 +27,7 @@ namespace JBro
         std::memcpy(out.Data() + 4, &vertexCount, sizeof(vertexCount));
         std::memcpy(out.Data() + 8, &indexCount, sizeof(indexCount));
         std::memcpy(out.Data() + 12, &flags, sizeof(flags));
+        std::memcpy(out.Data() + 16, &material, sizeof(material));
         if (vertexBytes > 0)
         {
             std::memcpy(out.Data() + CookedMeshHeaderSize, vertices.Data(), vertexBytes);
@@ -37,7 +38,7 @@ namespace JBro
         }
     }
 
-    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs)
+    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs, AssetId& material)
     {
         if (bytes.Size() < CookedMeshHeaderSize || std::memcmp(bytes.Data(), CookedMeshMagic, sizeof(CookedMeshMagic)) != 0)
         {
@@ -72,6 +73,7 @@ namespace JBro
         vertices = std::move(readVertices);
         indices = std::move(readIndices);
         hasUvs = (flags & 1u) != 0;
+        std::memcpy(&material, bytes.Data() + 16, sizeof(material));
         return true;
     }
 

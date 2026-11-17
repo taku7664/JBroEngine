@@ -5,6 +5,8 @@
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/ModelImport.h>
+
+#include <cstring>
 #include <JBro/TextRendering/TextLibrary.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
@@ -83,8 +85,8 @@ namespace JBro::Package
         }
 
         // 모델의 하위 메시·내장 그림 하나를 굽는다. 실패는 보고에 적는다.
-        void CookModelPart(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRecord& owner,
-            const AssetRecord& record, ModelCache& cache, PackageWriter& writer, CookReport& report)
+        void CookModelPart(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRegistry& registry,
+            const AssetRecord& owner, const AssetRecord& record, ModelCache& cache, PackageWriter& writer, CookReport& report)
         {
             String error;
             const ModelData* model = DecodeOwner(platform, loose, assetRoot, owner, cache, error);
@@ -100,10 +102,29 @@ namespace JBro::Package
                 return;
             }
             Array<std::byte> cooked;
+            if (record.type == AssetType::Material)
+            {
+                // 모델의 재질은 그림 칸의 아이디까지 풀어 `.jmat` 글자로 둔다 - 게임의 레코드에는 이름이 없어 스스로 풀 수 없다.
+                UInt32 missing = 0;
+                const MaterialDesc desc = MakeModelMaterialDesc(registry, owner, *model, cache.listed, sub->index.Get(), missing);
+                String text;
+                if (false == FormatMaterialFile(desc, text))
+                {
+                    Fail(report, record, "the material could not be written");
+                    return;
+                }
+                cooked.Resize(text.size());
+                std::memcpy(cooked.Data(), text.data(), text.size());
+                if (AddBlob(writer, report, record, BlobKind::CookedMaterial, cooked))
+                {
+                    ++report.cookedMaterials;
+                }
+                return;
+            }
             if (record.type == AssetType::Mesh)
             {
                 const ModelMesh& mesh = model->meshes[sub->index.Get()];
-                WriteCookedMesh(mesh.vertices, mesh.indices, mesh.hasUvs, cooked);
+                WriteCookedMesh(mesh.vertices, mesh.indices, mesh.hasUvs, FindModelMeshMaterialId(registry, owner, cache.listed, mesh), cooked);
                 if (AddBlob(writer, report, record, BlobKind::CookedMesh, cooked))
                 {
                     ++report.cookedMeshes;
@@ -150,9 +171,9 @@ namespace JBro::Package
             // 모델의 하위 메시·내장 그림은 모델에서 꺼내 굽는다(6 단계). 재질은 아직 레코드만이다.
             const AssetRecord* owner = record->owner.IsNull() ? nullptr : registry.Find(record->owner);
             if (owner != nullptr && owner->type == AssetType::Model
-                && (record->type == AssetType::Mesh || record->type == AssetType::Texture))
+                && (record->type == AssetType::Mesh || record->type == AssetType::Texture || record->type == AssetType::Material))
             {
-                CookModelPart(platform, loose, assetRoot, *owner, *record, models, writer, report);
+                CookModelPart(platform, loose, assetRoot, registry, *owner, *record, models, writer, report);
                 continue;
             }
             // 이미지의 Sprite 는 주인의 메타와 픽셀을 쓴다. 레코드만 둔다.

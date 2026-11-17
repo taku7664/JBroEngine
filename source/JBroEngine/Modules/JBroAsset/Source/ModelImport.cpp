@@ -1,5 +1,6 @@
 ﻿#include <JBro/Asset/ModelImport.h>
 
+#include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/ModelDecoder.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/Types/Array.h>
@@ -110,6 +111,141 @@ namespace JBro
             }
         }
         return nullptr;
+    }
+
+    AssetId FindModelSubAssetId(const AssetRegistry& registry, const AssetRecord& model, const Array<ModelSubAsset>& listed,
+        AssetType type, std::size_t index)
+    {
+        std::string_view name;
+        for (std::size_t at = 0; at < listed.Size(); ++at)
+        {
+            AssetType listedType = AssetType::Unknown;
+            if (listed[at].type == type && listed[at].index == index && SplitSubAssetKey(listed[at].key, listedType, name))
+            {
+                break;
+            }
+            name = {};
+        }
+        if (name.empty())
+        {
+            return {};
+        }
+        Array<AssetId> owned;
+        registry.CollectOwned(model.id, owned);
+        for (std::size_t at = 0; at < owned.Size(); ++at)
+        {
+            const AssetRecord* record = registry.Find(owned[at]);
+            if (record != nullptr && record->type == type && record->name == name)
+            {
+                return record->id;
+            }
+        }
+        return {};
+    }
+
+    AssetId FindModelMeshMaterialId(const AssetRegistry& registry, const AssetRecord& model, const Array<ModelSubAsset>& listed, const ModelMesh& mesh)
+    {
+        if (mesh.material < 0)
+        {
+            return {};
+        }
+        return FindModelSubAssetId(registry, model, listed, AssetType::Material, static_cast<std::size_t>(mesh.material.Get()));
+    }
+
+    namespace
+    {
+        // 모델 폴더 기준 경로를 에셋 폴더 기준으로 펴고 `.`·`..` 를 접는다. 폴더 밖으로 나가면 빈 글자다.
+        String ResolveBesideModel(const String& modelPath, const String& relative)
+        {
+            Array<String> parts;
+            const auto push = [&](std::string_view text) {
+                std::size_t start = 0;
+                while (start <= text.size())
+                {
+                    std::size_t end = text.find_first_of("/\\", start);
+                    if (end == std::string_view::npos)
+                    {
+                        end = text.size();
+                    }
+                    const std::string_view part = text.substr(start, end - start);
+                    if (part == "..")
+                    {
+                        if (parts.IsEmpty())
+                        {
+                            return false;
+                        }
+                        parts.RemoveAt(parts.Size() - 1);
+                    }
+                    else if (false == part.empty() && part != ".")
+                    {
+                        parts.Add(String(part));
+                    }
+                    start = end + 1;
+                }
+                return true;
+            };
+            const std::size_t slash = modelPath.find_last_of('/');
+            if ((slash != String::npos && false == push(std::string_view(modelPath).substr(0, slash))) || false == push(relative))
+            {
+                return {};
+            }
+            String joined;
+            for (std::size_t index = 0; index < parts.Size(); ++index)
+            {
+                if (index > 0)
+                {
+                    joined += "/";
+                }
+                joined += parts[index];
+            }
+            return joined;
+        }
+    }
+
+    MaterialDesc MakeModelMaterialDesc(const AssetRegistry& registry, const AssetRecord& model, const ModelData& data,
+        const Array<ModelSubAsset>& listed, std::size_t materialIndex, UInt32& missingTextures)
+    {
+        MaterialDesc desc;
+        if (materialIndex >= data.materials.Size())
+        {
+            return desc;
+        }
+        const ModelMaterial& source = data.materials[materialIndex];
+        desc.shader = MaterialShader::Standard;
+        desc.baseColor = Color{source.baseColor[0], source.baseColor[1], source.baseColor[2], source.baseColor[3]};
+        desc.metallic = source.metallic;
+        desc.roughness = source.roughness;
+        desc.emissive = Color{source.emissive[0], source.emissive[1], source.emissive[2], 1.0f};
+        desc.alpha = source.alphaCutout ? MaterialAlpha::Cutout : MaterialAlpha::Opaque;
+        desc.alphaCutoff = source.alphaCutoff;
+        const auto textureOf = [&](ModelTextureSlot slot) -> AssetId {
+            const Int32 image = source.images[static_cast<UInt32>(slot).Get()];
+            if (image < 0 || static_cast<std::size_t>(image.Get()) >= data.images.Size())
+            {
+                return {};
+            }
+            const ModelImage& picture = data.images[static_cast<std::size_t>(image.Get())];
+            if (picture.embedded.Size() > 0)
+            {
+                const AssetId id = FindModelSubAssetId(registry, model, listed, AssetType::Texture, static_cast<std::size_t>(image.Get()));
+                missingTextures += id.IsNull() ? 1u : 0u;
+                return id;
+            }
+            const String path = ResolveBesideModel(model.relativePath, picture.path);
+            const AssetRecord* file = path.empty() ? nullptr : registry.FindByPath(path);
+            if (file == nullptr || file->type != AssetType::Texture)
+            {
+                ++missingTextures;
+                return {};
+            }
+            return file->id;
+        };
+        desc.baseColorTexture = textureOf(ModelTextureSlot::BaseColor);
+        desc.metallicRoughnessTexture = textureOf(ModelTextureSlot::MetallicRoughness);
+        desc.normalTexture = textureOf(ModelTextureSlot::Normal);
+        desc.occlusionTexture = textureOf(ModelTextureSlot::Occlusion);
+        desc.emissiveTexture = textureOf(ModelTextureSlot::Emissive);
+        return desc;
     }
 
     TextureImportOptions ModelTextureDefaults()

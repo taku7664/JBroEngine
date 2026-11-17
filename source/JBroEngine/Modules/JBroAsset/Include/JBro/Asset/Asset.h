@@ -17,6 +17,7 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
 
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Asset/ModelDecoder.h>
 
 namespace JBro
@@ -125,6 +126,16 @@ namespace JBro
         Array<ModelVertex> vertices;
         Array<UInt32> indices;
         Bool hasUvs = false;
+        // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-346 (3)).
+        AssetId material;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 재질이다(D-346, material-plan 2 단계). 사용자의 `.jmat` 이거나 모델의 하위 Material 이다 - 둘이 같은 값(`MaterialDesc`)이다.
+    // **값만이다** - 그림 칸은 아이디이고 GPU 자원은 `MaterialLibrary`(Framework3DSystem, 3 단계)가 든다. `dataGeneration` 은 in-place 재로드마다 오른다.
+    struct MaterialData
+    {
+        MaterialDesc desc;
         UInt32 dataGeneration = 1;
     };
 
@@ -217,6 +228,7 @@ namespace JBro
         const StringTableData* GetStringTable(AssetHandle handle) const;
         const AudioEffectData* GetAudioEffect(AssetHandle handle) const;
         const MeshData* GetMesh(AssetHandle handle) const;
+        const MaterialData* GetMaterial(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
@@ -287,6 +299,8 @@ namespace JBro
         Bool ReadAudioEffect(const AssetRecord& record, AudioEffectData& data);
         // 모델의 하위 메시 하나를 읽는다. 같은 모델의 메시를 연달아 읽는 일이 흔해 마지막으로 읽은 모델 하나를 들고 있는다.
         Bool ReadMesh(const AssetRecord& record, MeshData& data);
+        // 재질 하나를 읽는다: 빌드가 옮겨 둔 것(`CookedMaterial`), 모델의 하위 Material(모델을 읽어 옮김), `.jmat` 파일 차례다.
+        Bool ReadMaterial(const AssetRecord& record, MaterialData& data);
         // 모델의 내장 그림 하나를 읽는다(model-import-plan 5 단계). 바이트는 모델 안에 있고 디코드는 그림 파일과 같은 이미지 디코더다.
         Bool ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data);
         // 하위 에셋의 주인 모델을 읽어 들고 있는다(메시·내장 그림이 함께 쓴다). 실패하면 nullptr.
@@ -324,6 +338,7 @@ namespace JBro
         Pool<StringTableData> m_stringTables;
         Pool<AudioEffectData> m_audioEffects;
         Pool<MeshData> m_meshes;
+        Pool<MaterialData> m_materials;
         AudioReleaseCallback m_audioRelease = nullptr;
         UInt32 m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;

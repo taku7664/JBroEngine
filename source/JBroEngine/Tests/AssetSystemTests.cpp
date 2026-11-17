@@ -6,6 +6,7 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ImageDecoder.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
@@ -693,6 +694,137 @@ namespace
         Check(refused.finished, "and says it is finished so nobody waits for it");
         fixture.Close();
     }
+    // **재질**(material-plan 2 단계). 모델의 하위 Material 은 파일의 값과 그림 칸(내장 그림은 그 하위 Texture, 바깥 그림은 모델 폴더 기준 경로의 Texture)으로 읽히고,
+    // 메시는 제 재질을 안다. 사용자의 `.jmat` 은 같은 값을 YAML 로 들고, 고치면 제자리 재로드가 새 값을 읽으며, 모르는 키는 싣지 않는다.
+    void TestMaterialsLoadFromModelsAndFiles()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const std::string png(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        const std::string inside = TestModels::SelfContainedQuadGltf("Bricks", png);
+        WriteBytes(fixture.root / "Art" / "Props" / "crate.gltf", inside.data(), inside.size());
+        // 바깥 그림은 모델 폴더 기준이다 - `../tiny.png` 는 `Art/tiny.png` 다.
+        const std::string buffer = TestModels::QuadBuffer();
+        const std::string outside = TestModels::QuadGltf("data:application/octet-stream;base64," + TestModels::Base64(buffer), buffer.size(),
+            "{\"uri\":\"../tiny.png\"}");
+        WriteBytes(fixture.root / "Art" / "Props" / "wall.gltf", outside.data(), outside.size());
+        const char obj[] = "mtllib parts.mtl\nv 0 0 0\nv 0 0 1\nv 1 0 1\nv 1 0 0\no Crate\nusemtl Wood\nf 1 2 3\nusemtl Metal\nf 1 3 4\n";
+        const char mtl[] = "newmtl Metal\nKd 0.7 0.7 0.7\nnewmtl Wood\nKd 0.6 0.4 0.2\n";
+        WriteBytes(fixture.root / "Art" / "Props" / "parts.obj", obj, sizeof(obj) - 1);
+        WriteBytes(fixture.root / "Art" / "Props" / "parts.mtl", mtl, sizeof(mtl) - 1);
+        const char jmat[] = "Version: 1\nMaterial:\n  shader: Unlit\n  baseColor:\n    - 0.25\n    - 0.5\n    - 1\n    - 1\n  roughness: 0.25\n";
+        WriteBytes(fixture.root / "Art" / "glass.jmat", jmat, sizeof(jmat) - 1);
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(fixture.registry.Scan(fixture.platform, Utf8(fixture.root).c_str(), options, report), "the folder scans with models and a material file");
+
+        const auto partOf = [&](const char* path, JBro::AssetType type) {
+            const JBro::AssetRecord* model = fixture.registry.FindByPath(path);
+            Check(model != nullptr, "the model registers");
+            JBro::Array<JBro::AssetId> owned;
+            fixture.registry.CollectOwned(model->id, owned);
+            for (const JBro::AssetId& id : owned)
+            {
+                if (fixture.registry.Find(id)->type == type)
+                {
+                    return id;
+                }
+            }
+            return JBro::AssetId{};
+        };
+        const JBro::AssetId crateMesh = partOf("Art/Props/crate.gltf", JBro::AssetType::Mesh);
+        const JBro::AssetId crateMaterial = partOf("Art/Props/crate.gltf", JBro::AssetType::Material);
+        const JBro::AssetId crateImage = partOf("Art/Props/crate.gltf", JBro::AssetType::Texture);
+        Check(false == crateMesh.IsNull() && false == crateMaterial.IsNull() && false == crateImage.IsNull(), "the model has a mesh, a material and an image");
+
+        const JBro::AssetHandle meshHandle = fixture.assets.Load(crateMesh);
+        const JBro::MeshData* mesh = fixture.assets.GetMesh(meshHandle);
+        Check(mesh != nullptr && mesh->material == crateMaterial, "a model's mesh knows the material it uses in the file");
+        const JBro::AssetHandle materialHandle = fixture.assets.Load(crateMaterial);
+        const JBro::MaterialData* material = fixture.assets.GetMaterial(materialHandle);
+        Check(material != nullptr && material->desc.shader == JBro::MaterialShader::Standard, "a model's material loads as a Standard material");
+        Check(material->desc.baseColor.R == 1.0f && material->desc.baseColor.G == 0.5f && material->desc.baseColor.B == 0.25f
+                && std::fabs(material->desc.metallic.Get() - 0.2f) < 0.0001f && std::fabs(material->desc.roughness.Get() - 0.7f) < 0.0001f,
+            "with the file's colour, metallic and roughness");
+        Check(material->desc.baseColorTexture == crateImage && material->desc.normalTexture.IsNull(),
+            "its base colour picture is the model's embedded image, and empty slots stay empty");
+        const JBro::MaterialData* wall = fixture.assets.GetMaterial(fixture.assets.Load(partOf("Art/Props/wall.gltf", JBro::AssetType::Material)));
+        Check(wall != nullptr && wall->desc.baseColorTexture == fixture.textureId,
+            "a picture outside the model is the Texture of that file, found beside the model");
+
+        // 재질이 둘인 모델: 메시마다 제 재질을 가리키고, 재질은 제 색을 읽는다(번호가 어긋나면 서로 바뀐다).
+        {
+            const JBro::AssetRecord* parts = fixture.registry.FindByPath("Art/Props/parts.obj");
+            Check(parts != nullptr, "the two-material OBJ registers");
+            JBro::Array<JBro::AssetId> owned;
+            fixture.registry.CollectOwned(parts->id, owned);
+            JBro::UInt32 meshes = 0;
+            for (const JBro::AssetId& id : owned)
+            {
+                const JBro::AssetRecord* part = fixture.registry.Find(id);
+                if (part->type != JBro::AssetType::Mesh)
+                {
+                    continue;
+                }
+                ++meshes;
+                const JBro::AssetHandle partHandle = fixture.assets.Load(id);
+                const JBro::MeshData* partMesh = fixture.assets.GetMesh(partHandle);
+                const JBro::AssetRecord* used = partMesh != nullptr ? fixture.registry.Find(partMesh->material) : nullptr;
+                Check(used != nullptr && used->type == JBro::AssetType::Material, "each mesh of the OBJ knows its material");
+                // 재질로 나뉜 메시의 이름은 `메시/재질` 이다.
+                Check(part->name.size() > used->name.size() && part->name.compare(part->name.size() - used->name.size(), used->name.size(), used->name) == 0,
+                    "and it is the material the mesh is named after");
+                const JBro::AssetHandle usedHandle = fixture.assets.Load(used->id);
+                const JBro::MaterialData* usedMaterial = fixture.assets.GetMaterial(usedHandle);
+                const JBro::Float red = used->name == "Wood" ? 0.6f : 0.7f;
+                Check(usedMaterial != nullptr && std::fabs((usedMaterial->desc.baseColor.R - red).Get()) < 0.0001f,
+                    "whose colour is its own, not the other material's");
+                fixture.assets.Release(usedHandle);
+                fixture.assets.Release(partHandle);
+            }
+            Check(meshes == 2, "the OBJ splits into two meshes, one per material");
+        }
+
+        // 사용자의 재질 파일.
+        const JBro::AssetRecord* glassRecord = fixture.registry.FindByPath("Art/glass.jmat");
+        Check(glassRecord != nullptr && glassRecord->type == JBro::AssetType::Material, "a .jmat file is a Material");
+        const JBro::AssetId glassId = glassRecord->id;
+        const JBro::AssetHandle glassHandle = fixture.assets.Load(glassId);
+        const JBro::MaterialData* glass = fixture.assets.GetMaterial(glassHandle);
+        Check(glass != nullptr && glass->desc.shader == JBro::MaterialShader::Unlit && glass->desc.baseColor.B == 1.0f
+                && glass->desc.roughness == 0.25f && glass->desc.metallic == 0.0f,
+            "a material file reads its keys, and the keys it leaves out are defaults");
+        const char changed[] = "Version: 1\nMaterial:\n  shader: Standard\n  metallic: 1\n";
+        WriteBytes(fixture.root / "Art" / "glass.jmat", changed, sizeof(changed) - 1);
+        const JBro::UInt32 before = glass->dataGeneration;
+        Check(fixture.assets.ReloadInPlace(glassId), "an edited material reloads in place");
+        glass = fixture.assets.GetMaterial(glassHandle);
+        Check(glass->desc.shader == JBro::MaterialShader::Standard && glass->desc.metallic == 1.0f && glass->dataGeneration == before + 1,
+            "with the new values under a higher generation");
+
+        JBro::MaterialDesc desc;
+        desc.shader = JBro::MaterialShader::Unlit;
+        desc.alpha = JBro::MaterialAlpha::Cutout;
+        desc.alphaCutoff = 0.25f;
+        desc.emissive = JBro::Color{0.5f, 0.0f, 0.0f, 1.0f};
+        desc.baseColorTexture = crateImage;
+        JBro::String text;
+        JBro::MaterialDesc reread;
+        JBro::String error;
+        Check(JBro::FormatMaterialFile(desc, text) && JBro::ParseMaterialFile(text.c_str(), text.size(), reread, error), "a material file round-trips");
+        Check(reread.shader == desc.shader && reread.alpha == desc.alpha && reread.alphaCutoff == desc.alphaCutoff
+                && reread.emissive == desc.emissive && reread.baseColorTexture == desc.baseColorTexture,
+            "with every value");
+        const char unknown[] = "Version: 1\nMaterial:\n  shininess: 3\n";
+        Check(false == JBro::ParseMaterialFile(unknown, sizeof(unknown) - 1, reread, error), "a key the engine does not know is refused");
+        Check(false == JBro::ParseMaterialFile("Version: 1\n", 11, reread, error), "a file without a Material block is refused");
+        fixture.assets.Release(meshHandle);
+        fixture.assets.Release(materialHandle);
+        fixture.assets.Release(glassHandle);
+        fixture.Close();
+    }
+
     // **모델의 내장 그림**(model-import-plan 5 단계). 하위 Texture 는 모델 안의 바이트를 그림 파일과 같은 디코더로 읽고, 옵션은 모델 메타의 제 하위 항목이다.
     // 모델을 읽어야 나오므로 워커로 보내지 않고 동기로 싣는다 - 워커가 모델 파일을 그림으로 풀면 실패한다.
     void TestAModelsEmbeddedImageLoadsAsATexture()
@@ -792,6 +924,7 @@ JBro::Int32 RunAssetSystemTests()
     JBRO_CASE(TestTheLoadYieldsToASyncLoadAndCancels());
     JBRO_CASE(TestASourceThatCannotReadOnWorkersLoadsInPlace());
     JBRO_CASE(TestAModelsEmbeddedImageLoadsAsATexture());
+    JBRO_CASE(TestMaterialsLoadFromModelsAndFiles());
     std::cout << "Asset system tests passed.\n";
     return 0;
 }
