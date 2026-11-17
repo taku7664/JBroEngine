@@ -8,6 +8,7 @@
 #include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptCompiler/DiagnosticMessages.h>
 #include <JBro/ScriptCompiler/Parser.h>
+#include "../Modules/JBroc/Source/StackGuard.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -456,63 +457,167 @@ namespace
         std::filesystem::remove_all(scratch);
     }
 
-    // **깊은 식에서 죽지 않는다**(Script QA 결함 3). 분석과 생성은 식의 깊이만큼 재귀해서, 기본 1 MB 스택은 Debug 에서 깊이 24 의 덧셈에
-    // 넘쳐 `jbroc` 이 0xC00000FD 로 아무 말 없이 죽었다. 종료 코드는 계약대로 0·1·3 중 하나여야 하고, 3 이면 표준 에러가 까닭을 말한다.
-    void TestDeepExpressionsDoNotCrash()
+    // **식의 깊이는 언어 규칙이다(D-374).** 뿌리에서 잎까지 식 노드가 `MaxExpressionDepth` 겹이면 지나고 하나 더면 `JBC2015` 로
+    // 거절한다. 전에는 상한이 없어 깊이 24 에서 `jbroc` 이 말없이 죽었고(Script QA 결함 3), 큰 스택으로 고친 뒤에는 MSVC 가
+    // `??` 사슬 약 122 겹에서 C1061 로 멈췄다. 모양마다 경계를 재는 까닭은 파서가 겹을 두 길(노드 깊이·파서 재귀)로 세기 때문이다.
+    std::string RepeatJoined(const char* piece, const char* separator, JBro::Int32 count)
+    {
+        std::string text;
+        for (JBro::Int32 index = 0; index < count; ++index)
+        {
+            text += index == 0 ? "" : separator;
+            text += piece;
+        }
+        return text;
+    }
+
+    std::string Nested(const char* open, const char* leaf, const char* close, JBro::Int32 count)
+    {
+        std::string text;
+        for (JBro::Int32 index = 0; index < count; ++index)
+        {
+            text += open;
+        }
+        text += leaf;
+        for (JBro::Int32 index = 0; index < count; ++index)
+        {
+            text += close;
+        }
+        return text;
+    }
+
+    // 깊이 `depth` 의 식을 모양마다 만든다. 셈은 식 노드의 수다: `1 + 1` 은 2, `(1)` 은 2, `-1` 은 2, `Id(1)` 은 2, `maybe ?? 0` 은 2.
+    struct DepthShape
+    {
+        const char* Name;
+        const char* Return;
+        std::string (*Make)(JBro::Int32 depth);
+    };
+
+    const DepthShape DepthShapes[] = {
+        {"plus", "Int", [](JBro::Int32 depth) { return RepeatJoined("1", " + ", depth); }},
+        {"and", "Bool", [](JBro::Int32 depth) { return RepeatJoined("flag", " and ", depth); }},
+        {"concat", "String", [](JBro::Int32 depth) { return RepeatJoined("text", " + ", depth); }},
+        {"multiply", "Float", [](JBro::Int32 depth) { return RepeatJoined("1.0", " * ", depth); }},
+        {"paren", "Int", [](JBro::Int32 depth) { return Nested("(", "1", ")", depth - 1); }},
+        {"negate", "Int", [](JBro::Int32 depth) { return Nested("-", "1", "", depth - 1); }},
+        {"not", "Bool", [](JBro::Int32 depth) { return Nested("not ", "flag", "", depth - 1); }},
+        {"call", "Int", [](JBro::Int32 depth) { return Nested("Id(", "1", ")", depth - 1); }},
+        {"coalesce", "Int", [](JBro::Int32 depth) { return RepeatJoined("maybe", " ?? ", depth - 1) + " ?? 0"; }},
+    };
+
+    void TestDeepExpressionsAreRejectedWithAPosition()
     {
         namespace fs = std::filesystem;
         const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
         const fs::path scratch = fs::temp_directory_path() / L"JBroc_deep_expression_probe";
         fs::remove_all(scratch);
         fs::create_directories(scratch);
-        const auto repeat = [](const char* piece, const char* separator, JBro::Int32 count) {
-            std::string text;
-            for (JBro::Int32 index = 0; index < count; ++index)
+        const JBro::Int32 limit = static_cast<JBro::Int32>(JBro::ScriptCompiler::MaxExpressionDepth.Get());
+        Check(limit == 100, "the expression depth limit is the number the documents name");
+        const auto run = [&](const DepthShape& shape, JBro::Int32 depth) {
+            const fs::path source = scratch / (std::string(shape.Name) + std::to_string(depth) + ".jscript");
+            WriteBytes(source, std::string("script Deep\n{\n    Bool flag = true\n    String text = \"a\"\n    ref Int maybe\n"
+                "    fn Id(Int v) -> Int\n    {\n        return v\n    }\n    fn F() -> ") + shape.Return
+                + "\n    {\n        return " + shape.Make(depth) + "\n    }\n}\n");
+            return Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" --locale en-US " + Quote(source), scratch);
+        };
+        for (const DepthShape& shape : DepthShapes)
+        {
+            const RunResult atLimit = run(shape, limit);
+            if (atLimit.ExitCode != 0)
             {
-                text += index == 0 ? "" : separator;
-                text += piece;
+                std::cout << "  shape " << shape.Name << " depth " << limit << std::endl;
+                Print(atLimit);
             }
-            return text;
-        };
-        struct Shape
+            Check(atLimit.ExitCode == 0, "an expression exactly at the depth limit is analyzed and emitted");
+            const JBro::Int32 overDepths[] = { limit + 1, JBro::Int32(60000) };
+            for (const JBro::Int32 depth : overDepths)
+            {
+                const RunResult over = run(shape, depth);
+                const Bool rejected = over.ExitCode == 1 && over.Out.find(".jscript(12,") != std::string::npos
+                    && over.Out.find("error JBC2015: This expression nests too deeply. An expression can nest up to 100 levels.") != std::string::npos
+                    && over.Err.find("internal error") == std::string::npos
+                    && over.Out.find("error JBC") == over.Out.rfind("error JBC");
+                if (false == rejected)
+                {
+                    std::cout << "  shape " << shape.Name << " depth " << depth << std::endl;
+                    Print(over);
+                }
+                Check(rejected, "an expression one level past the limit, or far past it, is one JBC2015 on its source line and nothing else");
+            }
+        }
+        // 빈 오른쪽을 가진 `??`·`and` 는 구문 오류 하나로 끝난다. 전에는 분석이 빈 자리의 노드를 읽어 Debug 에서 단언으로 죽었다.
+        for (const char* broken : { "maybe ?? maybe ?? ", "flag and " })
         {
-            const char* Name;
-            const char* Return;
-            std::string Expression;
-        };
-        const JBro::Int32 depth = 64;
-        const Shape shapes[] = {
-            {"plus", "Int", repeat("1", " + ", depth)},
-            {"paren", "Int", std::string(64, '(') + "1" + std::string(64, ')')},
-            {"and", "Bool", repeat("flag", " and ", depth)},
-            {"concat", "String", repeat("\"a\"", " + ", depth)},
-            {"multiply", "Float", repeat("1.0", " * ", depth)},
-        };
-        for (const Shape& shape : shapes)
-        {
-            const fs::path source = scratch / (std::string(shape.Name) + ".jscript");
-            WriteBytes(source, std::string("script Deep\n{\n    Bool flag = true\n    fn F() -> ") + shape.Return
-                + "\n    {\n        return " + shape.Expression + "\n    }\n}\n");
+            const fs::path source = scratch / L"broken.jscript";
+            WriteBytes(source, std::string("script Broken\n{\n    Bool flag = true\n    ref Int maybe\n    fn F() -> Int\n    {\n        return ")
+                + broken + "\n    }\n}\n");
             const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
-            if (result.ExitCode != 0)
+            if (result.ExitCode != 1)
             {
                 Print(result);
             }
-            Check(result.ExitCode == 0, "a 64-deep expression is analyzed and emitted instead of overflowing the stack");
+            Check(result.ExitCode == 1 && result.Out.find("error JBC2005") != std::string::npos,
+                "a binary operator with nothing on its right is one syntax error, not a crash");
         }
-        // 스택을 크게 잡아도 끝이 있다(Debug 는 괄호 20,000 에서 넘치고 Release 는 60,000 도 지난다). 그 끝에서도 프로세스가 죽지 않고,
-        // 넘치면 결함(3)과 까닭을 알린다.
-        const fs::path extreme = scratch / L"extreme.jscript";
-        WriteBytes(extreme, "script Deep\n{\n    fn F() -> Int\n    {\n        return " + std::string(60000, '(') + "1"
-            + std::string(60000, ')') + "\n    }\n}\n");
-        const RunResult overflow = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(extreme), scratch);
-        if (overflow.ExitCode != 0 && overflow.ExitCode != 3)
-        {
-            Print(overflow);
-        }
-        Check(overflow.ExitCode == 0 || (overflow.ExitCode == 3 && overflow.Err.find("nests too deeply") != std::string::npos),
-            "an expression too deep even for the large stack ends as an internal error with a reason, not a crash");
         fs::remove_all(scratch);
+    }
+
+    // **넘침을 받는 길은 구성과 무관하게 지난다**(REVIEW R3-1). 식은 이제 상한으로 막히므로 `jbroc` 을 넘치게 하려면 문장 블록을
+    // 수천 겹 쌓아야 하고, Release 는 256 MB 스택에서 20 만 겹(수 분)이 걸린다. 그래서 `jbroc` 진입점이 쓰는 그 함수를 작은 스택으로 부른다.
+    // `stop` 에 닿으면 돌아온다. 닿지 않는 `stop`(음수)이면 스택이 넘칠 때까지 들어간다. 프레임마다 지역 배열을 두고 돌아온 뒤에 더해
+    // 최적화가 재귀를 반복문으로 바꾸지 못하게 한다.
+    JBro::Int32 RecurseUntil(JBro::Int32 depth, JBro::Int32 stop)
+    {
+        volatile char frame[256];
+        frame[0] = static_cast<char>(depth.Get());
+        if (stop == depth)
+        {
+            return frame[0];
+        }
+        return RecurseUntil(depth + 1, stop) + frame[0];
+    }
+
+    void TestTheStackGuardCatchesOverflow()
+    {
+        using JBro::CompilerOutput::GuardedRun;
+        using JBro::CompilerOutput::RunOnLargeStack;
+        const GuardedRun overflow = RunOnLargeStack([](void*) -> JBro::Int32 { return RecurseUntil(1, -1); }, nullptr,
+            1024u * 1024u, 3);
+        Check(overflow.StackOverflow && overflow.Result == 3, "a stack overflow inside the guard returns the internal error result");
+        const GuardedRun deep = RunOnLargeStack([](void*) -> JBro::Int32 { RecurseUntil(1, 10000); return 42; }, nullptr,
+            256u * 1024u * 1024u, 3);
+        Check(false == deep.StackOverflow && deep.Result == 42, "10,000 frames fit in the reserved stack and return the body's result");
+
+        // 명령줄 끝까지: Debug 의 `jbroc` 은 if 블록 수천 겹에서 넘친다. 겹을 두 배씩 늘려 종료 3 과 까닭을 한 번은 본다.
+#if defined(_DEBUG)
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_deep_block_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        Bool sawOverflow = false;
+        for (JBro::Int32 blocks = 2000; blocks <= 32000 && false == sawOverflow; blocks *= 2)
+        {
+            std::string body;
+            for (JBro::Int32 index = 0; index < blocks; ++index)
+            {
+                body += "if (flag) {\n";
+            }
+            for (JBro::Int32 index = 0; index < blocks; ++index)
+            {
+                body += "}\n";
+            }
+            const fs::path source = scratch / L"blocks.jscript";
+            WriteBytes(source, "script Blocks\n{\n    Bool flag = true\n    fn F()\n    {\n" + body + "    }\n}\n");
+            const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
+            Check(result.ExitCode == 0 || result.ExitCode == 3, "deep statement blocks either compile or end as an internal error");
+            sawOverflow = result.ExitCode == 3 && result.Err.find("nests too deeply to compile (stack overflow)") != std::string::npos;
+        }
+        Check(sawOverflow, "Debug jbroc reports a stack overflow from nested blocks as exit 3 with the reason");
+        fs::remove_all(scratch);
+#endif
     }
 }
 
@@ -546,7 +651,8 @@ JBro::Int32 RunScriptCompilerCommandLineTests()
     TestTranslationTablesHoldDiagnosticAndCommandLineKeys();
     TestTheExecutable();
     TestProjectOutputPreservesUnchangedFiles();
-    TestDeepExpressionsDoNotCrash();
+    TestDeepExpressionsAreRejectedWithAPosition();
+    TestTheStackGuardCatchesOverflow();
     std::cout << "Script compiler command line tests passed.\n";
     return 0;
 }

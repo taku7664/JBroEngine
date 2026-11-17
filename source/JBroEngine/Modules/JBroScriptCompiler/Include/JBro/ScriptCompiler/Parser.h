@@ -3,9 +3,17 @@
 #include <JBro/ScriptCompiler/Diagnostic.h>
 #include <JBro/ScriptCompiler/SourceText.h>
 #include <JBro/ScriptCompiler/SyntaxTree.h>
+#include <JBro/Types/UInt.h>
 
 namespace JBro::ScriptCompiler
 {
+    // 식 하나의 가장 깊은 겹이다(jbroscript-syntax §22, D-374). 식 노드가 뿌리에서 잎까지 이어지는 수를 센다 -
+    // `1 + 1 + 1` 은 3, `((1))` 은 3, `a ?? b ?? 0` 은 3 이다. 넘으면 `JBC2015` 로 거절한다.
+    // 숫자는 생성 C++ 을 MSVC 가 받는 한도에서 왔다: `??` 사슬은 겹마다 람다 블록을 하나 열어 깊이 약 122 에서
+    // C1061(블록 중첩)에 걸리고, `?.` 사슬은 320, 다른 모양은 512 까지 빌드된다. 100 이면 그 안에서 제어문 블록 40 겹이 남는다.
+    inline constexpr UInt32 MaxExpressionDepth = 100;
+
+
     // 파일 하나를 구문 트리로 읽는다. 렉서도 여기서 부른다.
     //
     // 에러가 있어도 끝까지 읽는다. 에러 난 문장은 줄 끝이나 `}` 까지 건너뛰고 다음 문장부터 다시 읽는다.

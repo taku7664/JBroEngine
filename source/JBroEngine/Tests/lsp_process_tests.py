@@ -294,6 +294,32 @@ class ProcessTests(unittest.TestCase):
                 self.assertEqual(printed, served)
                 self.assertNotIn(b"C++ emit error", process.stderr)
 
+    def test_expression_depth_limit_matches_command_line(self):
+        # D-374: an expression may nest 100 levels. One more is JBC2015 at the same place for the command line and the server,
+        # and a document far past the limit (which used to take the whole server down) leaves the server answering.
+        def source(name, expression):
+            return "script " + name + "\n{\n    ref Int maybe\n    fn F() -> Int\n    {\n        return " + expression + "\n    }\n}\n"
+        cases = {
+            "Plus100.jscript": (source("Plus100", " + ".join(["1"] * 100)), []),
+            "Plus101.jscript": (source("Plus101", " + ".join(["1"] * 101)), [("JBC2015", 6, 16)]),
+            "Paren101.jscript": (source("Paren101", "(" * 100 + "1" + ")" * 100), [("JBC2015", 6, 116)]),
+            "Coalesce60000.jscript": (source("Coalesce60000", " ?? ".join(["maybe"] * 60000) + " ?? 0"), [("JBC2015", 6, 916)]),
+        }
+        session = self.start()
+        for name, (text, expected) in cases.items():
+            with self.subTest(name=name):
+                uri = self.document(name, text)
+                served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                          for item in self.open(session, uri, text)]
+                self.assertEqual(served, expected)
+                process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(self.root / "emit" / name),
+                                          str(self.scripts / name)], capture_output=True, timeout=60)
+                printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                           re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+                self.assertEqual(printed, served)
+                self.assertEqual(process.returncode, 1 if expected else 0, process.stderr)
+        self.assertIsNone(session.process.poll(), "the server is still running after the deep documents")
+
     def test_unsaved_diagnostics_fix_and_close(self):
         valid = "script Enemy\n{\npublic Int hp = 1\n}\n"
         uri = self.document("Enemy.jscript", valid)

@@ -862,6 +862,13 @@ namespace JBro::ScriptCompiler
 
             const SyntaxNode& Node(NodeIndex index) const
             {
+                // 파서가 오류로 비운 자리(`a ?? ` 의 오른쪽 등)는 빈 노드로 읽는다. 그 자리의 구문 오류는 이미 나 있고,
+                // 빈 식의 타입은 비어 있어 이 노드의 범위로 새 진단이 나가지 않는다.
+                static const SyntaxNode missing{};
+                if (InvalidNode == index)
+                {
+                    return missing;
+                }
                 return m_document->Tree.Get(index);
             }
 

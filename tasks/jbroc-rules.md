@@ -540,8 +540,11 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 스크립트 빌드에는 `MSB3073 … 코드: -1073741571` 한 줄만 남았고, 언어 서버(같은 1 MB 주 스레드에서 분석)도 깊이 64 에서 연결이 끊겼다.
 
 - `JBroc` 의 진입점은 일을 스택을 256 MB 예약한 스레드에서 하고, 그래도 넘치면 SEH 로 받아 §11.3 의 결함 종료 코드 3 과 표준 에러 `jbroc: internal error: the source nests too deeply to compile (stack overflow)` 로 끝낸다. 명령줄과 `--lsp` 가 같은 진입점이다.
-- Debug 실측: `--emit-project` 와 언어 서버 모두 깊이 2,000(덧셈·괄호·`and`·문자열·곱셈)까지 정상, 괄호 20,000·60,000 은 종료 3. 재귀 자체와 깊이 상한(새 진단)은 정하지 않았다 - 사용자 결정 대기.
-- 시험: `ScriptCompilerCommandLine` 의 `TestDeepExpressionsDoNotCrash`(깊이 64 의 다섯 모양은 종료 0, 괄호 60,000 은 종료 3 과 까닭). 고치기 전 `JBroc` 으로는 깊이 64 에서 종료 3221225725 로 실패한다.
+- Debug 실측(큰 스택만 있을 때): `--emit-project` 와 언어 서버 모두 깊이 2,000(덧셈·괄호·`and`·문자열·곱셈)까지 정상, 괄호 20,000·60,000 은 종료 3.
+- **식은 이제 언어 규칙으로 막는다(D-374, 2026-11-17).** 식 하나는 100 겹까지이고 넘으면 파서가 `JBC2015` 를 낸다(문법 §22). 숫자는 생성 C++ 이 MSVC 에서 빌드되는 한도(`??` 사슬 121 겹, C1061)의 아래로 골랐다.
+  큰 스택과 종료 3 은 상한이 없는 문장 블록의 겹 때문에 남는다: Debug `--emit-project` 는 if 5,000 겹, 언어 서버는 30,000 겹(서버 전체가 끝나 열린 문서를 모두 잃는다), Release `--emit-project` 는 200,000 겹(215 s)에서 넘친다.
+  넘침을 받는 코드는 `Modules/JBroc/Source/StackGuard.h` 의 `RunOnLargeStack` 이다(스택 크기를 인자로 받는다).
+- 시험: `ScriptCompilerCommandLine` 의 `TestDeepExpressionsAreRejectedWithAPosition`(아홉 모양의 100 겹은 종료 0, 101·60,000 겹은 `JBC2015` 하나)과 `TestTheStackGuardCatchesOverflow`(`RunOnLargeStack` 을 1 MB 로 불러 Debug·Release 모두 넘침을 받고, Debug 는 명령줄 끝까지 if 블록으로 종료 3 을 본다). 언어 서버는 `lsp_process_tests.py` 의 `test_expression_depth_limit_matches_command_line`.
 
 ## 16. 생성기 오류의 분류 (2026-11-17, Script QA 결함 4, D-372)
 

@@ -83,6 +83,8 @@ namespace JBro::ScriptCompiler
             return "jbroc.parse.expected_case_or_default";
         case DiagnosticCode::MissingFieldType:
             return "jbroc.parse.missing_field_type";
+        case DiagnosticCode::ExpressionTooDeep:
+            return "jbroc.parse.expression_too_deep";
         case DiagnosticCode::Count:
             break;
         }
@@ -113,6 +115,7 @@ namespace JBro::ScriptCompiler
         case DiagnosticCode::ExpectedNullAfterIs: return 2012;
         case DiagnosticCode::ExpectedCaseOrDefault: return 2013;
         case DiagnosticCode::MissingFieldType: return 2014;
+        case DiagnosticCode::ExpressionTooDeep: return 2015;
         case DiagnosticCode::Count: break;
         }
         return 0;
