@@ -842,7 +842,7 @@ EditorApplication::Tick
    `GameObject.h`를 include하며 그 공개 표면에서 `Canvas* GetCanvas()`까지 보인다. 스크립트가
    `GameObjectHandle`과 서비스만 보게 할지, 실체 타입 선언은 보되 획득 경로만 막을지 확정해야 한다.
    이 결정 전에는 프렐류드 공개 표면을 완료로 표시하지 않는다.
-   **→ 확정: D-42.** 스크립트는 `Canvas`·`GameObject` 선언 자체를 받지 않는다. 모듈 계층 분리로 강제한다.
+   **→ 확정: D-42.** 스크립트는 `Canvas`·`GameObject` 선언 자체를 받지 않는다. 모듈 계층 분리로 강제한다. (→ D-375: 이름은 불완전 타입으로 보이되 쓸 수 없다로 갱신)
 
 ## Decisions
 
@@ -3056,6 +3056,13 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-375. 엔진 구현 타입(`Canvas`·`Object::GameObject`)은 스크립트 헤더에 불완전 타입의 이름으로만 보이고 쓸 수 없다. ProjectRule §5 의 "선언조차 나타나지 않는다" 를 이 문장으로 바꾼다.**
+  (2026-11-17, Script QA 결함 6, DECISIONS-NEEDED Q3 사용자 결정 "권고안대로 ㄱ")
+  Updates: D-42(스크립트는 구현 타입의 선언 자체를 받지 않는다 → 이름은 보이되 정의는 받지 않는다), ProjectRule §5.
+  (1) 지금 동작(확인): SDK 사본의 `GameScriptBase.h`·`GameObjectHandle.h`·`Ref.h`·`ComponentHandle.h` 가 `class Canvas;`·`namespace Object { class GameObject; }` 를 전방 선언하고 비공개 자료·친구에 쓴다. 그래서 스크립트에서 `JBro::Canvas* p = nullptr;` 는 컴파일되고, 멤버 사용·`sizeof` 는 C2027 이다.
+  (2) 선언까지 숨기는 안(기반·핸들의 자료를 불투명 저장부로)은 `GameScriptBase` 배치와 스크립트 DLL ABI(§6.2)를 바꾸므로 다음에 ABI 를 올릴 때의 후보로 남긴다. 스크립트 대상에서만 다른 이름으로 별칭하는 안은 ODR 위험으로 버렸다.
+  (3) 시험: `ScriptProject` 의 음성 시험이 프렐류드만 include 한 사용자 스크립트에서 `sizeof(JBro::Canvas)`·`sizeof(JBro::Object::GameObject)`·`canvas->` 멤버 사용이 실제 MSBuild 로 C2027 인지 본다. REPORT §3 문서 어긋남 9 를 닫는다.
 
 - **D-374. JBroScript 식 하나는 100 겹(`MaxExpressionDepth`)까지 쓸 수 있다. 넘으면 파서가 `JBC2015`(위치·번역 있음)로 거절하고, 명령줄과 언어 서버가 같은 자리에 같은 글을 보인다.**
   (2026-11-17, Script QA 결함 3 의 나머지, DECISIONS-NEEDED Q1 사용자 결정 "권고안대로 ㄱ" - 최대 식 깊이를 언어 규칙으로, 숫자는 MSVC 한도를 재고 그 아래로)

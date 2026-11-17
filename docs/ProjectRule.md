@@ -440,7 +440,11 @@
   여전히 "떼고 · 들어간 표시가 내려가기를 기다리고 · 새로 거는" 차례가 필요하다(`AudioMixer::SetBusProcessor`, D-206).
 - DLL에서 만든 객체는 원칙적으로 같은 DLL에서 파괴한다. (MUST)
 - 스크립트가 엔진 실 객체에 도달하는 경로는 서비스를 통한다. (MUST)
-  `Canvas` 같은 Tier E 구현 타입은 스크립트 헤더에 **선언조차 나타나지 않는다.**
+  `Canvas`·`Object::GameObject` 같은 구현 타입은 스크립트 헤더에 **불완전 타입의 이름으로만 보이고 쓸 수 없다.** (MUST) (D-375)
+  스크립트 기반 클래스와 핸들의 비공개 자료·친구 선언(`GameScriptBase` 의 `SafePtr<Object::GameObject>`·`friend class Canvas`,
+  `GameObjectHandle`·`Ref`·`ComponentHandle` 의 비공개 해석)이 이름을 전방 선언하므로 포인터 선언까지는 컴파일되지만,
+  정의는 프렐류드에 없어 멤버 사용·`sizeof`·값 만들기는 C2027 이다. 이 C2027 은 음성 시험(`ScriptProject`)이 지킨다.
+  선언까지 숨기려면 기반·핸들의 자료 배치를 바꿔 스크립트 DLL ABI(§6.2)가 바뀌므로 다음 ABI 변경 때의 후보로 남긴다.
   `GameObject`는 §3의 사유로 Tier S에 있으나 프렐류드가 그 헤더를 include하지 않아 같은 결과가 된다.
   Tier S의 `ComponentBase::GetOwner()`·`GameScriptBase::GetGameObject()`는 `Handle::GameObject`를 반환하며,
   `GameObject*`·`Canvas*`를 돌려주는 접근은 `JBroCanvas`의 `Internal::CanvasAccess`

@@ -1,4 +1,6 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/ScriptBuild.h>
 #include <JBro/Editor/ScriptProject.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Reflection/Field.h>
@@ -646,39 +648,81 @@ namespace
 
 namespace
 {
+    // 에디터 없이 에디터와 같은 순서(`EnsureProject` → `RefreshEngineProps` → `MakeBuildCommand` → MSBuild → `ParseLog`)로
+    // 스크립트 프로젝트를 빌드한다. 보는 것이 MSBuild 라 그래픽 장치가 없어도 돈다(REVIEW R1-1). 빌드 도구가 없을 때만 건너뛴다.
+    struct DirectBuild
+    {
+        Bool Ran = false;
+        Bool Succeeded = false;
+        Array<ScriptBuild::Diagnostic> Diagnostics;
+    };
+
+    DirectBuild BuildDirectly(WindowsPlatform& platform, const fs::path& root)
+    {
+        DirectBuild result;
+        const fs::path contents = root / "Contents";
+        const String executableFolder = platform.GetExecutableFolder();
+        const String engineRoot = ScriptProject::FindEngineRoot(platform, executableFolder.c_str());
+        Check(false == engineRoot.empty(), "the engine sources are found from the test executable");
+        String error;
+        Check(ScriptProject::EnsureProject(platform, Utf8(contents).c_str(), FrameworkKind::Framework2D, error)
+                || ScriptProject::HasProject(platform, Utf8(contents).c_str()),
+            "the script project exists before the direct build");
+        ScriptProject::RefreshEngineProps(platform, Utf8(contents).c_str(), engineRoot.c_str());
+        const String msbuild = ScriptBuild::LocateMSBuild(platform, Utf8(root).c_str());
+        if (msbuild.empty())
+        {
+            std::cout << "  [skip] no MSBuild with the v145 tools; the direct script build is not verified" << std::endl;
+            return result;
+        }
+        const fs::path log = root / "x64" / "ScriptBuild.log";
+        fs::create_directories(log.parent_path());
+        fs::remove(log);
+        const String compiler = EditorPaths::JoinPath(executableFolder.c_str(), "JBroc.exe");
+        const String command = ScriptBuild::MakeBuildCommand(msbuild.c_str(), Utf8(contents / "GameScript.vcxproj").c_str(), "Debug",
+            Utf8(log).c_str(), compiler.c_str(), "");
+        ChildProcess process = platform.StartProcess(command.c_str(), Utf8(contents).c_str(), nullptr);
+        Check(process.process != nullptr, "MSBuild starts for the direct script build");
+        Int32 exitCode = -1;
+        for (Int32 step = 0; step < 6000 && platform.PollProcess(process, exitCode) == ProcessStatus::Running; ++step)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        Check(platform.PollProcess(process, exitCode) == ProcessStatus::Exited, "the direct script build ends within five minutes");
+        platform.CloseProcess(process);
+        Array<std::byte> bytes;
+        if (platform.ReadWholeFile(Utf8(log).c_str(), bytes))
+        {
+            ScriptBuild::ParseLog(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), result.Diagnostics);
+        }
+        result.Ran = true;
+        result.Succeeded = exitCode == 0;
+        if (false == result.Succeeded)
+        {
+            for (const ScriptBuild::Diagnostic& diagnostic : result.Diagnostics)
+            {
+                if (diagnostic.isError)
+                {
+                    std::cout << "  " << diagnostic.file.c_str() << "(" << diagnostic.line.Get() << "): " << diagnostic.code.c_str()
+                              << " " << diagnostic.message.c_str() << std::endl;
+                }
+            }
+        }
+        return result;
+    }
+
     // **에디터가 내놓는 필드 타입은 모두 사용자 프로젝트에서 컴파일된다.** 만든 글자만 보면 SDK 사본에 설명서가 없는 타입
     // (`Vector2`·`Color`·에셋)을 놓쳤다 - 글자는 맞는데 `TypeDescriptorOf` 가 없어 C2338 로 멈췄다. 목록은 `FieldType` 에서
     // 읽으므로 종류가 늘면 시험도 따라 는다. JBroScript 의 `[prop]` 값 필드도 같은 설명서를 쓴다.
-    void BuildEveryOfferedFieldType(FrameworkKind framework, const char* folder, const char* frameworkName)
+    // 스크립트를 만드는 함수(`ScriptProject::CreateScript`)는 에디터의 `새 스크립트` 가 부르는 그것이다.
+    void BuildEveryOfferedFieldType(FrameworkKind framework, const char* folder)
     {
+        WindowsPlatform platform;
         const fs::path root = FreshFolder(folder);
-        fs::create_directories(root / "Contents" / "Assets");
-        const fs::path projectPath = root / "Fields.jproject";
-        std::ofstream(projectPath, std::ios::binary) <<
-            "Version: 1\n"
-            "EngineVersion: 0.1.0\n"
-            "Framework: " << frameworkName << "\n"
-            "RootPath: .\n"
-            "ResolutionWidth: 640\n"
-            "ResolutionHeight: 480\n"
-            "AssetDirectory: Contents/Assets\n"
-            "ScriptSourceDirectory: Contents\n"
-            "ScriptOutputLibraryPath: \"\"\n"
-            "Build:\n"
-            "  ProductName: Fields\n";
-
-        EditorApplication editor;
-        EditorApplicationConfig config;
-        config.windowVisible = false;
-        config.windowWidth = 640;
-        config.windowHeight = 480;
-        if (false == editor.Initialize(config))
-        {
-            std::cout << "  [skip] no D3D12 device; building every field type not verified" << std::endl;
-            return;
-        }
-        ProjectFileError error;
-        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the field type project opens");
+        const fs::path contents = root / "Contents";
+        fs::create_directories(contents / "Scripts");
+        String error;
+        Check(ScriptProject::EnsureProject(platform, Utf8(contents).c_str(), framework, error), "the field type project is created");
 
         using ScriptProject::FieldType;
         Array<ScriptProject::FieldSpec> fields;
@@ -691,37 +735,77 @@ namespace
             }
         }
         Check(fields.Size() > 10, "the editor offers the value and handle field types");
-        String failure;
-        Check(false == editor.CreateScript("", "EveryField", fields, failure).empty(), "a script with every offered field type is created");
+        Check(ScriptProject::CreateScript(platform, Utf8(contents / "Scripts").c_str(), "EveryField", fields, framework, error),
+            "a script with every offered field type is created");
         if (framework == FrameworkKind::Framework2D)
         {
-            std::ofstream(root / "Contents" / "Scripts" / "ValueProps.jscript") <<
+            std::ofstream(contents / "Scripts" / "ValueProps.jscript") <<
                 "script ValueProps\n{\n    [prop] Vector2 offset\n    [prop] Color tint\n}\n";
         }
-        Check(editor.BuildScripts(), "the build of every field type starts");
-        for (Int32 step = 0; step < 6000 && editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Running; ++step)
+        const DirectBuild build = BuildDirectly(platform, root);
+        if (false == build.Ran)
         {
-            Check(editor.Tick(1.0f / 60.0f), "the editor keeps ticking while scripts build");
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            return;
         }
-        for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
-        {
-            if (diagnostic.isError)
-            {
-                std::cout << "  " << diagnostic.file.c_str() << "(" << diagnostic.line.Get() << "): " << diagnostic.code.c_str()
-                          << " " << diagnostic.message.c_str() << std::endl;
-            }
-        }
-        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
-                && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
+        Check(build.Succeeded && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
             "every field type the editor offers compiles in a user script project");
-        editor.Shutdown();
+    }
+
+    // **엔진 구현 타입은 이름만 보이고 쓸 수 없다**(D-375, ProjectRule §5). 기반 클래스와 핸들이 `Canvas`·`Object::GameObject` 를
+    // 전방 선언하므로 포인터 선언까지는 되지만, 정의가 프렐류드에 없어 크기·멤버를 쓰면 C2027 이다. 정의가 새어 들어오면 이 시험이 잡는다.
+    void TestEngineImplementationTypesCannotBeUsed()
+    {
+        WindowsPlatform platform;
+        const fs::path root = FreshFolder("incomplete");
+        const fs::path contents = root / "Contents";
+        fs::create_directories(contents / "Scripts");
+        String error;
+        Check(ScriptProject::EnsureProject(platform, Utf8(contents).c_str(), FrameworkKind::Framework2D, error), "the probe project is created");
+        struct Probe
+        {
+            const char* Name;
+            const char* Body;
+        };
+        const Probe probes[] = {
+            {"CanvasSize", "JBro::UInt64 CanvasSize() { return sizeof(JBro::Canvas); }\n"},
+            {"GameObjectSize", "JBro::UInt64 GameObjectSize() { return sizeof(JBro::Object::GameObject); }\n"},
+            {"CanvasMember", "void UseCanvas(JBro::Canvas* canvas) { canvas->Tick(0.0f); }\n"},
+            {"GameObjectMember", "void UseObject(JBro::Object::GameObject* object) { object->GetName(); }\n"},
+        };
+        for (const Probe& probe : probes)
+        {
+            const fs::path source = contents / "Scripts" / "Probe.cpp";
+            std::ofstream(source, std::ios::trunc) << "#include <JBro/ScriptAPI.h>\n" << probe.Body;
+            const DirectBuild build = BuildDirectly(platform, root);
+            if (false == build.Ran)
+            {
+                return;
+            }
+            Bool incomplete = false;
+            for (const ScriptBuild::Diagnostic& diagnostic : build.Diagnostics)
+            {
+                incomplete = incomplete || (diagnostic.code == "C2027" && Contains(diagnostic.file, "Probe.cpp"));
+            }
+            if (false == incomplete)
+            {
+                std::cout << "  probe " << probe.Name << std::endl;
+            }
+            Check(false == build.Succeeded && incomplete, "an engine implementation type is only an incomplete name in a user script (C2027)");
+        }
+        // 이름만 쓰는 포인터 선언은 지금 컴파일된다 - D-375 가 적은 한계다. 이것이 바뀌면(선언까지 숨기면) 문서도 함께 고친다.
+        std::ofstream(contents / "Scripts" / "Probe.cpp", std::ios::trunc)
+            << "#include <JBro/ScriptAPI.h>\nJBro::Bool HoldsNothing() { JBro::Canvas* canvas = nullptr; return canvas == nullptr; }\n";
+        const DirectBuild pointer = BuildDirectly(platform, root);
+        if (pointer.Ran)
+        {
+            Check(pointer.Succeeded, "a pointer to the incomplete name still compiles, as D-375 records");
+        }
     }
 
     void TestEveryOfferedFieldTypeBuilds()
     {
-        BuildEveryOfferedFieldType(FrameworkKind::Framework2D, "fields2d", "2D");
-        BuildEveryOfferedFieldType(FrameworkKind::Framework3D, "fields3d", "3D");
+        BuildEveryOfferedFieldType(FrameworkKind::Framework2D, "fields2d");
+        BuildEveryOfferedFieldType(FrameworkKind::Framework3D, "fields3d");
     }
 }
 
@@ -735,6 +819,7 @@ Int32 RunScriptProjectTests()
     TestTheEditorCreatesAScriptAndItsProject();
     TestA3DScriptBuildsAgainstTheScreenUi();
     TestEveryOfferedFieldTypeBuilds();
+    TestEngineImplementationTypesCannotBeUsed();
     std::cout << "Script project tests passed.\n";
     return 0;
 }
