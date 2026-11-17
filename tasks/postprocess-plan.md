@@ -132,9 +132,9 @@
 
 각 단계는 빌드·시험·뮤테이션 뒤 커밋한다. 픽셀 시험은 세 백엔드(D3D12·D3D11·Vulkan)에서 **디버그 레이어를 켜고** 잰다.
 
-1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14) - Vulkan 의 그리기 시험만 남았다(§3.1).**
-2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **섰다(D-326·D-327, 2026-10-15) - Vulkan 의 그리기 시험만 남았다(§3.2·§3.3).**
-3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`. **컴퓨트·UAV·구조화 버퍼·자동 배리어가 섰다(D-328, 2026-10-15). 명시 `Barrier` API 는 5 단계로 옮겼다(사용자 결정).**
+1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14). Vulkan 의 그리기 시험도 섰다(D-348, 2026-11-17, §3.6).**
+2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **섰다(D-326·D-327, 2026-10-15). Vulkan 의 그리기 시험도 섰다(D-348, §3.6).**
+3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`. **컴퓨트·UAV·구조화 버퍼·자동 배리어가 섰다(D-328, 2026-10-15). 명시 `Barrier` API 는 5 단계로 옮겼다(사용자 결정). Vulkan 의 디스패치 시험도 섰다(D-348, §3.6).**
 4. 셰이더 매니페스트와 Shader 에셋(빌트인 셰이더를 옮긴다). **매니페스트와 셰이더 자료형 `ShaderData` 가 섰다(D-329, 2026-10-15, §3.5). `.jshader` 에셋 파일과 에디터의 즉석 굽기는 11 단계로 옮겼다(사용자 결정).**
 5. 렌더 그래프와 지금 패스 옮기기. 그림이 바뀌지 않는 것을 기존 픽셀 시험이 잰다. **명시 `Barrier` API 도 여기서 연다(D-328).**
 6. 효과 종류 표·주입 지점·HDR 장면 색·톤맵. 시험대로 노출과 톤맵.
@@ -198,10 +198,8 @@
 
 남은 것:
 
-- **Vulkan 의 그리기 시험.** 이 기계에는 Vulkan SDK 의 dxc 가 없어 `ConstantProbe*_SPV.generated.h` 를 굽지 못했다(사용자 결정 "Vulkan은 나중에", 받지 않는다).
-  Vulkan SDK 가 있는 기계에서 `pwsh Tests\Shaders\Compile.ps1` 을 돌리고, 두 시험 파일의 `HasProbeShaders`·API 검사에 Vulkan 을 넣는다.
-  그때까지 Vulkan 의 상수 버퍼 묶기·`vkCmdDraw`·새 포맷은 **컴파일만 됐다**. 상한·링 시험은 Vulkan 에서도 돈다.
-- 이 기계의 Vulkan 에는 검증 레이어가 없다. 그래서 `TextureBinding` 의 "검증 손잡이가 실제로 말하는지" 가 Vulkan 에서 실패한다 - 이 단계 전부터다(§3.1 실측).
+- ~~**Vulkan 의 그리기 시험.** 이 기계에는 Vulkan SDK 의 dxc 가 없어 `ConstantProbe*_SPV.generated.h` 를 굽지 못했다.~~ → 섰다(D-348, §3.6).
+- ~~이 기계의 Vulkan 에는 검증 레이어가 없다.~~ → Vulkan SDK 1.4.363.1 을 깔아(2026-11-17) `TextureBinding` 의 "검증 손잡이가 실제로 말하는지" 가 Vulkan 에서도 지난다.
 
 ### 3.2 2 단계 - 서브리소스·서브리소스 상태·깊이 읽기 (D-326)
 
@@ -315,7 +313,7 @@ Vulkan 은 `VK_PIPELINE_BIND_POINT_COMPUTE`, `STORAGE_IMAGE`(GENERAL 레이아�
 
 남은 것: Vulkan 의 디스패치 시험(SPIR-V), 명시 `Barrier`(5 단계), 그래픽 단계의 UAV(픽셀 셰이더의 쓰기)와 3D·배열 UAV, 읽기 전용 구조화 버퍼(`StructuredBuffer`, t#), 같은 디스패치에서 같은 mip 을
 읽고 쓰는 묶음의 거절(지금은 부르는 쪽의 몫이다), D3D12 프레임 폐기 때 버퍼 상태 되돌리기(텍스처만 되돌린다).
-- Vulkan 의 그리기 시험(§3.1 과 같은 까닭). Vulkan 은 mip·깊이 만들기와 거절만 돌았다.
+- ~~Vulkan 의 그리기 시험(§3.1 과 같은 까닭).~~ → 섰다(D-348, §3.6).
 
 ### 3.5 4 단계 - 셰이더 매니페스트와 셰이더 자료형 (D-329)
 
@@ -358,6 +356,42 @@ Vulkan 은 `VK_PIPELINE_BIND_POINT_COMPUTE`, `STORAGE_IMAGE`(GENERAL 레이아�
 
 남은 것: SPIR-V 헤더를 매니페스트로 다시 굽기(Vulkan SDK 가 있는 기계에서 `Compile.ps1` 을 `-SkipSpirv` 없이), 컴퓨트 프로그램을 매니페스트에 받기(첫 효과가 6·7 단계에서),
 파라미터 블록 레이아웃(6 단계), `.jshader` 에셋 파일과 에디터의 즉석 굽기(11 단계).
+
+### 3.6 Vulkan 의 그리기·디스패치 시험 (D-348)
+
+2026-11-17. 이 기계에 Vulkan SDK 1.4.363.1 이 깔려(D-347), 1~3 단계의 탐침 셰이더를 SPIR-V 로 굽고(`Tests\Shaders\Compile.ps1`, `*_SPV.generated.h` 열하나)
+네 시험 파일(`ConstantBufferTests.cpp`·`RenderTargetFormatTests.cpp`·`SubresourceTests.cpp`·`ComputeTests.cpp`)의 `HasProbeShaders`·API 검사에 Vulkan 을 넣었다.
+바이트코드는 파일마다 `Pick(api, dxil, sm5, spv)` 하나가 고른다. DXIL·DXBC 헤더와 `TexturedQuad*_SPV` 는 다시 구워도 같은 바이트였다.
+
+검증 레이어를 켠 채 네 묶음이 **처음부터 지났다** - 그림이 틀린 곳은 없었다. 드러난 것은 둘이다:
+
+| 무엇 | 어떻게 드러났나 | 고친 것 |
+|---|---|---|
+| 컴퓨트의 `RWTexture2D<float4>` 를 dxc 가 SPIR-V 에서 `Rgba32f` 형식으로 짐작한다. RGBA8 텍스처를 묶으면 명세상 그 이미지의 값이 **정의되지 않는다**(이 GPU 는 맞게 썼다) | 검증 레이어의 **경고**(`vkCmdDispatch(): ... Format operand Rgba32f ... doesn't match the VkImageView ... R8G8B8A8_UNORM`). 오류 수(`GetValidationErrorCount`)는 오류만 세서 시험이 몰랐다 - 메시지를 찍어 보고 알았다 | SPIR-V 를 `-fspv-use-unknown-image-format` 으로 굽는다(시험과 `JBroGraphics` 의 `Compile.ps1`. 엔진 셰이더에는 아직 `RW` 이미지가 없어 다시 굽지 않았다). Vulkan 1.3 에서 형식 없는 쓰기는 장치 기능이 아니라 **포맷마다의** `VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT` 이 허락한다 - 읽고 쓰는 텍스처를 만들 때 그것을 묻고 없으면 만들지 않는다(`vkGetPhysicalDeviceFormatProperties2` 를 싣는다) |
+| 셰이더 읽기 레이아웃으로 가는 전이가 정점·프래그먼트 단계만 기다린다. 컴퓨트도 텍스처를 읽는다(D-328, `SetTextureMip` 의 `CSHalve`) | 코드 읽기. 렌더 패스 끝의 전이 바로 뒤에 디스패치가 오고 쓰는 텍스처가 이미 쓰기 상태면, 디스패치 앞의 메모리 배리어는 컴퓨트에서만 출발해 그 전이를 기다리지 않는다 | 도착 단계에 `COMPUTE_SHADER` 를 더했다. 그 모양을 시험 `TestComputeReadsWhatAPassDrew` 로 세웠다(패스가 초록으로 지운 것을 `Sampled` 없는 읽고 쓰는 텍스처로 반 줄여 되읽는다, 세 백엔드) |
+
+뮤테이션(2026-11-17, Vulkan, 12 개 중 9 개 죽었다 - 러너는 커밋하지 않았다):
+
+| 망가뜨린 것 | 결과 |
+|---|---|
+| 상수 버퍼의 동적 오프셋을 늘 0 | 둘째 드로우의 왼쪽 위가 초록 |
+| `R16Float` 를 `R16_UNORM` 으로 | 1 보다 큰 값을 담는다 |
+| `SetTextureMip` 이 모든 mip 의 뷰 | mip 2 의 초록 |
+| 색 첨부가 늘 mip 0 의 뷰 | mip 1 의 빨강 |
+| 깊이를 패스 뒤에 읽기 레이아웃으로 돌리지 않음 | 그린 깊이를 텍스처로 묶기 |
+| 샘플러 W 를 늘 Clamp | Repeat 의 1.375 가 조각 1 |
+| 3D 올리기의 깊이를 1 로 | w 0.625 가 조각 2 |
+| 디스패치 뒤 읽기 레이아웃으로 되돌리지 않음 | mip 0 을 컴퓨트가 읽기 |
+| 구조화 버퍼의 binding 에서 u4 기준을 뺌 | 열 0 의 값 |
+| **형식 없는 쓰기를 묻는 검사를 뺌** | **살아남았다.** 이 GPU 는 읽고 쓰는 포맷 모두가 그 비트를 갖는다 - 갖지 않는 장치에서만 드러난다 |
+| **읽기 전이의 `COMPUTE_SHADER` 를 뺌** | **살아남았다.** 이 GPU 에서는 그림이 맞다 |
+| **디스패치 사이의 메모리 배리어를 뺌** | **살아남았다.** D3D12 의 UAV 배리어(§3.4)와 같다 |
+
+동기화 검증(`VK_LAYER_VALIDATE_SYNC=1`, 레이어가 `Synchronization` 이 켜졌다고 알린다)도 뒤의 둘을 말하지 않았다 - 까닭은 캐지 않았다(추정: 앞뒤의 다른
+전이 배리어가 `ALL_COMMANDS` 에서 출발해 실행 의존을 이어 준다). 배리어 둘은 시험으로 잴 수 없는 자리라 코드 읽기로 지킨다.
+
+남은 것: 검증 레이어의 경고는 시험이 세지 않는다. `RWTexture2D` 형식처럼 경고로만 나오는 명세 위반이 있다 - 경고까지 셀지는 다른 시험(성능 경고)에 미치는
+영향을 본 뒤 정한다.
 
 ## 4. 정한 것과 미정
 

@@ -16,6 +16,13 @@ namespace Sm5
 #include "ConstantProbeVS_SM5.generated.h"
 }
 
+// Vulkan 의 SPIR-V(Vulkan SDK 의 dxc, `Tests/Shaders/Compile.ps1`).
+namespace Spv
+{
+#include "ConstantProbePS_SPV.generated.h"
+#include "ConstantProbeVS_SPV.generated.h"
+}
+
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -28,9 +35,8 @@ namespace Sm5
 
 // 후처리 계획 1 단계(postprocess-plan §3)의 RHI 를 잰다 - 바인딩 레이아웃·상수 버퍼·업로드 링·인덱스 없는 그리기·새 포맷.
 //
-// D3D12 와 D3D11 은 픽셀까지 잰다. **Vulkan 은 셰이더가 필요 없는 것만 잰다** - 이 기계에는 SPIR-V 를 굽는 Vulkan SDK 의
-// dxc 가 없어 `ConstantProbe*_SPV.generated.h` 가 아직 없다(`Tests/Shaders/Compile.ps1 -SkipSpirv`, 2026-10-14). 굽고 나면
-// 그리는 시험도 Vulkan 에서 돈다.
+// 세 백엔드 모두 픽셀까지 잰다. Vulkan 의 SPIR-V 탐침은 Vulkan SDK 의 dxc 로 구웠다(2026-11-17, D-348) - 그 전에는
+// 셰이더가 필요 없는 것만 Vulkan 에서 돌았다.
 namespace
 {
     void Check(JBro::Bool condition, const char* message)
@@ -57,10 +63,26 @@ namespace
         return std::fabs(a - b) <= tolerance;
     }
 
-    // 셰이더가 있는 백엔드다. Vulkan 은 SPIR-V 를 구운 뒤에 여기에 든다.
+    // 탐침 셰이더가 있는 백엔드다.
     JBro::Bool HasProbeShaders(JBro::GraphicsApi api)
     {
-        return api == JBro::GraphicsApi::D3D12 || api == JBro::GraphicsApi::D3D11;
+        return api == JBro::GraphicsApi::D3D12 || api == JBro::GraphicsApi::D3D11 || api == JBro::GraphicsApi::Vulkan;
+    }
+
+    // 백엔드의 바이트코드를 고른다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.
+    template <std::size_t DxilSize, std::size_t Sm5Size, std::size_t SpvSize>
+    JBro::ShaderBytecode Pick(JBro::GraphicsApi api, const unsigned char (&dxil)[DxilSize], const unsigned char (&sm5)[Sm5Size],
+        const unsigned char (&spv)[SpvSize])
+    {
+        if (api == JBro::GraphicsApi::D3D11)
+        {
+            return {sm5, static_cast<JBro::UInt32>(Sm5Size)};
+        }
+        if (api == JBro::GraphicsApi::Vulkan)
+        {
+            return {spv, static_cast<JBro::UInt32>(SpvSize)};
+        }
+        return {dxil, static_cast<JBro::UInt32>(DxilSize)};
     }
 
     // 정점 버퍼가 없는 탐침 파이프라인이다. b1 은 정점 단계, b2 는 픽셀 단계가 읽지만 자리표는 둘 다에 연다 - 한 종류는
@@ -68,16 +90,8 @@ namespace
     JBro::GraphicsPipelineDesc MakeProbePipelineDesc(JBro::GraphicsApi api, const JBro::TextureFormat* colorFormat)
     {
         JBro::GraphicsPipelineDesc desc;
-        if (api == JBro::GraphicsApi::D3D11)
-        {
-            desc.vertexShader = {Sm5::JBroTestConstantProbeVS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestConstantProbeVS_SM5))};
-            desc.pixelShader = {Sm5::JBroTestConstantProbePS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestConstantProbePS_SM5))};
-        }
-        else
-        {
-            desc.vertexShader = {JBroTestConstantProbeVS, static_cast<JBro::UInt32>(sizeof(JBroTestConstantProbeVS))};
-            desc.pixelShader = {JBroTestConstantProbePS, static_cast<JBro::UInt32>(sizeof(JBroTestConstantProbePS))};
-        }
+        desc.vertexShader = Pick(api, JBroTestConstantProbeVS, Sm5::JBroTestConstantProbeVS_SM5, Spv::JBroTestConstantProbeVS_SPV);
+        desc.pixelShader = Pick(api, JBroTestConstantProbePS, Sm5::JBroTestConstantProbePS_SM5, Spv::JBroTestConstantProbePS_SPV);
         desc.colorFormats = {colorFormat, 1};
         desc.cull = JBro::CullMode::None;
         desc.bindings.constantBuffers.count = 2;

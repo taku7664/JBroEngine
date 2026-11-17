@@ -24,6 +24,17 @@ namespace Sm5
 #include "SubresourceProbeVS_SM5.generated.h"
 }
 
+// Vulkan 의 SPIR-V(Vulkan SDK 의 dxc, `Tests/Shaders/Compile.ps1`).
+namespace Spv
+{
+#include "ComputeProbeFillCS_SPV.generated.h"
+#include "ComputeProbeHalveCS_SPV.generated.h"
+#include "ComputeProbeReadValuesCS_SPV.generated.h"
+#include "ComputeProbeWriteValuesCS_SPV.generated.h"
+#include "SubresourceProbeSamplePS_SPV.generated.h"
+#include "SubresourceProbeVS_SPV.generated.h"
+}
+
 #include <cstddef>
 #include <cstring>
 #include <iostream>
@@ -36,7 +47,8 @@ namespace Sm5
 // 후처리 계획 3 단계(postprocess-plan §3)의 RHI 를 잰다 - 컴퓨트 파이프라인·읽고 쓰는 텍스처·구조화 버퍼·`Dispatch` 의 자동 배리어.
 //
 // D3D12 와 D3D11 은 돌려서 잰다. **D3D12 의 검증 레이어가 배리어를 잰다** - 쓰기 상태로 옮기지 않거나 돈 뒤 읽기 상태로 되돌리지 않으면
-// 그림이 맞아도 검증 오류다. Vulkan 은 SPIR-V 탐침이 없어 돌리지 않고 셰이더 없이 되는 것(만들기·거절)만 잰다.
+// 그림이 맞아도 검증 오류다. Vulkan 도 돌려서 잰다(SPIR-V 탐침은 2026-11-17, D-348) -
+// 레이아웃 전이와 메모리 배리어는 Vulkan 검증 레이어가 잰다.
 namespace
 {
     void Check(JBro::Bool condition, const char* message)
@@ -75,7 +87,23 @@ namespace
 
     JBro::Bool HasProbeShaders(JBro::GraphicsApi api)
     {
-        return api == JBro::GraphicsApi::D3D12 || api == JBro::GraphicsApi::D3D11;
+        return api == JBro::GraphicsApi::D3D12 || api == JBro::GraphicsApi::D3D11 || api == JBro::GraphicsApi::Vulkan;
+    }
+
+    // 백엔드의 바이트코드를 고른다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.
+    template <std::size_t DxilSize, std::size_t Sm5Size, std::size_t SpvSize>
+    JBro::ShaderBytecode Pick(JBro::GraphicsApi api, const unsigned char (&dxil)[DxilSize], const unsigned char (&sm5)[Sm5Size],
+        const unsigned char (&spv)[SpvSize])
+    {
+        if (api == JBro::GraphicsApi::D3D11)
+        {
+            return {sm5, static_cast<JBro::UInt32>(Sm5Size)};
+        }
+        if (api == JBro::GraphicsApi::Vulkan)
+        {
+            return {spv, static_cast<JBro::UInt32>(SpvSize)};
+        }
+        return {dxil, static_cast<JBro::UInt32>(DxilSize)};
     }
 
     enum class Kernel
@@ -88,27 +116,16 @@ namespace
 
     JBro::ShaderBytecode KernelBytecode(JBro::GraphicsApi api, Kernel kernel)
     {
-        const JBro::Bool sm5 = api == JBro::GraphicsApi::D3D11;
         switch (kernel)
         {
         case Kernel::Fill:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeFillCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeFillCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeFillCS, static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeFillCS))};
+            return Pick(api, JBroTestComputeProbeFillCS, Sm5::JBroTestComputeProbeFillCS_SM5, Spv::JBroTestComputeProbeFillCS_SPV);
         case Kernel::WriteValues:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeWriteValuesCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeWriteValuesCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeWriteValuesCS,
-                             static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeWriteValuesCS))};
+            return Pick(api, JBroTestComputeProbeWriteValuesCS, Sm5::JBroTestComputeProbeWriteValuesCS_SM5, Spv::JBroTestComputeProbeWriteValuesCS_SPV);
         case Kernel::ReadValues:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeReadValuesCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeReadValuesCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeReadValuesCS,
-                             static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeReadValuesCS))};
+            return Pick(api, JBroTestComputeProbeReadValuesCS, Sm5::JBroTestComputeProbeReadValuesCS_SM5, Spv::JBroTestComputeProbeReadValuesCS_SPV);
         case Kernel::Halve:
-            return sm5 ? JBro::ShaderBytecode{Sm5::JBroTestComputeProbeHalveCS_SM5,
-                             static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestComputeProbeHalveCS_SM5))}
-                       : JBro::ShaderBytecode{JBroTestComputeProbeHalveCS, static_cast<JBro::UInt32>(sizeof(JBroTestComputeProbeHalveCS))};
+            return Pick(api, JBroTestComputeProbeHalveCS, Sm5::JBroTestComputeProbeHalveCS_SM5, Spv::JBroTestComputeProbeHalveCS_SPV);
         }
         return {};
     }
@@ -350,13 +367,8 @@ namespace
 
         static const JBro::TextureFormat colorFormat = JBro::TextureFormat::BGRA8Unorm;
         JBro::GraphicsPipelineDesc sampleDesc;
-        sampleDesc.vertexShader = api == JBro::GraphicsApi::D3D11
-            ? JBro::ShaderBytecode{Sm5::JBroTestSubresourceProbeVS_SM5, static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestSubresourceProbeVS_SM5))}
-            : JBro::ShaderBytecode{JBroTestSubresourceProbeVS, static_cast<JBro::UInt32>(sizeof(JBroTestSubresourceProbeVS))};
-        sampleDesc.pixelShader = api == JBro::GraphicsApi::D3D11
-            ? JBro::ShaderBytecode{Sm5::JBroTestSubresourceProbeSamplePS_SM5,
-                  static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestSubresourceProbeSamplePS_SM5))}
-            : JBro::ShaderBytecode{JBroTestSubresourceProbeSamplePS, static_cast<JBro::UInt32>(sizeof(JBroTestSubresourceProbeSamplePS))};
+        sampleDesc.vertexShader = Pick(api, JBroTestSubresourceProbeVS, Sm5::JBroTestSubresourceProbeVS_SM5, Spv::JBroTestSubresourceProbeVS_SPV);
+        sampleDesc.pixelShader = Pick(api, JBroTestSubresourceProbeSamplePS, Sm5::JBroTestSubresourceProbeSamplePS_SM5, Spv::JBroTestSubresourceProbeSamplePS_SPV);
         sampleDesc.colorFormats = {&colorFormat, 1};
         sampleDesc.cull = JBro::CullMode::None;
         sampleDesc.bindings.constantBuffers = {2, JBro::ShaderStage::Vertex | JBro::ShaderStage::Pixel};
@@ -487,11 +499,87 @@ namespace
         probe.Close();
     }
 
+    // **렌더 패스가 그린 텍스처를 바로 다음 디스패치가 읽는다**(블룸의 첫 내림). 쓰는 쪽은 `Sampled` 없는 읽고 쓰는 텍스처라 앞의
+    // 디스패치 뒤로 쓰기 상태에 남는다 - 그래서 이 디스패치 앞에는 그 텍스처의 전이가 없고, 패스 끝의 "읽기 상태로" 전이 하나만이
+    // 그림과 컴퓨트 사이를 잇는다. Vulkan 은 그 전이가 컴퓨트 단계도 기다려야 한다(D-348) - 동기화 검증
+    // (`VK_LAYER_VALIDATE_SYNC=1`)이 그 자리의 읽기-쓰기 위험을 말한다.
+    template <typename TModule>
+    void TestComputeReadsWhatAPassDrew()
+    {
+        Probe<TModule> probe;
+        if (false == probe.Open("JBro compute after pass probe"))
+        {
+            std::cout << "  [skip] no device for this API; compute after a pass not verified" << std::endl;
+            return;
+        }
+        const JBro::GraphicsApi api = probe.rhi.GetApi();
+        JBro::IRHIDevice& device = *probe.device;
+        const JBro::ComputePipelineHandle fill = CreateKernel(device, api, Kernel::Fill);
+        const JBro::ComputePipelineHandle halve = CreateKernel(device, api, Kernel::Halve);
+        JBro::TextureDesc drawnDesc;
+        drawnDesc.extent = {SurfaceSize, SurfaceSize};
+        drawnDesc.format = JBro::TextureFormat::RGBA8Unorm;
+        drawnDesc.usage = JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
+        const JBro::TextureHandle drawn = device.CreateTexture(drawnDesc);
+        JBro::TextureDesc halfDesc;
+        halfDesc.extent = {SurfaceSize / 2, SurfaceSize / 2};
+        halfDesc.format = JBro::TextureFormat::RGBA8Unorm;
+        halfDesc.usage = JBro::TextureUsage::Storage;
+        const JBro::TextureHandle half = device.CreateTexture(halfDesc);
+        Check(fill.IsValid() && halve.IsValid() && drawn.IsValid() && half.IsValid(),
+            "the compute-after-pass resources must be created");
+
+        const JBro::BeginFrameResult begun = device.BeginFrame(probe.swapchain);
+        Check(begun.status == JBro::FrameStatus::Ready, "the probe frame must begin");
+        JBro::IRHICommandContext& commands = *begun.frame.commands;
+        probe.ring.BeginFrame(begun.frame.slot);
+        const JBro::UInt32 groups = SurfaceSize / 2 / 8;
+
+        // 쓰는 텍스처를 먼저 쓰기 상태로 만든다(파랑). 읽기로 되돌리지 않는다.
+        Check(commands.SetComputePipeline(fill), "the fill pipeline must bind");
+        Check(commands.SetStorageTexture(0, half, 0), "the half texture must bind");
+        probe.BindB1(commands, Params{{0.0f, 0.0f, 1.0f, 1.0f}, {}});
+        Check(commands.Dispatch(groups, groups, 1), "the half texture must be filled");
+
+        // 패스가 초록으로 지운다. 패스 끝에서 읽기 상태로 간다.
+        JBro::ColorAttachmentDesc attachment;
+        attachment.texture = drawn;
+        attachment.loadOperation = JBro::LoadOperation::Clear;
+        attachment.clearColor = {0.0f, 1.0f, 0.0f, 1.0f};
+        JBro::RenderPassDesc pass;
+        pass.colorAttachments = {&attachment, 1};
+        Check(commands.BeginRenderPass(pass), "the clearing pass must begin");
+        commands.EndRenderPass();
+
+        // 그 그림을 읽어 반으로 줄인다.
+        Check(commands.SetComputePipeline(halve), "the halve pipeline must bind");
+        Check(commands.SetTextureMip(0, drawn, 0), "what the pass drew must be readable by compute");
+        Check(commands.SetStorageTexture(0, half, 0), "the half texture must bind again");
+        probe.BindB1(commands, Params{{1.0f, 1.0f, 1.0f, 1.0f}, {}});
+        Check(commands.Dispatch(groups, groups, 1), "the drawn texture must be halved");
+        Check(device.EndFrame(begun.frame) == JBro::FrameStatus::Ready, "the probe frame must end");
+
+        JBro::Array<std::byte> image;
+        image.Resize((SurfaceSize / 2) * (SurfaceSize / 2) * 4);
+        JBro::TextureReadback readback;
+        Check(device.ReadTexture(half, image.Data(), image.Size(), readback), "the half texture must read back");
+        Check(IsColor(ReadRgba(image, readback.rowPitch, 3, 28), {0.0f, 1.0f, 0.0f, 1.0f}),
+            "compute must read the green the pass drew");
+
+        probe.CheckValidationStayedQuiet("the compute after pass probe");
+        device.DestroyTexture(half);
+        device.DestroyTexture(drawn);
+        device.DestroyComputePipeline(halve);
+        device.DestroyComputePipeline(fill);
+        probe.Close();
+    }
+
     template <typename TModule>
     void RunComputeTestsOn()
     {
         TestStorageResourcesFollowTheirRules<TModule>();
         TestComputeWritesWhatTheNextStepReads<TModule>();
+        TestComputeReadsWhatAPassDrew<TModule>();
     }
 }
 

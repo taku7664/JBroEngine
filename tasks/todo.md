@@ -357,7 +357,7 @@
     거둔다. 에디터의 캔버스 로드는 `CloseProject` 첫머리에서 취소하고 기다린다. 텍스트 라이브러리는 전부터 `Shutdown` 에서 기다렸다.
 
 - `[진행]` **RHI 에 상수·구조화 버퍼 바인딩과 컴퓨트 파이프라인**(D-322, [postprocess-plan.md](./postprocess-plan.md) §2.1). 재질(3D todo)과 후처리가 이것 없이 서지 않는다.
-  1 단계(바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷)가 섰다(D-325). Vulkan 의 그리기 시험은 SPIR-V 시험 셰이더를 구운 뒤다(계획 §3.1).
+  1 단계(바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 그리기·포맷)가 섰다(D-325). 1~3 단계의 Vulkan 그리기·디스패치 시험도 섰다(D-348, 계획 §3.6).
   2 단계의 서브리소스(mip 에 그리기·mip 하나 읽기)·mip 마다의 상태·깊이 읽기가 섰다(D-326).
   2 단계의 끝인 3D 텍스처와 샘플러의 W 축도 섰다(D-327). 3 단계의 컴퓨트·UAV 텍스처·구조화 버퍼·자동 배리어도 섰다(D-328).
   4 단계의 셰이더 매니페스트와 셰이더 자료형 `ShaderData` 도 섰다(D-329).
@@ -3043,6 +3043,18 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-348. 1~3 단계 RHI 의 Vulkan 그리기·디스패치 시험이 선다. 컴퓨트의 `RWTexture2D` 는 SPIR-V 에서 형식을 적지 않고 굽고, Vulkan 은 형식 없는 쓰기를 지원하는 포맷만 읽고 쓰는 텍스처로 만든다.** (2026-11-17, postprocess-plan §3.6)
+  Updates: D-325·D-326·D-327·D-328 의 "Vulkan 의 그리기 시험이 남았다".
+  (1) 탐침 셰이더의 SPIR-V 열하나를 굽고(`Tests\Shaders\Compile.ps1`), 네 시험 파일의 `HasProbeShaders`·API 검사에 Vulkan 을 넣었다. 바이트코드는 파일마다 `Pick(api, dxil, sm5, spv)` 가 고른다.
+  검증 레이어를 켠 채 처음부터 지났다 - 그림이 틀린 곳은 없었다.
+  (2) dxc 는 `RWTexture2D<float4>` 를 `Rgba32f` 로 짐작한다. RGBA8 을 묶으면 명세상 값이 정의되지 않는다(레이어의 경고로만 나왔다 - 시험은 오류만 센다).
+  SPIR-V 를 `-fspv-use-unknown-image-format` 으로 굽는다(시험과 `JBroGraphics` 의 `Compile.ps1`). Vulkan 1.3 에서 형식 없는 쓰기는 포맷마다의
+  `VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT` 이 허락하므로, `CreateTexture` 가 `Storage` 쓰임에 그것을 묻고 없으면 만들지 않는다.
+  (3) 셰이더 읽기 레이아웃으로 가는 전이의 도착 단계에 컴퓨트를 더했다 - 렌더 패스 끝의 전이 바로 뒤의 디스패치가 그 전이를 기다리지 않았다(코드 읽기).
+  그 모양을 시험 `TestComputeReadsWhatAPassDrew` 로 세웠다(세 백엔드).
+  뮤테이션 12 개 중 9 개가 죽었다. 살아남은 셋 - 형식 없는 쓰기 검사(이 GPU 는 모든 포맷이 지원), 읽기 전이의 컴퓨트 단계, 디스패치 사이의 메모리 배리어 - 은
+  동기화 검증(`VK_LAYER_VALIDATE_SYNC=1`)도 말하지 않아 코드 읽기로 지킨다(D-328 의 D3D12 UAV 배리어와 같다).
+
 - **D-347. 렌더러의 메시 정점은 모델의 CPU 정점과 같은 48 바이트(위치·법선·UV·탄젠트)이고, 빌트인 도형도 UV·탄젠트를 든다.** (2026-11-17, material-plan 1 단계)
   Updates: D-106 의 `MeshVertex`(위치·법선 24 바이트).
   (1) UV·탄젠트는 정점 속성 7·8 이다 - 인스턴스 속성 2..6 의 번호를 그대로 두려고 뒤에 붙였고, 셰이더 입력 구조체의 차례도 같다(SPIR-V 는 선언 차례가 위치다).
@@ -3297,7 +3309,7 @@ EditorApplication::Tick
   세 변 모두 `DeviceCaps::maxTexture3DSize`(D3D 2048, Vulkan 은 장치의 `maxImageDimension3D`) 까지, 깊이 포맷 안 됨. 3D 에 그리기·mip 사슬·UAV 는 필요한 단계(3 단계 컴퓨트 등)에서 연다.
   (2) `WriteTexture` 는 깊이 0 부터의 조각을 빽빽하게 이어 받는다. `WriteTextureRegion`·`ReadTexture` 는 3D 를 거절한다.
   (3) `SamplerDesc::addressW`. 전에는 세 백엔드 모두 W 를 늘 Clamp 로 두었다.
-  **섰다 - Vulkan 의 그리기 시험만 남았다.**
+  **섰다 - Vulkan 의 그리기 시험만 남았다.** → D-348 에서 섰다.
 
 - **D-326. 텍스처는 mip 마다 그리고 읽는다 - 첨부의 `mipLevel`, mip 하나를 묶는 `SetTextureMip`, mip 마다의 상태. 읽기도 하는 깊이는 패스 뒤에 셰이더 읽기 상태로 돌아간다. 지금 패스가 그리는 자리는 읽지 못한다.**
   (2026-10-15, [postprocess-plan.md](./postprocess-plan.md) §3.2, 후처리 계획 2 단계 중 서브리소스·상태·깊이 읽기. 사용자 지시 "2단계 ㄱㄱ")
@@ -3310,7 +3322,7 @@ EditorApplication::Tick
   D3D11 은 typeless 로 만들지 않아 생성이 실패했고, Vulkan 은 레이아웃을 돌리지 않았다.
   (5) 지금 패스가 그리는 mip·깊이를 같은 패스에서 읽으려 하면 `SetTexture`·`SetTextureMip` 이 거절한다(`RenderPassTargets`). 전에는 D3D12 가 받아 검증 오류, D3D11 은 몰래 떼어 냈다.
   (6) `CopyTexture` 는 mip 이 하나인 것만 받는다. 배열은 세 백엔드 모두 받지 않는다(`depthOrLayers == 1`) - D3D12 만 반쯤 받고 있었고 쓰는 곳이 없었다.
-  **섰다 - 3D 텍스처와 Vulkan 의 그리기 시험이 남았다.**
+  **섰다 - 3D 텍스처와 Vulkan 의 그리기 시험이 남았다.** → 3D 텍스처는 D-327, Vulkan 시험은 D-348 에서 섰다.
 
 - **D-325. 상수 버퍼 슬롯은 b 레지스터 번호이고 b1..b7 이다(b0 은 푸시 상수). 파이프라인은 종류마다 개수와 단계를 적은 자리표를 들고, 프레임마다 바뀌는 상수는 슬롯마다의 업로드 링으로 올린다. 푸시 상수는 세 백엔드 모두 128 B 다.**
   (2026-10-14, [postprocess-plan.md](./postprocess-plan.md) §3.1, 후처리 계획 1 단계. 인계서 [handoff-postprocess.md](./handoff-postprocess.md) 의 "다음에 시작할 일")
@@ -3326,7 +3338,7 @@ EditorApplication::Tick
   (6) 인덱스 없는 그리기 `DrawInstanced` 와 포맷 `R11G11B10Float`·`R16Float`·`R32Float`·`RG16Float`·`RGBA32Float`(enum 끝). Vulkan 은 포맷의 쓰임을 장치에 묻고 없으면 만들지 않는다.
   (7) D3D11 이 선언하지 않은 텍스처·샘플러 슬롯을 거절한다(전에는 8·4 안이면 받았다) - 세 백엔드의 계약을 맞췄다.
   **섰다 - 단, Vulkan 의 그리기 시험은 남았다.** 이 기계에 Vulkan SDK 의 dxc 가 없어 시험 셰이더의 SPIR-V 를 굽지 못했다(사용자 결정 "Vulkan은 나중에", 받지 않는다).
-  Vulkan 은 상한·링 시험만 돌고 묶기·그리기·포맷은 컴파일만 됐다.
+  Vulkan 은 상한·링 시험만 돌고 묶기·그리기·포맷은 컴파일만 됐다. → D-348 에서 Vulkan 의 그리기 시험이 섰다.
 
 - **D-324. 노드 그래프 창을 기존 에디터 관례에 맞춘다 - 캔버스 뷰의 부드러운 카메라, 입력과 그리기의 분리, 도크마다의 창 클래스, 노드 인스펙터 패널, 저장하지 않은 것을 묻는 창.**
   (2026-10-07, [node-graph-plan.md](./node-graph-plan.md) §3, 사용자 지적: "왜 캔버스뷰처럼 부드러운 무브먼트로 안만들었는가", "노드 잡았다 뗐을 때 잠깐 순간이동했다 돌아옴",

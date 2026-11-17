@@ -80,7 +80,7 @@ foreach ($s in $manifest.Stages)
         # same file (PSLitMain, D-291) is renamed in its own module; D3D bytecode carries no name.
         $entryName = @{ Vertex = 'VSMain'; Pixel = 'PSMain'; Compute = 'CSMain' }[$s.Stage]
         $header = Join-Path $out "$($s.Symbol)_SPV.generated.h"
-        & $vkdxc -spirv -T "${kind}_6_0" -E $s.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -fvk-u-shift 24 0 -Vn "JBro$($s.Symbol)_SPV" -Fh $header $source
+        & $vkdxc -spirv -T "${kind}_6_0" -E $s.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -fvk-u-shift 24 0 -fspv-use-unknown-image-format -Vn "JBro$($s.Symbol)_SPV" -Fh $header $source
         if ($LASTEXITCODE -ne 0)
         {
             throw "dxc -spirv failed for $($s.Entry) in $($s.File)"

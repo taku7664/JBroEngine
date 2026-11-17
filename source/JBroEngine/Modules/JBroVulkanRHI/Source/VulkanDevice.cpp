@@ -661,8 +661,10 @@ namespace JBro::Internal
                 | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
             break;
         case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            // 정점 단계도 텍스처를 읽을 수 있다(자리표의 단계, D-325).
-            barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+            // 정점 단계도 텍스처를 읽을 수 있다(자리표의 단계, D-325). 컴퓨트도 읽는다(D-328) - 렌더 패스 끝의 이 전이 뒤에 바로
+            // 디스패치가 오면, 디스패치 앞의 메모리 배리어는 컴퓨트에서만 출발해 이 전이를 기다리지 않는다(D-348).
+            barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT
+                | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
             barrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
             break;
         case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
