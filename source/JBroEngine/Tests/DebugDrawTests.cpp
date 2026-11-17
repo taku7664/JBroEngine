@@ -660,12 +660,12 @@ JBro::Int32 RunDebugDrawTests()
         JBRO_CASE(TestTheTwoDimensionalShapes());
         JBRO_CASE(TestTheThreeDimensionalShapes());
         JBRO_CASE(TestUnboundServicesDoNothing());
-        TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D12RHIModule>();
-        TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D11RHIModule>();
-        TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::VulkanRHIModule>();
-        TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D12RHIModule>();
-        TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D11RHIModule>();
-        TestThreeDimensionalLinesAreHiddenByMeshes<JBro::VulkanRHIModule>();
+        JBRO_CASE(TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D12RHIModule>());
+        JBRO_CASE(TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D11RHIModule>());
+        JBRO_CASE(TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::VulkanRHIModule>());
+        JBRO_CASE(TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D12RHIModule>());
+        JBRO_CASE(TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D11RHIModule>());
+        JBRO_CASE(TestThreeDimensionalLinesAreHiddenByMeshes<JBro::VulkanRHIModule>());
     }
     catch (const std::exception&)
     {

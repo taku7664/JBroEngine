@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/RHI/ConstantRing.h>
@@ -289,9 +290,9 @@ namespace
 
 JBro::Int32 RunRenderTargetFormatTests()
 {
-    TestEachFormatHoldsWhatWasDrawn<JBro::D3D12RHIModule>();
-    TestEachFormatHoldsWhatWasDrawn<JBro::D3D11RHIModule>();
-    TestEachFormatHoldsWhatWasDrawn<JBro::VulkanRHIModule>();
+    JBRO_CASE(TestEachFormatHoldsWhatWasDrawn<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestEachFormatHoldsWhatWasDrawn<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestEachFormatHoldsWhatWasDrawn<JBro::VulkanRHIModule>());
     std::cout << "Render target format tests passed.\n";
     return 0;
 }
