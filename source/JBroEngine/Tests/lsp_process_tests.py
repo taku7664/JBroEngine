@@ -278,6 +278,14 @@ class ProcessTests(unittest.TestCase):
             "ArgumentCount.jscript": ("script B\n{\n    [range(1)]\n    Int value = 0\n}\n", "JBC3046"),
             "PropArguments.jscript": ("script C\n{\n    [prop(1)]\n    Int value = 0\n}\n", "JBC3046"),
         }
+        # D-385 (review R4-3): the attributes are C++ constexpr arguments, so range/clamp take number literals and the
+        # text attributes take string literals. The diagnostic sits on the argument.
+        typed = {
+            "RangeText.jscript": ("script D\n{\n    [range(\"a\", 1)]\n    Int value = 0\n}\n", [("JBC3051", 3, 12)]),
+            "RangeField.jscript": ("script E\n{\n    Int top = 9\n    [range(0, top)]\n    Int value = 0\n}\n", [("JBC3051", 4, 15)]),
+            "TooltipNumber.jscript": ("script F\n{\n    [tooltip(5)]\n    Int value = 0\n}\n", [("JBC3051", 3, 14)]),
+            "Fine.jscript": ("script G\n{\n    [range(-1, 2.5), category(\"Stats\")]\n    Float value = 0.0\n}\n", []),
+        }
         session = self.start()
         for name, (source, code) in cases.items():
             with self.subTest(name=name):
@@ -293,6 +301,19 @@ class ProcessTests(unittest.TestCase):
                            re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
                 self.assertEqual(printed, served)
                 self.assertNotIn(b"C++ emit error", process.stderr)
+        for name, (source, expected) in typed.items():
+            with self.subTest(name=name):
+                uri = self.document(name, source)
+                served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                          for item in self.open(session, uri, source)]
+                self.assertEqual(served, expected)
+                output = self.root / "emit" / name
+                process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(output),
+                                          str(self.scripts / name)], capture_output=True, timeout=30)
+                printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                           re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+                self.assertEqual(printed, served)
+                self.assertEqual(process.returncode, 1 if expected else 0, process.stdout)
 
     def test_expression_depth_limit_matches_command_line(self):
         # D-374: an expression may nest 100 levels. One more is JBC2015 at the same place for the command line and the server,

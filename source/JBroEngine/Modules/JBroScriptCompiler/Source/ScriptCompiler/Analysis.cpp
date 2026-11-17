@@ -1174,6 +1174,10 @@ namespace JBro::ScriptCompiler
                                     Error("JBC3046", "attribute_argument_count", NameRange(*m_document, declaration),
                                         {String(declaration.Text), String(std::to_string(definition->ArgumentCount.Get()))});
                                 }
+                                else
+                                {
+                                    CheckAttributeArguments(attribute);
+                                }
                             }
                         }
                         if (kind == SymbolKind::Field && (Node(child).Flags & SyntaxFlagStatic))
@@ -1449,6 +1453,42 @@ namespace JBro::ScriptCompiler
 
             // 필드가 값으로 담는 사용자 `class`·`struct` 다. `ref T` 도 값과 있음 여부를 담으므로 소유다(§16). `script` 는 핸들이고,
             // `Array`·`Table` 은 원소를 따로 잡으므로 소유 사슬을 끊는다. 정적 필드는 인스턴스의 크기에 들지 않는다.
+            // 어트리뷰트의 인자는 C++ 의 `constexpr` 어트리뷰트(`Attribute::Range(Float, Float)`·`Name(const char*)`)로 바로 들어가므로
+            // 상수여야 한다(jbroc-rules §3.2 "인자 개수·타입", D-385). `range`·`clamp` 는 숫자 리터럴(앞의 `-` 포함), 글을 받는 넷은 문자열 리터럴이다.
+            void CheckAttributeArguments(NodeIndex attribute)
+            {
+                const SyntaxNode& declaration = Node(attribute);
+                const std::string_view name = declaration.Text;
+                const Bool numbers = name == "range" || name == "clamp";
+                const Bool texts = name == "name" || name == "tooltip" || name == "category" || name == "visiblewhen";
+                if (false == numbers && false == texts)
+                {
+                    return;
+                }
+                UInt32 position = 0;
+                for (NodeIndex argument : m_document->Tree.GetChildren(attribute))
+                {
+                    ++position;
+                    if (argument == InvalidNode)
+                    {
+                        continue;
+                    }
+                    NodeIndex value = argument;
+                    if (numbers && SyntaxKind::UnaryExpression == Node(value).Kind && Node(value).Text == "-" && Node(value).ChildCount == 1)
+                    {
+                        value = Child(value, 0);
+                    }
+                    const SyntaxKind kind = value == InvalidNode ? SyntaxKind::Count : Node(value).Kind;
+                    const Bool fits = numbers ? (SyntaxKind::IntegerLiteral == kind || SyntaxKind::FloatLiteral == kind)
+                        : SyntaxKind::StringLiteral == kind;
+                    if (false == fits)
+                    {
+                        Error("JBC3051", numbers ? "attribute_argument_number" : "attribute_argument_text", Node(argument).Range,
+                            {String(name), String(std::to_string(position.Get()))});
+                    }
+                }
+            }
+
             SymbolId OwnedValueType(const Symbol& field) const
             {
                 if (SymbolKind::Field != field.Kind || field.IsStatic)
@@ -3287,7 +3327,8 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
             "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature",
             "jbroc.semantic.uninitialized_field", "jbroc.semantic.unknown_attribute", "jbroc.semantic.attribute_argument_count",
-            "jbroc.semantic.owned_field_cycle", "jbroc.semantic.projection_unsupported"
+            "jbroc.semantic.owned_field_cycle", "jbroc.semantic.projection_unsupported",
+            "jbroc.semantic.attribute_argument_number", "jbroc.semantic.attribute_argument_text"
         };
         return {keys, std::size(keys)};
     }

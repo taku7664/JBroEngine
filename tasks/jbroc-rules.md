@@ -566,4 +566,4 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 | `duplicate C++ declaration across files`, `generated file name collision`, `duplicate project type` | (나) 생성 파일 단위 | 자리 붙임(가능한 곳) |
 | `no source files`, `empty syntax tree`, `a game DLL needs at least one script declaration` | (나) 입력 전체의 상태 | 자리 없음(파일이 없거나 프로젝트 단위) |
 
-어트리뷰트 인자의 **타입**(§3.2 "인자 개수·타입")은 아직 검사하지 않는다 - `[range("a", 1)]` 은 생성 C++ 에서 멈출 수 있다.
+어트리뷰트 인자의 **타입**(§3.2 "인자 개수·타입")도 분석이 본다(D-385, 2026-11-17): `range`·`clamp` 는 숫자 리터럴(앞의 `-` 포함), `name`·`tooltip`·`category`·`visiblewhen` 은 문자열 리터럴이고, 아니면 그 인자 자리에 `JBC3051`. 인자가 C++ `constexpr` 어트리뷰트로 바로 들어가기 때문이다.

@@ -75,6 +75,8 @@ Entries:
   jbroc.semantic.uninitialized_field: "Field {0} has not finished initialization. Fields initialize in declaration order."
   jbroc.semantic.unknown_attribute: "Unknown field attribute: {0}"
   jbroc.semantic.attribute_argument_count: "The {0} attribute takes {1} argument(s)."
+  jbroc.semantic.attribute_argument_number: "Argument {1} of the {0} attribute must be a number (not a variable or an expression)."
+  jbroc.semantic.attribute_argument_text: "Argument {1} of the {0} attribute must be quoted text."
   jbroc.semantic.owned_field_cycle: "A field held by value leads back to its own type: {2}.{0} -> {1}. Hold one side in an Array or as a script handle."
   jbroc.semantic.projection_unsupported: "The engine function {0} cannot be called from JBroScript yet. Its result cannot be carried into a JBroScript value yet; call it from a C++ script."
   jbroc.summary.syntax_errors: "The document has syntax errors; field settings are unavailable."

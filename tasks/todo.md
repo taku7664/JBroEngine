@@ -3057,6 +3057,13 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-385. 필드 어트리뷰트 인자의 종류를 분석이 본다: `range`·`clamp` 는 숫자 리터럴(앞의 `-` 포함), `name`·`tooltip`·`category`·`visiblewhen` 은 문자열 리터럴. 아니면 그 인자 자리에 `JBC3051`.**
+  (2026-11-17, REVIEW R4-3 - 근거는 jbroc-rules §3.2 [확정] "필드 어트리뷰트: 모르는 이름, 인자 개수·타입")
+  Updates: D-372(이름·개수에 더해 종류), jbroc-rules §16 끝 문장, D-105(번호표에 3051).
+  (1) 까닭: 생성기는 인자를 C++ `constexpr` 어트리뷰트(`Attribute::Range(Float, Float)`·`Name(const char*)`)에 그대로 넣는다. `[range("a", 1)]`·`[range(0, top)]`(필드)·`[tooltip(5)]` 은 분석을 지나 생성 C++ 에서 멈췄다.
+  (2) 메시지 키 둘(`attribute_argument_number`·`attribute_argument_text`), 같은 코드. 명령줄과 언어 서버가 같다.
+  (3) 시험: `lsp_process_tests.py` 의 `test_field_attribute_diagnostics_match_command_line` 에 네 경우(문자 범위·필드 범위·숫자 툴팁·맞는 것).
+
 - **D-384. 생성 단계 오류는 진단과 같은 모양으로 표준 출력에 낸다: `<경로>(<줄>,<열>): error JBC4001: <번역된 머리> <글>`, 자리가 없으면 `jbroc : error JBC4001: <…>`.**
   (2026-11-17, REVIEW R4-1)
   Updates: D-372 (3)(`jbroc: C++ emit error: <경로>(<줄>,<열>): <글>` 을 바꾼다), jbroc-rules §11.3·§16, D-105(번호표에 4001 - 생성 단계, 내부 오류에 가깝다).
