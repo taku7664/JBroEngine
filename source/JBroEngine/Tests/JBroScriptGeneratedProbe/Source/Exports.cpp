@@ -381,5 +381,19 @@ extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_InvalidHandleWar
     return nobody.IsActive() ? 1 : 0;
 }
 
+// a?.b.c skips to the end of the chain when a is absent; the callback goes on (D-381, REVIEW R2-1).
+extern "C" __declspec(dllexport) JBro::Int64 JBroGeneratedProbe_NullSafeChain()
+{
+    NullSafeChainProbe script;
+    script.OnUpdate();
+    if (script.reached != 11 || script.coalesced != 11 || script.called != 1)
+    {
+        return -(script.reached * 10000 + script.coalesced * 100 + script.called).Get();
+    }
+    script.middle = JBro::Nullable<ChainMiddle>(ChainMiddle{});
+    script.OnUpdate();
+    return (script.reached * 10000 + script.coalesced * 100 + script.called).Get();
+}
+
 #pragma warning(pop)
 

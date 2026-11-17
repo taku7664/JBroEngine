@@ -1321,6 +1321,18 @@ namespace
                 && std::string(setActive->display).find("GameObject::SetActive on invalid handle") != std::string::npos,
             "two invalid writes from the game DLL are one grouped host warning with the operation");
         Check(isActive != nullptr && isActive->count == 1, "a different operation is its own group");
+        // **`a?.b.c` 는 `a` 가 없으면 사슬 끝까지 건너뛰고 콜백은 끝까지 돈다**(D-381, REVIEW R2-1). 결함 2 전에는 `.c` 가
+        // `Require` 로 내려가 콜백의 나머지를 멈추고 오류를 남겼다. 없을 때: 건너뛴 셋(값 끝·`??`·메서드 뒤)과 마지막 문장까지 실행,
+        // 있을 때: 값 7. 어느 쪽도 오류 로그가 없다.
+        const auto nullSafeChain = reinterpret_cast<DerivedRead>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_NullSafeChain"));
+        JBro::Log::Clear();
+        const JBro::Int64 chainResult = nullSafeChain != nullptr ? nullSafeChain() : JBro::Int64(-1);
+        if (chainResult != 210701)
+        {
+            std::cout << "  null-safe chain probe returned " << chainResult.Get() << std::endl;
+        }
+        Check(chainResult == 210701 && JBro::Log::GetGroupCount() == 0,
+            "a?.b.c, a?.b.c ?? d and a?.Method().x skip an absent a and the rest of the callback still runs, without an error log");
         const auto customOverrides = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CustomOverrides"));
         JBro::Log::Clear();

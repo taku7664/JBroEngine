@@ -1,0 +1,40 @@
+﻿// `a?.b.c` 는 `a` 가 없으면 사슬 끝까지 건너뛰고 콜백은 계속 돈다(jbroscript-syntax §16, D-381). Script QA 결함 2 전에는
+// `?.` 뒤의 `.c` 가 `Require` 로 내려가 `a` 가 없을 때 그 콜백의 나머지를 멈췄다. 이 표본은 게임 DLL 에서 실제로 돌려 본다.
+class ChainLeaf
+{
+    public Int value = 7
+}
+
+class ChainMiddle
+{
+    public ChainLeaf leaf
+
+    public fn Leaf() -> ChainLeaf
+    {
+        return leaf
+    }
+}
+
+script NullSafeChainProbe
+{
+    public ref ChainMiddle middle
+    public Int reached
+    public Int coalesced
+    public Int called
+
+    public fn OnUpdate() callback
+    {
+        ref Int plain = middle?.leaf.value
+        if (plain is null)
+        {
+            reached += 1
+        }
+        coalesced = middle?.leaf.value ?? 11
+        ref Int fromCall = middle?.Leaf().value
+        if (fromCall is null)
+        {
+            called += 1
+        }
+        reached += 10
+    }
+}
