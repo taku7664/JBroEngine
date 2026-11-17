@@ -3057,6 +3057,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-376. 함수 하나에서 블록 `{ }` 은 32 겹(`MaxBlockDepth`)까지다. 함수 몸이 1 이고 `if`·`while`·`for`·`case`·`default` 몸이 하나씩 더한다. 넘으면 파서가 그 블록의 `{` 자리에 `JBC2016`(위치·번역 있음)을 내고, 명령줄과 언어 서버가 같다. `else if` 사슬은 겹으로 세지 않는다.**
+  (2026-11-17, DECISIONS-NEEDED Q6 사용자 결정 "권고안대로 ㄱ" - 블록 겹 상한 32 를 언어 규칙으로, Q1 의 파서 겹 세기를 그대로)
+  Updates: D-374 (4)(블록 겹에는 상한이 없다 → 32), D-105(진단 번호표에 2016), jbroscript-syntax §22 의 [열림] → §23.
+  (1) 까닭(실측, Debug MSBuild): 순수 if 중첩은 생성 C++ 이 80 겹까지 빌드되고 90 겹에서 C1061, `??` 100 겹(식 상한)은 if 40 겹 안에서 빌드·80 겹 안에서 C1061 이었다. `jbroc` 은 if 수천 겹에서 스택이 넘쳤고(Debug `--emit-project` 5,000 겹, 언어 서버 30,000 겹에서 서버 전체가 종료 3). 32 는 `??` 100 겹과 함께 MSVC 한계 안에 확실히 든다.
+  (2) 넘는 블록은 읽지 않고 짝 맞는 `}` 까지 재귀 없이 건너뛴다 - 60,000 겹도 진단 하나로 곧바로 끝난다(Debug 1 s 남짓).
+  (3) `else if` 를 세지 않은 것은 사슬 40 개 같은 평범한 코드를 막지 않기 위해서다. 그런데 생성 C++ 은 `else if` 도 겹쳐 MSVC 가 사슬 125 개에서 C1061 이고 `jbroc` 은 Debug 에서 사슬 16,000 개에 넘친다 - 사슬 길이를 어떻게 할지는 사용자 결정 대기(DECISIONS-NEEDED Q7).
+  (4) 시험: `ScriptCompilerCommandLine` 의 `TestDeepBlocksAreRejectedWithAPosition`(if·while·for·switch 마다 몸 포함 32 겹은 종료 0, 33·60,000 겹은 `JBC2016` 하나, 자리는 넘친 블록의 `{`, `else if` 40 개는 지남), `lsp_process_tests.py` 의 `test_block_depth_limit_matches_command_line`, 생성 시험 프로젝트(`/W4 /WX`)의 `DepthLimits.jscript`(블록 32 겹 안의 `??` 100 겹과 `else if` 40 개가 MSVC 로 빌드된다). Q1 시험에서 Debug `jbroc` 을 if 블록으로 넘치게 하던 단계는 이 규칙으로 닿을 수 없어 뺐다 - 넘침 처리는 `TestTheStackGuardCatchesOverflow` 의 `RunOnLargeStack` 직접 시험이 두 구성에서 지킨다.
+
 - **D-375. 엔진 구현 타입(`Canvas`·`Object::GameObject`)은 스크립트 헤더에 불완전 타입의 이름으로만 보이고 쓸 수 없다. ProjectRule §5 의 "선언조차 나타나지 않는다" 를 이 문장으로 바꾼다.**
   (2026-11-17, Script QA 결함 6, DECISIONS-NEEDED Q3 사용자 결정 "권고안대로 ㄱ")
   Updates: D-42(스크립트는 구현 타입의 선언 자체를 받지 않는다 → 이름은 보이되 정의는 받지 않는다), ProjectRule §5.

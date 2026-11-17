@@ -799,6 +799,14 @@ namespace JBro::ScriptCompiler
             {
                 const SourceLocation begin = Current().Range.Begin;
                 Array<NodeIndex> statements;
+                const NestingScope blocks(m_blockNesting);
+                if (m_blockNesting > MaxBlockDepth)
+                {
+                    // 한도를 넘는 블록은 읽지 않고 짝이 맞는 `}` 까지 건너뛴다 - 재귀하지 않으므로 수만 겹이어도 스택이 깊어지지 않는다(D-376).
+                    Report(DiagnosticCode::BlockTooDeep, std::to_string(MaxBlockDepth.Get()));
+                    SkipBalancedBlock();
+                    return Make(SyntaxKind::Block, begin, std::string_view(), SyntaxFlagNone, statements);
+                }
                 Advance(); // {
                 while (true)
                 {
@@ -826,6 +834,28 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 return Make(SyntaxKind::Block, begin, std::string_view(), SyntaxFlagNone, statements);
+            }
+
+            // `{` 에 서 있다. 짝이 맞는 `}` 까지(그것도 먹는다) 건너뛴다. 파일이 먼저 끝나면 거기서 멈춘다.
+            void SkipBalancedBlock()
+            {
+                UInt32 open = 0;
+                while (false == At(TokenKind::EndOfFile))
+                {
+                    if (At(TokenKind::LeftBrace))
+                    {
+                        ++open;
+                    }
+                    else if (At(TokenKind::RightBrace))
+                    {
+                        --open;
+                    }
+                    Advance();
+                    if (0 == open)
+                    {
+                        return;
+                    }
+                }
             }
 
             // 조건 뒤나 else 뒤의 본문이다. 한 줄 본문은 없다(jbroscript-syntax §11.2).
@@ -1434,6 +1464,7 @@ namespace JBro::ScriptCompiler
             // 노드 번호마다 식의 깊이다. 식이 아닌 노드는 0 이다.
             Array<UInt32> m_expressionDepths;
             UInt32 m_expressionNesting = 0;
+            UInt32 m_blockNesting = 0;
         };
     }
 

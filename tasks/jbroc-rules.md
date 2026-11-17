@@ -544,7 +544,8 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 - **식은 이제 언어 규칙으로 막는다(D-374, 2026-11-17).** 식 하나는 100 겹까지이고 넘으면 파서가 `JBC2015` 를 낸다(문법 §22). 숫자는 생성 C++ 이 MSVC 에서 빌드되는 한도(`??` 사슬 121 겹, C1061)의 아래로 골랐다.
   큰 스택과 종료 3 은 상한이 없는 문장 블록의 겹 때문에 남는다: Debug `--emit-project` 는 if 5,000 겹, 언어 서버는 30,000 겹(서버 전체가 끝나 열린 문서를 모두 잃는다), Release `--emit-project` 는 200,000 겹(215 s)에서 넘친다.
   넘침을 받는 코드는 `Modules/JBroc/Source/StackGuard.h` 의 `RunOnLargeStack` 이다(스택 크기를 인자로 받는다).
-- 시험: `ScriptCompilerCommandLine` 의 `TestDeepExpressionsAreRejectedWithAPosition`(아홉 모양의 100 겹은 종료 0, 101·60,000 겹은 `JBC2015` 하나)과 `TestTheStackGuardCatchesOverflow`(`RunOnLargeStack` 을 1 MB 로 불러 Debug·Release 모두 넘침을 받고, Debug 는 명령줄 끝까지 if 블록으로 종료 3 을 본다). 언어 서버는 `lsp_process_tests.py` 의 `test_expression_depth_limit_matches_command_line`.
+- **블록도 막는다(D-376, 2026-11-17).** 함수 하나의 블록은 32 겹까지이고 넘으면 `JBC2016`(문법 §23). 넘는 블록은 재귀 없이 짝 맞는 `}` 까지 건너뛴다. 그래서 위의 블록 넘침은 이제 `else if` 사슬 수만 개(Debug 16,000 개, 사용자 결정 대기 - DECISIONS-NEEDED Q7)에서만 난다. 명령줄 끝까지 넘치게 하던 Debug 시험 단계는 빼고, 넘침 처리는 `RunOnLargeStack` 직접 시험으로 지킨다.
+- 시험: `ScriptCompilerCommandLine` 의 `TestDeepExpressionsAreRejectedWithAPosition`(아홉 모양의 100 겹은 종료 0, 101·60,000 겹은 `JBC2015` 하나)과 `TestTheStackGuardCatchesOverflow`(`RunOnLargeStack` 을 1 MB 로 불러 Debug·Release 모두 넘침을 받는다. 명령줄 끝까지 Debug 블록으로 넘치게 하던 단계는 D-376 뒤 뺐다). 언어 서버는 `lsp_process_tests.py` 의 `test_expression_depth_limit_matches_command_line`.
 
 ## 16. 생성기 오류의 분류 (2026-11-17, Script QA 결함 4, D-372)
 

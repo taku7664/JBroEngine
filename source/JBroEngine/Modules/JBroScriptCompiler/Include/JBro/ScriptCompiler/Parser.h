@@ -13,6 +13,11 @@ namespace JBro::ScriptCompiler
     // C1061(블록 중첩)에 걸리고, `?.` 사슬은 320, 다른 모양은 512 까지 빌드된다. 100 이면 그 안에서 제어문 블록 40 겹이 남는다.
     inline constexpr UInt32 MaxExpressionDepth = 100;
 
+    // 함수 하나에서 블록 `{ }` 이 겹치는 가장 깊은 수다(jbroscript-syntax §23, D-376). 함수 몸이 1 이고 `if`·`while`·`for`·`case` 의 몸이
+    // 하나씩 더한다. `else if` 는 사슬이라 겹으로 세지 않는다. 넘으면 `JBC2016` 로 거절한다. MSVC 는 블록 약 128 겹에서 C1061 이고,
+    // 생성 C++ 은 `??` 마다 블록을 하나 더 연다 - `??` 100 겹(식 상한)이 블록 32 겹 안에서 빌드되는 것을 시험이 본다.
+    inline constexpr UInt32 MaxBlockDepth = 32;
+
 
     // 파일 하나를 구문 트리로 읽는다. 렉서도 여기서 부른다.
     //
