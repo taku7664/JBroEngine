@@ -28,5 +28,14 @@ namespace JBro::ScriptCompiler
         : m_path(std::move(path))
         , m_text(std::move(text))
     {
+        m_lineStarts.Add(0u);
+        const std::string_view view = m_text.View();
+        for (std::size_t index = 0; index < view.size(); ++index)
+        {
+            if ('\n' == view[index])
+            {
+                m_lineStarts.Add(static_cast<std::uint32_t>(index + 1));
+            }
+        }
     }
 }

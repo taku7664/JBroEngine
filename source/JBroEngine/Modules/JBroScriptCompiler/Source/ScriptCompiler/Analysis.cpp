@@ -122,15 +122,8 @@ namespace JBro::ScriptCompiler
 
         SymbolId TypeId(const AnalysisResult& result, std::string_view type)
         {
-            const String name = TypeBase(type);
-            for (const Symbol& symbol : result.Symbols)
-            {
-                if (IsTypeSymbol(symbol.Kind) && symbol.Type == name)
-                {
-                    return symbol.Id;
-                }
-            }
-            return InvalidSymbol;
+            const SymbolId* found = result.TypeIndex.Find(TypeBase(type));
+            return found != nullptr ? *found : InvalidSymbol;
         }
 
         Bool Derives(const AnalysisResult& result, SymbolId type, SymbolId base, Array<SymbolId>& visited)
@@ -219,12 +212,10 @@ namespace JBro::ScriptCompiler
                 return;
             }
             visited.Add(type);
-            for (const Symbol& symbol : result.Symbols)
+            const Array<SymbolId>* children = name.empty() ? result.ChildIndex.Find(type) : result.MemberIndex.Find(MemberKey(type, name));
+            for (std::size_t slot = 0; children != nullptr && slot < children->Size(); ++slot)
             {
-                if (symbol.Parent != type || (false == name.empty() && symbol.Name != name))
-                {
-                    continue;
-                }
+                const Symbol& symbol = result.Symbols[(*children)[slot]];
                 const Bool hidden = nullptr != output.FindBy([&](SymbolId id)
                 {
                     const Symbol& earlier = result.Symbols[id];
@@ -322,11 +313,11 @@ namespace JBro::ScriptCompiler
                 return;
             }
             visited.Add(type);
-            for (const Symbol& symbol : result.Symbols)
+            if (const Array<SymbolId>* children = result.MemberIndex.Find(MemberKey(type, name)))
             {
-                if (symbol.Parent == type && symbol.Name == name)
+                for (const SymbolId child : *children)
                 {
-                    output.Add(symbol.Id);
+                    output.Add(child);
                 }
             }
             if (!output.IsEmpty())
@@ -402,15 +393,28 @@ namespace JBro::ScriptCompiler
             offset = Min(offset, text.size());
             SourceLocation result;
             result.Offset = static_cast<UInt32>(offset);
-            std::size_t lineStart = text.starts_with("\xEF\xBB\xBF") ? 3 : 0;
-            for (std::size_t index = 0; index < offset; ++index)
+            // 줄 시작 표에서 `offset` 이하인 마지막 줄을 찾는다(D-387). 전에는 파일 처음부터 줄바꿈을 셌다.
+            const Array<UInt32>& starts = source.GetLineStarts();
+            std::size_t low = 0;
+            std::size_t high = starts.Size();
+            while (high - low > 1)
             {
-                if ('\n' == text[index])
+                const std::size_t middle = low + (high - low) / 2;
+                if (starts[middle].Get() <= offset)
                 {
-                    ++result.Line;
-                    lineStart = index + 1;
+                    low = middle;
+                }
+                else
+                {
+                    high = middle;
                 }
             }
+            std::size_t lineStart = starts.IsEmpty() ? 0 : starts[low].Get();
+            if (low == 0 && text.starts_with("\xEF\xBB\xBF"))
+            {
+                lineStart = 3;
+            }
+            result.Line = static_cast<UInt32>(low + 1);
             result.Column = static_cast<UInt32>(offset >= lineStart ? offset - lineStart + 1 : 1);
             return result;
         }
@@ -896,6 +900,13 @@ namespace JBro::ScriptCompiler
                 symbol.Id = static_cast<SymbolId>(m_result.Symbols.Size());
                 symbol.Signature = Signature(symbol);
                 const SymbolId id = symbol.Id;
+                if (IsTypeSymbol(symbol.Kind))
+                {
+                    // 같은 이름이 둘이면 처음 것이 이긴다 - 전의 앞에서부터 훑기와 같다.
+                    m_result.TypeIndex.TryAdd(symbol.Type, id);
+                }
+                m_result.ChildIndex[symbol.Parent].Add(id);
+                m_result.MemberIndex[MemberKey(symbol.Parent, symbol.Name.View())].Add(id);
                 m_result.Symbols.Add(std::move(symbol));
                 return id;
             }
@@ -906,14 +917,40 @@ namespace JBro::ScriptCompiler
                 {
                     return;
                 }
-                const Bool exists = nullptr != m_document->Occurrences.FindBy([&](const Occurrence& occurrence)
+                // 같은 자리·같은 대상은 한 번만 적는다. 전에는 문서의 출현을 매번 처음부터 훑어 필드 수의 제곱이었다(D-387) -
+                // (시작 위치, 대상) 색인으로 본다. 출현 목록은 다른 자리에서도 비우고 붙이므로 문서나 개수가 어긋나면 색인을 다시 맞춘다.
+                SyncOccurrenceIndex();
+                const UInt64 key = (UInt64(range.Begin.Offset.Get()) << 32) | UInt64(target.Get());
+                Array<UInt32>& ends = m_occurrenceIndex[key];
+                if (ends.Contains(range.End.Offset))
                 {
-                    return occurrence.Range.Begin.Offset == range.Begin.Offset && occurrence.Range.End.Offset == range.End.Offset
-                        && occurrence.Target == target;
-                });
-                if (false == exists)
+                    return;
+                }
+                ends.Add(range.End.Offset);
+                m_document->Occurrences.Add({target, range, declaration});
+                m_occurrenceIndexed = m_document->Occurrences.Size();
+                m_occurrenceLast = m_document->Occurrences.Last();
+            }
+
+            void SyncOccurrenceIndex()
+            {
+                const Array<Occurrence>& occurrences = m_document->Occurrences;
+                const Bool lastStillThere = m_occurrenceIndexed == 0 || (m_occurrenceIndexed <= occurrences.Size()
+                    && occurrences[m_occurrenceIndexed - 1].Target == m_occurrenceLast.Target
+                    && occurrences[m_occurrenceIndexed - 1].Range.Begin.Offset == m_occurrenceLast.Range.Begin.Offset
+                    && occurrences[m_occurrenceIndexed - 1].Range.End.Offset == m_occurrenceLast.Range.End.Offset);
+                if (m_occurrenceDocument != m_document || false == lastStillThere)
                 {
-                    m_document->Occurrences.Add({target, range, declaration});
+                    m_occurrenceIndex.Clear();
+                    m_occurrenceDocument = m_document;
+                    m_occurrenceIndexed = 0;
+                }
+                for (; m_occurrenceIndexed < occurrences.Size(); ++m_occurrenceIndexed)
+                {
+                    const Occurrence& occurrence = occurrences[m_occurrenceIndexed];
+                    const UInt64 key = (UInt64(occurrence.Range.Begin.Offset.Get()) << 32) | UInt64(occurrence.Target.Get());
+                    m_occurrenceIndex[key].Add(occurrence.Range.End.Offset);
+                    m_occurrenceLast = occurrence;
                 }
             }
 
@@ -1433,9 +1470,11 @@ namespace JBro::ScriptCompiler
                     return false;
                 }
                 visited.Add(owner);
-                for (const Symbol& member : m_result.Symbols)
+                const Array<SymbolId>* ownerChildren = m_result.ChildIndex.Find(owner);
+                for (std::size_t slot = 0; ownerChildren != nullptr && slot < ownerChildren->Size(); ++slot)
                 {
-                    if (member.Parent == owner && member.Api && member.IsCallback && member.Name == method.Name
+                    const Symbol& member = m_result.Symbols[(*ownerChildren)[slot]];
+                    if (member.Api && member.IsCallback && member.Name == method.Name
                         && SameParameters(member, method) && EqualType(member.Type, method.Type))
                     {
                         return true;
@@ -1530,13 +1569,10 @@ namespace JBro::ScriptCompiler
                         return true;
                     }
                 }
-                for (const Symbol& member : m_result.Symbols)
+                const Array<SymbolId>* members = m_result.ChildIndex.Find(type);
+                for (std::size_t slot = 0; members != nullptr && slot < members->Size(); ++slot)
                 {
-                    if (member.Parent != type)
-                    {
-                        continue;
-                    }
-                    const SymbolId owned = OwnedValueType(member);
+                    const SymbolId owned = OwnedValueType(m_result.Symbols[(*members)[slot]]);
                     if (InvalidSymbol != owned && OwnsValueOf(owned, target, visited))
                     {
                         return true;
@@ -1553,12 +1589,10 @@ namespace JBro::ScriptCompiler
                     m_owner = m_result.Symbols[binding.Id].Parent;
                     const Symbol symbol = m_result.Symbols[binding.Id];
                     const SyntaxNode& node = Node(binding.Node);
-                    for (const Symbol& earlier : m_result.Symbols)
+                    const Array<SymbolId>& siblings = m_result.MemberIndex[MemberKey(symbol.Parent, symbol.Name.View())];
+                    for (std::size_t slot = 0; slot < siblings.Size() && siblings[slot] < symbol.Id; ++slot)
                     {
-                        if (earlier.Id >= symbol.Id || earlier.Parent != symbol.Parent || earlier.Name != symbol.Name)
-                        {
-                            continue;
-                        }
+                        const Symbol& earlier = m_result.Symbols[siblings[slot]];
                         if (IsFunction(symbol.Kind) && IsFunction(earlier.Kind) && false == SameParameters(symbol, earlier))
                         {
                             continue;
@@ -1792,11 +1826,11 @@ namespace JBro::ScriptCompiler
                         return {scope};
                     }
                 }
-                for (const Symbol& symbol : m_result.Symbols)
+                for (const SymbolId top : m_result.ChildIndex[InvalidSymbol])
                 {
-                    if (InvalidSymbol == symbol.Parent && symbol.Name == name)
+                    if (m_result.Symbols[top].Name == name)
                     {
-                        candidates.Add(symbol.Id);
+                        candidates.Add(top);
                     }
                 }
                 return candidates;
@@ -3123,6 +3157,11 @@ namespace JBro::ScriptCompiler
             Array<Binding> m_bindings;
             Array<SymbolId> m_handles;
             Array<SymbolId> m_scripts;
+            // `Occur` 의 중복 확인 색인이다. 한 문서의 출현만 든다.
+            Table<UInt64, Array<UInt32>> m_occurrenceIndex;
+            const DocumentAnalysis* m_occurrenceDocument = nullptr;
+            std::size_t m_occurrenceIndexed = 0;
+            Occurrence m_occurrenceLast;
             Array<Scope> m_scopes;
             Array<String> m_iterated;
             DocumentAnalysis* m_document = nullptr;
@@ -3137,6 +3176,14 @@ namespace JBro::ScriptCompiler
     String GetExpressionType(const AnalysisResult& result, const DocumentAnalysis& document, NodeIndex index)
     {
         return ExpressionType(result, document, index);
+    }
+
+    String MemberKey(SymbolId parent, std::string_view name)
+    {
+        String key(std::to_string(parent.Get()));
+        key.push_back('\x1f');
+        key.Append(name);
+        return key;
     }
 
     OwnerPtr<AnalysisResult> AnalyzeProject(ArrayView<const DocumentInput> documents, const ApiCatalog& api)

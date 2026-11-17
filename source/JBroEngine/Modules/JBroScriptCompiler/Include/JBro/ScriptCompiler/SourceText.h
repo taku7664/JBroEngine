@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
 #include <cstdint>
@@ -40,9 +41,13 @@ namespace JBro::ScriptCompiler
 
         const String& GetPath() const noexcept { return m_path; }
         std::string_view GetText() const noexcept { return m_text.View(); }
+        // 줄마다 그 줄의 첫 바이트 위치다(0 번 줄은 0, BOM 은 그대로 둔다). 만들 때 한 번 센다 - 분석이 자리마다 줄·열을 만들며
+        // 파일 처음부터 줄바꿈을 세어 필드 수의 제곱으로 느렸다(D-387).
+        const Array<UInt32>& GetLineStarts() const noexcept { return m_lineStarts; }
 
     private:
         String m_path;
         String m_text;
+        Array<UInt32> m_lineStarts;
     };
 }

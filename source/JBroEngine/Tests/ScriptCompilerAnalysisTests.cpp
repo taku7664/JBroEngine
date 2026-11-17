@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/CppEmitter.h>
@@ -710,8 +711,130 @@ namespace
     }
 }
 
+namespace
+{
+    // 색인 셋(D-387)이 심볼 목록을 처음부터 훑은 답과 같은가. 타입 이름은 처음 것, 자식은 더한 차례, (부모, 이름)은 그 이름의 자식 전부.
+    Bool IsTypeKind(SymbolKind kind)
+    {
+        return SymbolKind::Type == kind || SymbolKind::Class == kind || SymbolKind::Struct == kind
+            || SymbolKind::Interface == kind || SymbolKind::Enum == kind;
+    }
+
+    Bool SameIds(const Array<SymbolId>* indexed, const Array<SymbolId>& expected)
+    {
+        if (indexed == nullptr || indexed->Size() != expected.Size())
+        {
+            return false;
+        }
+        for (std::size_t slot = 0; slot < expected.Size(); ++slot)
+        {
+            if ((*indexed)[slot] != expected[slot])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    Bool IndexesMatchSymbols(const AnalysisResult& result)
+    {
+        for (const Symbol& symbol : result.Symbols)
+        {
+            if (IsTypeKind(symbol.Kind))
+            {
+                SymbolId first = InvalidSymbol;
+                for (const Symbol& other : result.Symbols)
+                {
+                    if (IsTypeKind(other.Kind) && other.Type == symbol.Type)
+                    {
+                        first = other.Id;
+                        break;
+                    }
+                }
+                const SymbolId* indexed = result.TypeIndex.Find(symbol.Type);
+                if (indexed == nullptr || *indexed != first)
+                {
+                    return false;
+                }
+            }
+            Array<SymbolId> children;
+            Array<SymbolId> named;
+            for (const Symbol& other : result.Symbols)
+            {
+                if (other.Parent == symbol.Parent)
+                {
+                    children.Add(other.Id);
+                    if (other.Name == symbol.Name)
+                    {
+                        named.Add(other.Id);
+                    }
+                }
+            }
+            const Array<SymbolId>* indexedChildren = result.ChildIndex.Find(symbol.Parent);
+            const Array<SymbolId>* indexedNamed = result.MemberIndex.Find(MemberKey(symbol.Parent, symbol.Name.View()));
+            if (false == SameIds(indexedChildren, children) || false == SameIds(indexedNamed, named))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    std::vector<std::string> DiagnosticLines(const AnalysisResult& result)
+    {
+        std::vector<std::string> lines;
+        for (const auto& document : result.Documents)
+        {
+            for (const SemanticDiagnostic& diagnostic : document->Diagnostics)
+            {
+                lines.push_back(std::string(document->Input.Uri.c_str()) + " " + diagnostic.Code.c_str() + " " + std::to_string(diagnostic.Range.Begin.Offset.Get()));
+            }
+        }
+        std::sort(lines.begin(), lines.end());
+        return lines;
+    }
+
+    // **증분 분석 뒤에도 색인이 심볼과 맞고, 진단은 처음부터 다시 분석한 것과 같다**(D-387). 색인은 분석이 심볼을 더할 때만 늘어나므로
+    // 증분이 앞 결과의 본문을 다시 쓸 때 어긋나면 이름 찾기가 틀린 심볼을 돌려준다.
+    void TestIndexesSurviveIncrementalEdits()
+    {
+        const char* stats = "struct Stats\n{\n    public Int hp = 1\n    public Int mp = 2\n}\n";
+        const char* hero = "script Hero\n{\n    Stats stats\n    Int count = 0\n    class Inner\n    {\n        public Int value = 3\n    }\n"
+                           "    Inner inner\n    fn Total() -> Int\n    {\n        Int local = stats.hp + inner.value\n        return local + count\n    }\n}\n";
+        Array<DocumentInput> first;
+        first.Add({"file:///Stats.jscript", "Stats.jscript", stats, 1});
+        first.Add({"file:///Hero.jscript", "Hero.jscript", hero, 1});
+        auto previous = AnalyzeProject(first.View(), Catalog());
+        Check(IndexesMatchSymbols(*previous), "the name indexes match the symbols after a full analysis");
+
+        const char* editedStats = "struct Stats\n{\n    public Int hp = 1\n    public Int armor = 2\n}\n\nclass Extra\n{\n    public Int value = 4\n}\n";
+        const char* editedHero = "script Hero\n{\n    Stats stats\n    Extra extra\n    Int count = 0\n    class Inner\n    {\n        public Int value = 3\n    }\n"
+                                 "    Inner inner\n    fn Total() -> Int\n    {\n        Int local = stats.mp + inner.value + extra.value\n        return local + count\n    }\n}\n";
+        Array<DocumentInput> edited;
+        edited.Add({"file:///Stats.jscript", "Stats.jscript", editedStats, 2});
+        edited.Add({"file:///Hero.jscript", "Hero.jscript", editedHero, 2});
+        auto incremental = AnalyzeProjectIncremental(edited.View(), Catalog(), std::move(previous));
+        auto full = AnalyzeProject(edited.View(), Catalog());
+        Check(IndexesMatchSymbols(*incremental), "the name indexes match the symbols after an incremental analysis");
+        Check(DiagnosticLines(*incremental) == DiagnosticLines(*full) && Has(*incremental, "JBC3032"),
+            "the incremental analysis reports what a full analysis does (the removed field mp is unknown)");
+
+        // 본문만 바꾼 둘째 증분: 선언은 그대로 다시 쓰인다.
+        Array<DocumentInput> bodyOnly;
+        bodyOnly.Add({"file:///Stats.jscript", "Stats.jscript", editedStats, 3});
+        std::string bodyHero(editedHero);
+        bodyHero.replace(bodyHero.find("stats.mp"), 8, "stats.armor");
+        bodyOnly.Add({"file:///Hero.jscript", "Hero.jscript", String(bodyHero), 3});
+        auto second = AnalyzeProjectIncremental(bodyOnly.View(), Catalog(), std::move(incremental));
+        auto secondFull = AnalyzeProject(bodyOnly.View(), Catalog());
+        Check(IndexesMatchSymbols(*second) && DiagnosticLines(*second) == DiagnosticLines(*secondFull) && false == Has(*second, "JBC3032"),
+            "a body-only incremental edit keeps the indexes and the diagnostics of a full analysis");
+    }
+}
+
 JBro::Int32 RunScriptCompilerAnalysisTests()
 {
+    TestIndexesSurviveIncrementalEdits();
     TestSingleRefSyntax();
     TestCppEmitterChecksEveryRefLink();
     TestCppEmitterCombinesProjectFiles();
