@@ -3057,6 +3057,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-384. 생성 단계 오류는 진단과 같은 모양으로 표준 출력에 낸다: `<경로>(<줄>,<열>): error JBC4001: <번역된 머리> <글>`, 자리가 없으면 `jbroc : error JBC4001: <…>`.**
+  (2026-11-17, REVIEW R4-1)
+  Updates: D-372 (3)(`jbroc: C++ emit error: <경로>(<줄>,<열>): <글>` 을 바꾼다), jbroc-rules §11.3·§16, D-105(번호표에 4001 - 생성 단계, 내부 오류에 가깝다).
+  (1) 확인: 에디터 `ScriptBuild::ParseDiagnosticLine` 은 `: error `·`: warning ` 을 찾으므로 옛 줄(`… emit error: …`)은 진단이 아니었다 - 빌드 결과에는 `MSB3073`(명령 종료 1) 한 줄만 남고 눌러 열 자리가 없었다.
+  (2) 번역 머리 `jbroc.emit.unsupported`(「C++ 생성기가 이 코드를 아직 내리지 못합니다(컴파일러가 받지 말았어야 할 코드일 수 있습니다): {0}」). 글({0})은 생성기의 영어 원문이다.
+  (3) 지금 사용자 입력으로 닿는 생성기 오류는 `CaptureBinding` 둘뿐이다(D-382, 결정 대기) - 나머지는 분석이 먼저 막는다. 이 모양은 방어선이다.
+  (4) 시험: `ScriptBuild` 의 `TestEmitErrorsAreReadAsFileDiagnostics`(옛 줄은 진단이 아니고, 새 줄은 파일·줄·열·코드로 읽히며 경로의 괄호도 견딘다, 자리 없는 줄은 파일 없는 오류).
+
 - **D-383. 생성 C++ 은 엔진 함수의 `String`·`Int` 매개변수(카탈로그가 선언한 타입 그대로일 때)에 넘기는 인자를 `JBro::ScriptGuard::Argument(…)` 로 감싼다. 대리자는 `const char*`·`const String&`·`std::string_view` / 모든 `IntegerType<U>` 로만 바뀌어, 엔진 쪽 `const char*`·`UInt32`·`NameId` 매개변수에 변수를 넘길 수 있다.**
   (2026-11-17, REVIEW R2-2 의 전수 시험이 찾음)
   Updates: jbroc-rules §5.2(엔진 호출의 인자).

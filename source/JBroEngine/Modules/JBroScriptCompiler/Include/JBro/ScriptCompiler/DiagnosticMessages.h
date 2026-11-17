@@ -53,4 +53,9 @@ namespace JBro::ScriptCompiler
     // 그래서 그 자리가 든 원문 `text` 를 받는다.
     String FormatDiagnosticLine(std::string_view path, std::string_view text, const Diagnostic& diagnostic,
         const DiagnosticMessages& messages);
+
+    // 생성 단계 오류 한 줄이다(D-384). 생성기 오류는 `<경로>(<줄>,<열>): <글>` 이거나 자리 없는 `<글>` 이다. 진단 줄과 같은 모양
+    // `<경로>(<줄>,<열>): error JBC4001: <번역된 머리> <글>` 로(자리가 없으면 `jbroc : error JBC4001: …`) 내서 MSBuild·에디터 `빌드 결과`·
+    // `$msCompile` 이 파일과 줄로 읽는다. 전에는 `jbroc: C++ emit error: …` 라 어느 것도 진단으로 읽지 못했다.
+    String FormatEmitErrorLine(std::string_view error, const DiagnosticMessages& messages);
 }

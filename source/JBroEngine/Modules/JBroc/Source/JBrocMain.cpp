@@ -484,7 +484,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
             {
                 for (const String& error : emitted.Errors)
                 {
-                    WriteLine(STD_ERROR_HANDLE, String("jbroc: C++ emit error: ").Append(error.View()).View());
+                    WriteLine(STD_OUTPUT_HANDLE, FormatEmitErrorLine(error.View(), messages).View());
                 }
                 return ExitSourceErrors;
             }
@@ -515,7 +515,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         {
             for (const String& error : emitted.Errors)
             {
-                WriteLine(STD_ERROR_HANDLE, String("jbroc: C++ emit error: ").Append(error.View()).View());
+                WriteLine(STD_OUTPUT_HANDLE, FormatEmitErrorLine(error.View(), messages).View());
             }
             return ExitSourceErrors;
         }

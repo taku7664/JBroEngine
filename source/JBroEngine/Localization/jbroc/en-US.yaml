@@ -28,6 +28,7 @@ Entries:
   jbroc.cli.missing_option_value: "{0} needs a value."
   jbroc.cli.unknown_locale: "Unsupported locale: {0}. Use ko-KR or en-US."
   jbroc.cli.cannot_read_file: "Cannot read the file: {0}"
+  jbroc.emit.unsupported: "The C++ generator cannot lower this code yet (the compiler may have accepted code it should have rejected): {0}"
   jbroc.semantic.unknown_type: "Unknown type: {0}"
   jbroc.semantic.duplicate: "The name {0} is already declared in this scope."
   jbroc.semantic.type_mismatch: "Expected {0}, but the expression has type {1}."

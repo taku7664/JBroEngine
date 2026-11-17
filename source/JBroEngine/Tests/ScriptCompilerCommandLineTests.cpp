@@ -49,6 +49,7 @@ namespace
         "jbroc.cli.missing_option_value",
         "jbroc.cli.unknown_locale",
         "jbroc.cli.cannot_read_file",
+        "jbroc.emit.unsupported",
     };
 
     std::string ToUtf8(const std::wstring& text)

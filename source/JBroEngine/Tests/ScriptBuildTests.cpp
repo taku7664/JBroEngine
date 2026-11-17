@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include <JBro/ScriptCompiler/DiagnosticMessages.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorNotifications.h>
@@ -683,6 +684,41 @@ namespace
     }
 }
 
+namespace
+{
+    // **생성 단계 오류도 빌드 결과에서 파일과 줄로 읽힌다**(D-384, REVIEW R4-1). 전에는 `jbroc: C++ emit error: 경로(줄,열): …` 라
+    // 에디터의 진단 파서가 오류로 알아보지 못해 빌드 결과에는 `MSB3073` 만 남았다. 지금 줄은 진단 줄과 같은 모양이다.
+    void TestEmitErrorsAreReadAsFileDiagnostics()
+    {
+        ScriptCompiler::DiagnosticMessages messages;
+        {
+            WindowsPlatform probe;
+            JMemoryContext memory;
+            Check(probe.Initialize(memory), "the platform initializes");
+            const std::string directory = std::string(probe.GetExecutableFolder().c_str()) + "/Localization/jbroc";
+            probe.Shutdown();
+            Check(messages.Load(directory.c_str(), "en-US", nullptr), "the compiler translation table beside the test loads");
+        }
+        ScriptBuild::Diagnostic before;
+        const char* old = "jbroc: C++ emit error: C:\\Game\\Contents\\Scripts\\Copy.jscript(6,21): C++ emitter does not support the output projection of CopyText";
+        Check(false == ScriptBuild::ParseDiagnosticLine(old, std::strlen(old), before), "the old emitter line was not a diagnostic to the build results");
+
+        const String line = ScriptCompiler::FormatEmitErrorLine(
+            "C:\\Game (copy)\\Contents\\Scripts\\Copy.jscript(6,21): C++ emitter does not support this expression yet", messages);
+        ScriptBuild::Diagnostic diagnostic;
+        Check(ScriptBuild::ParseDiagnosticLine(line.c_str(), line.size(), diagnostic), "the emitter line is a diagnostic");
+        Check(diagnostic.isError && diagnostic.code == "JBC4001" && diagnostic.line == 6 && diagnostic.column == 21
+                && diagnostic.file == "C:\\Game (copy)\\Contents\\Scripts\\Copy.jscript"
+                && Contains(diagnostic.message, "C++ emitter does not support this expression yet"),
+            "the build results read the file, line, column and code of an emitter error, even with a parenthesis in the path");
+        const String placeless = ScriptCompiler::FormatEmitErrorLine("no source files", messages);
+        ScriptBuild::Diagnostic project;
+        Check(ScriptBuild::ParseDiagnosticLine(placeless.c_str(), placeless.size(), project) && project.code == "JBC4001"
+                && project.file.empty(),
+            "an emitter error without a place is still an error line, without a file");
+    }
+}
+
 Int32 RunScriptBuildTests()
 {
     TestAChildProcessRunsAndReportsItsExit();
@@ -695,6 +731,7 @@ Int32 RunScriptBuildTests()
     TestTheScriptEditorIsRemembered();
     TestTheEditorBuildsTheScriptsAndFindsTheErrorLine();
     TestTheCompilerSpeaksTheEditorLanguage();
+    TestEmitErrorsAreReadAsFileDiagnostics();
     std::cout << "Script build tests passed.\n";
     return 0;
 }
