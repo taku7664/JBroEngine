@@ -1666,9 +1666,11 @@ namespace JBro::ScriptCompiler
             // `a?.b.c` 에서 `?.` 는 뒤의 `.c` 까지 건너뛴다 - 분석이 받는 쪽의 null 건너뛰기를 사슬 끝까지 넘기는 것과 같게 본다
             // (`Analysis.cpp` 의 `receiver.NullSafe`). 넘기지 않으면 `.c` 가 `Require` 로 내려가 `a` 가 없을 때 콜백을 멈추고, 결과가 값이 되어
             // 이어지는 `??` 가 값에 `IsPresent` 를 불렀다.
+            // 받는 쪽(첫 자식)으로만 내려가므로 반드시 끝난다. 상한은 두지 않는다 - 식은 100 겹을 넘지 않고(D-374), 상한이 있으면
+            // 그 너머의 `?.` 를 놓쳐 `Require` 로 떨어진다(REVIEW R2-3).
             Bool InNullSafeChain(NodeIndex index) const
             {
-                for (std::size_t depth = 0; index != InvalidNode && depth < 256; ++depth)
+                while (index != InvalidNode)
                 {
                     const SyntaxNode& node = Node(index);
                     if (node.Kind == SyntaxKind::MemberAccessExpression)
