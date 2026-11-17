@@ -126,6 +126,8 @@ namespace JBro
         Array<ModelVertex> vertices;
         Array<UInt32> indices;
         Bool hasUvs = false;
+        // 파일에 탄젠트가 있었는가. 없으면 노멀맵을 읽지 않는다(D-346 (5)).
+        Bool hasTangents = false;
         // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-346 (3)).
         AssetId material;
         UInt32 dataGeneration = 1;

@@ -442,19 +442,21 @@ namespace
         indices.Add(1);
         indices.Add(2);
         Array<std::byte> blob;
-        WriteCookedMesh(vertices, indices, true, AssetId{}, blob);
+        WriteCookedMesh(vertices, indices, true, true, AssetId{}, blob);
         Array<ModelVertex> readVertices;
         Array<JBro::UInt32> readIndices;
         JBro::Bool readUvs = false;
         AssetId readMaterial;
-        Check(ReadCookedMesh(blob, readVertices, readIndices, readUvs, readMaterial) && readVertices.Size() == 3 && readIndices.Size() == 3 && readUvs,
+        JBro::Bool readTangents = false;
+        Check(ReadCookedMesh(blob, readVertices, readIndices, readUvs, readTangents, readMaterial) && readVertices.Size() == 3 && readIndices.Size() == 3
+                && readUvs && readTangents,
             "a cooked mesh round-trips");
         Array<std::byte> shortBlob = blob;
         shortBlob.Resize(blob.Size() - 1);
-        Check(false == ReadCookedMesh(shortBlob, readVertices, readIndices, readUvs, readMaterial), "a short blob is refused");
+        Check(false == ReadCookedMesh(shortBlob, readVertices, readIndices, readUvs, readTangents, readMaterial), "a short blob is refused");
         indices[2] = 3;
-        WriteCookedMesh(vertices, indices, true, AssetId{}, blob);
-        Check(false == ReadCookedMesh(blob, readVertices, readIndices, readUvs, readMaterial), "an index past the vertices is refused");
+        WriteCookedMesh(vertices, indices, true, true, AssetId{}, blob);
+        Check(false == ReadCookedMesh(blob, readVertices, readIndices, readUvs, readTangents, readMaterial), "an index past the vertices is refused");
         fs::remove_all(root);
         platform.Shutdown();
     }

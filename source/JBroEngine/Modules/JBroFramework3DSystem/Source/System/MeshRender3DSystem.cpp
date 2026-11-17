@@ -4,6 +4,7 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Rendering/MaterialLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Runtime/GameObject.h>
@@ -25,6 +26,11 @@ namespace JBro::System
     void MeshRender3DSystem::SetMeshLibrary(MeshLibrary* library)
     {
         m_library = library;
+    }
+
+    void MeshRender3DSystem::SetMaterialLibrary(MaterialLibrary* library)
+    {
+        m_materials = library;
     }
 
     void MeshRender3DSystem::ExtractRenderWorld(Canvas& canvas)
@@ -76,7 +82,18 @@ namespace JBro::System
             item.rotation = world->worldRotation;
             item.scale = world->worldScale;
             item.mesh = mesh;
-            item.material = renderer.material;
+            // **재질은 칸 → 메시의 재질 → 기본 재질 차례다**(D-346 (3)). 칸이 비면 모델의 메시를 고르기만 해도 파일의 재질이 입혀진다.
+            // 둘 다 없으면 빈 핸들이고 렌더러가 기본 재질로 그린다.
+            AssetHandle material;
+            if (m_materials != nullptr)
+            {
+                material = m_materials->ResolveAsset(renderer.material);
+                if (material.generation == 0)
+                {
+                    material = m_materials->ResolveMeshMaterial(renderer.mesh);
+                }
+            }
+            item.material = material;
             item.tint = renderer.tint;
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;

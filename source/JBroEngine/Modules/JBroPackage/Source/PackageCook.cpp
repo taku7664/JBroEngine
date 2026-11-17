@@ -124,7 +124,7 @@ namespace JBro::Package
             if (record.type == AssetType::Mesh)
             {
                 const ModelMesh& mesh = model->meshes[sub->index.Get()];
-                WriteCookedMesh(mesh.vertices, mesh.indices, mesh.hasUvs, FindModelMeshMaterialId(registry, owner, cache.listed, mesh), cooked);
+                WriteCookedMesh(mesh.vertices, mesh.indices, mesh.hasUvs, mesh.hasTangents, FindModelMeshMaterialId(registry, owner, cache.listed, mesh), cooked);
                 if (AddBlob(writer, report, record, BlobKind::CookedMesh, cooked))
                 {
                     ++report.cookedMeshes;

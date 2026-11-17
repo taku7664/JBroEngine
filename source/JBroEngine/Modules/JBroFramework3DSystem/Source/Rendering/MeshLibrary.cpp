@@ -360,7 +360,7 @@ namespace JBro
             Array<UInt32> indices;
             BuildBuiltin(index, vertices, indices);
             const AssetHandle mesh = renderer->RegisterMesh({vertices.Data(), static_cast<UInt32>(vertices.Size())},
-                {indices.Data(), static_cast<UInt32>(indices.Size())});
+                {indices.Data(), static_cast<UInt32>(indices.Size())}, true);
             if (mesh.generation == 0)
             {
                 return false;
@@ -435,7 +435,7 @@ namespace JBro
         const JArrayView<MeshVertex> vertexView{vertices.Data(), static_cast<UInt32>(vertices.Size())};
         const JArrayView<UInt32> indexView{mesh->indices.Data(), static_cast<UInt32>(mesh->indices.Size())};
         entry.asset = meshAsset;
-        entry.rendererMesh = m_renderer->RegisterMesh(vertexView, indexView);
+        entry.rendererMesh = m_renderer->RegisterMesh(vertexView, indexView, mesh->hasTangents);
         if (entry.rendererMesh.generation == 0)
         {
             entry.failedGeneration = mesh->dataGeneration;

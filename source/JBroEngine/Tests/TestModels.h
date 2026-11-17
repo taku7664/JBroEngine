@@ -98,6 +98,39 @@ namespace TestModels
         return json;
     }
 
+    // 2x2 RGBA PNG 다. 왼쪽 위 빨강, 오른쪽 위 초록, 왼쪽 아래 파랑, 오른쪽 아래 반투명(알파 약 0.5) 흰색.
+    inline std::string TinyPng()
+    {
+        static const unsigned char bytes[] =
+        {
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+            0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x06, 0x00, 0x00, 0x00, 0x72, 0xb6, 0x0d,
+            0x24, 0x00, 0x00, 0x00, 0x13, 0x49, 0x44, 0x41, 0x54, 0x78, 0xda, 0x63, 0xf8, 0xcf, 0xc0, 0xf0,
+            0x1f, 0x0c, 0x81, 0x34, 0x08, 0x34, 0x00, 0x00, 0x49, 0x49, 0x09, 0x78, 0x9c, 0x51, 0x17, 0x92,
+            0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+        };
+        return std::string(reinterpret_cast<const char*>(bytes), sizeof(bytes));
+    }
+
+    // 한 가지 색으로 칠한 2x2 TGA 다(비압축 32 비트, 왼쪽 위 원점). PNG 를 짓지 않고 가운데 회색 같은 값을 그림으로 줄 때 쓴다.
+    inline std::string SolidTga(unsigned char red, unsigned char green, unsigned char blue, unsigned char alpha)
+    {
+        std::string bytes(18, '\0');
+        bytes[2] = 2;
+        bytes[12] = 2;
+        bytes[14] = 2;
+        bytes[16] = 32;
+        bytes[17] = 0x28;
+        for (int texel = 0; texel < 4; ++texel)
+        {
+            bytes += static_cast<char>(blue);
+            bytes += static_cast<char>(green);
+            bytes += static_cast<char>(red);
+            bytes += static_cast<char>(alpha);
+        }
+        return bytes;
+    }
+
     // 그림 하나가 내장된 사각형 glTF 하나다. 버퍼와 그림이 모두 데이터 URI 라 곁 파일이 없다. 그림의 이름이 하위 Texture 의 이름이 된다.
     inline std::string SelfContainedQuadGltf(const std::string& imageName, const std::string& imageBytes)
     {

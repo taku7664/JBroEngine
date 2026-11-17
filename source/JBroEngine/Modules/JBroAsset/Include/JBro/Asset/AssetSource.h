@@ -40,15 +40,15 @@ namespace JBro
     // 머리와 크기가 맞으면 참이다. 픽셀은 `bytes` 의 `CookedTextureHeaderSize` 뒤에 있다.
     Bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info);
 
-    // `CookedMesh` 블롭의 모양이다(model-import-plan 6 단계): 32 바이트 머리(`JMSH`·정점 수·인덱스 수·깃발 - 1 번 비트가 UV 있음·제 재질의 아이디 16 바이트,
+    // `CookedMesh` 블롭의 모양이다(model-import-plan 6 단계): 32 바이트 머리(`JMSH`·정점 수·인덱스 수·깃발 - 1 번 비트가 UV, 2 번 비트가 탄젠트 있음·제 재질의 아이디 16 바이트,
     // material-plan 2 단계) 뒤에 정점(`ModelVertex` 그대로, 정점마다 48 바이트)과 32 비트 인덱스. 엔진이 읽는 모양 그대로라 게임은 모델 디코더를 돌리지 않는다.
     inline constexpr std::size_t CookedMeshHeaderSize = 32;
     static_assert(sizeof(ModelVertex) == 48, "the cooked mesh stores ModelVertex as twelve floats");
     static_assert(sizeof(AssetId) == 16, "the cooked mesh stores the material id as sixteen bytes");
 
-    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, AssetId material, Array<std::byte>& out);
+    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, Bool hasTangents, AssetId material, Array<std::byte>& out);
     // 머리·크기가 맞고 인덱스가 삼각형 목록이며 모두 정점 안을 가리키면 참이다. 거짓이면 결과를 손대지 않는다.
-    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs, AssetId& material);
+    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs, Bool& hasTangents, AssetId& material);
 
     // 에셋 시스템이 바이트를 받는 곳이다(D-232). 에셋 폴더의 파일(`LooseAssetSource`)이든 패키지(`Package::PackageAssetSource`)든 같은 모양이라
     // 에셋 시스템은 어느 쪽인지 모른다. `Read`·`Has`·`MakeStreamPath` 는 메인 스레드이고, `OpenStream` 은 어느 스레드에서 불러도 된다

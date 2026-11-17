@@ -1281,8 +1281,9 @@ namespace
             "one sprite view must upload one view-projection constant block");
         Check(module.device.commands.drawIndexedInstancedCount == 1,
             "two collected sprites must collapse into one instanced draw");
-        Check(module.device.writeBufferCount == 3,
-            "renderer must use two initialization writes and one frame-bulk instance write");
+        // 초기화의 셋은 스프라이트 정점·인스턴스 자리와 메시의 기본 재질 블록(material-plan 3 단계)이다.
+        Check(module.device.writeBufferCount == 4,
+            "renderer must use three initialization writes and one frame-bulk instance write");
 
         const JBro::RendererFrameStats stats = renderer.GetLastFrameStats();
         Check(stats.viewCount == 1, "completed frame must report one view");
@@ -1298,8 +1299,8 @@ namespace
         Check(module.device.waitIdleCount == 1, "shutdown must wait for outstanding GPU work");
         Check(module.device.destroySwapchainCount == 1, "shutdown must destroy the swapchain");
         Check(module.destroyDeviceCount == 1, "shutdown must destroy the device");
-        Check(module.device.destroyPipelineCount == 18,
-            "shutdown must destroy the built-in sprite, sdf text (each with its over-depth twin), mesh, world text, the two outline, "
+        Check(module.device.destroyPipelineCount == 19,
+            "shutdown must destroy the built-in sprite, sdf text (each with its over-depth twin), mesh (Standard and Unlit), world text, the two outline, "
             "the four layer composite, the backdrop blend, the 2D light (plain and shadowed), the shadow mask and the two lit (sprite, sdf text) pipelines");
     }
     struct HostOverlayProbe

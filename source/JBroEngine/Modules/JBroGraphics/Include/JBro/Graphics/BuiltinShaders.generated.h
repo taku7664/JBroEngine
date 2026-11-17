@@ -16,6 +16,7 @@ namespace JBro
         SdfTextLit,
         WorldText,
         Mesh,
+        MeshUnlit,
         OutlineGrow,
         OutlineComposite,
         LayerComposite,

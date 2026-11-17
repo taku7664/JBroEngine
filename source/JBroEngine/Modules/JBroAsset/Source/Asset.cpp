@@ -872,7 +872,7 @@ namespace JBro
         {
             Array<std::byte> cooked;
             if (false == m_source->Read(record, AssetBlob::CookedMesh, cooked)
-                || false == ReadCookedMesh(cooked, data.vertices, data.indices, data.hasUvs, data.material))
+                || false == ReadCookedMesh(cooked, data.vertices, data.indices, data.hasUvs, data.hasTangents, data.material))
             {
                 Log::Write(LogLevel::Warning, "asset", "%s: the cooked mesh is damaged", record.relativePath.c_str());
                 return false;
@@ -894,6 +894,7 @@ namespace JBro
             data.vertices = mesh.vertices;
             data.indices = mesh.indices;
             data.hasUvs = mesh.hasUvs;
+            data.hasTangents = mesh.hasTangents;
             data.material = m_registry != nullptr ? FindModelMeshMaterialId(*m_registry, *model, listed, mesh) : AssetId{};
             return true;
         }

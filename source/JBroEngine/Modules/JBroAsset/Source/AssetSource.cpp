@@ -15,11 +15,11 @@ namespace JBro
         constexpr char CookedMeshMagic[4] = { 'J', 'M', 'S', 'H' };
     }
 
-    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, AssetId material, Array<std::byte>& out)
+    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, Bool hasTangents, AssetId material, Array<std::byte>& out)
     {
         const std::uint32_t vertexCount = static_cast<std::uint32_t>(vertices.Size());
         const std::uint32_t indexCount = static_cast<std::uint32_t>(indices.Size());
-        const std::uint32_t flags = hasUvs ? 1u : 0u;
+        const std::uint32_t flags = (hasUvs ? 1u : 0u) | (hasTangents ? 2u : 0u);
         const std::size_t vertexBytes = static_cast<std::size_t>(vertexCount) * sizeof(ModelVertex);
         const std::size_t indexBytes = static_cast<std::size_t>(indexCount) * sizeof(std::uint32_t);
         out.Resize(CookedMeshHeaderSize + vertexBytes + indexBytes);
@@ -38,7 +38,7 @@ namespace JBro
         }
     }
 
-    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs, AssetId& material)
+    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs, Bool& hasTangents, AssetId& material)
     {
         if (bytes.Size() < CookedMeshHeaderSize || std::memcmp(bytes.Data(), CookedMeshMagic, sizeof(CookedMeshMagic)) != 0)
         {
@@ -52,7 +52,7 @@ namespace JBro
         std::memcpy(&flags, bytes.Data() + 12, sizeof(flags));
         const std::size_t vertexBytes = static_cast<std::size_t>(vertexCount) * sizeof(ModelVertex);
         const std::size_t indexBytes = static_cast<std::size_t>(indexCount) * sizeof(std::uint32_t);
-        if (vertexCount == 0 || indexCount == 0 || indexCount % 3 != 0 || (flags & ~1u) != 0
+        if (vertexCount == 0 || indexCount == 0 || indexCount % 3 != 0 || (flags & ~3u) != 0
             || bytes.Size() != CookedMeshHeaderSize + vertexBytes + indexBytes)
         {
             return false;
@@ -73,6 +73,7 @@ namespace JBro
         vertices = std::move(readVertices);
         indices = std::move(readIndices);
         hasUvs = (flags & 1u) != 0;
+        hasTangents = (flags & 2u) != 0;
         std::memcpy(&material, bytes.Data() + 16, sizeof(material));
         return true;
     }
