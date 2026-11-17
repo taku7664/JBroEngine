@@ -3057,6 +3057,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-377. 멤버 없는 enum 은 C++ 처럼 받는다(생성기가 이름 붙은 값이 없는 설명서 `DefineEmptyEnumTypeDescriptor` 를 낸다). 값으로 담는 필드가 돌아서 자기 타입을 담으면 분석 진단 `JBC3048` 이다.**
+  (2026-11-17, Script QA 결함 4 의 나머지, DECISIONS-NEEDED Q2 사용자 결정 "빈enum건은 권고안대로" - 빈 enum 허용, 소유 순환은 새 진단)
+  Updates: D-372 (3)(빈 enum·소유 순환은 사용자 결정 대기 → 정함), jbroc-rules §16 표의 두 줄, jbroscript-syntax §7.2·§8.3, D-105(진단 번호표에 3048. 3047 은 쓰지 않았다 - 결정 줄이 3048 을 적었다).
+  (1) 빈 enum: 전에는 생성기가 `cannot reflect an enum without members` 로 멈췄다. 엔진 `EnumDescriptor.h` 의 `DefineEnumTypeDescriptor` 는 `Count > 0` 을 `static_assert` 로 막으므로 멤버 없는 enum 전용 `DefineEmptyEnumTypeDescriptor<E>(이름)` 를 더했다 - 목록은 비고, 글자로 바꾸기는 언제나 실패한다(이름 없는 값을 숫자로 지어내지 않는다는 기존 규칙 그대로).
+  (2) 소유 순환: 필드가 값으로 담는 사용자 `class`·`struct`(`ref T` 값 포함)를 따라, 그리고 부모 부분을 따라 자기 타입으로 돌아오면 그 필드에 `JBC3048`. `script`(핸들)·`Array`·`Table`·정적 필드는 사슬을 끊는다. 순환 위의 필드마다 낸다. 편집 중(언어 서버)에도 보인다. 생성기의 같은 검사는 방어선으로 남는다.
+  (3) 남은 영향(코드로 확인, 실행으로 재지 않음): 빈 enum 타입의 `[prop]` 필드는 저장할 이름이 없어 `WriteReflectedValue` 가 "this value refused to be written" 로 실패한다 - 어떻게 할지는 사용자 결정 대기(DECISIONS-NEEDED Q8).
+  (4) 시험: `ScriptCompilerCommandLine` 의 `TestEmptyEnumsAndOwnedCycles`(빈 enum 종료 0, 자기·두 타입·부모를 거친 순환은 필드 자리의 `JBC3048`, `Array`·정적·핸들은 진단 없음), `lsp_process_tests.py` 의 `test_owned_field_cycle_matches_command_line`, 생성 시험 프로젝트(`/W4 /WX`)의 `EmptyEnum.jscript`.
+
 - **D-376. 함수 하나에서 블록 `{ }` 은 32 겹(`MaxBlockDepth`)까지다. 함수 몸이 1 이고 `if`·`while`·`for`·`case`·`default` 몸이 하나씩 더한다. 넘으면 파서가 그 블록의 `{` 자리에 `JBC2016`(위치·번역 있음)을 내고, 명령줄과 언어 서버가 같다. `else if` 사슬은 겹으로 세지 않는다.**
   (2026-11-17, DECISIONS-NEEDED Q6 사용자 결정 "권고안대로 ㄱ" - 블록 겹 상한 32 를 언어 규칙으로, Q1 의 파서 겹 세기를 그대로)
   Updates: D-374 (4)(블록 겹에는 상한이 없다 → 32), D-105(진단 번호표에 2016), jbroscript-syntax §22 의 [열림] → §23.

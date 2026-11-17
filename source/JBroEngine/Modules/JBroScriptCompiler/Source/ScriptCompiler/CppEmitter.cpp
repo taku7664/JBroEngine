@@ -960,7 +960,20 @@ namespace JBro::ScriptCompiler
                 {
                     if (node.ChildCount == 0)
                     {
-                        Error("C++ emitter cannot reflect an enum without members: " + m_owner);
+                        // 멤버 없는 enum 은 C++ 처럼 받는다(D-377). 이름 붙은 값이 없는 설명서를 낸다.
+                        m_code += "enum class " + nativeOwner + " : std::int64_t\n{\n};\n";
+                        if (m_unit != nullptr)
+                        {
+                            m_code.swap(m_implementation);
+                            m_code += "const JBro::TypeDescriptor& JBro::TypeDescriptorOf<" + nativeOwner
+                                + ">::Get()\n{\n    return JBro::DefineEmptyEnumTypeDescriptor<" + nativeOwner + ">("
+                                + Escape(m_owner) + ");\n}\n\n";
+                            m_code.swap(m_implementation);
+                            return;
+                        }
+                        m_code += "namespace JBro { template <> struct TypeDescriptorOf<::" + nativeOwner
+                            + "> { static const TypeDescriptor& Get() { return ::JBro::DefineEmptyEnumTypeDescriptor<::" + nativeOwner
+                            + ">(" + Escape(m_owner) + "); } }; }\n\n";
                         return;
                     }
                     m_code += "enum class " + nativeOwner + " : std::int64_t\n{\n";

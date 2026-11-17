@@ -345,6 +345,21 @@ class ProcessTests(unittest.TestCase):
                 self.assertEqual(process.returncode, 1 if expected else 0, process.stderr)
         self.assertIsNone(session.process.poll(), "the server is still running after the deep documents")
 
+    def test_owned_field_cycle_matches_command_line(self):
+        # D-377: the cycle is an analysis diagnostic, so the server shows it while editing, at the same place as the build.
+        text = "struct Left\n{\n    Right right\n}\n\nstruct Right\n{\n    ref Left left\n}\n"
+        uri = self.document("Cycle.jscript", text)
+        session = self.start()
+        served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                  for item in self.open(session, uri, text)]
+        self.assertEqual(served, [("JBC3048", 3, 11), ("JBC3048", 8, 14)])
+        process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(self.root / "emit" / "cycle"),
+                                  str(self.scripts / "Cycle.jscript")], capture_output=True, timeout=60)
+        printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                   re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+        self.assertEqual(printed, served)
+        self.assertNotIn(b"emit error", process.stderr)
+
     def test_unsaved_diagnostics_fix_and_close(self):
         valid = "script Enemy\n{\npublic Int hp = 1\n}\n"
         uri = self.document("Enemy.jscript", valid)

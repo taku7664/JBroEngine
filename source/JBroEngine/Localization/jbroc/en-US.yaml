@@ -74,6 +74,7 @@ Entries:
   jbroc.semantic.uninitialized_field: "Field {0} has not finished initialization. Fields initialize in declaration order."
   jbroc.semantic.unknown_attribute: "Unknown field attribute: {0}"
   jbroc.semantic.attribute_argument_count: "The {0} attribute takes {1} argument(s)."
+  jbroc.semantic.owned_field_cycle: "A field held by value leads back to its own type: {2}.{0} -> {1}. Hold one side in an Array or as a script handle."
   jbroc.summary.syntax_errors: "The document has syntax errors; field settings are unavailable."
   jbroc.summary.field_required: "Select the current field declaration name before editing its settings."
   jbroc.summary.invalid_attribute: "A field attribute is unknown, duplicated, or has an incorrect argument count."

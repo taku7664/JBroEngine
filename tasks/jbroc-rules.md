@@ -556,8 +556,8 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 |---|---|---|
 | `unknown reflected field attribute` | (가) §3.2 "모르는 이름" | 분석 `JBC3045` 가 먼저 막는다 |
 | `reflected field attribute argument count`, `prop attribute takes no arguments` | (가) §3.2 "인자 개수" | 분석 `JBC3046` |
-| `C++ emitter cannot reflect an enum without members` | 언어 규칙인지 미정 - §3.2 에 근거가 없다 | (나) 로 남김, 사용자 결정 대기 |
-| `owned field cycle cannot be represented in C++` | 언어 규칙인지 미정 - §3.2 에 근거가 없다 | (나) 로 남김, 사용자 결정 대기 |
+| `C++ emitter cannot reflect an enum without members` | 사용자 결정(D-377): 빈 enum 은 허용 | 오류가 없어졌다 - 이름 없는 설명서를 낸다 |
+| `owned field cycle cannot be represented in C++` | 사용자 결정(D-377): 언어 규칙 | 분석 `JBC3048` 이 먼저 막는다. 생성기 검사는 방어선 |
 | `does not support this declaration/member/expression/statement yet`, `methods without a body yet`, `the output projection of …` | (나) 지원하지 않는 모양 | 자리 붙임 |
 | `encountered an invalid switch clause`, `for requires an Array<T> iterable`, `two-variable … requires a Table<K, V>`, `switch requires a comparable scalar`, `a range loop variable cannot borrow`, `compound property assignment has no getter` | (나) 분석이 이미 막는 것과 같은 조건의 방어선 | 자리 붙임 |
 | `unresolved name/generic name/member/enum member in C++ emitter` | (나) 내부 상태(분석과 생성기의 어긋남). 카탈로그 자유 함수 이름은 실제로 여기에 걸린다(§14) | 자리 붙임 |

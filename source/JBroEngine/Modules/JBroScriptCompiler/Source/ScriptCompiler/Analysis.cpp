@@ -1443,6 +1443,64 @@ namespace JBro::ScriptCompiler
                 return false;
             }
 
+            // 필드가 값으로 담는 사용자 `class`·`struct` 다. `ref T` 도 값과 있음 여부를 담으므로 소유다(§16). `script` 는 핸들이고,
+            // `Array`·`Table` 은 원소를 따로 잡으므로 소유 사슬을 끊는다. 정적 필드는 인스턴스의 크기에 들지 않는다.
+            SymbolId OwnedValueType(const Symbol& field) const
+            {
+                if (SymbolKind::Field != field.Kind || field.IsStatic)
+                {
+                    return InvalidSymbol;
+                }
+                const SymbolId type = TypeId(m_result, Bare(field.Type));
+                if (InvalidSymbol == type)
+                {
+                    return InvalidSymbol;
+                }
+                const Symbol& symbol = m_result.Symbols[type];
+                if (symbol.Api || m_scripts.Contains(type)
+                    || (SymbolKind::Class != symbol.Kind && SymbolKind::Struct != symbol.Kind))
+                {
+                    return InvalidSymbol;
+                }
+                return type;
+            }
+
+            // `type` 의 인스턴스가 값으로(필드나 부모 부분으로) `target` 을 담는가.
+            Bool OwnsValueOf(SymbolId type, SymbolId target, Array<SymbolId>& visited) const
+            {
+                if (type == target)
+                {
+                    return true;
+                }
+                if (visited.Contains(type))
+                {
+                    return false;
+                }
+                visited.Add(type);
+                for (const String& base : m_result.Symbols[type].BaseTypes)
+                {
+                    const SymbolId baseId = TypeId(m_result, base);
+                    if (InvalidSymbol != baseId && false == m_scripts.Contains(baseId) && false == m_result.Symbols[baseId].Api
+                        && OwnsValueOf(baseId, target, visited))
+                    {
+                        return true;
+                    }
+                }
+                for (const Symbol& member : m_result.Symbols)
+                {
+                    if (member.Parent != type)
+                    {
+                        continue;
+                    }
+                    const SymbolId owned = OwnedValueType(member);
+                    if (InvalidSymbol != owned && OwnsValueOf(owned, target, visited))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
             void ValidateDeclarations()
             {
                 for (const Binding& binding : m_bindings)
@@ -1523,6 +1581,18 @@ namespace JBro::ScriptCompiler
                         if (SymbolKind::Interface == m_result.Symbols[symbol.Parent].Kind)
                         {
                             Error("JBC3024", "interface_field", symbol.SelectionRange);
+                        }
+                        // **값으로 담는 필드가 돌아서 자기 타입을 담으면 C++ 로 나타낼 수 없다**(D-377). 크기가 끝없이 커지기 때문이다.
+                        // 전에는 생성기만 알아서 빌드에서야 위치 없는 영어 한 줄로 멈췄다.
+                        const SymbolId owned = OwnedValueType(symbol);
+                        if (InvalidSymbol != owned)
+                        {
+                            Array<SymbolId> visited;
+                            if (OwnsValueOf(owned, symbol.Parent, visited))
+                            {
+                                Error("JBC3048", "owned_field_cycle", symbol.SelectionRange,
+                                    {symbol.Name, m_result.Symbols[owned].Type, m_result.Symbols[symbol.Parent].Type});
+                            }
                         }
                         continue;
                     }
@@ -3207,7 +3277,8 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
             "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
             "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature",
-            "jbroc.semantic.uninitialized_field", "jbroc.semantic.unknown_attribute", "jbroc.semantic.attribute_argument_count"
+            "jbroc.semantic.uninitialized_field", "jbroc.semantic.unknown_attribute", "jbroc.semantic.attribute_argument_count",
+            "jbroc.semantic.owned_field_cycle"
         };
         return {keys, std::size(keys)};
     }

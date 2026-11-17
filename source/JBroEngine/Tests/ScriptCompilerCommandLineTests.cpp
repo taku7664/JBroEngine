@@ -687,15 +687,80 @@ namespace
         const fs::path scratch = fs::temp_directory_path() / L"JBroc_emit_error_position_probe";
         fs::remove_all(scratch);
         fs::create_directories(scratch);
-        const fs::path source = scratch / L"EmptyEnum.jscript";
-        WriteBytes(source, "enum Nothing\n{\n}\n\nscript UsesNothing\n{\n    [prop] Nothing value\n}\n");
+        // 빈 enum 은 이제 받으므로(D-377) 아직 생성기만 아는 꼴(버퍼와 길이를 받는 투영)로 자리를 본다.
+        const fs::path source = scratch / L"Copy.jscript";
+        WriteBytes(source, "script Copy\n{\n    ref Text2D label\n    fn F() -> String\n    {\n        return Text.CopyText(label!)\n    }\n}\n");
         const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
         if (result.ExitCode != 1)
         {
             Print(result);
         }
-        Check(result.ExitCode == 1 && result.Err.find("EmptyEnum.jscript(1,1): ") != std::string::npos,
+        Check(result.ExitCode == 1 && result.Err.find("Copy.jscript(6,16): ") != std::string::npos,
             "an emitter error carries the source file, line and column");
+        fs::remove_all(scratch);
+    }
+}
+
+namespace
+{
+    // **빈 enum 은 C++ 처럼 받고, 값으로 담는 필드가 돌아 자기 타입을 담으면 `JBC3048` 이다(D-377).** 전에는 둘 다 생성기만 알아서
+    // 빌드에서야 위치 없는 영어 한 줄로 멈췄다(Script QA 결함 4). 순환은 자기 자신·두 타입·부모를 거치는 꼴을 보고,
+    // `Array`·script 핸들·정적 필드는 사슬을 끊으므로 진단이 없어야 한다.
+    void TestEmptyEnumsAndOwnedCycles()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_owned_cycle_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const auto run = [&](const char* name, const std::string& text) {
+            const fs::path source = scratch / name;
+            WriteBytes(source, text);
+            return Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" --locale en-US " + Quote(source), scratch);
+        };
+        const RunResult empty = run("Empty.jscript",
+            "enum Nothing\n{\n}\n\nscript UsesNothing\n{\n    Nothing value\n    fn Same(Nothing other) -> Bool\n    {\n        return value == other\n    }\n}\n");
+        if (empty.ExitCode != 0)
+        {
+            Print(empty);
+        }
+        Check(empty.ExitCode == 0 && empty.Err.find("emit error") == std::string::npos, "an enum without members is analyzed and emitted");
+
+        struct Cycle
+        {
+            const char* Name;
+            const char* Text;
+            const char* Expected;
+        };
+        const Cycle cycles[] = {
+            {"Self.jscript", "class Node\n{\n    Node next\n}\n", "Self.jscript(3,10): error JBC3048: A field held by value leads back to its own type: Node.next -> Node."},
+            {"Pair.jscript", "struct Left\n{\n    Right right\n}\n\nstruct Right\n{\n    ref Left left\n}\n",
+                "Pair.jscript(3,11): error JBC3048: A field held by value leads back to its own type: Left.right -> Right."},
+            {"Base.jscript", "class Base\n{\n    Derived child\n}\n\nclass Derived : Base\n{\n}\n",
+                "Base.jscript(3,13): error JBC3048: A field held by value leads back to its own type: Base.child -> Derived."},
+        };
+        for (const Cycle& cycle : cycles)
+        {
+            const RunResult result = run(cycle.Name, cycle.Text);
+            const Bool reported = result.ExitCode == 1 && result.Out.find(cycle.Expected) != std::string::npos
+                && result.Err.find("emit error") == std::string::npos;
+            if (false == reported)
+            {
+                std::cout << "  " << cycle.Name << std::endl;
+                Print(result);
+            }
+            Check(reported, "an owned field cycle is JBC3048 at the field, in the analysis");
+        }
+        const RunResult pair = run("Pair.jscript", cycles[1].Text);
+        Check(pair.Out.find("Pair.jscript(8,14): error JBC3048") != std::string::npos, "every field on the cycle is reported, the ref value one too");
+
+        const RunResult broken = run("Broken.jscript",
+            "class Tree\n{\n    Array<Tree> children\n    static Tree shared\n}\n\nscript Holder\n{\n    ref Holder other\n    Tree root\n}\n");
+        if (broken.ExitCode != 0)
+        {
+            Print(broken);
+        }
+        Check(broken.ExitCode == 0, "an Array, a static field and a script handle do not make an owned cycle");
         fs::remove_all(scratch);
     }
 }
@@ -703,6 +768,7 @@ namespace
 JBro::Int32 RunScriptCompilerCommandLineTests()
 {
     TestEmitErrorsNameTheSourcePosition();
+    TestEmptyEnumsAndOwnedCycles();
     TestNumbersAreStableAndUnique();
     TestTranslationTablesHoldDiagnosticAndCommandLineKeys();
     TestTheExecutable();
