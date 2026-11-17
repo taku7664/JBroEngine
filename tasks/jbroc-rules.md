@@ -531,8 +531,8 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 - `a?.b.c` 의 `?.` 를 분석(`Analysis.cpp` 의 `receiver.NullSafe`)과 같게 사슬 끝까지 넘긴다. 전에는 `.c` 가 `Require` 로 내려가 `a` 가 없으면 건너뛰지 않고 콜백을 멈췄고, 결과가 값이라 이어지는 `??` 가 `IsPresent(Float)` 를 불러 C2039 였다.
 - 출력 인자로 투영한 엔진 함수(언어 서버 계획 §5)를 원래 C++ 호출로 되돌린다. 출력 하나를 성공 여부(`NullableReturn` + `SuccessFromNativeReturn`)나 모음(`CollectionReturn`)으로 받는 모양과, 찾은 값의 포인터를 돌려주는 `Table.Find` 를 내린다.
   전에는 투영 정보를 아무도 쓰지 않아 `Physics.Raycast(o, d, dist)` 가 인자 셋으로 호출되어 C2660 이었다.
-  **아직 내리지 못하는 것**(생성 단계 오류로 거절한다): 버퍼와 길이(`Count`)를 받는 `Text.CopyText`·`Network.TakeMessages`·`Session.TakeEvents`·`Uuid.Parse`·`Uuid.ToText`, 반환값의 필드를 섞는 `Input.CaptureBinding`.
-  카탈로그의 자유 함수(`FindKeyByName` 등)는 투영과 별개로 이미터가 이름을 풀지 못한다.
+  **내리지 못하는 꼴은 분석이 먼저 막는다(D-382, 2026-11-17)**: 버퍼와 길이(`Count`)를 받는 `Text.CopyText`·`Network.TakeMessages`·`Session.TakeEvents`·`Uuid.Parse`·`Uuid.ToText`, 원소 타입이 다른 `Save.ReadBytes` 는 호출 자리의 `JBC3050` 이다. 판정은 `CanEmitOutputProjection`(분석·생성기 공용). 반환값의 필드를 섞는 `CaptureBinding` 둘은 사용자 결정 대기다.
+  카탈로그의 자유 함수(`FindKeyByName`·`GetKeyName` 등)와 엔진 enum 멤버(`Key.A`)는 이제 이미터가 푼다. 엔진 함수의 `String`·`Int` 인자는 `ScriptGuard::Argument` 로 감싼다(D-383).
 - 시험: 생성 시험 프로젝트(`Tests/JBroScriptGeneratedProbe`, `/W4 /WX`)에 `Section14Enemy.jscript`(§14 예시)와 `EmitterShapes.jscript`(세 모양)를 더했다. 고치기 전 이미터로는 그 프로젝트가 C2664·C2660·C2440 으로 멈춘다.
 
 ## 15. 깊은 식에서 죽던 `jbroc` (2026-11-17, Script QA 결함 3)
@@ -559,9 +559,9 @@ Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §
 | `reflected field attribute argument count`, `prop attribute takes no arguments` | (가) §3.2 "인자 개수" | 분석 `JBC3046` |
 | `C++ emitter cannot reflect an enum without members` | 사용자 결정(D-377): 빈 enum 은 허용 | 오류가 없어졌다 - 이름 없는 설명서를 낸다 |
 | `owned field cycle cannot be represented in C++` | 사용자 결정(D-377): 언어 규칙 | 분석 `JBC3048` 이 먼저 막는다. 생성기 검사는 방어선 |
-| `does not support this declaration/member/expression/statement yet`, `methods without a body yet`, `the output projection of …` | (나) 지원하지 않는 모양 | 자리 붙임 |
+| `does not support this declaration/member/expression/statement yet`, `methods without a body yet`, `the output projection of …` | (나) 지원하지 않는 모양. 투영은 `CaptureBinding` 둘(결정 대기)만 여기에 닿는다 - 나머지는 분석 `JBC3050`(D-382) | 자리 붙임 |
 | `encountered an invalid switch clause`, `for requires an Array<T> iterable`, `two-variable … requires a Table<K, V>`, `switch requires a comparable scalar`, `a range loop variable cannot borrow`, `compound property assignment has no getter` | (나) 분석이 이미 막는 것과 같은 조건의 방어선 | 자리 붙임 |
-| `unresolved name/generic name/member/enum member in C++ emitter` | (나) 내부 상태(분석과 생성기의 어긋남). 카탈로그 자유 함수 이름은 실제로 여기에 걸린다(§14) | 자리 붙임 |
+| `unresolved name/generic name/member/enum member in C++ emitter` | (나) 내부 상태(분석과 생성기의 어긋남). 카탈로그 자유 함수 이름·엔진 enum 멤버가 여기에 걸렸으나 D-382 로 푼다 | 자리 붙임 |
 | `duplicate C++ declaration across files`, `generated file name collision`, `duplicate project type` | (나) 생성 파일 단위 | 자리 붙임(가능한 곳) |
 | `no source files`, `empty syntax tree`, `a game DLL needs at least one script declaration` | (나) 입력 전체의 상태 | 자리 없음(파일이 없거나 프로젝트 단위) |
 

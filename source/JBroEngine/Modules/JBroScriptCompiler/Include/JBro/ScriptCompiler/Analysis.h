@@ -51,6 +51,8 @@ namespace JBro::ScriptCompiler
         Bool MutatesReceiver = false;
         Bool MayInvalidateHandles = false;
         Bool HasOutputProjection = false;
+        // 생성기가 그 투영을 내릴 수 있는가(`CanEmitOutputProjection`). 거짓이면 호출이 `JBC3050` 이다(D-382).
+        Bool ProjectionEmittable = true;
     };
 
     struct Occurrence

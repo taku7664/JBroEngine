@@ -980,6 +980,9 @@ namespace JBro::ScriptCompiler
                         symbol.MutatesReceiver = member.MutatesReceiver;
                         symbol.MayInvalidateHandles = member.MayInvalidateHandles;
                         symbol.HasOutputProjection = member.HasOutputProjection;
+                        // 결과 필드를 섞는 꼴(`InputCapture`)은 언어 서버 계약(lsp-plan §5)이 받으므로 거절하지 않는다 - 생성은 사용자 결정 대기
+                        // (DECISIONS-NEEDED Q9). 그 밖의 내리지 못하는 꼴만 `JBC3050` 이다.
+                        symbol.ProjectionEmittable = CanEmitOutputProjection(member) || false == member.NativeReturnField.IsEmpty();
                         symbol.Description = member.Description;
                         symbol.Uri = member.DefinitionUri;
                         symbol.Range = member.DefinitionRange;
@@ -1022,6 +1025,7 @@ namespace JBro::ScriptCompiler
                     symbol.MutatesReceiver = function.MutatesReceiver;
                     symbol.MayInvalidateHandles = function.MayInvalidateHandles;
                     symbol.HasOutputProjection = function.HasOutputProjection;
+                    symbol.ProjectionEmittable = CanEmitOutputProjection(function) || false == function.NativeReturnField.IsEmpty();
                     symbol.Description = function.Description;
                     symbol.Uri = function.DefinitionUri;
                     symbol.Range = function.DefinitionRange;
@@ -2524,6 +2528,11 @@ namespace JBro::ScriptCompiler
                 {
                     const Symbol symbol = m_result.Symbols[best];
                     call.Resolved = best;
+                    if (symbol.Api && symbol.HasOutputProjection && false == symbol.ProjectionEmittable)
+                    {
+                        // 버퍼와 길이를 받는 꼴·반환값의 필드를 섞는 꼴은 아직 C++ 로 내리지 못한다(D-382). 빌드에서야 멈추지 않게 여기서 알린다.
+                        Error("JBC3050", "projection_unsupported", call.CalleeRange, {symbol.Name});
+                    }
                     for (std::size_t slot = 0; slot < arguments.Size(); ++slot)
                     {
                         String expected = OwnerSubstitution(symbol.Parameters[slot].Type, callee.ReceiverType);
@@ -3278,7 +3287,7 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
             "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature",
             "jbroc.semantic.uninitialized_field", "jbroc.semantic.unknown_attribute", "jbroc.semantic.attribute_argument_count",
-            "jbroc.semantic.owned_field_cycle"
+            "jbroc.semantic.owned_field_cycle", "jbroc.semantic.projection_unsupported"
         };
         return {keys, std::size(keys)};
     }

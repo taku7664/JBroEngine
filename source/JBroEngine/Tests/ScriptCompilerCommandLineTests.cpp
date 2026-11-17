@@ -687,7 +687,7 @@ namespace
         const fs::path scratch = fs::temp_directory_path() / L"JBroc_emit_error_position_probe";
         fs::remove_all(scratch);
         fs::create_directories(scratch);
-        // 빈 enum 은 이제 받으므로(D-377) 아직 생성기만 아는 꼴(버퍼와 길이를 받는 투영)로 자리를 본다.
+        // 생성기만 알던 마지막 꼴(버퍼와 길이를 받는 투영)도 이제 분석이 막는다(D-382). 생성기까지 가지 않고 그 호출 자리에 `JBC3050` 이다.
         const fs::path source = scratch / L"Copy.jscript";
         WriteBytes(source, "script Copy\n{\n    ref Text2D label\n    fn F() -> String\n    {\n        return Text.CopyText(label!)\n    }\n}\n");
         const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
@@ -695,8 +695,9 @@ namespace
         {
             Print(result);
         }
-        Check(result.ExitCode == 1 && result.Err.find("Copy.jscript(6,16): ") != std::string::npos,
-            "an emitter error carries the source file, line and column");
+        Check(result.ExitCode == 1 && result.Out.find("Copy.jscript(6,21): error JBC3050") != std::string::npos
+                && result.Err.find("emit") == std::string::npos,
+            "a projection the emitter cannot lower is an analysis diagnostic at the call, not an emitter error");
         fs::remove_all(scratch);
     }
 }
@@ -789,8 +790,8 @@ namespace
             {"Syntax.jscript", "script B\n{\n    fn F() -> String\n    {\n        return \"" + korean + "\" + )\n    }\n}\n",
                 "Syntax.jscript(5,24): error JBC2005"},
             {"Bom.jscript", "\xef\xbb\xbfscript C\n{\n    Int hp = \"" + korean + "\"\n}\n", "Bom.jscript(3,14): error JBC3003"},
-            {"Emit.jscript", "script D\n{\n    ref Text2D label\n    fn F() -> String\n    {\n        return \"" + korean + "\" + Text.CopyText(label!)\n    }\n}\n",
-                "Emit.jscript(6,"},
+            {"Projection.jscript", "script D\n{\n    ref Text2D label\n    fn F() -> String\n    {\n        return \"" + korean + "\" + Text.CopyText(label!)\n    }\n}\n",
+                "Projection.jscript(6,29): error JBC3050"},
         };
         for (const Case& item : cases)
         {
@@ -805,9 +806,6 @@ namespace
             }
             Check(placed, "a diagnostic after Korean text names the character column");
         }
-        // 생성기 오류도 글자 열이다: `return "가나다" + Text.CopyText(…)` 의 투영 호출은 글자로 24 열.
-        const RunResult emitted = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(scratch / L"Emit.jscript"), scratch);
-        Check((emitted.Out + emitted.Err).find("Emit.jscript(6,24)") != std::string::npos, "an emitter error after Korean text names the character column");
         fs::remove_all(scratch);
     }
 }

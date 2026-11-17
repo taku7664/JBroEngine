@@ -502,6 +502,7 @@ void AddServices(ApiCatalog& catalog)
         member.Projection = ApiProjectionKind::NullableReturn;
         member.HasOutputProjection = true;
         member.SuccessFromNativeReturn = true;
+        member.NativeOutputDiffers = true;
         type.Members.Add(std::move(member));
     }
     {

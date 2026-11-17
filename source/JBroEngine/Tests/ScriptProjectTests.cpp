@@ -2,6 +2,8 @@
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/ScriptBuild.h>
 #include <JBro/Editor/ScriptProject.h>
+#include <JBro/ScriptApiCatalog2D/Catalog.h>
+#include <JBro/ScriptCompiler/ApiCatalog.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -16,6 +18,8 @@
 
 #pragma comment(lib, "Dbghelp.lib")
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstring>
 #include <filesystem>
@@ -751,6 +755,188 @@ namespace
             "every field type the editor offers compiles in a user script project");
     }
 
+    // **카탈로그에서 출력 인자로 투영한 엔진 함수는 모두 생성 C++ 로 빌드되거나 분석이 `JBC3050` 으로 거절한다**(D-382, REVIEW R2-2).
+    // 전에는 분석·언어 서버가 통과시킨 호출이 빌드에서 위치 없는 영어 한 줄로 멈췄다. 목록은 카탈로그를 읽어 만들므로 함수가 늘면 시험도 는다.
+    // 받는 쪽: 서비스는 전역 이름, 정적 멤버는 타입 이름, 핸들은 `ref` 필드, 값은 값 필드다. 제네릭은 `T`·`V` 를 Int, `K` 를 String 으로 둔다.
+    std::string Concrete(std::string type)
+    {
+        const auto swap = [&type](const char* from, const char* to) {
+            for (std::size_t at = type.find(from); at != std::string::npos; at = type.find(from, at + std::strlen(to)))
+            {
+                const Bool before = at == 0 || false == std::isalnum(static_cast<unsigned char>(type[at - 1]));
+                const std::size_t end = at + std::strlen(from);
+                const Bool after = end == type.size() || false == std::isalnum(static_cast<unsigned char>(type[end]));
+                if (before && after)
+                {
+                    type.replace(at, std::strlen(from), to);
+                }
+            }
+        };
+        swap("K", "String");
+        swap("T", "Int");
+        swap("V", "Int");
+        return type;
+    }
+
+    struct ProjectedCall
+    {
+        std::string Name;
+        std::string Fields;
+        std::string Call;
+        std::string Result;
+        Bool Emittable = true;
+        // 결과 필드를 섞는 꼴(`InputCapture`)은 분석이 받고 생성기가 아직 내리지 못한다 - 사용자 결정 대기(DECISIONS-NEEDED Q9).
+        Bool AwaitsDecision = false;
+    };
+
+    ProjectedCall MakeProjectedCall(const ScriptCompiler::ApiCatalog& catalog, const ScriptCompiler::ApiType* owner,
+        const ScriptCompiler::ApiMember& member, std::size_t number)
+    {
+        ProjectedCall call;
+        const std::string tag = std::to_string(number);
+        call.Name = (owner != nullptr ? std::string(owner->Name.c_str()) + "." : std::string()) + member.Name.c_str();
+        call.Emittable = ScriptCompiler::CanEmitOutputProjection(member);
+        call.AwaitsDecision = false == call.Emittable && false == member.NativeReturnField.IsEmpty();
+        call.Result = Concrete(member.Type.c_str());
+        std::string receiver;
+        if (owner != nullptr)
+        {
+            const std::string ownerName = owner->Name == "Table" ? "Table<String, Int>" : owner->Name == "Array" ? "Array<Int>" : owner->Name.c_str();
+            if (owner->Kind == ScriptCompiler::ApiTypeKind::Service)
+            {
+                for (const ScriptCompiler::ApiGlobal& global : catalog.Globals)
+                {
+                    receiver = global.Type == owner->Name ? std::string(global.Name.c_str()) : receiver;
+                }
+            }
+            else if (member.IsStatic)
+            {
+                receiver = ownerName;
+            }
+            else
+            {
+                receiver = "receiver" + tag;
+                call.Fields += std::string("    ") + (owner->Kind == ScriptCompiler::ApiTypeKind::Handle ? "ref " : "") + ownerName + " " + receiver + "\n";
+            }
+            receiver += ".";
+        }
+        std::string arguments;
+        for (std::size_t index = 0; index < member.Parameters.Size(); ++index)
+        {
+            const ScriptCompiler::ParameterInfo& parameter = member.Parameters[index];
+            const std::string name = "argument" + tag + "_" + std::to_string(index);
+            call.Fields += "    " + Concrete(parameter.Type.c_str()) + " " + name + "\n";
+            arguments += (index == 0 ? "" : ", ") + std::string(parameter.Borrowed ? "ref " : "") + name;
+        }
+        call.Call = receiver + member.Name.c_str() + "(" + arguments + ")";
+        return call;
+    }
+
+    void TestEveryProjectedEngineFunctionBuildsOrIsRejected()
+    {
+        const ScriptCompiler::ApiCatalog catalog = ScriptApiCatalog2D::BuildCatalog();
+        Array<ProjectedCall> calls;
+        for (const ScriptCompiler::ApiType& type : catalog.Types)
+        {
+            for (const ScriptCompiler::ApiMember& member : type.Members)
+            {
+                if (member.HasOutputProjection)
+                {
+                    calls.Add(MakeProjectedCall(catalog, &type, member, calls.Size()));
+                }
+            }
+        }
+        for (const ScriptCompiler::ApiMember& function : catalog.Functions)
+        {
+            if (function.HasOutputProjection)
+            {
+                calls.Add(MakeProjectedCall(catalog, nullptr, function, calls.Size()));
+            }
+        }
+        std::string emittableFields;
+        std::string emittableBodies;
+        std::string rejectedFields;
+        std::string rejectedBodies;
+        Array<std::string> rejectedNames;
+        Array<UInt32> rejectedLines;
+        std::size_t emittable = 0;
+        Array<std::string> awaiting;
+        for (std::size_t index = 0; index < calls.Size(); ++index)
+        {
+            const ProjectedCall& call = calls[index];
+            const std::string number = std::to_string(index);
+            if (call.AwaitsDecision)
+            {
+                awaiting.Add(call.Name);
+                continue;
+            }
+            if (call.Emittable)
+            {
+                ++emittable;
+                emittableFields += call.Fields;
+                emittableBodies += "    fn Call" + number + "()\n    {\n        " + call.Result + " result = " + call.Call + "\n    }\n";
+                continue;
+            }
+            rejectedFields += call.Fields;
+            rejectedBodies += "    fn Call" + number + "()\n    {\n        " + call.Call + "\n    }\n";
+            rejectedNames.Add(call.Name);
+        }
+        std::cout << "  projected engine functions: " << calls.Size() << " (" << emittable << " lowered, "
+                  << rejectedNames.Size() << " rejected by the analysis, " << awaiting.Size() << " waiting for a decision)" << std::endl;
+        Check(calls.Size() >= 25 && emittable >= 15 && rejectedNames.Size() >= 1, "the catalog projects engine functions both ways");
+        // 결정 대기 목록이 늘면 이 시험이 알린다 - 새 꼴은 내리거나 거절하거나 결정 목록에 올려야 한다.
+        Check(awaiting.Size() == 2 && awaiting[0] == "InputService.CaptureBinding" && awaiting[1] == "CaptureBinding",
+            "only the two InputCapture projections wait for the user's decision");
+
+        WindowsPlatform platform;
+        {
+            const fs::path root = FreshFolder("projected");
+            fs::create_directories(root / "Contents" / "Scripts");
+            std::ofstream(root / "Contents" / "Scripts" / "Projected.jscript", std::ios::binary)
+                << "script Projected\n{\n" << emittableFields << emittableBodies << "}\n";
+            const DirectBuild build = BuildDirectly(platform, root);
+            if (build.Ran)
+            {
+                Check(build.Succeeded, "every projection the emitter lowers builds in a user script project");
+            }
+        }
+        {
+            const fs::path root = FreshFolder("projected-rejected");
+            fs::create_directories(root / "Contents" / "Scripts");
+            const std::string head = "script Rejected\n{\n" + rejectedFields;
+            std::ofstream(root / "Contents" / "Scripts" / "Rejected.jscript", std::ios::binary) << head << rejectedBodies << "}\n";
+            const DirectBuild build = BuildDirectly(platform, root);
+            if (false == build.Ran)
+            {
+                return;
+            }
+            // 호출문은 함수마다 셋째 줄이다: 머리 줄 수 + 4·i + 3.
+            const UInt32 headLines = static_cast<UInt32>(std::count(head.begin(), head.end(), '\n'));
+            std::size_t found = 0;
+            for (std::size_t index = 0; index < rejectedNames.Size(); ++index)
+            {
+                const UInt32 line = headLines + static_cast<UInt32>(4 * index) + 3;
+                Bool here = false;
+                for (const ScriptBuild::Diagnostic& diagnostic : build.Diagnostics)
+                {
+                    here = here || (diagnostic.code == "JBC3050" && diagnostic.line == line && Contains(diagnostic.file, "Rejected.jscript"));
+                }
+                if (false == here)
+                {
+                    std::cout << "  no JBC3050 for " << rejectedNames[index] << " on line " << line.Get() << std::endl;
+                }
+                found += here ? 1 : 0;
+            }
+            Bool emitterReached = false;
+            for (const ScriptBuild::Diagnostic& diagnostic : build.Diagnostics)
+            {
+                emitterReached = emitterReached || Contains(diagnostic.message, "emit");
+            }
+            Check(false == build.Succeeded && found == rejectedNames.Size() && false == emitterReached,
+                "every projection the emitter cannot lower is a JBC3050 on its call line, before the C++ emitter");
+        }
+    }
+
     // **엔진 구현 타입은 이름만 보이고 쓸 수 없다**(D-375, ProjectRule §5). 기반 클래스와 핸들이 `Canvas`·`Object::GameObject` 를
     // 전방 선언하므로 포인터 선언까지는 되지만, 정의가 프렐류드에 없어 크기·멤버를 쓰면 C2027 이다. 정의가 새어 들어오면 이 시험이 잡는다.
     void TestEngineImplementationTypesCannotBeUsed()
@@ -820,6 +1006,7 @@ Int32 RunScriptProjectTests()
     TestA3DScriptBuildsAgainstTheScreenUi();
     TestEveryOfferedFieldTypeBuilds();
     TestEngineImplementationTypesCannotBeUsed();
+    TestEveryProjectedEngineFunctionBuildsOrIsRejected();
     std::cout << "Script project tests passed.\n";
     return 0;
 }

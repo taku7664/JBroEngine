@@ -3057,6 +3057,21 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-383. 생성 C++ 은 엔진 함수의 `String`·`Int` 매개변수(카탈로그가 선언한 타입 그대로일 때)에 넘기는 인자를 `JBro::ScriptGuard::Argument(…)` 로 감싼다. 대리자는 `const char*`·`const String&`·`std::string_view` / 모든 `IntegerType<U>` 로만 바뀌어, 엔진 쪽 `const char*`·`UInt32`·`NameId` 매개변수에 변수를 넘길 수 있다.**
+  (2026-11-17, REVIEW R2-2 의 전수 시험이 찾음)
+  Updates: jbroc-rules §5.2(엔진 호출의 인자).
+  (1) 전에는 리터럴만 됐다(`"slot"`·`1` 은 원시 C++ 리터럴이라 저절로 바뀐다). `String` 변수 → `const char*`, `Int` 변수 → `UInt32`(레이어 마스크)·`InputActionId`(`NameId`) 는 C2664 였다. 투영과 무관한 일반 호출(`Save.Exists(slot)`)도 같았다.
+  (2) 제네릭 매개변수(`Table.Find` 의 `K`)는 감싸지 않는다 - 템플릿이 대리자를 그대로 받아 비교에서 멈췄다. 리터럴용 오버로드(`const char*`, 정수)가 있다.
+  (3) 한계: 같은 이름의 엔진 오버로드가 `const char*` 와 `String` 을 둘 다 받으면 C++ 에서 모호해진다. 카탈로그의 투영 함수 전수 시험에는 그런 짝이 없었다(일반 함수 전체는 재지 않았다).
+  (4) 시험: `ScriptProject` 의 `TestEveryProjectedEngineFunctionBuildsOrIsRejected`(인자를 모두 변수로 넘긴다), 생성 시험 프로젝트(`/W4 /WX`)의 `EngineArguments.jscript`.
+
+- **D-382. 카탈로그 자유 함수(`GetKeyName`·`FindKeyByName` 등)와 엔진 enum 멤버(`Key.A`)를 생성기가 푼다. 출력 인자 투영 중 생성기가 내리지 못하는 꼴은 분석이 호출 자리에 `JBC3050` 으로 거절한다 - 판정은 분석과 생성기가 같이 쓰는 `CanEmitOutputProjection` 하나다.**
+  (2026-11-17, REVIEW R2-2·R4-2 - 리뷰가 고른 두 길 중 (가) 이름 풀이는 구현, (나) 버퍼·길이 꼴은 분석 진단)
+  Updates: jbroc-rules §14("아직 내리지 못하는 것") · §16(`unresolved name`), D-105(진단 번호표에 3050).
+  (1) 전에는 분석·언어 서버가 통과시키고 생성 단계에서 위치 없는 영어 한 줄로 멈췄다: 버퍼와 길이(`Text.CopyText`·`Network.TakeMessages`·`Session.TakeEvents`·`Uuid.Parse`·`Uuid.ToText`), 네이티브 출력의 원소 타입이 다른 것(`Save.ReadBytes` - `Array<std::byte>` 가 스크립트에는 `Array<Int>`, 카탈로그의 `NativeOutputDiffers`), 그리고 카탈로그 자유 함수·엔진 enum 멤버 전부.
+  (2) 지금: 자유 함수 넷(`Find*ByName`)과 일반 자유 함수·엔진 enum 은 내린다. 위의 여섯은 `JBC3050`(「엔진 함수 X는 아직 JBroScript에서 부를 수 없습니다 …」) - 편집 중에도 보인다. 결과 필드를 섞는 `CaptureBinding` 둘(`InputCapture`)은 언어 서버 계약(lsp-plan §5)이 받으므로 거절하지 않고 사용자 결정 대기(DECISIONS-NEEDED Q9) - 아직 빌드에서 멈춘다.
+  (3) 시험: `ScriptProject` 의 `TestEveryProjectedEngineFunctionBuildsOrIsRejected` - 카탈로그를 코드에서 읽어 투영 함수 29 개를 모두 부른다: 21 개는 한 프로젝트로 실제 MSBuild 성공, 6 개는 호출 줄마다 `JBC3050`(생성기에 닿지 않음), 결정 대기 목록이 정확히 `CaptureBinding` 둘인지. 함수가 늘면 시험이 따라 는다.
+
 - **D-381. `?.` 는 사슬 끝까지 건너뛴다: `a?.b.c` 에서 `a` 가 없으면 `.b.c` 를 모두 건너뛰고 값은 없음이며, 콜백은 계속 돈다.**
   (2026-11-17, Script QA 결함 2 의 (c) 를 고치며 바뀐 실행 의미, REVIEW R2-4)
   Updates: jbroscript-syntax §16("`?.`는 조용히 건너뛰고" 가 사슬의 어디까지인지 적지 않았다), jbroc-rules §14.

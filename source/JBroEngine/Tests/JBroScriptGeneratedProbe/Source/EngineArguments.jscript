@@ -1,0 +1,38 @@
+﻿// 엔진 함수에 변수를 넘기고, 카탈로그의 자유 함수와 엔진 enum 을 쓴다(D-382, D-383). 전에는 리터럴만 통과했고
+// (`String` 변수 → `const char*`, `Int` 변수 → `UInt32`·`NameId` 가 C2664), 자유 함수·`Key.A` 는 생성기가 이름을 풀지 못했다.
+script EngineArguments
+{
+    String slot = "save"
+    String keyName = "A"
+    Int layers = 1
+    Int action = 0
+
+    fn Run() -> Int
+    {
+        Int total = 0
+        if (Save.Exists(slot))
+        {
+            total += 1
+        }
+        ref Key found = FindKeyByName(keyName)
+        if (found is not null)
+        {
+            total += 1
+        }
+        String name = GetKeyName(Key.A)
+        Vector2 origin
+        Vector2 down
+        down.y = -1.0
+        ref RaycastHit2D hit = Physics.Raycast(origin, down, 1.0, layers)
+        if (hit is not null)
+        {
+            total += 1
+        }
+        ref InputBinding binding = Input.GetActionBinding(action, 0)
+        if (binding is not null and name != "")
+        {
+            total += 1
+        }
+        return total
+    }
+}

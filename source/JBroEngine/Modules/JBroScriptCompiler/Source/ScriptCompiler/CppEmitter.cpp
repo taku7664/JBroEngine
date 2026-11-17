@@ -14,6 +14,37 @@
 
 namespace JBro::ScriptCompiler
 {
+    Bool CanEmitOutputProjection(const ApiMember& member) noexcept
+    {
+        if (false == member.HasOutputProjection)
+        {
+            return true;
+        }
+        // 출력 인자 없이 찾은 값의 포인터를 돌려주는 꼴(`Table.Find`).
+        if (member.NativeOutputParameters.IsEmpty())
+        {
+            return member.Projection == ApiProjectionKind::NullableReturn;
+        }
+        // 출력 하나를 성공 여부나 모음으로 받는 꼴. 버퍼와 길이(`Count`)·반환값의 필드를 섞는 꼴은 아직 내리지 못한다.
+        if (member.NativeOutputParameters.Size() != 1 || false == member.NativeReturnField.IsEmpty() || member.NativeOutputDiffers
+            || (member.Projection != ApiProjectionKind::NullableReturn && member.Projection != ApiProjectionKind::CollectionReturn))
+        {
+            return false;
+        }
+        std::size_t next = 0;
+        for (std::size_t index = 0; index < member.NativeParameterNames.Size(); ++index)
+        {
+            const Bool output = member.NativeOutputParameters[0] == index;
+            const Bool input = next < member.Parameters.Size() && member.Parameters[next].Name == member.NativeParameterNames[index];
+            if (false == output && false == input)
+            {
+                return false;
+            }
+            next += output ? 0 : 1;
+        }
+        return true;
+    }
+
     namespace
     {
         struct Type
@@ -483,6 +514,18 @@ namespace JBro::ScriptCompiler
                     if (type.Name.View() == name)
                     {
                         return &type;
+                    }
+                }
+                return nullptr;
+            }
+
+            const ApiMember* ApiFunction(const String& name) const
+            {
+                for (const ApiMember& function : m_api.Functions)
+                {
+                    if (function.Name.View() == name.View())
+                    {
+                        return &function;
                     }
                 }
                 return nullptr;
@@ -1716,8 +1759,7 @@ namespace JBro::ScriptCompiler
                     return "auto* jbro_gen_found = " + target + method + "(" + joined + "); if (jbro_gen_found == nullptr) { return {}; } "
                         "return " + result + "(*jbro_gen_found);";
                 }
-                const Bool supported = member.NativeOutputParameters.Size() == 1 && member.NativeReturnField.IsEmpty()
-                    && (member.Projection == ApiProjectionKind::NullableReturn || member.Projection == ApiProjectionKind::CollectionReturn);
+                const Bool supported = CanEmitOutputProjection(member);
                 String native;
                 std::size_t next = 0;
                 Bool outputPlaced = false;
@@ -1861,6 +1903,12 @@ namespace JBro::ScriptCompiler
                             }
                         }
                     }
+                    // 카탈로그의 자유 함수(`GetKeyName`·`FindKeyByName`)다. 전에는 이름을 풀지 못해 빌드에서야 멈췄다(Script QA, D-382).
+                    if (const ApiMember* function = ApiFunction(name))
+                    {
+                        return {"JBro::" + (function->NativeName.empty() ? name : String(function->NativeName.c_str())),
+                            TextType(function->Type.c_str())};
+                    }
                     Error("unresolved name in C++ emitter: " + name);
                     return {name, {}, true};
                 }
@@ -1905,6 +1953,15 @@ namespace JBro::ScriptCompiler
                         if (m_declarations.Contains(nested))
                         {
                             return {NativeType({nested, false}), {nested, false}, false, false, {}, true};
+                        }
+                    }
+                    // 엔진 enum 의 멤버(`Key.A`)다. 전에는 사용자 enum 만 풀어 `unresolved member` 로 멈췄다(Script QA, D-382).
+                    if (receiver.isType)
+                    {
+                        if (const ApiType* apiEnum = Api(receiver.type.name);
+                            apiEnum != nullptr && apiEnum->Kind == ApiTypeKind::Enum && apiEnum->EnumValues.Contains(String(node.Text)))
+                        {
+                            return {receiver.code + "::" + String(node.Text), receiver.type};
                         }
                     }
                     if (const DeclarationRef* declaration = m_declarations.Find(receiver.type.name);
@@ -2131,6 +2188,16 @@ namespace JBro::ScriptCompiler
                         argumentList.Add(analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
                             ? AdaptValue(TextType(analyzedCall->ParameterTypes[slot - 1]), argument, argumentIndex)
                             : argument.code);
+                        // 엔진 함수의 `String`·`Int` 매개변수는 엔진 쪽 타입이 다를 수 있다(`const char*`·`UInt32`·`NameId`). 대리자로 감싸
+                        // C++ 이 실제 매개변수로 바꾸게 한다(D-383).
+                        if (analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
+                            && analyzedCall->Resolved != InvalidSymbol && m_analysis->Symbols[analyzedCall->Resolved].Api
+                            && slot - 1 < m_analysis->Symbols[analyzedCall->Resolved].Parameters.Size()
+                            && (m_analysis->Symbols[analyzedCall->Resolved].Parameters[slot - 1].Type == "String"
+                                || m_analysis->Symbols[analyzedCall->Resolved].Parameters[slot - 1].Type == "Int"))
+                        {
+                            argumentList.Last() = "JBro::ScriptGuard::Argument(" + argumentList.Last() + ")";
+                        }
                         arguments += argumentList.Last();
                     }
                     if (calleeNode.Kind == SyntaxKind::MemberAccessExpression)
@@ -2201,6 +2268,17 @@ namespace JBro::ScriptCompiler
                         }
                         return {receiver.isType ? receiver.code + "::" + method + "(" + arguments + ")"
                             : "(" + receiver.code + ")." + method + "(" + arguments + ")", callType};
+                    }
+                    if (calleeNode.Kind == SyntaxKind::NameExpression)
+                    {
+                        const ApiMember* function = ApiFunction(String(calleeNode.Text));
+                        if (function != nullptr && function->HasOutputProjection && callee.code.rfind("JBro::", 0) == 0)
+                        {
+                            const String resultType = NativeType(callType);
+                            const String method = callee.code.substr(6);
+                            return {"[&]() -> " + resultType + " { " + ProjectedCallBody(*function, "JBro::", method, argumentList, callType) + " }()",
+                                callType};
+                        }
                     }
                     return {callee.code + "(" + arguments + ")", callType};
                 }
