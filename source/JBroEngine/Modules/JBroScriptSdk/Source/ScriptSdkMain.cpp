@@ -411,7 +411,7 @@ namespace
         }
     }
 
-    // **사본 줄의 닻**(D-340). 줄마다 코드 글자(주석은 이미 지웠다)의 앞뒤 공백을 뗀 64 비트 FNV-1a 와 앞 공백의 바이트 수다.
+    // **사본 줄의 닻**(D-393). 줄마다 코드 글자(주석은 이미 지웠다)의 앞뒤 공백을 뗀 64 비트 FNV-1a 와 앞 공백의 바이트 수다.
     // API 목록은 정의 자리를 줄 번호가 아니라 그 선언의 글자로 적고 이 해시로 줄을 찾는다 - 헤더에 줄을 끼워도 자리가 밀리지 않는다.
     // 같은 셈이 `Catalog.cpp` 의 `AnchorHash` 에 있다. 둘을 함께 고친다.
     void LineAnchors(const Stripped& stripped, Array<UInt64>& hashes, Array<UInt32>& indents)
@@ -592,7 +592,7 @@ namespace
         if (writeLineMap)
         {
             String out = "// JBroScriptSdk 가 만든 파일이다. 고치지 않는다.\r\n"
-                "// 스크립트 SDK 사본의 줄마다 시작 바이트, 코드 글자의 해시(닻), 앞 공백의 바이트 수(D-340).\r\n"
+                "// 스크립트 SDK 사본의 줄마다 시작 바이트, 코드 글자의 해시(닻), 앞 공백의 바이트 수(D-393).\r\n"
                 "namespace JBro::ScriptApiCatalog2D::Internal::ScriptSdk\r\n{\r\n";
             lineMap.ReplaceAll("\n", "\r\n");
             table.ReplaceAll("\n", "\r\n");

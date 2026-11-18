@@ -12,7 +12,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 
-// 확장자 연결이다(D-336). `.jproject` 를 두 번 누르면 에디터가 그 프로젝트를 연다.
+// 확장자 연결이다(D-389). `.jproject` 를 두 번 누르면 에디터가 그 프로젝트를 연다.
 // **현재 사용자의 자리(`HKEY_CURRENT_USER\Software\Classes`)에만 쓴다** - 관리자 권한을 묻지 않고, 다른 사용자의 연결을 바꾸지 않는다.
 // 쓰는 것은 셋이다: `<클래스>\<ProgID>`(설명·아이콘·`shell\open\command`), `<클래스>\<확장자>` 의 기본 값, `<클래스>\<확장자>\OpenWithProgids`.
 namespace JBro

@@ -99,7 +99,7 @@ PNG·JPEG·BMP·TGA 만 남긴다(`STBI_ONLY_*`). 파일은 열지 않는다(`ST
 
 ### ufbx — v0.23.1, MIT / 퍼블릭 도메인
 
-3D 모델 임포트의 FBX·OBJ 디코더다(D-338, `tasks/model-import-plan.md`). FBX SDK 는 소스가 닫혀 있고 재배포·Web 이 막혀 쓰지 않는다.
+3D 모델 임포트의 FBX·OBJ 디코더다(D-391, `tasks/model-import-plan.md`). FBX SDK 는 소스가 닫혀 있고 재배포·Web 이 막혀 쓰지 않는다.
 **자기 빌드 단위가 있다**(`ufbx/ufbx.vcxproj`, C 로 컴파일하는 정적 라이브러리) - 구현이 `ufbx.c` 한 파일이다. 모델 디코더(`JBroAsset` 의 `ModelDecoder.cpp`)만 include 하고, 실행 파일(`JBroEditorHost`·`JBroGameHost`·`JBroTests`)이 miniaudio 와 같은 방식으로 링크한다.
 2026-11-16 에 `github.com/ufbx/ufbx` 의 `v0.23.1` 태그에서 `ufbx.c`·`ufbx.h`·`LICENSE` 를 받았다:
 
@@ -112,7 +112,7 @@ SHA-256: `ufbx.c` `4A956C26A708E40D82ECB0AEAEE54DA709D5BA7C144C9642174970059BDA7
 
 ### cgltf — v1.15, MIT
 
-3D 모델 임포트의 glTF 2.0(`.gltf`·`.glb`) 디코더다(D-338). 헤더 하나라 빌드 단위는 따로 없다(stb 와 같다) - 모델 디코더 소스 한 곳에서만
+3D 모델 임포트의 glTF 2.0(`.gltf`·`.glb`) 디코더다(D-391). 헤더 하나라 빌드 단위는 따로 없다(stb 와 같다) - 모델 디코더 소스 한 곳에서만
 구현을 켠다(`CGLTF_IMPLEMENTATION`, `JBroAsset` 의 `ModelDecoder.cpp`). 구현이 `fopen`·`strncpy` 를 써서 SDL 검사가 C4996 을 오류로 올리므로 그 include 동안만 `#pragma warning` 으로 끈다 - 소스는 고치지 않는다. 2026-11-16 에 `github.com/jkuhlmann/cgltf` 의 `v1.15` 태그에서 `cgltf.h`·`LICENSE` 를 받았다:
 
 ```

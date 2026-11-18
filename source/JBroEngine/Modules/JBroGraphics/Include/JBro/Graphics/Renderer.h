@@ -246,7 +246,7 @@ namespace JBro
         std::uint8_t outlineColor[4] = {0, 0, 0, 0};
     };
 
-    // 텍스처를 올릴 때의 선택이다(material-plan 3 단계, D-339 의 효과). 기본값은 지금까지와 같다 - 2D 그림은 UNORM 한 장이다.
+    // 텍스처를 올릴 때의 선택이다(material-plan 3 단계, D-392 의 효과). 기본값은 지금까지와 같다 - 2D 그림은 UNORM 한 장이다.
     struct TextureUploadOptions
     {
         // 참이면 sRGB 로 본다 - 셰이더가 읽을 때 선형으로 풀린다. 기본색·발광 그림이 그렇다.
@@ -257,7 +257,7 @@ namespace JBro
 
     enum class MeshShading : std::uint8_t
     {
-        // metallic-roughness PBR, 고정 방향광 하나와 주변광(D-346 (1)).
+        // metallic-roughness PBR, 고정 방향광 하나와 주변광(D-399 (1)).
         Standard,
         // 빛을 받지 않는다.
         Unlit
@@ -279,13 +279,13 @@ namespace JBro
         Bool nearestFilter = false;
         AssetHandle baseColorTexture;
         AssetHandle metallicRoughnessTexture;
-        // 탄젠트가 있는 메시(`RegisterMesh` 의 `hasTangents`)에만 쓰인다(D-346 (5)).
+        // 탄젠트가 있는 메시(`RegisterMesh` 의 `hasTangents`)에만 쓰인다(D-399 (5)).
         AssetHandle normalTexture;
         AssetHandle occlusionTexture;
         AssetHandle emissiveTexture;
     };
 
-    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV·탄젠트(material-plan 1 단계, D-346). 모델의 CPU 정점(`ModelVertex`)과 같은 모양이라
+    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV·탄젠트(material-plan 1 단계, D-399). 모델의 CPU 정점(`ModelVertex`)과 같은 모양이라
     // 모델 메시는 통째로 옮긴다(`MeshLibrary` 가 단언한다). UV 는 왼쪽 위가 0 이고, 탄젠트의 w 는 바이탄젠트의 방향(±1)이다.
     // 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
     struct MeshVertex
@@ -381,7 +381,7 @@ namespace JBro
         // **핸들 모양이 `AssetHandle` 인 것은 `MeshSubmit` 이 그 타입이기 때문이다.** 발급자가 렌더러라는
         // 것은 `MeshLibrary`(Framework3DSystem)만 안다 - `AssetSystem` 이 실제로 로드하게 되면 그쪽이
         // 발급한다(`[가정]`, framework3d-plan §2.3).
-        // `hasTangents` 가 거짓이면 그 메시는 노멀맵을 읽지 않는다 - 탄젠트가 없는 모델 파일이다(D-346 (5)).
+        // `hasTangents` 가 거짓이면 그 메시는 노멀맵을 읽지 않는다 - 탄젠트가 없는 모델 파일이다(D-399 (5)).
         AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices, Bool hasTangents = true);
         void UnregisterMesh(AssetHandle mesh);
         UInt32 GetMeshCount() const;

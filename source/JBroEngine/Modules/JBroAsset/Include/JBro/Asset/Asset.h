@@ -121,7 +121,7 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
-    // 로드된 메시다(D-338, model-import-plan 4 단계). 모델의 하위 `Mesh` 레코드 하나 - 모델 파일을 읽어 그 이름의 메시를 꺼낸 것이다.
+    // 로드된 메시다(D-391, model-import-plan 4 단계). 모델의 하위 `Mesh` 레코드 하나 - 모델 파일을 읽어 그 이름의 메시를 꺼낸 것이다.
     // **CPU 자료만이다** - GPU 메시는 `MeshLibrary`(Framework3DSystem)가 든다(스프라이트와 같은 자리, asset-plan §2.5). 정점은 엔진 좌표·엔진 감김이다
     // (`ModelDecoder`). `dataGeneration` 은 in-place 재로드마다 오른다 - 라이브러리가 이것을 보고 다시 올린다.
     struct MeshData
@@ -129,14 +129,14 @@ namespace JBro
         Array<ModelVertex> vertices;
         Array<UInt32> indices;
         Bool hasUvs = false;
-        // 파일에 탄젠트가 있었는가. 없으면 노멀맵을 읽지 않는다(D-346 (5)).
+        // 파일에 탄젠트가 있었는가. 없으면 노멀맵을 읽지 않는다(D-399 (5)).
         Bool hasTangents = false;
-        // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-346 (3)).
+        // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-399 (3)).
         AssetId material;
         UInt32 dataGeneration = 1;
     };
 
-    // 로드된 재질이다(D-346, material-plan 2 단계). 사용자의 `.jmat` 이거나 모델의 하위 Material 이다 - 둘이 같은 값(`MaterialDesc`)이다.
+    // 로드된 재질이다(D-399, material-plan 2 단계). 사용자의 `.jmat` 이거나 모델의 하위 Material 이다 - 둘이 같은 값(`MaterialDesc`)이다.
     // **값만이다** - 그림 칸은 아이디이고 GPU 자원은 `MaterialLibrary`(Framework3DSystem, 3 단계)가 든다. `dataGeneration` 은 in-place 재로드마다 오른다.
     struct MaterialData
     {

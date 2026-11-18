@@ -35,7 +35,7 @@ namespace Spv
 #include <JBro/Types/UInt.h>
 
 // 후처리의 중간 텍스처 포맷 다섯(postprocess-plan §2.1)에 그려 되읽는다. 1 보다 큰 값을 칠한다 - UNORM 으로 잘못 만들어졌다면
-// 1 로 잘려 드러난다. 세 백엔드 모두 그린다(Vulkan 의 SPIR-V 탐침은 2026-11-17 에 구웠다, D-352).
+// 1 로 잘려 드러난다. 세 백엔드 모두 그린다(Vulkan 의 SPIR-V 탐침은 2026-11-17 에 구웠다, D-405).
 namespace
 {
     // 백엔드의 바이트코드를 고른다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.

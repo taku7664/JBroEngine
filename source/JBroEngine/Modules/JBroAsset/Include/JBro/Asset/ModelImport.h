@@ -29,13 +29,13 @@ namespace JBro
     // 그 목록에서 하위 레코드의 종류와 이름(`AssetRecord::name`)이 가리키는 것을 찾는다. 없으면 nullptr(메타의 목록이 파일보다 낡음).
     const ModelSubAsset* FindModelSubAsset(const Array<ModelSubAsset>& listed, AssetType type, std::string_view name);
 
-    // 모델 내장 그림을 처음 세울 때의 옵션이다. 일반 그림과 달리 밉맵을 켠다(D-339) - 3D 표면은 멀어지면 밉이 없을 때 반짝인다.
+    // 모델 내장 그림을 처음 세울 때의 옵션이다. 일반 그림과 달리 밉맵을 켠다(D-392) - 3D 표면은 멀어지면 밉이 없을 때 반짝인다.
     TextureImportOptions ModelTextureDefaults();
 
     // **모델의 하위 에셋 아이디를 레지스트리에서 찾는다**(material-plan 2 단계). `ListModelSubAssets` 의 그 종류·번호 항목의 이름과 같은 하위 레코드다. 없으면 빈 아이디.
     AssetId FindModelSubAssetId(const AssetRegistry& registry, const AssetRecord& model, const Array<ModelSubAsset>& listed,
         AssetType type, std::size_t index);
-    // 메시가 파일에서 쓰는 재질의 하위 아이디다(D-346 (3) - `materialId` 가 비면 이것이다). 재질이 없거나 `importMaterials` 가 꺼져 있으면 빈 아이디.
+    // 메시가 파일에서 쓰는 재질의 하위 아이디다(D-399 (3) - `materialId` 가 비면 이것이다). 재질이 없거나 `importMaterials` 가 꺼져 있으면 빈 아이디.
     AssetId FindModelMeshMaterialId(const AssetRegistry& registry, const AssetRecord& model, const Array<ModelSubAsset>& listed, const ModelMesh& mesh);
     // 모델의 재질 하나를 재질 값으로 옮긴다. 그림 칸은 내장 그림이면 그 하위 Texture, 바깥 그림이면 모델 폴더 기준 경로의 Texture 에셋이다
     // (레지스트리에 없으면 그 칸은 비고 `missingTextures` 가 오른다). 셰이더는 `Standard` 다.
@@ -55,7 +55,7 @@ namespace JBro
     Bool DecodeModelFile(IPlatform& platform, const char* assetRoot, std::string_view relativePath, const ModelImportOptions& options,
         ModelData& model, String& error);
 
-    // **모델의 하위 에셋 목록을 파일에 맞춘다**(D-338, model-import-plan 3·5 단계). 모델을 읽어(`DecodeModel`) `ListModelSubAssets` 의 키를 세우고
+    // **모델의 하위 에셋 목록을 파일에 맞춘다**(D-391, model-import-plan 3·5 단계). 모델을 읽어(`DecodeModel`) `ListModelSubAssets` 의 키를 세우고
     // 메타의 목록과 맞춘다 - **같은 키는 아이디를 지키고**(캔버스의 참조가 끊기지 않는다), 새 키는 새 아이디, 사라진 키는 뺀다.
     // 내장 그림은 해시를 늘 새로 적고, 옵션은 있던 것을 지키며 새 그림은 `ModelTextureDefaults` 로 적는다.
     //

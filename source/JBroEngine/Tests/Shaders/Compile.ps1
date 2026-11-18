@@ -114,7 +114,7 @@ if ($SkipSpirv)
 
 # 상수 버퍼(b#)는 옮기지 않는다 - b1..b7 이 그대로 binding 1..7 이다. b0 은 푸시 상수라 binding 이 없다.
 # `RWTexture2D<float4>` 는 형식을 적지 않고 굽는다(-fspv-use-unknown-image-format). 그러지 않으면 dxc 가 Rgba32f 로 짐작하고,
-# RGBA8 텍스처를 묶으면 명세상 값이 정의되지 않는다(D-352). Vulkan 백엔드는 형식 없는 쓰기를 지원하는 포맷만 읽고 쓰는 텍스처로 만든다.
+# RGBA8 텍스처를 묶으면 명세상 값이 정의되지 않는다(D-405). Vulkan 백엔드는 형식 없는 쓰기를 지원하는 포맷만 읽고 쓰는 텍스처로 만든다.
 foreach ($t in $spirvTargets)
 {
     $source = Join-Path $here $t.File

@@ -13,7 +13,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
-// **모델 디코더**(D-338·D-339, model-import-plan 2 단계). 시험 모델은 내려받지 않고 여기서 짓는다 - glTF(데이터 URI·바깥 `.bin`·`.glb`), OBJ(`.mtl` 과 함께),
+// **모델 디코더**(D-391·D-392, model-import-plan 2 단계). 시험 모델은 내려받지 않고 여기서 짓는다 - glTF(데이터 URI·바깥 `.bin`·`.glb`), OBJ(`.mtl` 과 함께),
 // ASCII FBX. 엔진 규약을 본다: 앞면은 바깥에서 볼 때 시계(삼각형의 외적이 법선과 반대), UV 는 왼쪽 위가 0, 단위는 미터.
 namespace
 {
@@ -283,7 +283,7 @@ namespace
         Check(model.images.Size() == 1 && model.images[0].path == "textures/red.png", "the map stays a path relative to the model");
     }
 
-    // **법선 계산과 매끈함의 각**(D-339). 모서리 하나를 90 도로 접은 두 삼각형이다 - 60 도면 모서리가 각져 꼭짓점이 갈리고, 120 도면 매끈해 합쳐진다.
+    // **법선 계산과 매끈함의 각**(D-392). 모서리 하나를 90 도로 접은 두 삼각형이다 - 60 도면 모서리가 각져 꼭짓점이 갈리고, 120 도면 매끈해 합쳐진다.
     void TestCalculatedNormalsFollowTheSmoothingAngle()
     {
         const std::string fold = "v 0 0 0\nv 0 0 1\nv 1 0 0\nv 0 1 0\nf 1 2 3\nf 1 4 2\n";

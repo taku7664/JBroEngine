@@ -48,7 +48,7 @@ namespace JBro
             {".jpeg", AssetType::Texture},
             {".bmp", AssetType::Texture},
             {".tga", AssetType::Texture},
-            // 모델 파일은 `Model` 이다(D-338). 그 안의 메시는 하위 `Mesh` 레코드다.
+            // 모델 파일은 `Model` 이다(D-391). 그 안의 메시는 하위 `Mesh` 레코드다.
             {".fbx", AssetType::Model},
             {".obj", AssetType::Model},
             {".gltf", AssetType::Model},

@@ -16,7 +16,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 
-// **에디터 실행 파일의 인자와 `.jproject` 연결**(D-336). 탐색기에서 두 번 누르면 `"<에디터>" --content-root "<폴더>" "<프로젝트>"` 가 돈다.
+// **에디터 실행 파일의 인자와 `.jproject` 연결**(D-389). 탐색기에서 두 번 누르면 `"<에디터>" --content-root "<폴더>" "<프로젝트>"` 가 돈다.
 // 해석·연결의 모양·레지스트리 쓰기와 지우기를 따로 보고, 마지막에 진짜 에디터를 그 명령으로 띄워 한글 경로의 프로젝트가 열리는지 본다.
 namespace
 {
@@ -178,7 +178,7 @@ namespace
         return result;
     }
 
-    // **진짜 에디터가 두 번 누른 명령으로 한글 폴더의 프로젝트를 연다**(D-336). 좁은 `main` 이던 때는 `argv` 가 ANSI 로 와서 이 경로가 열리지 않았다.
+    // **진짜 에디터가 두 번 누른 명령으로 한글 폴더의 프로젝트를 연다**(D-389). 좁은 `main` 이던 때는 `argv` 가 ANSI 로 와서 이 경로가 열리지 않았다.
     void TestTheEditorOpensAProjectGivenOnTheCommandLine()
     {
         namespace fs = std::filesystem;

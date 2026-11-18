@@ -14,7 +14,7 @@
 
 namespace JBro
 {
-    // **재질 하나의 값**이다(D-346, material-plan 2 단계). 사용자의 `.jmat` 파일 내용이고, 모델의 하위 Material 도 같은 모양으로 읽힌다.
+    // **재질 하나의 값**이다(D-399, material-plan 2 단계). 사용자의 `.jmat` 파일 내용이고, 모델의 하위 Material 도 같은 모양으로 읽힌다.
     // 자료 모델은 `{ 셰이더, 파라미터, 그림 칸 }`(D-33·D-111)이고 첫 판의 셰이더는 빌트인 둘이다. 그림 칸은 Texture 에셋의 아이디이고 비면 그 칸이 없다.
     // 스크립트가 볼 타입이 아니라 공개 값 타입(`AssetTypes.h`)이 아니라 여기에 둔다.
 
@@ -29,7 +29,7 @@ namespace JBro
     enum class MaterialAlpha : std::uint8_t
     {
         Opaque,
-        // 알파가 `alphaCutoff` 보다 작은 픽셀을 버린다(잎·철망). 반투명은 정렬이 필요해 뒤다(D-346 (6)).
+        // 알파가 `alphaCutoff` 보다 작은 픽셀을 버린다(잎·철망). 반투명은 정렬이 필요해 뒤다(D-399 (6)).
         Cutout
     };
 
@@ -46,7 +46,7 @@ namespace JBro
         AssetId baseColorTextureId;
         // glTF 처럼 G 가 roughness, B 가 metallic 이다.
         AssetId metallicRoughnessTextureId;
-        // 메시에 탄젠트가 있을 때만 쓴다(D-346 (5)).
+        // 메시에 탄젠트가 있을 때만 쓴다(D-399 (5)).
         AssetId normalTextureId;
         // R 이 차폐다. MR 그림과 같은 그림인 경우가 흔하다.
         AssetId occlusionTextureId;

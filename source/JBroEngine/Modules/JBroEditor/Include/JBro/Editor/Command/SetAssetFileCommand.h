@@ -23,7 +23,7 @@ namespace JBro
         AssetId spriteId;
         // 편집 기록에 보이는 이름이다(영어, 기록의 칸 이름).
         const char* name = "Edit Import Options";
-        // 파일을 쓴 뒤 부른다(실행·되돌리기·다시 하기 모두). 모델은 하위 목록이 바뀔 수 있어 에디터가 레지스트리를 다시 훑게 한다(D-338).
+        // 파일을 쓴 뒤 부른다(실행·되돌리기·다시 하기 모두). 모델은 하위 목록이 바뀔 수 있어 에디터가 레지스트리를 다시 훑게 한다(D-391).
         void (*afterWrite)(void* user) = nullptr;
         void* afterWriteUser = nullptr;
     };

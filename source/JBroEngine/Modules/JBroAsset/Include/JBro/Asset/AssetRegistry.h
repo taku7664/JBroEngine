@@ -21,7 +21,7 @@ namespace JBro
         AssetType type = AssetType::Unknown;
         // 에셋 폴더 기준 상대경로. 구분자는 `/` 다. 이미지의 Sprite 레코드는 Texture 와 같은 경로를 갖는다.
         String relativePath;
-        // 이미지에서 함께 선 Sprite 레코드가 자기 Texture 를, 모델의 메시·재질이 자기 모델을 가리킨다(D-338). 그 외에는 비어 있다.
+        // 이미지에서 함께 선 Sprite 레코드가 자기 Texture 를, 모델의 메시·재질이 자기 모델을 가리킨다(D-391). 그 외에는 비어 있다.
         AssetId owner;
         // 하위 레코드의 이름이다(모델 안의 `Body`). 파일 자체의 레코드와 그림의 Sprite 는 비어 있다 - 에디터가 종류 이름으로 대신 보인다.
         String name;
@@ -54,7 +54,7 @@ namespace JBro
         // 이미 다른 파일이 쓰는 아이디를 든 메타다. 뒤에 온 파일은 등록하지 않는다.
         UInt32 duplicateId = 0;
         UInt32 ignored = 0;
-        // 하위 목록을 만들려고 읽었지만 읽히지 않은 모델이다(D-338). 모델 레코드는 서고 하위 에셋만 없다.
+        // 하위 목록을 만들려고 읽었지만 읽히지 않은 모델이다(D-391). 모델 레코드는 서고 하위 에셋만 없다.
         UInt32 unreadableModel = 0;
     };
 

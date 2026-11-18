@@ -5,7 +5,7 @@ namespace
 {
 struct Definition
 {
-    // **자리는 줄 번호가 아니라 선언의 글자다**(D-340). `Anchor` 는 그 선언 줄의 코드 글자(주석을 뺀 스크립트 SDK 사본의 줄, 앞뒤 공백 뗌)이고,
+    // **자리는 줄 번호가 아니라 선언의 글자다**(D-393). `Anchor` 는 그 선언 줄의 코드 글자(주석을 뺀 스크립트 SDK 사본의 줄, 앞뒤 공백 뗌)이고,
     // 같은 글자가 한 헤더에 여럿이면 `Occurrence` 가 몇 번째인지(0 부터) 말한다. `Offset` 은 닻 안에서 이름이 시작하는 바이트, `Length` 는 이름의 길이다.
     // 헤더에 줄을 끼워도 자리가 밀리지 않는다. 선언이 바뀌면 목록이 그 항목을 말하며 멈춘다(Catalog.cpp).
     const char* Type; const char* Member; const char* Native; const char* Header;

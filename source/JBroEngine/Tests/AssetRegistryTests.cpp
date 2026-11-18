@@ -378,7 +378,7 @@ namespace
         return {};
     }
 
-    // **모델의 하위 에셋**(D-338, model-import-plan 3 단계). 에디터 스캔이 모델을 읽어 `.jmeta` 의 `Model.SubAssets` 를 채우고, 메시·재질이
+    // **모델의 하위 에셋**(D-391, model-import-plan 3 단계). 에디터 스캔이 모델을 읽어 `.jmeta` 의 `Model.SubAssets` 를 채우고, 메시·재질이
     // `owner` 가 모델인 하위 레코드로 이름과 함께 선다. 다시 훑으면 같은 아이디이고, 게임(메타를 만들지 않는 스캔)은 메타의 목록만으로 같은 것을 세운다.
     void TestModelsRegisterTheirSubAssets()
     {

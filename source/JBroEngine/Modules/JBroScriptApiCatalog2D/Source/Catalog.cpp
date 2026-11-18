@@ -55,7 +55,7 @@ namespace JBro::ScriptApiCatalog2D::Internal
         return hash;
     }
 
-    // **정의 자리는 선언의 글자로 찾는다**(D-340). 전에는 원본 헤더의 줄 번호를 손으로 적어 두어, 헤더에 줄 하나를 끼우면 그 아래 자리가 모두 밀렸다 -
+    // **정의 자리는 선언의 글자로 찾는다**(D-393). 전에는 원본 헤더의 줄 번호를 손으로 적어 두어, 헤더에 줄 하나를 끼우면 그 아래 자리가 모두 밀렸다 -
     // 주석 줄에 떨어지면 빌드가 멈추고, 다른 코드 줄에 떨어지면 아무 말 없이 엉뚱한 곳을 가리켰다. 이제 사본 줄 가운데 코드 글자가 `anchor` 와 같은
     // 것의 `occurrence` 번째(0 부터)를 찾고, 그 줄의 앞 공백 뒤 `offset` 바이트가 이름이다. 찾지 못하면 그 항목을 말하며 멈춘다 - 선언이 바뀌었다는 뜻이다.
     template<class T> static void DefineValue(T& value, const char* header, const char* anchor, UInt32 occurrence, UInt32 offset, UInt32 length)

@@ -1,4 +1,4 @@
-// Mesh materials (material-plan stage 3, D-346): Standard is glTF metallic-roughness PBR lit by one fixed
+// Mesh materials (material-plan stage 3, D-399): Standard is glTF metallic-roughness PBR lit by one fixed
 // directional light plus a flat ambient; Unlit is base colour plus emissive. Both share the vertex stage.
 //
 // Colour space: material colours, the instance tint and sRGB-viewed textures arrive linear. Lighting is linear

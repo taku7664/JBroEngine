@@ -176,7 +176,7 @@ namespace JBro
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);
-            // **하위 레코드는 제 줄을 갖지 않는다**(D-338). 그림의 Sprite 처럼 같은 파일에서 나온 것이라 파일의 줄 아래에 펼쳐 보인다(아래에서 단다).
+            // **하위 레코드는 제 줄을 갖지 않는다**(D-391). 그림의 Sprite 처럼 같은 파일에서 나온 것이라 파일의 줄 아래에 펼쳐 보인다(아래에서 단다).
             if (false == record.owner.IsNull())
             {
                 continue;
@@ -808,7 +808,7 @@ namespace JBro
         const ImVec2 origin = ImGui::GetCursorScreenPos();
         ImDrawList* draw = ImGui::GetWindowDrawList();
 
-        // **펼침 단추는 칸보다 먼저 낸다**(D-338). 먼저 낸 항목이 마우스를 차지하므로 단추 위를 누르면 칸이 골라지지 않고, 칸이 커서를 옮긴 뒤의
+        // **펼침 단추는 칸보다 먼저 낸다**(D-391). 먼저 낸 항목이 마우스를 차지하므로 단추 위를 누르면 칸이 골라지지 않고, 칸이 커서를 옮긴 뒤의
         // 항목이 되어 ImGui 의 커서 규칙도 지킨다. 그림은 위 칸(1)에 그려 칸의 바탕·그림에 가려지지 않는다.
         const Bool hasExpander = false == entry.isChild && entry.children.Size() > 0;
         if (hasExpander)
@@ -826,7 +826,7 @@ namespace JBro
         HandleEntryInput(entry);
         const ImVec2 imageMin(origin.x + 4.0f, origin.y + 2.0f);
         const ImVec2 imageMax(origin.x + side - 4.0f, origin.y + side - 4.0f);
-        // **펼친 묶음은 한 띠 위에 선다**(D-338). 파일 칸과 그 하위 칸들이 같은 옅은 바탕을 깔아 어디까지가 한 파일인지 보인다.
+        // **펼친 묶음은 한 띠 위에 선다**(D-391). 파일 칸과 그 하위 칸들이 같은 옅은 바탕을 깔아 어디까지가 한 파일인지 보인다.
         const Bool grouped = entry.isChild || (entry.children.Size() > 0 && IsExpanded(entry.record->id));
         if (grouped)
         {
@@ -884,7 +884,7 @@ namespace JBro
 
     void AssetBrowserPanel::DrawFile(const Entry& entry)
     {
-        // **하위 에셋이 있으면 ▶ 로 펼친다**(D-338). 계층 패널의 오브젝트처럼 화살표만 펼치고, 줄을 누르는 것은 그대로 고르기다.
+        // **하위 에셋이 있으면 ▶ 로 펼친다**(D-391). 계층 패널의 오브젝트처럼 화살표만 펼치고, 줄을 누르는 것은 그대로 고르기다.
         const Bool hasChildren = false == entry.isChild && entry.children.Size() > 0;
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
         flags |= hasChildren ? ImGuiTreeNodeFlags_OpenOnArrow : ImGuiTreeNodeFlags_Leaf;
@@ -1271,7 +1271,7 @@ namespace JBro
             }
             any = true;
             m_visible.Add(entry.record->relativePath);
-            // 펼쳐 두었으면 파일 바로 뒤에 하위 에셋이 선다 - 목록은 들여 쓴 줄로, 아이콘은 이어 붙는 칸으로(D-338).
+            // 펼쳐 두었으면 파일 바로 뒤에 하위 에셋이 선다 - 목록은 들여 쓴 줄로, 아이콘은 이어 붙는 칸으로(D-391).
             const Bool expanded = entry.children.Size() > 0 && IsExpanded(entry.record->id);
             if (m_iconView)
             {

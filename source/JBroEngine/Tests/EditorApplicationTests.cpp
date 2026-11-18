@@ -5050,7 +5050,7 @@ namespace
         fs::remove_all(root, ignored);
     }
 
-    // **하위 에셋은 ▶ 로 펼친다**(D-338, model-import-plan 1 단계). 그림 파일은 Texture 와 그 짝 Sprite 두 레코드다 - Sprite 는 제 줄이 없고
+    // **하위 에셋은 ▶ 로 펼친다**(D-391, model-import-plan 1 단계). 그림 파일은 Texture 와 그 짝 Sprite 두 레코드다 - Sprite 는 제 줄이 없고
     // 파일 줄 아래에 펼친다. 목록 보기는 트리 화살표, 아이콘 보기는 칸 오른쪽의 단추다. 화살표로 펼치는 것은 고르기가 아니고,
     // 하위 줄을 누르면 인스펙터가 그 하위 에셋을 본다. 펼친 상태는 두 보기가 함께 쓴다.
     void TestTheAssetBrowserExpandsSubAssets()
@@ -5065,7 +5065,7 @@ namespace
             std::ofstream png(root / "Assets" / "art" / name, std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
-        // 모델 하나(D-338, 3 단계) - 메시 둘·재질 둘이 하위 에셋으로 펼쳐지고 제 이름을 보인다.
+        // 모델 하나(D-391, 3 단계) - 메시 둘·재질 둘이 하위 에셋으로 펼쳐지고 제 이름을 보인다.
         {
             std::ofstream obj(root / "Assets" / "art" / "crate.obj", std::ios::binary);
             obj << "mtllib parts.mtl\nv 0 0 0\nv 0 0 1\nv 1 0 1\nv 1 0 0\no Crate\nusemtl Wood\nf 1 2 3\nusemtl Metal\nf 1 3 4\n";
@@ -5229,7 +5229,7 @@ namespace
                 "every mesh and material of the model has a tile");
         }
         SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_model_icons");
-        // 모델을 고르면 인스펙터가 모델 임포트 옵션을 보인다(D-339).
+        // 모델을 고르면 인스펙터가 모델 임포트 옵션을 보인다(D-392).
         Spot crateTile;
         Check(LocateItem(editor, hwnd, LabelId(crateScope, "##tile"), -1, crateTile) == Located::Found, "the model tile is on screen");
         ClickAt(editor, hwnd, crateTile);
@@ -8579,7 +8579,7 @@ namespace
 
     // **파일 → 새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 폴더를 고르면 이름과 프레임워크를
     // 받는 팝업이 뜨고, 이름을 치고 Enter 를 누르면 그 폴더에 프로젝트가 서고 에디터가 그리로 넘어간다.
-    // **프로젝트가 없는 에디터에서만 된다**(D-336). 새 프로젝트로 넘어간 뒤에는 또 만들지도 열지도 못하고, 3D 는 프로젝트 없는
+    // **프로젝트가 없는 에디터에서만 된다**(D-389). 새 프로젝트로 넘어간 뒤에는 또 만들지도 열지도 못하고, 3D 는 프로젝트 없는
     // 새 에디터에서 만들어 프레임워크까지 바뀌는지 본다.
     void TestNewProjectCreatesAndOpensIt()
     {
@@ -8696,7 +8696,7 @@ namespace
             dialog.path = TempPath("JBroNewProjectProbe\\Parent");
         }
 
-        // **열린 프로젝트에서는 다른 프로젝트를 만들거나 열지 않는다**(D-336). 요청은 대화상자를 띄우지 않고, 직접 불러도 파일을 쓰지 않는다.
+        // **열린 프로젝트에서는 다른 프로젝트를 만들거나 열지 않는다**(D-389). 요청은 대화상자를 띄우지 않고, 직접 불러도 파일을 쓰지 않는다.
         Check(false == editor.CanSwitchProject(), "with the new project open the editor offers no other");
         dialog.calls = 0;
         editor.RequestNewProject();
@@ -12728,7 +12728,7 @@ namespace
     // 골라지며, 인스펙터가 네 칸을 에셋 옵션 블록으로 보인다(칸 필드 이름이 `...FontId` 라 고르기가 폰트만 보인다).
     // **에디터의 재질**(material-plan 4 단계). 브라우저의 `새 재질` 이 기본값의 `.jmat` 을 만들어 고르고, 인스펙터의 재질 블록이 그 값을 보인다.
     // 칸을 끌면 커맨드 하나가 **그 파일**을 고쳐 쓰고(메타가 아니다), 실린 재질은 제자리에서 다시 읽히며, 되돌리면 파일의 글자가 그대로 돌아온다.
-    // 모델의 하위 Material 은 파일의 값을 보이되 읽기 전용이다(D-346 (2)).
+    // 모델의 하위 Material 은 파일의 값을 보이되 읽기 전용이다(D-399 (2)).
     void TestTheEditorMakesAndEditsMaterials()
     {
         JBro::EditorApplication editor;
@@ -14861,7 +14861,7 @@ namespace
         return nullptr;
     }
 
-    // **파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·`.jproject 연결` 은 프로젝트가 없을 때만 있다**(D-336). 프로젝트가 없는 에디터에서 메뉴로
+    // **파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·`.jproject 연결` 은 프로젝트가 없을 때만 있다**(D-389). 프로젝트가 없는 에디터에서 메뉴로
     // 프로젝트를 열면 그 항목들이 사라지고, `프로젝트 저장` 은 두 때 모두 있다(훑기가 항목을 찾을 수 있다는 대조다).
     void TestProjectItemsShowOnlyWithoutAProject()
     {
@@ -14977,7 +14977,7 @@ namespace
         fs::remove_all(root, ignored);
     }
 
-    // **`.jproject` 연결은 메뉴에서 이 실행 파일로 선다**(D-336). 사람의 연결을 덮지 않으려고 시험의 자리(`fileTypeClassesKey`)에 쓰고 지운다.
+    // **`.jproject` 연결은 메뉴에서 이 실행 파일로 선다**(D-389). 사람의 연결을 덮지 않으려고 시험의 자리(`fileTypeClassesKey`)에 쓰고 지운다.
     void TestRegisteringTheProjectFileTypeFromTheEditor()
     {
         constexpr const char* TestClasses = "Software\\JBroEngineTests\\EditorClasses";
@@ -16337,7 +16337,7 @@ namespace
         Check(editor.FindPanels("NodeGraph", panels) == 1 && dirty(), "cancelling keeps the window and the change");
 
         // ── 저장하지 않은 그래프가 있으면 창 닫기 전에 묻는다(D-324) ──
-        // 다른 프로젝트 열기는 파일로 연 프로젝트에서는 아예 돌지 않는다(D-336) - 묻지도 닫지도 않는다.
+        // 다른 프로젝트 열기는 파일로 연 프로젝트에서는 아예 돌지 않는다(D-389) - 묻지도 닫지도 않는다.
         Check(dirty() && editor.HasUnsavedWork(), "an unsaved graph is unsaved work");
         editor.RequestOpenProject();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
@@ -17523,7 +17523,7 @@ namespace
         return differing;
     }
 
-    // **시나리오 D: 3D 로 처음 쓰는 사용자**(D-335, todo-3d 우선순위 1). 새 프로젝트에서 3D 를 고른다 → 열자마자 카메라와 큐브가 있고
+    // **시나리오 D: 3D 로 처음 쓰는 사용자**(D-388, todo-3d 우선순위 1). 새 프로젝트에서 3D 를 고른다 → 열자마자 카메라와 큐브가 있고
     // 캔버스 뷰 가운데에 큐브가 보인다 → 눌러 고른다 → 기즈모로 옮기고 되돌린다 → 실행하면 게임 화면에 큐브가 그려진다 → 멈추면 그대로다.
     // 스크립트는 다루지 않는다(3D 스크립트는 우선순위 7). MSBuild 가 없어도 돈다.
     void TestScenarioD3DFirstProject()
@@ -17635,7 +17635,7 @@ namespace
         Check(editor.GetSelectedObject() == cube, "clicking the middle of the view picks the cube the view looks at");
         ScenarioShot(editor, "d04_cube_picked");
 
-        // ── 3b. 인스펙터의 메시 칸에서 도형을 바꾸고 되돌린다(D-335 우선순위 2) ─────────────
+        // ── 3b. 인스펙터의 메시 칸에서 도형을 바꾸고 되돌린다(D-388 우선순위 2) ─────────────
         // 빌트인 도형은 레지스트리에 없지만 목록 앞에 이름으로 선다. 전에는 칸이 `(없는 에셋)` 이었다.
         {
             const JBro::PropertyTable* meshFields = JBro::PropertyRegistry::Lookup(
