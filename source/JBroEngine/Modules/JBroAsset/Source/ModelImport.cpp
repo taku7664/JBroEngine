@@ -278,6 +278,27 @@ namespace JBro
         return key != 0 ? UInt64(key) : UInt64(1);
     }
 
+    Bool MakeModelSubRecord(const AssetMetaFile& meta, const AssetSubEntry& entry, std::string_view relativePath, AssetRecord& record)
+    {
+        AssetType type = AssetType::Unknown;
+        std::string_view name;
+        if (false == SplitSubAssetKey(entry.key, type, name))
+        {
+            return false;
+        }
+        record = AssetRecord{};
+        record.id = entry.id;
+        record.type = type;
+        record.relativePath = String(relativePath);
+        record.owner = meta.id;
+        record.name = String(name);
+        if (type == AssetType::Texture)
+        {
+            record.sharedImageKey = MakeSharedImageKey(entry.contentHash, entry.hasTextureOptions ? entry.textureOptions : ModelTextureDefaults());
+        }
+        return true;
+    }
+
     Bool DecodeModelFile(IPlatform& platform, const char* assetRoot, std::string_view relativePath, const ModelImportOptions& options,
         ModelData& model, String& error)
     {

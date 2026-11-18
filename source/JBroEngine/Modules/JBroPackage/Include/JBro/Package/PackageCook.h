@@ -18,6 +18,8 @@ namespace JBro::Package
         UInt32 assets = 0;
         // 그림 파일과 모델의 내장 그림마다 하나다.
         UInt32 cookedTextures = 0;
+        // 앞서 구운 것과 같은 그림(같은 그림 열쇠)이라 레코드만 둔 모델 내장 그림 수다(material-plan 5 단계). 게임은 같은 열쇠의 블롭을 읽는다.
+        UInt32 sharedTextures = 0;
         // 모델의 하위 메시마다 하나(model-import-plan 6 단계)다.
         UInt32 cookedMeshes = 0;
         // 모델의 하위 재질마다 하나(material-plan 2 단계)다.
@@ -36,6 +38,7 @@ namespace JBro::Package
     // **모델**은 메타만 두고 원본은 넣지 않는다(model-import-plan 6 단계). 모델을 한 번 읽어 하위 Mesh 마다 엔진이 바로 읽는 메시(`CookedMesh`)를,
     // 내장 그림마다 디코드한 RGBA8(`CookedTexture`)을 그 하위 아이디로 둔다 - 게임은 모델 디코더를 돌리지 않고 곁 파일(`.bin`·`.mtl`)도 찾지 않는다.
     // 재질은 그림 칸의 아이디까지 풀어 `.jmat` 글자(`CookedMaterial`)로 둔다(material-plan 2 단계).
+    // 같은 그림 열쇠(`AssetRecord::sharedImageKey`)의 내장 그림은 처음 것만 픽셀을 굽고 나머지는 레코드만이다(material-plan 5 단계).
     Bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
         PackageWriter& writer, CookReport& report);
 }

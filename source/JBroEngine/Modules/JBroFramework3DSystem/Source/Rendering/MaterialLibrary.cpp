@@ -44,51 +44,54 @@ namespace JBro
         m_assets = nullptr;
     }
 
-    Int32 MaterialLibrary::AcquireTexture(AssetId id, Bool srgbByDefault)
+    Int32 MaterialLibrary::AcquireTexture(AssetId id, Bool srgbByDefault, AssetHandle& picture)
     {
+        picture = {};
         if (id.IsNull() || m_assets == nullptr)
         {
             return -1;
         }
-        // 그림의 옵션이 색 공간을 정한다. `Auto` 면 칸의 기본이다.
-        const AssetHandle asset = m_assets->Load(id);
-        const TextureData* texture = m_assets->GetTexture(asset);
+        // 재질은 제 그림을 든다 - 텍스처를 남과 나눠 써도 제 그림이 다시 읽혔는지 본다.
+        picture = m_assets->Load(id);
+        const TextureData* texture = m_assets->GetTexture(picture);
         if (texture == nullptr || texture->width == 0 || texture->height == 0)
         {
-            m_assets->Release(asset);
             return -1;
         }
+        // 그림의 옵션이 색 공간을 정한다. `Auto` 면 칸의 기본이다.
         const Bool srgb = texture->options.colorSpace == TextureColorSpace::Srgb
             || (texture->options.colorSpace == TextureColorSpace::Auto && srgbByDefault);
         for (std::size_t index = 0; index < m_textures.Size(); ++index)
         {
             TextureEntry& entry = m_textures[index];
-            if (entry.users > 0 && entry.id == id && entry.srgb == srgb)
+            const Bool same = entry.id == id || (texture->sharedImageKey != 0 && entry.sharedImageKey == texture->sharedImageKey);
+            if (entry.users == 0 || false == same || entry.srgb != srgb)
             {
-                // 이미 올린 것을 나눠 쓴다. 방금 잡은 참조는 놓는다 - 그 항목이 이미 하나를 들고 있다.
-                m_assets->Release(asset);
-                // 그림이 다시 읽혔으면(다른 재질이 먼저 다시 올리러 왔다) 픽셀을 갈아 끼운다. 크기가 바뀌었으면 새로 올린다.
-                if (entry.pixelGeneration != texture->pixelGeneration)
-                {
-                    const JArrayView<std::byte> pixels{texture->pixels.Data(), static_cast<UInt32>(texture->pixels.Size())};
-                    if (false == m_renderer->UpdateTexture(entry.rendererTexture, pixels))
-                    {
-                        TextureUploadOptions upload;
-                        upload.srgb = srgb;
-                        upload.mipmaps = texture->options.mipmaps;
-                        const AssetHandle replaced = m_renderer->RegisterTexture(Extent2D{texture->width, texture->height}, pixels, upload);
-                        if (replaced.generation == 0)
-                        {
-                            return -1;
-                        }
-                        m_renderer->UnregisterTexture(entry.rendererTexture);
-                        entry.rendererTexture = replaced;
-                    }
-                    entry.pixelGeneration = texture->pixelGeneration;
-                }
-                ++entry.users;
-                return static_cast<Int32>(index);
+                continue;
             }
+            // 이미 올린 것을 나눠 쓴다. 그 텍스처의 그림이 다시 읽혔으면(다른 재질이 먼저 다시 올리러 왔다) 픽셀을 갈아 끼운다.
+            // 크기가 바뀌었으면 새로 올린다.
+            const TextureData* held = m_assets->GetTexture(entry.asset);
+            if (held != nullptr && entry.pixelGeneration != held->pixelGeneration)
+            {
+                const JArrayView<std::byte> pixels{held->pixels.Data(), static_cast<UInt32>(held->pixels.Size())};
+                if (false == m_renderer->UpdateTexture(entry.rendererTexture, pixels))
+                {
+                    TextureUploadOptions upload;
+                    upload.srgb = srgb;
+                    upload.mipmaps = held->options.mipmaps;
+                    const AssetHandle replaced = m_renderer->RegisterTexture(Extent2D{held->width, held->height}, pixels, upload);
+                    if (replaced.generation == 0)
+                    {
+                        return -1;
+                    }
+                    m_renderer->UnregisterTexture(entry.rendererTexture);
+                    entry.rendererTexture = replaced;
+                }
+                entry.pixelGeneration = held->pixelGeneration;
+            }
+            ++entry.users;
+            return static_cast<Int32>(index);
         }
         TextureUploadOptions upload;
         upload.srgb = srgb;
@@ -97,13 +100,14 @@ namespace JBro
             {texture->pixels.Data(), static_cast<UInt32>(texture->pixels.Size())}, upload);
         if (uploaded.generation == 0)
         {
-            m_assets->Release(asset);
             return -1;
         }
         TextureEntry entry;
         entry.id = id;
+        entry.sharedImageKey = texture->sharedImageKey;
         entry.srgb = srgb;
-        entry.asset = asset;
+        // 텍스처도 제 그림을 하나 잡는다 - 처음 올린 재질이 떠나도 나눠 쓰는 재질이 남으면 텍스처의 그림이 산다.
+        entry.asset = m_assets->Load(id);
         entry.rendererTexture = uploaded;
         entry.pixelGeneration = texture->pixelGeneration;
         entry.users = 1;
@@ -151,6 +155,11 @@ namespace JBro
         for (UInt32 slot = 0; slot < SlotCount; ++slot)
         {
             ReleaseTexture(entry.textures[slot.Get()]);
+            if (m_assets != nullptr && entry.pictures[slot.Get()].generation != 0)
+            {
+                m_assets->Release(entry.pictures[slot.Get()]);
+            }
+            entry.pictures[slot.Get()] = {};
             entry.textures[slot.Get()] = -1;
             entry.texturePixels[slot.Get()] = 0;
         }
@@ -160,12 +169,12 @@ namespace JBro
     {
         for (UInt32 slot = 0; slot < SlotCount; ++slot)
         {
-            const Int32 index = entry.textures[slot.Get()];
-            if (index < 0)
+            if (entry.textures[slot.Get()] < 0)
             {
                 continue;
             }
-            const TextureData* texture = m_assets->GetTexture(m_textures[static_cast<std::size_t>(index.Get())].asset);
+            // 재질이 가리키는 그 그림이다 - 나눠 쓰는 텍스처를 처음 올린 그림이 아니다.
+            const TextureData* texture = m_assets->GetTexture(entry.pictures[slot.Get()]);
             if (texture == nullptr || texture->pixelGeneration != entry.texturePixels[slot.Get()])
             {
                 return true;
@@ -211,12 +220,11 @@ namespace JBro
         AssetHandle handles[SlotCount];
         for (UInt32 at = 0; at < SlotCount; ++at)
         {
-            entry.textures[at.Get()] = AcquireTexture(ids[at.Get()], srgbByDefault[at.Get()]);
+            entry.textures[at.Get()] = AcquireTexture(ids[at.Get()], srgbByDefault[at.Get()], entry.pictures[at.Get()]);
             if (entry.textures[at.Get()] >= 0)
             {
-                const TextureEntry& texture = m_textures[static_cast<std::size_t>(entry.textures[at.Get()].Get())];
-                handles[at.Get()] = texture.rendererTexture;
-                const TextureData* data = m_assets->GetTexture(texture.asset);
+                handles[at.Get()] = m_textures[static_cast<std::size_t>(entry.textures[at.Get()].Get())].rendererTexture;
+                const TextureData* data = m_assets->GetTexture(entry.pictures[at.Get()]);
                 entry.texturePixels[at.Get()] = data != nullptr ? data->pixelGeneration : UInt32(0);
             }
         }
@@ -234,8 +242,7 @@ namespace JBro
         desc.cutout = source.alpha == MaterialAlpha::Cutout;
         desc.alphaCutoff = source.alphaCutoff;
         // 기본색 그림이 가장 가까운 텍셀(픽셀 아트)이면 재질이 그렇게 읽는다. 칸마다 샘플러를 두지 않는다 - 셰이더의 샘플러는 하나다.
-        const TextureData* base = entry.textures[0] >= 0
-            ? m_assets->GetTexture(m_textures[static_cast<std::size_t>(entry.textures[0].Get())].asset) : nullptr;
+        const TextureData* base = entry.textures[0] >= 0 ? m_assets->GetTexture(entry.pictures[0]) : nullptr;
         desc.nearestFilter = base != nullptr && base->filter == TextureFilter::Nearest;
         desc.baseColorTexture = handles[0];
         desc.metallicRoughnessTexture = handles[1];

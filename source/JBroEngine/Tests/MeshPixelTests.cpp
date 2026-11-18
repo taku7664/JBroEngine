@@ -17,6 +17,11 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include "TestModels.h"
+#include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Host/GameBuild.h>
+#include <JBro/Host/ProjectFile.h>
+#include <JBro/Package/PackageAssetSource.h>
+#include <JBro/Package/PackageReader.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -980,10 +985,178 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
+    // **3D 게임 빌드가 에디터와 같은 그림을 낸다**(material-plan 5 단계, todo-3d 우선순위 10). 같은 그림을 내장한 두 모델의 사각형을 위에서 내려다보는 캔버스를
+    // 느슨한 폴더에서 그린 것과, `BuildGame` 이 구운 패키지만으로(원본 폴더를 지운 뒤) 그린 것이 바이트까지 같다. 두 재질은 GPU 텍스처 하나를 나눠 쓰고,
+    // 패키지에는 그 그림의 픽셀이 한 번만 들며, 게임의 하위 레코드는 느슨한 것과 같은 이름·같은 그림 열쇠를 갖는다.
+    template <typename TModule>
+    void TestA3DGameBuildDrawsWhatTheEditorDraws()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open(true))
+        {
+            std::cout << "  [skip] no device for this API; the 3D game build not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBro3DGameBuildProbe·빌드";
+        fs::remove_all(root);
+        const fs::path source = root / "Source";
+        const std::string quad = TestModels::SelfContainedQuadGltf("Bricks", TestModels::TinyPng());
+        WriteText(source / "Assets" / "Props" / "left.gltf", quad.c_str());
+        WriteText(source / "Assets" / "Props" / "right.gltf", quad.c_str());
+        const fs::path projectPath = source / "Probe.jproject";
+        WriteText(projectPath, "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\nAssetDirectory: Assets\nScriptOutputLibraryPath: \"\"\n"
+            "Build:\n  ProductName: Probe3D\n  OutputDirectory: ../Out\n  StartupCanvas: Assets/Canvases/Main.jcanvas\n");
+        const auto utf8 = [](const fs::path& path) {
+            const std::u8string text = path.generic_u8string();
+            return JBro::String(reinterpret_cast<const char*>(text.data()), text.size());
+        };
+        const JBro::String assetRoot = utf8(source / "Assets");
+
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, assetRoot.c_str(), options, report), "the source assets scan");
+        const auto partOf = [&](const char* path, JBro::AssetType type) {
+            JBro::Array<JBro::AssetId> parts;
+            registry.CollectOwned(registry.FindByPath(path)->id, parts);
+            JBro::AssetId found;
+            for (const JBro::AssetId& id : parts)
+            {
+                found = registry.Find(id)->type == type ? id : found;
+            }
+            return found;
+        };
+        const JBro::AssetId leftImage = partOf("Props/left.gltf", JBro::AssetType::Texture);
+        const JBro::AssetId rightImage = partOf("Props/right.gltf", JBro::AssetType::Texture);
+        const JBro::UInt64 key = registry.Find(leftImage)->sharedImageKey;
+        Check(key != 0 && registry.Find(rightImage)->sharedImageKey == key, "the two models' images are the same picture");
+
+        const auto initialize = [&](JBro::AssetSystem& assets, JBro::Framework3D& framework) {
+            JBro::FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.renderer = &stage.renderer;
+            context.assets = &assets;
+            Check(framework.Initialize(context), "the 3D framework initializes");
+        };
+        // 에디터 쪽: 느슨한 폴더의 캔버스를 짓고 그린다.
+        JBro::Array<std::byte> looseImage;
+        JBro::TextureReadback readback;
+        {
+            JBro::AssetSystem assets;
+            Check(assets.Initialize(stage.memory), "the loose asset system initializes");
+            assets.Bind(stage.platform, registry, assetRoot.c_str());
+            JBro::Framework3D framework;
+            initialize(assets, framework);
+            JBro::Canvas& canvas = *framework.GetCanvas();
+            JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+            auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+            eyeTransform->position = {0.0f, 3.0f, 0.0f};
+            eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+            auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+            camera->primary = true;
+            camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            const auto place = [&](const char* name, JBro::AssetId mesh, JBro::Float x) {
+                JBro::Object::GameObject* object = canvas.CreateObject(name);
+                canvas.AttachComponent<JBro::Component::Transform3D>(object)->position = {x, 0.0f, -0.5f};
+                auto* renderer = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(object);
+                renderer->meshId = mesh;
+                renderer->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+            };
+            place("left", partOf("Props/left.gltf", JBro::AssetType::Mesh), -1.25f);
+            place("right", partOf("Props/right.gltf", JBro::AssetType::Mesh), 0.25f);
+            framework.BindCanvasAssets();
+            stage.RenderOnce(framework, looseImage, readback);
+            Check(framework.GetMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMaterialLibrary().GetUploadedTextureCount() == 1,
+                "each model's mesh draws with its own material, and the two materials share one texture for the one picture");
+            const Pixel left = ReadPixel(looseImage, readback.rowPitch, 30, 27);
+            const Pixel right = ReadPixel(looseImage, readback.rowPitch, 57, 27);
+            std::cout << "  shared picture: left " << left.r.Get() << "," << left.g.Get() << "," << left.b.Get() << " right " << right.r.Get() << "," << right.g.Get() << "," << right.b.Get() << std::endl;
+            // 둘의 빛 반사는 자리가 달라 조금 다르다(흰 정반사). 둘 다 빨강이 이기면 된다.
+            Check(left.r > 0.6f && left.g < 0.25f && left.b < 0.25f && right.r > 0.6f && right.g < 0.25f && right.b < 0.25f,
+                "both quads show the red texel of the shared picture");
+            JBro::String text;
+            JBro::CanvasFileError canvasError;
+            Check(JBro::WriteCanvasText(canvas, text, canvasError), "the canvas writes");
+            WriteText(source / "Assets" / "Canvases" / "Main.jcanvas", text.c_str());
+            framework.Shutdown();
+            // 에디터가 하듯 다시 훑어 캔버스의 메타를 세운다 - 빌드는 메타가 있는 에셋만 안다.
+            Check(registry.Scan(stage.platform, assetRoot.c_str(), options, report), "the source assets scan again with the canvas");
+            assets.Shutdown();
+        }
+
+        // 게임을 빌드하고 원본 폴더를 지운다.
+        JBro::ProjectFile project;
+        JBro::ProjectFileError projectError;
+        const JBro::String projectUtf8 = utf8(projectPath);
+        Check(JBro::LoadProjectFile(stage.platform, projectUtf8.c_str(), project, projectError), "the 3D project reads");
+        JBro::GameBuildOptions buildOptions;
+        buildOptions.physicsWorkers = 0;
+        JBro::GameBuildReport built;
+        const JBro::Bool ok = JBro::BuildGame(stage.platform, project, projectUtf8.c_str(), buildOptions, built);
+        if (false == ok)
+        {
+            std::cout << "  build error: " << built.error.c_str() << std::endl;
+        }
+        for (const JBro::String& warning : built.warnings)
+        {
+            std::cout << "  build warning: " << warning.c_str() << std::endl;
+        }
+        Check(ok && built.warnings.IsEmpty(), "the 3D game builds cleanly");
+        std::cout << "  3D game build: " << built.assets.Get() << " assets, " << built.packageBytes.Get() << " bytes" << std::endl;
+        Check(built.cookedTextures == 1 && built.sharedTextures == 1, "the shared picture's pixels are cooked once");
+        fs::remove_all(source);
+
+        JBro::Package::PackageReader package;
+        JBro::String error;
+        Check(package.Open(stage.platform, utf8(root / "Out" / "Probe3D" / "Content" / "game.jpak").c_str(), error), "the built package opens");
+        Check(package.Find(leftImage, JBro::Package::BlobKind::CookedTexture) != nullptr
+                && package.Find(rightImage, JBro::Package::BlobKind::CookedTexture) == nullptr
+                && package.Find(rightImage, JBro::Package::BlobKind::Record) != nullptr,
+            "one image carries the pixels and the other is a record only");
+        JBro::AssetRegistry packed;
+        JBro::Package::FillRegistry(package, packed);
+        const JBro::AssetRecord* packedRight = packed.Find(rightImage);
+        Check(packedRight != nullptr && packedRight->name == "Bricks" && packedRight->sharedImageKey == key,
+            "the game's sub-record has the loose name and the same picture key, filled from the model's meta");
+        JBro::Package::PackageAssetSource packageSource(package);
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the packaged asset system initializes");
+        assets.Bind(stage.platform, packed, packageSource);
+        // 픽셀이 없는 쪽을 먼저 싣는다 - 실린 쌍둥이가 없으니 같은 열쇠의 구운 블롭을 읽어야 선다.
+        const JBro::AssetHandle twin = assets.Load(rightImage);
+        Check(assets.GetTexture(twin) != nullptr && assets.GetTexture(twin)->width == 2,
+            "the image shipped as a record loads first, from its twin's cooked pixels");
+        assets.Release(twin);
+        JBro::Framework3D framework;
+        JBro::Array<std::byte> gameImage;
+        initialize(assets, framework);
+        JBro::Array<std::byte> canvasText;
+        Check(assets.ReadSourceByPath("Canvases/Main.jcanvas", canvasText), "the startup canvas reads from the package");
+        JBro::CanvasFileError canvasError;
+        Check(JBro::ReadCanvasText(*framework.GetCanvas(), reinterpret_cast<const char*>(canvasText.Data()), canvasText.Size(), canvasError),
+            "the packaged canvas loads");
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, gameImage, readback);
+        Check(framework.GetMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMaterialLibrary().GetUploadedTextureCount() == 1,
+            "the game shares the one texture too");
+        Check(gameImage.Size() == looseImage.Size() && std::memcmp(gameImage.Data(), looseImage.Data(), looseImage.Size()) == 0,
+            "the game built from the package draws the very same picture as the loose project");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+        framework.Shutdown();
+        assets.Shutdown();
+        package.Close();
+        stage.Close();
+        fs::remove_all(root);
+    }
 }
 
 JBro::Int32 RunMeshPixelTests()
 {
+    JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::VulkanRHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D12RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D11RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::VulkanRHIModule>());

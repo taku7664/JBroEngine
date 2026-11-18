@@ -18,7 +18,8 @@ namespace JBro
     // 렌더러는 프레임 안의 등록을 거절하므로 Update 에서만 부른다(호스트는 갱신이 먼저, 프레임이 나중이다 - D-342).
     //
     // 그림의 색 공간은 그림 옵션이 정하고, `Auto` 면 칸이 정한다(기본색·발광은 sRGB, 나머지는 선형 - D-339). 밉은 그림 옵션의 `mipmaps` 다.
-    // 같은 그림을 같은 색 공간으로 쓰는 재질끼리는 렌더러 텍스처 하나를 나눠 쓴다.
+    // 같은 그림을 같은 색 공간으로 쓰는 재질끼리는 렌더러 텍스처 하나를 나눠 쓴다. **같은 그림**은 같은 아이디이거나, 서로 다른 모델에 내장된
+    // 같은 그림 열쇠(`TextureData::sharedImageKey` - 바이트와 옵션이 같다)의 그림이다(material-plan 5 단계).
     class MaterialLibrary
     {
     public:
@@ -38,10 +39,11 @@ namespace JBro
     private:
         static constexpr UInt32 SlotCount = 5;
 
-        // 렌더러 텍스처 하나다. (그림 아이디, sRGB)마다 하나이고 쓰는 재질 수를 센다.
+        // 렌더러 텍스처 하나다. (그림 아이디 또는 같은 그림 열쇠, sRGB)마다 하나이고 쓰는 재질 수를 센다. `asset` 은 처음 올린 그림이다.
         struct TextureEntry
         {
             AssetId id;
+            UInt64 sharedImageKey = 0;
             Bool srgb = false;
             AssetHandle asset;
             AssetHandle rendererTexture;
@@ -58,7 +60,9 @@ namespace JBro
             UInt32 failedGeneration = 0;
             // 칸마다 `m_textures` 의 자리다. 없으면 -1.
             Int32 textures[SlotCount] = {-1, -1, -1, -1, -1};
-            // 올릴 때 본 칸마다의 픽셀 세대다. 그림이 다시 읽히면 달라진다.
+            // 칸마다 재질이 가리키는 그 그림이다(참조 하나). 텍스처를 남과 나눠 써도 제 그림이 다시 읽히는지(옵션을 바꿔 갈라졌는지)는 이것으로 본다.
+            AssetHandle pictures[SlotCount];
+            // 올릴 때 본 칸마다의 픽셀 세대다(`pictures` 의 것). 그림이 다시 읽히면 달라진다.
             UInt32 texturePixels[SlotCount] = {0, 0, 0, 0, 0};
         };
 
@@ -69,7 +73,8 @@ namespace JBro
             AssetHandle asset;
         };
 
-        Int32 AcquireTexture(AssetId id, Bool srgbByDefault);
+        // 그림을 싣고(`picture` 에 참조 하나) 같은 그림의 렌더러 텍스처를 찾거나 올린다. 텍스처 자리이고, 못 올리면 -1 이다(`picture` 는 그래도 들 수 있다).
+        Int32 AcquireTexture(AssetId id, Bool srgbByDefault, AssetHandle& picture);
         void ReleaseTexture(Int32 index);
         void ReleaseEntry(MaterialEntry& entry);
         Bool TexturesChanged(const MaterialEntry& entry) const;

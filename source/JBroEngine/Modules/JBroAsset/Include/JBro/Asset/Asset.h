@@ -37,6 +37,9 @@ namespace JBro
         TextureImportOptions options;
         // 프로젝트 기본을 적용한 값이다(D-117). `Default` 는 여기 오지 않는다 - 그리는 쪽은 이것만 본다.
         TextureFilter filter = TextureFilter::Nearest;
+        // 실을 때 레코드의 같은 그림 열쇠다(`AssetRecord::sharedImageKey`, 모델의 내장 그림만, 아니면 0). 같은 열쇠의 그림은 픽셀이 같아
+        // 에셋 시스템은 한 번만 읽고(material-plan 5 단계) 재질 라이브러리는 GPU 텍스처 하나를 나눠 쓴다.
+        UInt64 sharedImageKey = 0;
     };
 
     // 로드된 스프라이트다. 자기 텍스처를 참조 수로 잡고 있다.
@@ -307,6 +310,10 @@ namespace JBro
         Bool ReadMaterial(const AssetRecord& record, MaterialData& data);
         // 모델의 내장 그림 하나를 읽는다(model-import-plan 5 단계). 바이트는 모델 안에 있고 디코드는 그림 파일과 같은 이미지 디코더다.
         Bool ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data);
+        // **같은 그림이 이미 실렸으면 그 픽셀을 옮겨 쓴다**(material-plan 5 단계). 모델을 다시 읽거나 블롭을 풀지 않는다. 열쇠가 0 이거나 없으면 false.
+        Bool CopySharedImage(const AssetRecord& record, TextureData& data) const;
+        // 빌드가 구운 픽셀을 든 레코드다 - 제 것이 없으면 같은 그림 열쇠의 다른 레코드(빌드는 같은 그림을 한 번만 굽는다). 없으면 nullptr.
+        const AssetRecord* CookedImageOf(const AssetRecord& record) const;
         // 하위 에셋의 주인 모델을 읽어 들고 있는다(메시·내장 그림이 함께 쓴다). 실패하면 nullptr.
         const ModelData* DecodeOwnerModel(const AssetRecord& model);
         // 하위 에셋 레코드의 주인이 모델이면 그 레코드, 아니면 nullptr.

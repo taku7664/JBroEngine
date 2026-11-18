@@ -76,6 +76,8 @@
 - **쿡**: Texture 는 `CookedTexture`(디코드한 RGBA8), 폰트는 `Source` + 미리 채우기가 켜진 폰트의 `FontAtlas`(§2.5), 나머지는 `Source`.
   모델은 메타만이고, 하위 Mesh 는 `CookedMesh`, 내장 그림은 `CookedTexture`, 재질은 `CookedMaterial`(그림 칸의 아이디까지 푼 `.jmat` 글자, D-348)이다 -
   게임은 모델 디코더도 곁 파일도 쓰지 않는다(D-345). 사용자의 `.jmat` 은 원본(`Source`) 그대로다.
+  같은 그림 열쇠(`AssetRecord::sharedImageKey`)의 내장 그림은 처음 것만 `CookedTexture` 이고 나머지는 레코드만이다(D-351, `CookReport::sharedTextures`) - 게임의 에셋 시스템이 같은 열쇠의 블롭을 읽는다.
+  색인에는 하위 레코드의 이름과 열쇠가 없다 - `FillRegistry` 가 패키지의 모델 메타에서 느슨한 스캔과 같은 함수(`MakeModelSubRecord`)로 채운다(형식은 그대로).
   모든 에셋은 `Meta` 블롭을 가진다.
 - **내놓는 것**: `<OutputDirectory>/<ProductName>/` 에 게임 호스트 실행 파일, 스크립트 DLL(있으면), `<ProductName>.jproject`(`AssetPackage` 를 적은 사본),
   `Content/game.jpak`. 게임 호스트는 `--project` 가 없으면 실행 파일 옆의 `.jproject` 를 연다.

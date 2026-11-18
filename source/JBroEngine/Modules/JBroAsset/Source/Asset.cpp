@@ -308,12 +308,20 @@ namespace JBro
         {
             return false;
         }
+        data.sharedImageKey = record.sharedImageKey;
+        // 같은 그림이 이미 실렸으면 그 픽셀이다 - 모델을 다시 읽지도 블롭을 다시 풀지도 않는다(material-plan 5 단계).
+        if (CopySharedImage(record, data))
+        {
+            data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
+            return true;
+        }
         // 빌드가 디코드해 둔 픽셀이 있으면 그것이다(D-232) - 게임에 이미지 디코더가 돌지 않는다. 모델의 내장 그림도 빌드가 꺼내 둔다(6 단계).
-        if (m_source->Has(record, AssetBlob::CookedTexture))
+        // 같은 그림은 빌드가 한 번만 구워 두므로 제 블롭이 없으면 같은 열쇠의 것을 읽는다.
+        if (const AssetRecord* cookedFrom = CookedImageOf(record))
         {
             Array<std::byte> cooked;
             CookedTextureInfo info;
-            if (false == m_source->Read(record, AssetBlob::CookedTexture, cooked) || false == ReadCookedTexture(cooked, info))
+            if (false == m_source->Read(*cookedFrom, AssetBlob::CookedTexture, cooked) || false == ReadCookedTexture(cooked, info))
             {
                 Log::Write(LogLevel::Warning, "asset", "%s: the cooked texture is damaged", record.relativePath.c_str());
                 return false;
@@ -970,6 +978,46 @@ namespace JBro
     {
         const Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material);
         return slot != nullptr ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::CopySharedImage(const AssetRecord& record, TextureData& data) const
+    {
+        if (record.sharedImageKey == 0)
+        {
+            return false;
+        }
+        for (const Slot<TextureData>& slot : m_textures.slots)
+        {
+            if (slot.occupied && slot.id != record.id && slot.data.sharedImageKey == record.sharedImageKey && slot.data.width > 0)
+            {
+                data.width = slot.data.width;
+                data.height = slot.data.height;
+                data.pixels = slot.data.pixels;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    const AssetRecord* AssetSystem::CookedImageOf(const AssetRecord& record) const
+    {
+        if (m_source->Has(record, AssetBlob::CookedTexture))
+        {
+            return &record;
+        }
+        if (record.sharedImageKey == 0 || m_registry == nullptr)
+        {
+            return nullptr;
+        }
+        for (std::size_t index = 0; index < m_registry->GetCount(); ++index)
+        {
+            const AssetRecord& other = m_registry->GetRecord(index);
+            if (other.id != record.id && other.sharedImageKey == record.sharedImageKey && m_source->Has(other, AssetBlob::CookedTexture))
+            {
+                return &other;
+            }
+        }
+        return nullptr;
     }
 
     Bool AssetSystem::ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data)

@@ -825,6 +825,76 @@ namespace
         fixture.Close();
     }
 
+    // **같은 그림은 한 번 읽는다**(material-plan 5 단계). 세 모델에 같은 그림이 내장되어 있고 셋째만 밉맵을 껐다. 첫째를 실은 뒤 둘째·셋째 모델 파일의 그림을 깨뜨리면
+    // 같은 열쇠의 둘째는 실린 픽셀을 옮겨 받아 모델을 다시 읽지 않고 서지만, 옵션이 달라 열쇠가 다른 셋째는 제 모델을 읽어야 해 서지 못한다.
+    void TestTheSameEmbeddedImageIsReadOnce()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const std::string png(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        const std::string gltf = TestModels::SelfContainedQuadGltf("Bricks", png);
+        const char* names[] = {"a", "b", "c"};
+        for (const char* name : names)
+        {
+            WriteBytes(fixture.root / "Props" / (std::string(name) + ".gltf"), gltf.data(), gltf.size());
+        }
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(fixture.registry.Scan(fixture.platform, Utf8(fixture.root).c_str(), options, report), "the folder scans with three models");
+        const auto imageOf = [&](const char* name) {
+            const JBro::AssetRecord* model = fixture.registry.FindByPath(std::string("Props/") + name + ".gltf");
+            Check(model != nullptr, "each model is registered");
+            JBro::Array<JBro::AssetId> owned;
+            fixture.registry.CollectOwned(model->id, owned);
+            JBro::AssetId image;
+            for (const JBro::AssetId& id : owned)
+            {
+                image = fixture.registry.Find(id)->type == JBro::AssetType::Texture ? id : image;
+            }
+            Check(false == image.IsNull(), "each model has its embedded image");
+            return image;
+        };
+        // 셋째의 그림만 밉맵을 끈다 - 같은 바이트라도 옵션이 다르면 다른 그림이다.
+        {
+            const JBro::AssetId third = imageOf("c");
+            const JBro::String metaPath = Utf8(fixture.root / "Props" / "c.gltf.jmeta");
+            JBro::AssetMetaFile meta;
+            JBro::AssetMetaError error;
+            Check(JBro::LoadAssetMetaFile(fixture.platform, metaPath.c_str(), meta, error), "the third model's meta reads");
+            for (JBro::AssetSubEntry& entry : meta.subAssets)
+            {
+                if (entry.id == third)
+                {
+                    entry.hasTextureOptions = true;
+                    entry.textureOptions.mipmaps = false;
+                }
+            }
+            Check(JBro::SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the third image's options are written");
+            Check(fixture.registry.Scan(fixture.platform, Utf8(fixture.root).c_str(), options, report), "the folder scans again");
+        }
+        const JBro::AssetId first = imageOf("a");
+        const JBro::AssetId second = imageOf("b");
+        const JBro::AssetId third = imageOf("c");
+        const JBro::UInt64 key = fixture.registry.Find(first)->sharedImageKey;
+        Check(key != 0 && fixture.registry.Find(second)->sharedImageKey == key && fixture.registry.Find(third)->sharedImageKey != key,
+            "the same bytes with the same options share a key, other options do not");
+
+        const JBro::AssetHandle firstHandle = fixture.assets.Load(first);
+        const JBro::TextureData* firstTexture = fixture.assets.GetTexture(firstHandle);
+        Check(firstTexture != nullptr && firstTexture->sharedImageKey == key, "the first image loads and carries its key");
+        const std::string broken = TestModels::SelfContainedQuadGltf("Bricks", "not an image at all");
+        WriteBytes(fixture.root / "Props" / "b.gltf", broken.data(), broken.size());
+        WriteBytes(fixture.root / "Props" / "c.gltf", broken.data(), broken.size());
+        const JBro::TextureData* secondTexture = fixture.assets.GetTexture(fixture.assets.Load(second));
+        Check(secondTexture != nullptr && secondTexture->width == firstTexture->width && secondTexture->pixels.Size() == firstTexture->pixels.Size()
+                && std::memcmp(secondTexture->pixels.Data(), firstTexture->pixels.Data(), firstTexture->pixels.Size()) == 0
+                && secondTexture->sharedImageKey == key,
+            "the second image takes the loaded pixels and does not read its own model again");
+        Check(fixture.assets.Load(third).generation == 0, "an image with other options is not taken for the same one - it reads its own (broken) model");
+        fixture.Close();
+    }
+
     // **모델의 내장 그림**(model-import-plan 5 단계). 하위 Texture 는 모델 안의 바이트를 그림 파일과 같은 디코더로 읽고, 옵션은 모델 메타의 제 하위 항목이다.
     // 모델을 읽어야 나오므로 워커로 보내지 않고 동기로 싣는다 - 워커가 모델 파일을 그림으로 풀면 실패한다.
     void TestAModelsEmbeddedImageLoadsAsATexture()
@@ -924,6 +994,7 @@ JBro::Int32 RunAssetSystemTests()
     JBRO_CASE(TestTheLoadYieldsToASyncLoadAndCancels());
     JBRO_CASE(TestASourceThatCannotReadOnWorkersLoadsInPlace());
     JBRO_CASE(TestAModelsEmbeddedImageLoadsAsATexture());
+    JBRO_CASE(TestTheSameEmbeddedImageIsReadOnce());
     JBRO_CASE(TestMaterialsLoadFromModelsAndFiles());
     std::cout << "Asset system tests passed.\n";
     return 0;

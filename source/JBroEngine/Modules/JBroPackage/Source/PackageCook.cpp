@@ -86,8 +86,28 @@ namespace JBro::Package
 
         // 모델의 하위 메시·내장 그림 하나를 굽는다. 실패는 보고에 적는다.
         void CookModelPart(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRegistry& registry,
-            const AssetRecord& owner, const AssetRecord& record, ModelCache& cache, PackageWriter& writer, CookReport& report)
+            const AssetRecord& owner, const AssetRecord& record, ModelCache& cache, Array<UInt64>& cookedImages, PackageWriter& writer,
+            CookReport& report)
         {
+            // 같은 그림을 이미 구웠으면 레코드만 둔다 - 모델을 읽을 것도 없다. 게임의 에셋 시스템이 같은 열쇠의 블롭을 읽는다.
+            if (record.type == AssetType::Texture && record.sharedImageKey != 0)
+            {
+                for (const UInt64 key : cookedImages)
+                {
+                    if (key == record.sharedImageKey)
+                    {
+                        if (writer.Add(EntryOf(record, BlobKind::Record), {}))
+                        {
+                            ++report.sharedTextures;
+                        }
+                        else
+                        {
+                            Fail(report, record, "the asset appears twice in the package");
+                        }
+                        return;
+                    }
+                }
+            }
             String error;
             const ModelData* model = DecodeOwner(platform, loose, assetRoot, owner, cache, error);
             if (model == nullptr)
@@ -145,6 +165,10 @@ namespace JBro::Package
             if (AddBlob(writer, report, record, BlobKind::CookedTexture, cooked))
             {
                 ++report.cookedTextures;
+                if (record.sharedImageKey != 0)
+                {
+                    cookedImages.Add(record.sharedImageKey);
+                }
             }
         }
     }
@@ -155,6 +179,7 @@ namespace JBro::Package
         LooseAssetSource loose;
         loose.Bind(&platform, assetRoot);
         ModelCache models;
+        Array<UInt64> cookedImages;
         for (const AssetId& id : ids)
         {
             const AssetRecord* record = registry.Find(id);
@@ -173,7 +198,7 @@ namespace JBro::Package
             if (owner != nullptr && owner->type == AssetType::Model
                 && (record->type == AssetType::Mesh || record->type == AssetType::Texture || record->type == AssetType::Material))
             {
-                CookModelPart(platform, loose, assetRoot, registry, *owner, *record, models, writer, report);
+                CookModelPart(platform, loose, assetRoot, registry, *owner, *record, models, cookedImages, writer, report);
                 continue;
             }
             // 이미지의 Sprite 는 주인의 메타와 픽셀을 쓴다. 레코드만 둔다.

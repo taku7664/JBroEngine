@@ -242,22 +242,10 @@ namespace JBro
                 Bool clash = false;
                 for (std::size_t sub = 0; sub < meta.subAssets.Size() && false == clash; ++sub)
                 {
-                    AssetType subType = AssetType::Unknown;
-                    std::string_view subName;
-                    if (false == SplitSubAssetKey(meta.subAssets[sub].key, subType, subName))
+                    AssetRecord child;
+                    if (false == MakeModelSubRecord(meta, meta.subAssets[sub], relativePath, child))
                     {
                         continue;
-                    }
-                    AssetRecord child;
-                    child.id = meta.subAssets[sub].id;
-                    child.type = subType;
-                    child.relativePath = relativePath;
-                    child.owner = meta.id;
-                    child.name = String(subName);
-                    if (subType == AssetType::Texture)
-                    {
-                        const AssetSubEntry& entry = meta.subAssets[sub];
-                        child.sharedImageKey = MakeSharedImageKey(entry.contentHash, entry.hasTextureOptions ? entry.textureOptions : ModelTextureDefaults());
                     }
                     if (Register(child))
                     {

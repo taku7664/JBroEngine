@@ -46,6 +46,10 @@ namespace JBro
     // 둘 다 같아야 같은 그림으로 묶고, 한쪽 옵션을 바꾸면 열쇠가 달라져 저절로 갈라진다. 해시가 0 이면 0(묶지 않음)이다.
     UInt64 MakeSharedImageKey(UInt64 contentHash, const TextureImportOptions& options);
 
+    // **모델 메타의 하위 항목 하나를 레지스트리 레코드로 짓는다**(material-plan 5 단계). 느슨한 스캔과 패키지의 레지스트리 채우기(`Package::FillRegistry`)가
+    // 같은 길이다 - 그래서 게임의 하위 레코드도 이름과 같은 그림 열쇠를 갖는다. 경로는 모델의 것이고 주인은 모델이다. 키가 `종류/이름` 이 아니면 false.
+    Bool MakeModelSubRecord(const AssetMetaFile& meta, const AssetSubEntry& entry, std::string_view relativePath, AssetRecord& record);
+
     // **에셋 폴더의 모델 파일 하나를 읽는다.** 곁 파일(`.gltf` 의 `.bin`, OBJ 의 `.mtl`)은 모델 폴더 기준으로 플랫폼이 연다(D-112).
     // 목록을 맞추는 쪽(`RefreshModelSubAssets`)과 패키지를 굽는 쪽(`Package::CookAssets`)이 같은 길로 읽는다. 실패하면 `error` 에 영어 한 줄.
     Bool DecodeModelFile(IPlatform& platform, const char* assetRoot, std::string_view relativePath, const ModelImportOptions& options,
