@@ -202,6 +202,8 @@ namespace JBro::ScriptProject
             return "Text3D";
         case FieldType::AudioListener3D:
             return "AudioListener3D";
+        case FieldType::Light3D:
+            return "Light3D";
         case FieldType::AudioSource:
             return "AudioSource";
         default:
@@ -291,6 +293,7 @@ namespace JBro::ScriptProject
         case FieldType::Collider3D:
         case FieldType::Text3D:
         case FieldType::AudioListener3D:
+        case FieldType::Light3D:
             return framework == FrameworkKind::Framework3D;
         case FieldType::Count:
             return false;

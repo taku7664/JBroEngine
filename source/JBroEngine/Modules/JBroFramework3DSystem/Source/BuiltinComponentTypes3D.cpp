@@ -4,6 +4,7 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
@@ -26,6 +27,8 @@ namespace JBro::Component
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<MeshRenderer3D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Text3D>(ComponentCategory::Rendering) && all;
+            // 2D 의 `Light2D` 와 같다 - 한 오브젝트에 여럿(방향광과 환경광을 함께) 붙일 수 있다.
+            all = RegisterComponentType<Light3D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody3D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider3D>(ComponentCategory::Physics) && all;

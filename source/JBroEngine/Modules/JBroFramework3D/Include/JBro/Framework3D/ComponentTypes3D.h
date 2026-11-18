@@ -20,6 +20,31 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 3D 라이트의 종류다(D-353). 값의 차례는 파일과 렌더러의 `Light3DKind` 가 함께 쓰므로 뒤에만 더한다.
+    enum class Light3DType : std::uint8_t
+    {
+        // 캔버스 전체에 같은 빛이다(환경광). 자리·방향을 보지 않는다. 여럿이면 더한다. 2D 의 `Global` 이다.
+        Ambient,
+        // 해처럼 끝없이 먼 빛이다. 오브젝트의 로컬 -Z 쪽으로 간다. 자리를 보지 않는다.
+        Directional,
+        // 둘레로 퍼지는 빛이다.
+        Point,
+        // 오브젝트의 로컬 -Z 를 향한 원뿔이다.
+        Spot,
+    };
+}
+
+namespace JBro
+{
+    JBRO_DEFINE_ENUM_TYPE(Component::Light3DType, "Component::Light3DType",
+        { Component::Light3DType::Ambient,     "Ambient" },
+        { Component::Light3DType::Directional, "Directional" },
+        { Component::Light3DType::Point,       "Point" },
+        { Component::Light3DType::Spot,        "Spot" });
+}
+
+namespace JBro::Component
+{
     // 글자 판이 어디를 보나(D-222). Transform 은 오브젝트의 회전을 따르는 판(간판·벽의 글씨), Billboard 는 늘 카메라를 보는 판(이름표)이다.
     // Billboard 는 오브젝트의 위치와 크기만 쓰고 회전은 뷰마다 카메라의 것으로 바꾼다 - 시뮬레이션 뷰와 편집 뷰가 각자 제 카메라를 본다.
     enum class TextFacing3D : std::uint8_t { Transform, Billboard };

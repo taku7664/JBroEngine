@@ -42,6 +42,47 @@ namespace JBro
         m_droppedMeshCount = 0;
         m_texts.Clear();
         m_droppedTextCount = 0;
+        m_lights.Clear();
+        m_droppedLightCount = 0;
+    }
+
+    Bool RenderWorld3D::ReserveLights(std::size_t capacity)
+    {
+        try
+        {
+            m_lights.Reserve(capacity);
+        }
+        catch (const std::bad_alloc&)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    Bool RenderWorld3D::SubmitLight(const Light3DRenderItem& item)
+    {
+        if (m_lights.Size() >= m_lights.Capacity())
+        {
+            ++m_droppedLightCount;
+            return false;
+        }
+        m_lights.Add(item);
+        return true;
+    }
+
+    std::size_t RenderWorld3D::GetLightCount() const
+    {
+        return m_lights.Size();
+    }
+
+    std::size_t RenderWorld3D::GetDroppedLightCount() const
+    {
+        return m_droppedLightCount;
+    }
+
+    const Light3DRenderItem& RenderWorld3D::GetLight(std::size_t index) const
+    {
+        return m_lights[index];
     }
 
     Bool RenderWorld3D::SubmitText(const WorldTextRenderItem& item)
