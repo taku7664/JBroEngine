@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Localization.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -412,11 +413,11 @@ namespace
 
 JBro::Int32 RunEditorLocalizationTests()
 {
-    TestTheTableFindsAndFallsBack();
-    TestAFailedLoadLeavesTheOldTableStanding();
-    TestTheShippedLocalesAgree();
-    TestTheShippedLocalesAgreeOnFormats();
-    TestEveryKeyIsDeclaredTranslatedAndUsed();
+    JBRO_CASE(TestTheTableFindsAndFallsBack());
+    JBRO_CASE(TestAFailedLoadLeavesTheOldTableStanding());
+    JBRO_CASE(TestTheShippedLocalesAgree());
+    JBRO_CASE(TestTheShippedLocalesAgreeOnFormats());
+    JBRO_CASE(TestEveryKeyIsDeclaredTranslatedAndUsed());
     std::cout << "Editor localization tests passed.\n";
     return 0;
 }

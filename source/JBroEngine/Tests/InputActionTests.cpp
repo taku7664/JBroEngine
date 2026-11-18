@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/InputKeys.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/InputKeys.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Input/InputSystem.h>
@@ -806,22 +807,22 @@ JBro::Int32 RunInputActionTests()
 {
     const JBro::Bool echo = Log::GetEchoToConsole();
     Log::SetEchoToConsole(false);
-    TestEveryNameComesBack();
-    TestBoolActionsCombineTheirButtons();
-    TestVectorActionsComposeAndClamp();
-    TestConsumedDevicesDropOutOfActions();
-    TestAnUnknownActionReadsZeroAndWarnsOnce();
-    TestTheLegacyInputBlocksRead();
-    TestTheInputBlocksWriteBack();
-    TestBadInputBlocksAreRefused();
-    TestActionSetsChooseWhatAKeyMeans();
-    TestTheInputBufferRemembersASignalForAWhile();
-    TestBindingsChangeAtRuntime();
-    TestTheNextPressIsCaptured();
-    TestBindingOverridesWriteAndReadAsText();
-    TestTheServiceCapturesFromTheResidualView();
-    TestActionSetsHaveALimit();
-    TestTheSetIsWrittenOnlyWhenNamed();
+    JBRO_CASE(TestEveryNameComesBack());
+    JBRO_CASE(TestBoolActionsCombineTheirButtons());
+    JBRO_CASE(TestVectorActionsComposeAndClamp());
+    JBRO_CASE(TestConsumedDevicesDropOutOfActions());
+    JBRO_CASE(TestAnUnknownActionReadsZeroAndWarnsOnce());
+    JBRO_CASE(TestTheLegacyInputBlocksRead());
+    JBRO_CASE(TestTheInputBlocksWriteBack());
+    JBRO_CASE(TestBadInputBlocksAreRefused());
+    JBRO_CASE(TestActionSetsChooseWhatAKeyMeans());
+    JBRO_CASE(TestTheInputBufferRemembersASignalForAWhile());
+    JBRO_CASE(TestBindingsChangeAtRuntime());
+    JBRO_CASE(TestTheNextPressIsCaptured());
+    JBRO_CASE(TestBindingOverridesWriteAndReadAsText());
+    JBRO_CASE(TestTheServiceCapturesFromTheResidualView());
+    JBRO_CASE(TestActionSetsHaveALimit());
+    JBRO_CASE(TestTheSetIsWrittenOnlyWhenNamed());
     Log::SetEchoToConsole(echo);
     std::cout << "Input action tests passed.\n";
     return 0;

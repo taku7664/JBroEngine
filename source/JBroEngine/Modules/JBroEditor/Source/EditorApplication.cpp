@@ -4,6 +4,7 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorControlPort.h>
+#include <JBro/Editor/EditorHostArguments.h>
 #include <JBro/Editor/ScriptDebugServer.h>
 #include <JBro/Network/Socket.h>
 #include <JBro/Editor/Command/AssetFileCommands.h>
@@ -46,10 +47,15 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Host/IFramework.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/RenderTextureFile.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -58,12 +64,12 @@
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/TaskProgress.h>
 #include <JBro/Asset/AssetTypeRules.h>
-#include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Editor/Command/SetAssetSourceCommand.h>
 #include <JBro/Asset/MaterialFile.h>
 #include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessProfile.h>
 #include <JBro/ShaderCompiler/ShaderCompiler.h>
+#include <JBro/Editor/Command/SetAssetFileCommand.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -217,6 +223,7 @@ namespace JBro
             m_privateClipboard = false == config.windowVisible;
             m_openPath = config.openPath;
             m_openPathUser = config.openPathUser;
+            m_fileTypeClassesKey = config.fileTypeClassesKey != nullptr ? config.fileTypeClassesKey : "";
             m_platform = MakeOwnerPtr<WindowsPlatform>();
             if (false == m_platform->Initialize(config.memory))
             {
@@ -1128,6 +1135,11 @@ namespace JBro
         return true;
     }
 
+    void EditorApplication::RequestAssetRescan()
+    {
+        m_assetRescanRequested = true;
+    }
+
     Bool EditorApplication::CreateAssetFolder(const char* relativeFolder, const char* name)
     {
         if (name == nullptr || name[0] == '\0' || GetAssetRoot().empty())
@@ -1503,6 +1515,25 @@ namespace JBro
         }
     }
 
+    void EditorApplication::FindSameImages(AssetId asset, Array<const AssetRecord*>& others) const
+    {
+        others.Clear();
+        const AssetRegistry& registry = GetAssetRegistry();
+        const AssetRecord* self = registry.Find(asset);
+        if (self == nullptr || self->sharedImageKey == 0)
+        {
+            return;
+        }
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const AssetRecord& record = registry.GetRecord(index);
+            if (record.id != asset && record.sharedImageKey == self->sharedImageKey)
+            {
+                others.Add(&record);
+            }
+        }
+    }
+
     Bool EditorApplication::TakeBrowserRevealRequest(AssetId& asset)
     {
         if (m_revealInBrowser.IsNull())
@@ -1704,7 +1735,7 @@ namespace JBro
         return m_selectedAssetMetaLoaded ? m_selectedAssetMeta.Get() : nullptr;
     }
 
-    Bool EditorApplication::DescribeSelectedAssetMeta(AssetMetaTarget& target) const
+    Bool EditorApplication::DescribeSelectedAssetMeta(AssetFileTarget& target) const
     {
         if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
         {
@@ -1718,16 +1749,97 @@ namespace JBro
         }
         target.platform = m_platform.Get();
         target.assets = assets;
-        target.metaPath = assets->GetMetaPath(*record);
+        target.path = assets->GetMetaPath(*record);
         target.id = record->id;
         target.spriteId = m_selectedAssetMetaLoaded ? m_selectedAssetMeta->spriteId : AssetId{};
+        // 모델 메타를 쓰면 레지스트리를 다시 훑는다 - 하위 목록이 바뀌었거나(모델 옵션), 내장 그림의 옵션이 묶음 열쇠를 바꿨다(하위 그림 옵션).
+        const AssetRecord* owner = record->owner.IsNull() ? nullptr : m_engine->GetAssetRegistry().Find(record->owner);
+        if (record->type == AssetType::Model || (owner != nullptr && owner->type == AssetType::Model))
+        {
+            target.afterWrite = [](void* user) { static_cast<EditorApplication*>(user)->RequestAssetRescan(); };
+            target.afterWriteUser = const_cast<EditorApplication*>(this);
+        }
+        return true;
+    }
+
+    void EditorApplication::ReloadSelectedMaterial()
+    {
+        m_selectedMaterialLoaded = false;
+        m_selectedMaterialReadOnly = false;
+        m_selectedMaterialText.clear();
+        if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
+        {
+            return;
+        }
+        const AssetRecord* record = m_engine->GetAssetRegistry().Find(m_selectedAsset);
+        AssetSystem* assets = m_engine->GetAssetSystem();
+        if (record == nullptr || assets == nullptr || record->type != AssetType::Material)
+        {
+            return;
+        }
+        if (m_selectedMaterial.Get() == nullptr)
+        {
+            m_selectedMaterial = MakeOwnerPtr<MaterialDesc>();
+        }
+        // 모델의 하위 Material 은 모델의 재질을 옮긴 값이다 - 에셋 시스템이 옮기는 길(그림 칸의 아이디까지)을 그대로 쓴다.
+        if (false == record->owner.IsNull())
+        {
+            const AssetHandle handle = assets->Load(record->id);
+            if (const MaterialData* material = assets->GetMaterial(handle))
+            {
+                *m_selectedMaterial = material->desc;
+                m_selectedMaterialLoaded = true;
+                m_selectedMaterialReadOnly = true;
+            }
+            assets->Release(handle);
+            return;
+        }
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(assets->GetSourcePath(*record).c_str(), bytes))
+        {
+            return;
+        }
+        m_selectedMaterialText = String(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        String error;
+        m_selectedMaterialLoaded = ParseMaterialFile(m_selectedMaterialText.c_str(), m_selectedMaterialText.size(), *m_selectedMaterial, error);
+    }
+
+    const MaterialDesc* EditorApplication::GetSelectedMaterial() const
+    {
+        return m_selectedMaterialLoaded ? m_selectedMaterial.Get() : nullptr;
+    }
+
+    Bool EditorApplication::IsSelectedMaterialReadOnly() const
+    {
+        return m_selectedMaterialReadOnly;
+    }
+
+    Bool EditorApplication::DescribeSelectedMaterialFile(AssetFileTarget& target, String& currentText) const
+    {
+        if (false == m_selectedMaterialLoaded || m_selectedMaterialReadOnly || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const AssetRecord* record = m_engine->GetAssetRegistry().Find(m_selectedAsset);
+        AssetSystem* assets = m_engine->GetAssetSystem();
+        if (record == nullptr || assets == nullptr)
+        {
+            return false;
+        }
+        target.platform = m_platform.Get();
+        target.assets = assets;
+        target.path = assets->GetSourcePath(*record);
+        target.id = record->id;
+        target.name = "Edit Material";
+        currentText = m_selectedMaterialText;
         return true;
     }
 
     void EditorApplication::ReloadSelectedAssetMeta()
     {
+        ReloadSelectedMaterial();
         m_selectedAssetMetaLoaded = false;
-        AssetMetaTarget target;
+        AssetFileTarget target;
         if (false == DescribeSelectedAssetMeta(target))
         {
             return;
@@ -1738,7 +1850,7 @@ namespace JBro
         }
         AssetMetaError error;
         m_selectedAssetMetaLoaded =
-            LoadAssetMetaFile(*target.platform, target.metaPath.c_str(), *m_selectedAssetMeta, error);
+            LoadAssetMetaFile(*target.platform, target.path.c_str(), *m_selectedAssetMeta, error);
     }
 
     Bool EditorApplication::IsScriptModuleLoaded() const
@@ -2339,7 +2451,43 @@ namespace JBro
 
     void EditorApplication::RequestOpenProject()
     {
+        if (false == CanSwitchProject())
+        {
+            Log::Write(LogLevel::Warning, "project", "a project is open; open another .jproject from the file browser instead");
+            return;
+        }
         m_openProjectRequested = true;
+    }
+
+    Bool EditorApplication::CanSwitchProject() const
+    {
+        return m_projectFilePath.empty();
+    }
+
+    Bool EditorApplication::RegisterProjectFileType()
+    {
+        FileTypeAssociation desc;
+        Bool registered = m_platform.Get() != nullptr && MakeProjectFileType(*m_platform, desc);
+        if (registered)
+        {
+            if (false == m_fileTypeClassesKey.empty())
+            {
+                desc.classesKey = m_fileTypeClassesKey;
+            }
+            registered = m_platform->RegisterFileType(desc);
+        }
+        if (registered)
+        {
+            Log::Write(LogLevel::Info, "project", "registered .jproject: %s", desc.command.c_str());
+            OpenPopup(MakeOwnerPtr<MessagePopup>(Loc::TextOr(LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor"),
+                Loc::TextOr(LocKeys::PopupProjectFileTypeRegistered,
+                    "Double-clicking a .jproject file in the file browser now opens it in this editor."),
+                "project_file_type"));
+            return true;
+        }
+        OpenPopup(MakeOwnerPtr<MessagePopup>(Loc::TextOr(LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor"),
+            Loc::TextOr(LocKeys::PopupProjectFileTypeFailed, "The .jproject file type could not be registered."), "project_file_type"));
+        return false;
     }
 
     void EditorApplication::PerformOpenProjectRequest()
@@ -2398,6 +2546,11 @@ namespace JBro
 
     void EditorApplication::RequestNewProject()
     {
+        if (false == CanSwitchProject())
+        {
+            Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
+            return;
+        }
         m_newProjectRequested = true;
     }
 
@@ -2406,7 +2559,7 @@ namespace JBro
         return JBro::CheckProjectName(*m_platform, parentFolder, name);
     }
 
-    void EditorApplication::AddStarterCamera()
+    void EditorApplication::AddStarterObjects()
     {
         // **새 프로젝트의 빈 캔버스에는 카메라 하나를 둔다**(사용자 시나리오 A). 없으면 첫 스크립트를 붙여 실행해도 시뮬레이션 뷰가
         // `카메라가 없습니다` 만 보여, 스크립트가 도는지 알 수 없다. 이미 무언가 있으면(열던 캔버스) 건드리지 않는다.
@@ -2422,10 +2575,34 @@ namespace JBro
         }
         if (m_frameworkKind == FrameworkKind::Framework3D)
         {
-            canvas->AttachComponent<Component::Transform3D>(camera);
+            // **3D 의 카메라는 캔버스 뷰가 처음 서는 궤도 자리에 선다**(D-388). 원점에 회전 없이 두면 -Z 만 보고 바닥도 큐브도 비껴,
+            // 실행해도 바탕색만 보였다. 편집 화면과 실행 화면이 같아야 둘을 오가며 헷갈리지 않는다(2D 의 크기 5 와 같은 까닭).
+            // 자리는 `EditorViewDesc` 의 처음 값에서 `SubmitEditorView3D` 와 같은 식으로 낸다.
+            const EditorViewDesc view;
+            constexpr Float Degrees = 3.14159265f / 180.0f;
+            const Quaternion rotation = FromEuler(Vector3{view.pitchDegrees * Degrees, view.yawDegrees * Degrees, 0.0f});
+            const Vector3 forward = Rotate(rotation, Vector3{0.0f, 0.0f, -1.0f});
+            if (auto* transform = canvas->AttachComponent<Component::Transform3D>(camera))
+            {
+                transform->position = Vector3{view.centerX - forward.x * view.distance, view.centerY - forward.y * view.distance,
+                    view.centerZ - forward.z * view.distance};
+                transform->rotation = rotation;
+            }
             if (auto* lens = canvas->AttachComponent<Component::Camera3D>(camera))
             {
                 lens->primary = true;
+                lens->verticalFieldOfView = view.verticalFieldOfView;
+            }
+            // 볼 것이 하나 있어야 실행했을 때 그려지는지 안다. 스크립트를 붙일 자리도 된다.
+            Object::GameObject* cube = canvas->CreateObject("Cube");
+            if (cube == nullptr)
+            {
+                return;
+            }
+            canvas->AttachComponent<Component::Transform3D>(cube);
+            if (auto* mesh = canvas->AttachComponent<Component::MeshRenderer3D>(cube))
+            {
+                mesh->meshId = MeshLibrary::BuiltinCubeId();
             }
             return;
         }
@@ -2447,7 +2624,7 @@ namespace JBro
             m_pendingProjectPath.clear();
             if (SwitchToProject(path.c_str()))
             {
-                AddStarterCamera();
+                AddStarterObjects();
                 // 스크립트 자리도 처음부터 둔다(사용자 시나리오 C). 에셋 브라우저의 `스크립트` 뿌리가 디스크의 폴더와 맞고,
                 // `.jscript` 를 편집기에서 바로 만들 곳이 생긴다.
                 const String scripts = GetScriptRoot();
@@ -2627,6 +2804,12 @@ namespace JBro
     Bool EditorApplication::CreateProject(
         const char* parentFolder, const char* name, FrameworkKind framework, ProjectCreateFailure* failure)
     {
+        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-389). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
+        if (false == CanSwitchProject())
+        {
+            Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
+            return false;
+        }
         String path;
         ProjectFileError error;
         if (false == CreateProjectFile(*m_platform, parentFolder, name, framework, EngineVersionText, path, error))
@@ -2988,7 +3171,7 @@ namespace JBro
                 text = profile->text;
                 return true;
             }
-            if (const MaterialAssetData* material = assets->GetMaterial(assets->Find(asset)))
+            if (const MaterialData* material = assets->GetMaterial(assets->Find(asset)))
             {
                 text = material->text;
                 return true;
@@ -3130,6 +3313,26 @@ namespace JBro
             assets->ReloadInPlace(shader->id);
         }
         return true;
+    }
+
+    String EditorApplication::CreateStandardMaterialAsset(const char* folder)
+    {
+        String text;
+        if (false == FormatMaterialFile(MaterialDesc{}, text))
+        {
+            return String();
+        }
+        const String created = WriteNewAssetFile(folder, "NewMaterial", ".jmat", text);
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
     }
 
     String EditorApplication::CreateFontFamilyAsset(const char* folder)
@@ -6244,14 +6447,23 @@ namespace JBro
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             // 기존과 같은 차례다: 새 프로젝트 · 구분선 · 열기 · 저장.
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
+            // **프로젝트가 열려 있으면 다른 프로젝트를 들이는 항목은 없다**(D-389). 다른 프로젝트는 그 `.jproject` 를 두 번 눌러 새 에디터로 연다.
+            if (CanSwitchProject())
             {
-                RequestNewProject();
-            }
-            ImGui::Separator();
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
-            {
-                RequestOpenProject();
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
+                {
+                    RequestNewProject();
+                }
+                ImGui::Separator();
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
+                {
+                    RequestOpenProject();
+                }
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor")))
+                {
+                    RegisterProjectFileType();
+                }
+                ImGui::Separator();
             }
             EditorActionContext documentContext;
             documentContext.editor = this;
@@ -7349,6 +7561,20 @@ namespace JBro
                     popup.OnEnter(*this);
                 }
                 popup.OnDraw(*this);
+                // **붙드는 프레임이 지난 뒤에 크기가 바뀌어도, 사람이 옮기지 않았으면 다시 가운데에 붙든다.** 내용에 맞추는 높이가
+                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-389 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
+                const ImVec2 size = ImGui::GetWindowSize();
+                const ImVec2 pos = ImGui::GetWindowPos();
+                const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                const Bool resized = size.x != popup.m_lastWidth || size.y != popup.m_lastHeight;
+                const Bool stillCentered = std::fabs(pos.x + popup.m_lastWidth * 0.5f - center.x) < 1.0f
+                    && std::fabs(pos.y + popup.m_lastHeight * 0.5f - center.y) < 1.0f;
+                if (popup.m_framesShown >= SettleFrames && resized && stillCentered)
+                {
+                    popup.m_framesShown = 0;
+                }
+                popup.m_lastWidth = size.x;
+                popup.m_lastHeight = size.y;
                 // **Esc 는 취소다**(사용자 시나리오 B). 닫기 단추(X)가 있는 팝업은 Esc 로도 닫힌다 - 이름 칸에 글자를 치던 중이어도 그렇다.
                 // 단추가 없는 것(진행 표시)은 코드로만 닫히므로 Esc 를 받지 않는다.
                 if (popup.HasCloseButton() && popup.IsAlive() && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
@@ -7729,6 +7955,11 @@ namespace JBro
         }
         PerformOpenProjectRequest();
         PerformNewProjectRequest();
+        if (m_assetRescanRequested)
+        {
+            m_assetRescanRequested = false;
+            RescanAssets();
+        }
         PerformBrowseRequest();
         PerformImportRequest();
         PerformOpenCanvasRequest();

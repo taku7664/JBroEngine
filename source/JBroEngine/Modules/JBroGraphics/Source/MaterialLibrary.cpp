@@ -240,7 +240,7 @@ namespace JBro
 
     Bool MaterialLibrary::IsStale(const Material& material) const
     {
-        const MaterialAssetData* data = m_assets->GetMaterial(material.asset);
+        const MaterialData* data = m_assets->GetMaterial(material.asset);
         if (data == nullptr || data->dataGeneration != material.dataGeneration)
         {
             return true;
@@ -279,7 +279,7 @@ namespace JBro
                 material.renderer = {};
             }
         };
-        const MaterialAssetData* data = m_assets->GetMaterial(material.asset);
+        const MaterialData* data = m_assets->GetMaterial(material.asset);
         if (data == nullptr)
         {
             material.dataGeneration = 0;
@@ -327,7 +327,7 @@ namespace JBro
             fail(why.c_str());
             return;
         }
-        MaterialDesc desc;
+        ShaderMaterialDesc desc;
         desc.shader = &compiled->result;
         BuildParameterBlock(compiled->result, document, material.baseBlock);
         // 덮어쓰기와 볼륨 섞기가 쓸 것을 지을 때 한 번 떠 둔다 - 이름은 번호로, 칸은 종류로.
@@ -460,7 +460,7 @@ namespace JBro
         {
             return;
         }
-        MaterialDesc desc;
+        ShaderMaterialDesc desc;
         desc.shader = &material.compiled->result;
         desc.parameters = {material.liveBlock.Data(), static_cast<JBro::UInt32>(material.liveBlock.Size())};
         for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
@@ -540,7 +540,7 @@ namespace JBro
                 std::memcpy(instance.block.Data(), material->liveBlock.Data(), material->liveBlock.Size());
             }
             LayOverrides(*material, instance.owner, instance.block);
-            MaterialDesc desc;
+            ShaderMaterialDesc desc;
             desc.shader = &material->compiled->result;
             desc.parameters = {instance.block.Data(), static_cast<JBro::UInt32>(instance.block.Size())};
             for (UInt32 at = 0; at < MaxMaterialTextures; ++at)
@@ -686,7 +686,9 @@ namespace JBro
                 return material.renderer;
             }
         }
-        if (m_assets->GetMaterial(materialAsset) == nullptr)
+        // 표준 머티리얼(D-399)은 3D 프레임워크의 `MeshMaterialLibrary` 가 푼다 - 여기서는 셰이더 머티리얼만이다.
+        const MaterialData* asset = m_assets->GetMaterial(materialAsset);
+        if (asset == nullptr || asset->standard)
         {
             return {};
         }

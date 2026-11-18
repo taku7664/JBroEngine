@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestCases.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -416,7 +417,7 @@ namespace
 
 JBro::Int32 RunScriptFaultTests()
 {
-    TestScriptFaultsNeverTakeTheEditorDown();
+    JBRO_CASE(TestScriptFaultsNeverTakeTheEditorDown());
     std::cout << "ScriptFault tests passed.\n";
     return 0;
 }

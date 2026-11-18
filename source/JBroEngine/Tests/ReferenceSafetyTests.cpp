@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/InstanceIdGenerator.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/InstanceIdGenerator.h>
 #include <JBro/Core/ObjectPool.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Internal/InstanceRegistry.h>
@@ -435,15 +436,15 @@ namespace
 
 JBro::Int32 RunReferenceSafetyTests()
 {
-    TestSafePtrExpiresWithOwner();
-    TestInstanceIdGeneratorSequenceAndOverflow();
-    TestObjectPoolAddressStabilityAndLifetime();
-    TestObjectPoolUsesItsSuppliedAllocatorForChunks();
-    TestReservedPoolSpawnDoesNotAllocate();
-    TestObjectPoolRejectsUnrepresentableCapacity();
-    TestRefUsesHandleCacheBeforePersistentLookup();
-    TestCanvasObjectComponentAndHandleRoundTrip();
-    TestCanvasIdsAreUniqueAcrossCanvases();
+    JBRO_CASE(TestSafePtrExpiresWithOwner());
+    JBRO_CASE(TestInstanceIdGeneratorSequenceAndOverflow());
+    JBRO_CASE(TestObjectPoolAddressStabilityAndLifetime());
+    JBRO_CASE(TestObjectPoolUsesItsSuppliedAllocatorForChunks());
+    JBRO_CASE(TestReservedPoolSpawnDoesNotAllocate());
+    JBRO_CASE(TestObjectPoolRejectsUnrepresentableCapacity());
+    JBRO_CASE(TestRefUsesHandleCacheBeforePersistentLookup());
+    JBRO_CASE(TestCanvasObjectComponentAndHandleRoundTrip());
+    JBRO_CASE(TestCanvasIdsAreUniqueAcrossCanvases());
     std::cout << "Reference safety tests passed.\n";
     return 0;
 }

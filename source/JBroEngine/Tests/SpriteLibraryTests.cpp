@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -333,7 +334,7 @@ namespace
 
 JBro::Int32 RunSpriteLibraryTests()
 {
-    TestTheLibraryUploadsOnceAndFollowsFrames();
+    JBRO_CASE(TestTheLibraryUploadsOnceAndFollowsFrames());
     std::cout << "Sprite library tests passed.\n";
     return 0;
 }

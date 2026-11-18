@@ -36,6 +36,11 @@ namespace JBro::Widget
         ImGui::PopTextWrapPos();
     }
 
+    Bool LinkText(const char* text)
+    {
+        return ImGui::TextLink(text != nullptr ? text : "");
+    }
+
     void HintText(const char* text)
     {
         // `TextDisabled(text)` 는 글자를 서식으로 읽는다. 파일 이름에 `%` 가 있으면 깨진다.

@@ -252,6 +252,12 @@ Entries:
   inspector.font_import_options: "Font Import Options"
   inspector.font_family_faces: "Font Family"
   inspector.string_table: "String Table"
+  inspector.model_import_options: "Model Import Options"
+  inspector.same_image: "Same Image"
+  inspector.material: "Material"
+  inspector.model_material_read_only: "This material comes from the model file and cannot be edited here"
+  inspector.same_image_split_note: "Changing the options reads this image apart from its same images"
+  inspector.owner_model: "Model"
   inspector.no_string_key: "(none)"
   inspector.audio_format: "Format"
   inspector.audio_length: "Length"
@@ -621,8 +627,15 @@ Entries:
   sprite_viewer.select: Select
   assets.icon_view: Icons
   assets.list_view: List
+  assets.expand: Show sub-assets
+  assets.collapse: Hide sub-assets
+  assets.new_standard_material: New Standard Material
+  assets.same_image_tooltip: The same image is also embedded in
   assets.view_tooltip: switch between the list and the icons
   menu.new_project: New Project
+  menu.register_project_file_type: Open .jproject Files with This Editor
+  popup.project_file_type_registered: Double-clicking a .jproject file in the file browser now opens it in this editor.
+  popup.project_file_type_failed: The .jproject file type could not be registered.
   dialog.new_project_folder: Choose a folder for the project
   new_project.location: Location
   new_project.name: Name

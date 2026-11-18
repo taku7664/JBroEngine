@@ -51,7 +51,7 @@
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
-#include <JBro/Editor/Command/SetAssetMetaCommand.h>
+#include <JBro/Editor/Command/SetAssetFileCommand.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
@@ -68,6 +68,9 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Asset/MaterialFile.h>
+#include <JBro/Asset/ModelImport.h>
 
 namespace JBro
 {
@@ -972,6 +975,17 @@ namespace JBro
         choices->revision = registry.GetRevision();
         choices->names.Clear();
         choices->ids.Clear();
+        // **빌트인 도형이 메시 목록의 앞에 선다**(D-388 우선순위 2). 레지스트리에 없는 아이디라, 넣지 않으면 새 프로젝트의 큐브가
+        // `(없는 에셋)` 으로 보였다(시나리오 D). 파일 에셋과 겹치지 않게 이름에 경로가 없다.
+        if (type == AssetType::Mesh || also == AssetType::Mesh)
+        {
+            for (UInt32 index = 0; index < MeshLibrary::GetBuiltinCount(); ++index)
+            {
+                const MeshLibrary::BuiltinMesh builtin = MeshLibrary::GetBuiltin(index);
+                choices->names.Add(String(builtin.name));
+                choices->ids.Add(builtin.id);
+            }
+        }
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);
@@ -979,7 +993,18 @@ namespace JBro
             {
                 continue;
             }
-            choices->names.Add(record.relativePath);
+            // 모델의 하위 에셋(D-391)은 경로가 모델과 같다. 이름을 붙여야 칸에서 갈린다.
+            if (record.name.empty())
+            {
+                choices->names.Add(record.relativePath);
+            }
+            else
+            {
+                String label = record.relativePath;
+                label += " / ";
+                label += record.name;
+                choices->names.Add(std::move(label));
+            }
             choices->ids.Add(record.id);
         }
         choices->namePointers.Clear();
@@ -1578,7 +1603,13 @@ namespace JBro
 
     void InspectorPanel::DrawAsset(const AssetMetaFile& meta)
     {
-        const AssetRecord* record = m_editor->GetAssetRegistry().Find(meta.id);
+        // **모델의 하위 에셋을 골랐으면 그것을 보인다**(model-import-plan 5 단계). 메타는 모델의 것이고(하위 에셋은 제 메타가 없다),
+        // 머리·그림·옵션은 고른 하위 에셋의 것이다. 그림의 Sprite 는 그림 파일의 인스펙터 그대로다(두 블록이 한 파일의 옵션이다).
+        const AssetRegistry& registry = m_editor->GetAssetRegistry();
+        const AssetRecord* selected = registry.Find(m_editor->GetSelectedAsset());
+        const AssetRecord* owner = meta.type == AssetType::Model && selected != nullptr && selected->owner == meta.id ? registry.Find(meta.id) : nullptr;
+        const AssetRecord* record = owner != nullptr ? selected : registry.Find(meta.id);
+        const AssetId shownId = record != nullptr ? record->id : meta.id;
         // **무엇을 보고 있는지 머리에 적는다**(D-173, 기존 에셋 인스펙터의 첫 네 줄).
         // 경로 한 줄만 있으면 그 파일이 어떤 종류로 등록되었는지, 번호가 무엇인지 알 길이
         // 에디터 안에 없었다 - `.jmeta` 를 직접 열어 봐야 했다.
@@ -1587,7 +1618,12 @@ namespace JBro
             const char* path = record != nullptr ? record->relativePath.c_str() : "?";
             const char* leaf = EditorPaths::LeafOfPath(path);
             header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetName, "Asset")),
-                [&]() { Widget::WrappedText(leaf != nullptr ? leaf : path); });
+                [&]() { Widget::WrappedText(owner != nullptr ? record->name.c_str() : (leaf != nullptr ? leaf : path)); });
+            if (owner != nullptr)
+            {
+                header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorOwnerModel, "Model")),
+                    [&]() { Widget::WrappedText(leaf != nullptr ? leaf : path); });
+            }
             header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetType, "Type")),
                 [&]() {
                     const AssetType type = record != nullptr ? record->type : AssetType::Unknown;
@@ -1599,7 +1635,7 @@ namespace JBro
             header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetId, "Id")),
                 [&]() {
                     char text[Uuid::TextCapacity] = {};
-                    if (meta.id.ToText(text, sizeof(text)))
+                    if (shownId.ToText(text, sizeof(text)))
                     {
                         // 32 자리라 좁은 칸에서는 한 줄에 들어가지 않는다. 잘라 보이면
                         // 그 번호로 파일을 찾을 수 없다.
@@ -1611,7 +1647,7 @@ namespace JBro
 
         // **그림을 보여 준다**(D-147, 기존 `AssetInspectorPreview` 자리). 임포트 옵션을
         // 고치는 자리에 그림이 없으면 무엇을 고치고 있는지 이름으로만 알아야 한다.
-        const TextureHandle preview = m_editor->GetAssetThumbnail(meta.id);
+        const TextureHandle preview = m_editor->GetAssetThumbnail(shownId);
         if (preview.IsValid())
         {
             // 칸 너비에 맞추되 원본 비율을 지킨다. 늘여 붙이면 픽셀 아트가 기울어 보인다.
@@ -1619,7 +1655,7 @@ namespace JBro
             const Float side = width < PreviewMaxSide ? width : PreviewMaxSide;
             UInt32 sourceWidth = 0;
             UInt32 sourceHeight = 0;
-            m_editor->GetAssetSourceSize(meta.id, sourceWidth, sourceHeight);
+            m_editor->GetAssetSourceSize(shownId, sourceWidth, sourceHeight);
             Widget::Image(preview, Widget::FitInside(sourceWidth, sourceHeight, ImVec2(side, side)));
             ImGui::Spacing();
         }
@@ -1647,7 +1683,9 @@ namespace JBro
             DrawPostProcessProfile(meta);
             ImGui::Spacing();
         }
-        if (meta.type == AssetType::Material)
+        // `.jmat` 은 두 갈래다(2026-11-19 main 통합). 표준 머티리얼(D-399)은 아래 `DrawAssetOptions` 의 머티리얼 블록이 그리고,
+        // 셰이더 머티리얼(D-347)은 여기서 셰이더·파라미터·텍스처를 그린다. 에디터가 표준 머티리얼로 읽지 못한 것이 셰이더 머티리얼이다.
+        if (meta.type == AssetType::Material && m_editor->GetSelectedMaterial() == nullptr)
         {
             DrawMaterial(meta);
             ImGui::Spacing();
@@ -1672,7 +1710,109 @@ namespace JBro
             }
             ImGui::Spacing();
         }
+        if (owner != nullptr)
+        {
+            DrawSubAssetOptions(meta, *record);
+            return;
+        }
         DrawAssetOptions(meta);
+    }
+
+    void InspectorPanel::DrawSubAssetOptions(const AssetMetaFile& meta, const AssetRecord& record)
+    {
+        // 메시·재질은 제 옵션이 없다 - 모델의 옵션이 정한다(모델을 고르면 보인다). 내장 그림은 그림마다 텍스처 옵션이 있다.
+        std::size_t subIndex = meta.subAssets.Size();
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            if (meta.subAssets[index].id == record.id)
+            {
+                subIndex = index;
+            }
+        }
+        // **모델의 재질은 보이되 고치지 않는다**(D-399 (2)). 파일에서 온 값이라 여기서 고쳐도 다시 가져오면 사라진다 - 고치려면 재질을 꺼내야 한다(뒤).
+        if (record.type == AssetType::Material)
+        {
+            const MaterialDesc* shown = m_editor->GetSelectedMaterial();
+            if (shown == nullptr)
+            {
+                return;
+            }
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorModelMaterialReadOnly, "This material comes from the model file and cannot be edited here"));
+            MaterialDesc copy = *shown;
+            AssetEditScope readOnly;
+            readOnly.block = AssetEditScope::Block::Material;
+            Context context;
+            context.asset = &readOnly;
+            ImGui::PushID("##modelMaterial");
+            if (Widget::CollapsingSection(Loc::TextOr(LocKeys::InspectorMaterial, "Material")))
+            {
+                Widget::DisableScope disabled(true);
+                Widget::FormLayout layout("##import");
+                const TypeDescriptor& type = TypeDescriptorOf<MaterialDesc>::Get();
+                if (type.fields != nullptr)
+                {
+                    DrawFieldsInto(layout, *type.fields, &copy, context);
+                }
+            }
+            ImGui::PopID();
+            return;
+        }
+        if (record.type != AssetType::Texture || subIndex == meta.subAssets.Size())
+        {
+            return;
+        }
+        AssetMetaFile scratch = meta;
+        AssetSubEntry& entry = scratch.subAssets[subIndex];
+        if (false == entry.hasTextureOptions)
+        {
+            entry.textureOptions = ModelTextureDefaults();
+        }
+        AssetEditScope scope;
+        scope.scratch = &scratch;
+        scope.block = AssetEditScope::Block::SubTexture;
+        scope.subIndex = subIndex;
+        Context context;
+        context.asset = &scope;
+
+        // **같은 그림**(model-import-plan §2.5). 다른 모델에 든 같은 그림(원본과 옵션이 같음)을 줄마다 보이고, 누르면 브라우저가 그것을 찾아 준다.
+        Array<const AssetRecord*> same;
+        m_editor->FindSameImages(record.id, same);
+        if (same.Size() > 0)
+        {
+            Widget::FormLayout layout("##sameImage");
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorSameImage, "Same Image")),
+                [&]() {
+                    for (std::size_t index = 0; index < same.Size(); ++index)
+                    {
+                        ImGui::PushID(static_cast<int>(index));
+                        String label = same[index]->relativePath;
+                        label += " / ";
+                        label += same[index]->name;
+                        if (Widget::LinkText(label.c_str()))
+                        {
+                            m_editor->RevealAssetInBrowser(same[index]->id);
+                        }
+                        ImGui::PopID();
+                    }
+                });
+        }
+
+        ImGui::PushID("##subTexture");
+        if (Widget::CollapsingSection(Loc::TextOr(LocKeys::InspectorTextureImportOptions, "Texture Import Options")))
+        {
+            Widget::FormLayout layout("##import");
+            const TypeDescriptor& type = TypeDescriptorOf<TextureImportOptions>::Get();
+            if (type.fields != nullptr)
+            {
+                DrawFieldsInto(layout, *type.fields, &entry.textureOptions, context);
+            }
+        }
+        ImGui::PopID();
+        // 묶인 그림의 옵션을 고치면 그 그림만 따로 읽는다. 막지 않고 알린다 - 일부러 다르게 읽고 싶을 수 있다.
+        if (same.Size() > 0)
+        {
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorSameImageSplitNote, "Changing the options reads this image apart from its same images"));
+        }
     }
 
     void InspectorPanel::DrawAssetOptions(const AssetMetaFile& meta)
@@ -1687,16 +1827,11 @@ namespace JBro
 
         const Bool image = AssetTypeRules::IsImageType(meta.type);
         Int32 slot = 0;
-        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, Bool spriteBlock,
-                                     Bool audioBlock = false, Bool fontBlock = false, Bool fontFamilyBlock = false,
-                                     Bool stringTableBlock = false) {
+        using Block = AssetEditScope::Block;
+        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, Block block) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
-            scope.spriteBlock = spriteBlock;
-            scope.audioBlock = audioBlock;
-            scope.fontBlock = fontBlock;
-            scope.fontFamilyBlock = fontFamilyBlock;
-            scope.stringTableBlock = stringTableBlock;
+            scope.block = block;
             if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
@@ -1707,35 +1842,51 @@ namespace JBro
         if (meta.type == AssetType::Texture)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorTextureImportOptions, "Texture Import Options"),
-                TypeDescriptorOf<TextureImportOptions>::Get(), &scratch.textureOptions, false);
+                TypeDescriptorOf<TextureImportOptions>::Get(), &scratch.textureOptions, Block::Texture);
         }
         if (image)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorSpriteImportOptions, "Sprite Import Options"),
-                TypeDescriptorOf<SpriteImportOptions>::Get(), &scratch.spriteOptions, true);
+                TypeDescriptorOf<SpriteImportOptions>::Get(), &scratch.spriteOptions, Block::Sprite);
         }
         if (meta.type == AssetType::Audio)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorAudioImportOptions, "Audio Import Options"),
-                TypeDescriptorOf<AudioImportOptions>::Get(), &scratch.audioOptions, false, true);
+                TypeDescriptorOf<AudioImportOptions>::Get(), &scratch.audioOptions, Block::Audio);
         }
         // 폰트의 PPU·필터(D-200). 고치면 제자리 재로드로 글자가 새 크기로 다시 뜬다.
         if (meta.type == AssetType::Font)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorFontImportOptions, "Font Import Options"),
-                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);
+                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, Block::Font);
         }
         // 폰트 패밀리의 네 칸(D-225). 고치면 제자리 재로드로 칸의 폰트가 바뀌고, 그 패밀리를 쓰는 텍스트가 다시 레이아웃된다.
         if (meta.type == AssetType::FontFamily)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorFontFamilyFaces, "Font Family"),
-                TypeDescriptorOf<FontFamilyOptions>::Get(), &scratch.fontFamilyOptions, false, false, false, true);
+                TypeDescriptorOf<FontFamilyOptions>::Get(), &scratch.fontFamilyOptions, Block::FontFamily);
         }
         // 문자열 표의 로케일(D-226). 고치면 제자리 재로드로 표가 다른 언어의 것이 되고, 키가 있는 텍스트가 다시 레이아웃된다.
         if (meta.type == AssetType::StringTable)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorStringTable, "String Table"),
-                TypeDescriptorOf<StringTableOptions>::Get(), &scratch.stringTableOptions, false, false, false, false, true);
+                TypeDescriptorOf<StringTableOptions>::Get(), &scratch.stringTableOptions, Block::StringTable);
+        }
+        // **재질 파일의 값**(material-plan 4 단계). 메타가 아니라 `.jmat` 본문이다 - 고치면 그 파일을 쓰는 커맨드다(되돌리면 옛 글자).
+        // 그림 칸은 `...TextureId` 라 Texture 목록이 붙고(칸 이름의 마지막 낱말), 기본색·발광은 색 고르개가 견본이다.
+        MaterialDesc material;
+        if (meta.type == AssetType::Material && m_editor->GetSelectedMaterial() != nullptr && false == m_editor->IsSelectedMaterialReadOnly())
+        {
+            material = *m_editor->GetSelectedMaterial();
+            scope.material = &material;
+            drawBlock(Loc::TextOr(LocKeys::InspectorMaterial, "Material"),
+                TypeDescriptorOf<MaterialDesc>::Get(), &material, Block::Material);
+        }
+        // 모델의 임포트 옵션(D-392). 고치면 하위 목록을 새 옵션으로 다시 맞춰 같은 커맨드에 담는다 - `importMaterials` 를 끄면 재질 하위 에셋이 빠지고, 되돌리면 같은 아이디로 돌아온다.
+        if (meta.type == AssetType::Model)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorModelImportOptions, "Model Import Options"),
+                TypeDescriptorOf<ModelImportOptions>::Get(), &scratch.modelOptions, Block::Model);
         }
     }
 
@@ -2283,8 +2434,22 @@ namespace JBro
             }
             return;
         }
+        // 재질 파일은 메타가 아니라 그 파일을 쓴다. 모델의 재질(편집본이 없다)은 읽기 전용이라 아무 일도 없다.
+        if (context.asset != nullptr && context.asset->block == AssetEditScope::Block::Material)
+        {
+            AssetFileTarget target;
+            String before;
+            String after;
+            if (context.asset->material == nullptr || false == m_editor->DescribeSelectedMaterialFile(target, before)
+                || false == FormatMaterialFile(*context.asset->material, after) || before == after)
+            {
+                return;
+            }
+            m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetFileCommand>(target, before, after));
+            return;
+        }
         const AssetMetaFile* original = m_editor->GetSelectedAssetMeta();
-        AssetMetaTarget target;
+        AssetFileTarget target;
         if (original == nullptr || context.asset == nullptr || context.asset->scratch == nullptr
             || false == m_editor->DescribeSelectedAssetMeta(target))
         {
@@ -2292,29 +2457,47 @@ namespace JBro
         }
         // 고친 블록은 이제 파일에 있어야 한다.
         AssetMetaFile& scratch = *context.asset->scratch;
-        if (context.asset->spriteBlock)
+        using Block = AssetEditScope::Block;
+        switch (context.asset->block)
         {
+        case Block::Sprite:
             scratch.hasSpriteOptions = true;
-        }
-        else if (context.asset->audioBlock)
-        {
+            break;
+        case Block::Audio:
             scratch.hasAudioOptions = true;
-        }
-        else if (context.asset->fontBlock)
-        {
+            break;
+        case Block::Font:
             scratch.hasFontOptions = true;
-        }
-        else if (context.asset->fontFamilyBlock)
-        {
+            break;
+        case Block::FontFamily:
             scratch.hasFontFamilyOptions = true;
-        }
-        else if (context.asset->stringTableBlock)
-        {
+            break;
+        case Block::StringTable:
             scratch.hasStringTableOptions = true;
-        }
-        else
+            break;
+        case Block::Model:
         {
+            scratch.hasModelOptions = true;
+            // 하위 목록을 새 옵션으로 맞춘다. 읽히지 않으면 옵션만 바꾸고 목록은 둔다 - 고치는 손을 막지 않는다.
+            const AssetRecord* record = m_editor->GetAssetRegistry().Find(target.id);
+            Bool changed = false;
+            String error;
+            if (record != nullptr && target.platform != nullptr)
+            {
+                RefreshModelSubAssets(*target.platform, m_editor->GetAssetRoot().c_str(), record->relativePath, scratch, changed, error);
+            }
+            break;
+        }
+        case Block::SubTexture:
+            if (context.asset->subIndex < scratch.subAssets.Size())
+            {
+                scratch.subAssets[context.asset->subIndex].hasTextureOptions = true;
+            }
+            break;
+        case Block::Texture:
+        default:
             scratch.hasTextureOptions = true;
+            break;
         }
         const String before = FormatAssetMetaFile(*original);
         const String after = FormatAssetMetaFile(scratch);
@@ -2322,7 +2505,7 @@ namespace JBro
         {
             return;
         }
-        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetMetaCommand>(target, before, after));
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetFileCommand>(target, before, after));
     }
 
     void InspectorPanel::CommitEdit(

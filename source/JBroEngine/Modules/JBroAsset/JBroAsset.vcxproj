@@ -26,7 +26,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>$(JBroMiniaudioDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroThirdPartyDir)stb;$(JBroThirdPartyDir)miniaudio;$(JBroThirdPartyDir)nlohmann-json;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroThirdPartyDir)stb;$(JBroThirdPartyDir)miniaudio;$(JBroThirdPartyDir)ufbx;$(JBroThirdPartyDir)cgltf;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -36,7 +36,6 @@
     <ClCompile Include="Source\**\*.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(JBroThirdPartyDir)nlohmann-json\nlohmann-json.vcxproj"><Project>{1a000040-0000-4000-8000-000000004a50}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroAssetTypes\JBroAssetTypes.vcxproj">
       <Project>{1a000012-0000-4000-8000-0000000a5570}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
@@ -51,6 +50,10 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
       <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)ufbx\ufbx.vcxproj">
+      <Project>{1b000003-0000-4000-8000-0000000fb0c0}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>

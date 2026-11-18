@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Graphics/Renderer.h>
@@ -682,27 +683,27 @@ namespace
 
 JBro::Int32 RunLight2DPixelTests()
 {
-    TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::D3D12RHIModule>();
-    TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::D3D11RHIModule>();
-    TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::VulkanRHIModule>();
-    TestSoftShadowsWidenWithDistance<JBro::D3D12RHIModule>();
-    TestSoftShadowsWidenWithDistance<JBro::D3D11RHIModule>();
-    TestSoftShadowsWidenWithDistance<JBro::VulkanRHIModule>();
-    TestEachViewShadowsWithItsOwnEdges<JBro::D3D12RHIModule>();
-    TestEachViewShadowsWithItsOwnEdges<JBro::D3D11RHIModule>();
-    TestEachViewShadowsWithItsOwnEdges<JBro::VulkanRHIModule>();
-    TestShadowEdgesBlockTheLight<JBro::D3D12RHIModule>();
-    TestShadowEdgesBlockTheLight<JBro::D3D11RHIModule>();
-    TestShadowEdgesBlockTheLight<JBro::VulkanRHIModule>();
-    TestAPointLightAndTheAmbientLightTheLitSprites<JBro::D3D12RHIModule>();
-    TestAPointLightAndTheAmbientLightTheLitSprites<JBro::D3D11RHIModule>();
-    TestAPointLightAndTheAmbientLightTheLitSprites<JBro::VulkanRHIModule>();
-    TestASpotLightLightsItsCone<JBro::D3D12RHIModule>();
-    TestASpotLightLightsItsCone<JBro::D3D11RHIModule>();
-    TestASpotLightLightsItsCone<JBro::VulkanRHIModule>();
-    TestTheLightMapHoldsBrightLightAndWorksInsideLayers<JBro::D3D12RHIModule>();
-    TestTheLightMapHoldsBrightLightAndWorksInsideLayers<JBro::D3D11RHIModule>();
-    TestTheLightMapHoldsBrightLightAndWorksInsideLayers<JBro::VulkanRHIModule>();
+    JBRO_CASE(TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestAShadowFromTheStartCastsOnTheSecondFrame<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestSoftShadowsWidenWithDistance<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestSoftShadowsWidenWithDistance<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestSoftShadowsWidenWithDistance<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestEachViewShadowsWithItsOwnEdges<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestEachViewShadowsWithItsOwnEdges<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestEachViewShadowsWithItsOwnEdges<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestShadowEdgesBlockTheLight<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestShadowEdgesBlockTheLight<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestShadowEdgesBlockTheLight<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestAPointLightAndTheAmbientLightTheLitSprites<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestAPointLightAndTheAmbientLightTheLitSprites<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestAPointLightAndTheAmbientLightTheLitSprites<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestASpotLightLightsItsCone<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestASpotLightLightsItsCone<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestASpotLightLightsItsCone<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestTheLightMapHoldsBrightLightAndWorksInsideLayers<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestTheLightMapHoldsBrightLightAndWorksInsideLayers<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestTheLightMapHoldsBrightLightAndWorksInsideLayers<JBro::VulkanRHIModule>());
     std::cout << "Light 2D pixel tests passed.\n";
     return 0;
 }

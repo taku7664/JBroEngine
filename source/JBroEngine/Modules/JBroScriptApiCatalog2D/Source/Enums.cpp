@@ -648,6 +648,14 @@ void AddEnums(ApiCatalog& catalog)
     }
     }
     {
+    auto& type = AddType(catalog,"TextureColorSpace","JBro::TextureColorSpace",ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<TextureColorSpace>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
     auto& type = AddType(catalog,"AudioImportMode","JBro::AudioImportMode",ApiTypeKind::Enum);
     const auto& descriptor = TypeDescriptorOf<AudioImportMode>::Get();
     for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)

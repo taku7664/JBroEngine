@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
@@ -1275,20 +1276,20 @@ JBro::Int32 RunInputChainTests()
 {
     const JBro::Bool echo = Log::GetEchoToConsole();
     Log::SetEchoToConsole(false);
-    TestHandlersRunInLayerThenOrderThenExecutionOrder();
-    TestAScriptJoinsTheChainAfterItStarts();
-    TestBlockStopsEveryLowerHandlerAndThePolling();
-    TestConsumingOneDeviceLeavesTheOthers();
-    TestDisabledHandlersAreSkipped();
-    TestChangingTheLayerOrderResortsTheChain();
-    TestNamedScriptsJoinTheChainThroughTheirTypeInfo();
-    TestAFrameWithoutTheChainIsNotBlocked();
-    TestDispatchDoesNotAllocate();
-    TestTheFrameworkDispatchesBeforeTheFixedSteps();
-    TestButtonsTakeThePointerOnTheUiLayer();
-    TestTogglesAndSlidersTakeThePointer();
-    TestMasksAndScrollViewsTakeThePointer();
-    TestFieldsTakeTheKeyboardAndGamepadsMoveTheFocus();
+    JBRO_CASE(TestHandlersRunInLayerThenOrderThenExecutionOrder());
+    JBRO_CASE(TestAScriptJoinsTheChainAfterItStarts());
+    JBRO_CASE(TestBlockStopsEveryLowerHandlerAndThePolling());
+    JBRO_CASE(TestConsumingOneDeviceLeavesTheOthers());
+    JBRO_CASE(TestDisabledHandlersAreSkipped());
+    JBRO_CASE(TestChangingTheLayerOrderResortsTheChain());
+    JBRO_CASE(TestNamedScriptsJoinTheChainThroughTheirTypeInfo());
+    JBRO_CASE(TestAFrameWithoutTheChainIsNotBlocked());
+    JBRO_CASE(TestDispatchDoesNotAllocate());
+    JBRO_CASE(TestTheFrameworkDispatchesBeforeTheFixedSteps());
+    JBRO_CASE(TestButtonsTakeThePointerOnTheUiLayer());
+    JBRO_CASE(TestTogglesAndSlidersTakeThePointer());
+    JBRO_CASE(TestMasksAndScrollViewsTakeThePointer());
+    JBRO_CASE(TestFieldsTakeTheKeyboardAndGamepadsMoveTheFocus());
     Log::SetEchoToConsole(echo);
     g_dispatchLog.Clear();
     std::cout << "Input chain tests passed.\n";

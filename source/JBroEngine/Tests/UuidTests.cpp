@@ -1,4 +1,5 @@
-﻿#include <JBro/Reflection/CoreTypeDescriptors.h>
+﻿#include "TestCases.h"
+#include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Types/Table.h>
 #include <JBro/Types/Uuid.h>
 
@@ -103,10 +104,10 @@ namespace
 
 JBro::Int32 RunUuidTests()
 {
-    TestGeneratedIdsAreDistinctVersionFour();
-    TestNamedIdsAreStableAndNeverCollideWithGeneratedOnes();
-    TestTextRoundTrip();
-    TestTheReflectionCodecSpeaksTheSameText();
+    JBRO_CASE(TestGeneratedIdsAreDistinctVersionFour());
+    JBRO_CASE(TestNamedIdsAreStableAndNeverCollideWithGeneratedOnes());
+    JBRO_CASE(TestTextRoundTrip());
+    JBRO_CASE(TestTheReflectionCodecSpeaksTheSameText());
     std::cout << "Uuid tests passed.\n";
     return 0;
 }

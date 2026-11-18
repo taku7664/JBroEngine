@@ -54,6 +54,8 @@ tools/mutate.py      뮤테이션 테스트 도구
 
 Visual Studio 2026(MSVC 툴셋 `v145`, Windows SDK `10.0.22621.0`. 둘 다 `JBro.Common.props` 에 고정돼 있다), C++20, x64.
 모듈이 각자 vcxproj 를 갖고 프로젝트 참조로 의존을 끌어오므로, 원하는 실행 파일의 vcxproj 를 바로 빌드한다(`JBroTests`·`JBroEditorHost`·`JBroc`). 전체를 한 번에 열거나 빌드하는 `source/JBroEngine/JBroEngine.slnx` 도 있다. 게임 호스트 `JBroGameHost` 는 구성이 `Debug_Game2D` 같은 게임 구성이라 vcxproj 를 바로 빌드하면 참조 모듈에 그 구성이 없어 MSB8013 이다 - 에디터의 `게임 빌드` 나 솔루션 구성으로 빌드한다.
+IDE 없이 빌드 도구만으로도 된다 - Visual Studio 2026 Build Tools 의 C++ 워크로드에 Windows SDK 22621 을 더한다.
+Windows 11 의 스마트 앱 컨트롤이 켜져 있으면 직접 빌드한 실행 파일이 막혀 빌드 중간의 도구(`JBroScriptSdk.exe`)와 시험이 돌지 않는다.
 
 ```bash
 msbuild source/JBroEngine/Tests/JBroTests.vcxproj -p:Configuration=Debug -p:Platform=x64

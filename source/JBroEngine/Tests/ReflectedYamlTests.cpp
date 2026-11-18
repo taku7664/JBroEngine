@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Yaml.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/Field.h>
@@ -328,16 +329,16 @@ namespace
 
 JBro::Int32 RunReflectedYamlTests()
 {
-    TestAnArrayOfNumbersGoesThereAndBack();
-    TestAnEmptyArrayStaysEmpty();
-    TestPackedElementsAreWrittenTheLegacyWay();
-    TestArraysOfArraysKeepTheirShape();
-    TestStructElementsAreWrittenAsMaps();
-    TestATableIsWrittenInKeyOrder();
-    TestATableOfArraysGoesThereAndBack();
-    TestATableNamingAKeyTwiceIsRefused();
-    TestATableEntryWithAnExtraKeyIsRefused();
-    TestAnUnreadableElementFailsTheRead();
+    JBRO_CASE(TestAnArrayOfNumbersGoesThereAndBack());
+    JBRO_CASE(TestAnEmptyArrayStaysEmpty());
+    JBRO_CASE(TestPackedElementsAreWrittenTheLegacyWay());
+    JBRO_CASE(TestArraysOfArraysKeepTheirShape());
+    JBRO_CASE(TestStructElementsAreWrittenAsMaps());
+    JBRO_CASE(TestATableIsWrittenInKeyOrder());
+    JBRO_CASE(TestATableOfArraysGoesThereAndBack());
+    JBRO_CASE(TestATableNamingAKeyTwiceIsRefused());
+    JBRO_CASE(TestATableEntryWithAnExtraKeyIsRefused());
+    JBRO_CASE(TestAnUnreadableElementFailsTheRead());
     std::cout << "Reflected YAML tests passed.\n";
     return 0;
 }

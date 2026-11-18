@@ -56,7 +56,10 @@ namespace JBro
         // 효과 종류 표가 알므로 에셋은 글자만 든다.
         PostProcessProfile,
         // 렌더 텍스처다(D-362). 본문(`.jrt`)이 폭·높이·필터 YAML 이고, 카메라의 `renderTextureId` 가 그리는 곳으로, 스프라이트의 `renderTextureId` 가 보이는 것으로 가리킨다.
-        RenderTexture
+        RenderTexture,
+        // 3D 모델 파일 하나다(D-391, `.fbx .gltf .glb .obj`). 파일 안의 메시·재질은 `owner` 가 이 모델인 하위 `Mesh`·`Material` 레코드다.
+        // 하위 목록은 `.jmeta` 의 `Model.SubAssets` 에 있고 아이디가 키(`Mesh/Body`)로 고정된다.
+        Model
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반
@@ -112,10 +115,44 @@ namespace JBro
         Linear
     };
 
+    // 텍스처를 어느 색 공간으로 읽는가(D-392). `Auto` 는 쓰임새가 정한다 - 일반 그림과 재질의 기본색·발광 칸은 sRGB, 노멀·거칠기 따위 칸은 선형이다.
+    enum class TextureColorSpace : std::uint8_t
+    {
+        Auto,
+        Srgb,
+        Linear
+    };
+
     // 텍스처 임포트 옵션이다. `.jmeta` 의 `Texture.ImportOptions` 로 저장된다(D-117).
     struct TextureImportOptions
     {
         TextureFilter filter = TextureFilter::Default;
+        // **값만 저장한다**(D-392 (a)) - 효과(sRGB 뷰·밉 체인)는 3D 가 텍스처를 처음 그리는 재질 단계에서 켠다. 지금 2D 그림에는 변화가 없다.
+        TextureColorSpace colorSpace = TextureColorSpace::Auto;
+        // 일반 그림은 끈다(2D 픽셀 아트는 밉이 없어야 한다). 모델의 내장 그림은 켠 채로 만든다(model-import-plan 5 단계).
+        Bool mipmaps = false;
+    };
+
+    // 모델의 법선을 어디서 얻는가(D-392). `Import` 는 파일의 것이고 파일에 없으면 계산한다. `Calculate` 는 파일의 것을 버리고 늘 계산한다.
+    enum class ModelNormals : std::uint8_t
+    {
+        Import,
+        Calculate
+    };
+
+    // `.jmeta` 의 `Model.ImportOptions` 블록이다(D-391·D-392, model-import-plan §2.7). 모델 파일 하나(`.fbx .gltf .glb .obj`)의 옵션이고
+    // 하위 메시·재질은 따로 옵션이 없다.
+    struct ModelImportOptions
+    {
+        // 단위를 바꾼 뒤 한 번 더 곱하는 배율이다.
+        Float scale = 1.0f;
+        // 파일의 단위를 미터로 바꾼다. FBX 는 흔히 센티미터라 끄면 100 배 크다. glTF 는 늘 미터다.
+        Bool convertUnits = true;
+        ModelNormals normals = ModelNormals::Import;
+        // `Calculate` 일 때만 쓴다. 두 면이 이 각(도)보다 크게 꺾이면 모서리를 각지게, 작으면 매끈하게 잇는다.
+        Float smoothingAngle = 60.0f;
+        // 끄면 재질과 내장 그림을 하위 에셋으로 만들지 않는다 - 메시만 쓰려고 가져온 모델의 브라우저가 지저분해지지 않는다.
+        Bool importMaterials = true;
     };
 
     // 오디오 에셋의 디코드 방식이다(`.jmeta` 의 `Audio.ImportOptions.mode`, D-197). 파일의 속성이라 에셋 몫이다(D-198).

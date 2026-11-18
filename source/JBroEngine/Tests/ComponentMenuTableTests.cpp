@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Log.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Log.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 
 #include <imgui.h>
@@ -358,14 +359,14 @@ namespace
 
 JBro::Int32 RunComponentMenuTableTests()
 {
-    TestBadEntriesAreRefused();
-    TestItemsDrawInRegistrationOrderWithTheirOwnUser();
-    TestASeparatorGoesWhereTheOwnerChanges();
-    TestOneDrawFunctionUnderManyOwnersStaysTogether();
-    TestALeadingSeparatorOnlyComesWithItems();
-    TestAFailingHookStopsTheRest();
-    TestUnregisterTakesOnlyThatOwnerAndKeepsTheOrder();
-    TestTheTableCannotChangeWhileDrawing();
+    JBRO_CASE(TestBadEntriesAreRefused());
+    JBRO_CASE(TestItemsDrawInRegistrationOrderWithTheirOwnUser());
+    JBRO_CASE(TestASeparatorGoesWhereTheOwnerChanges());
+    JBRO_CASE(TestOneDrawFunctionUnderManyOwnersStaysTogether());
+    JBRO_CASE(TestALeadingSeparatorOnlyComesWithItems());
+    JBRO_CASE(TestAFailingHookStopsTheRest());
+    JBRO_CASE(TestUnregisterTakesOnlyThatOwnerAndKeepsTheOrder());
+    JBRO_CASE(TestTheTableCannotChangeWhileDrawing());
     std::cout << "Component menu table tests passed.\n";
     return 0;
 }

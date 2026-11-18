@@ -1,5 +1,7 @@
 ﻿#include <JBro/D3D12RHI/D3D12RHI.h>
 
+#include "TestCases.h"
+
 #include <crtdbg.h>
 #include <stdlib.h>
 
@@ -33,7 +35,6 @@ JBro::Int32 RunColorLutTests();
 JBro::Int32 RunPostProcessProfileTests();
 JBro::Int32 RunPostProcessMixerTests();
 JBro::Int32 RunMaterialTests();
-JBro::Int32 RunMeshAssetTests();
 JBro::Int32 RunLight2DFrameworkTests();
 JBro::Int32 RunProjectFileTests();
 JBro::Int32 RunYamlTests();
@@ -41,6 +42,7 @@ JBro::Int32 RunDelegateTests();
 JBro::Int32 RunInterpolationTests();
 JBro::Int32 RunFixedStringTests();
 JBro::Int32 RunUuidTests();
+JBro::Int32 RunModelDecoderTests();
 JBro::Int32 RunAssetRegistryTests();
 JBro::Int32 RunAssetSystemTests();
 JBro::Int32 RunSpriteLibraryTests();
@@ -56,6 +58,7 @@ JBro::Int32 RunButtonRectModelTests();
 JBro::Int32 RunSpriteDrawModeTests();
 JBro::Int32 RunLayout2DTests();
 JBro::Int32 RunGameHostArgumentTests();
+JBro::Int32 RunEditorHostArgumentTests();
 JBro::Int32 RunPlatformFileTests();
 JBro::Int32 RunReflectedYamlTests();
 JBro::Int32 RunCanvasFileTests();
@@ -149,29 +152,34 @@ namespace
     // 들어 있으면 그 묶음이 돈다 - `JBRO_TESTS=Light2D,EditorGuide`, `JBRO_TESTS=Editor`. 고치는 동안 관련 묶음만 돌리는 길이다(전에는 임시 훅을 손으로 넣었다).
     JBro::String g_suiteFilter;
     JBro::Int32 g_suitesRun = 0;
+    // 묶음 안의 시험 고르기(`JBRO_TEST_CASES`, `TestCases.h`). 걸린 시험 수를 세어, 하나도 없으면 실패로 알린다.
+    JBro::String g_caseFilter;
+    JBro::Int32 g_casesRun = 0;
 
-    JBro::Bool WantsSuite(const char* name)
+    // 쉼표로 나눈 조각 중 하나라도 `text` 에 들어 있는가. 빈 조각은 건너뛴다.
+    JBro::Bool MatchesAnyPiece(const JBro::String& filter, const char* text)
     {
-        if (g_suiteFilter.empty())
-        {
-            return true;
-        }
         std::size_t start = 0;
-        while (start <= g_suiteFilter.size())
+        while (start <= filter.size())
         {
-            std::size_t end = g_suiteFilter.find(',', start);
+            std::size_t end = filter.find(',', start);
             if (end == JBro::String::npos)
             {
-                end = g_suiteFilter.size();
+                end = filter.size();
             }
-            const JBro::String piece = g_suiteFilter.substr(start, end - start);
-            if (false == piece.empty() && std::strstr(name, piece.c_str()) != nullptr)
+            const JBro::String piece = filter.substr(start, end - start);
+            if (false == piece.empty() && std::strstr(text, piece.c_str()) != nullptr)
             {
                 return true;
             }
             start = end + 1;
         }
         return false;
+    }
+
+    JBro::Bool WantsSuite(const char* name)
+    {
+        return g_suiteFilter.empty() || MatchesAnyPiece(g_suiteFilter, name);
     }
 
     // 고른 묶음이면 돌리고 걸린 시간을 적는다(`[suite] 이름 초`). 고르지 않은 묶음은 지나간다. 묶음이 실패하면 거짓이다.
@@ -206,6 +214,19 @@ namespace
     }
 }
 
+namespace TestCases
+{
+    JBro::Bool Wants(const char* call)
+    {
+        if (false == g_caseFilter.empty() && false == MatchesAnyPiece(g_caseFilter, call))
+        {
+            return false;
+        }
+        ++g_casesRun;
+        return true;
+    }
+}
+
 int main()
 {
     // **단언이 대화상자를 띄우면 안 된다.** 기본값은 "무시/다시 시도/취소" 창을
@@ -232,6 +253,7 @@ int main()
         return RunRendererBenchmark();
     }
     g_suiteFilter = ReadEnvironment("JBRO_TESTS");
+    g_caseFilter = ReadEnvironment("JBRO_TEST_CASES");
     // GPU 기반 검증은 기본으로 켠다(D-64). `JBRO_GPU_VALIDATION=0` 이면 디버그 레이어만 켠다 - 시간을 재거나 그래픽과 상관없는 묶음을 고칠 때다.
     const JBro::Bool gpuValidation = ReadEnvironment("JBRO_GPU_VALIDATION") != "0";
     if (false == gpuValidation)
@@ -534,10 +556,6 @@ int main()
         {
             return 1;
         }
-        if (false == RunSuite("MeshAsset", &RunMeshAssetTests))
-        {
-            return 1;
-        }
         if (false == RunSuite("PostProcessMixer", &RunPostProcessMixerTests))
         {
             return 1;
@@ -728,6 +746,10 @@ int main()
         {
             return 1;
         }
+        if (false == RunSuite("ModelDecoder", &RunModelDecoderTests))
+        {
+            return 1;
+        }
         if (false == RunSuite("PlatformFile", &RunPlatformFileTests))
         {
             return 1;
@@ -741,6 +763,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("GameHostArgument", &RunGameHostArgumentTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("EditorHostArgument", &RunEditorHostArgumentTests))
         {
             return 1;
         }
@@ -759,7 +785,17 @@ int main()
         return 1;
     }
 
-    // 고른 묶음만 돌았으면 "all tests passed." 라고 하지 않는다 - 그 줄은 전체가 지났다는 표시다.
+    if (false == g_caseFilter.empty() && g_casesRun == 0)
+    {
+        std::cout << "test failure: JBRO_TEST_CASES=" << g_caseFilter << " matches no test in the chosen suites\n";
+        return 1;
+    }
+    // 고른 묶음·시험만 돌았으면 "all tests passed." 라고 하지 않는다 - 그 줄은 전체가 지났다는 표시다.
+    if (false == g_caseFilter.empty())
+    {
+        std::cout << "selected tests passed (" << g_casesRun << " tests in " << g_suitesRun << " suites).\n";
+        return 0;
+    }
     if (false == g_suiteFilter.empty())
     {
         if (g_suitesRun == 0)

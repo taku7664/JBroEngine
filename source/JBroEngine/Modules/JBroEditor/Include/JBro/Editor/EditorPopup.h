@@ -91,5 +91,8 @@ namespace JBro
         Bool m_shown = false;
         // 그려진 프레임 수(몇까지만 센다). 내용에 맞추는 크기는 첫 몇 프레임에 선다 - 그동안은 가운데에 붙들어 둔다.
         std::uint8_t m_framesShown = 0;
+        // 지난 프레임의 크기다. 사람이 옮기지 않았는데 크기가 바뀌면 다시 가운데에 붙든다.
+        Float m_lastWidth = 0.0f;
+        Float m_lastHeight = 0.0f;
     };
 }

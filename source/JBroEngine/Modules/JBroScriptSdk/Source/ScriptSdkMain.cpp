@@ -430,6 +430,48 @@ namespace
         }
     }
 
+    void AppendHashes(String& out, const Array<UInt64>& values)
+    {
+        for (std::size_t index = 0; index < values.Size(); ++index)
+        {
+            out.Append(index % 6 == 0 ? "\n    " : "");
+            out.Append(std::to_string(values[index].Get())).Append("ull,");
+        }
+    }
+
+    // **사본 줄의 닻**(D-393). 줄마다 코드 글자(주석은 이미 지웠다)의 앞뒤 공백을 뗀 64 비트 FNV-1a 와 앞 공백의 바이트 수다.
+    // API 목록은 정의 자리를 줄 번호가 아니라 그 선언의 글자로 적고 이 해시로 줄을 찾는다 - 헤더에 줄을 끼워도 자리가 밀리지 않는다.
+    // 같은 셈이 `Catalog.cpp` 의 `AnchorHash` 에 있다. 둘을 함께 고친다.
+    void LineAnchors(const Stripped& stripped, Array<UInt64>& hashes, Array<UInt32>& indents)
+    {
+        const std::string_view text = stripped.Text.View();
+        for (std::size_t line = 0; line < stripped.Starts.Size(); ++line)
+        {
+            // 첫 줄의 시작은 BOM 을 세느라 0 으로 둔다(`StripComments`) - 사본에는 BOM 이 없으므로 글자는 0 부터 읽어도 같다.
+            const std::size_t start = line == 0 ? 0 : stripped.Starts[line].Get();
+            std::size_t end = text.find("\r\n", start);
+            end = end == std::string_view::npos ? text.size() : end;
+            std::size_t first = start;
+            while (first < end && (text[first] == ' ' || text[first] == '\t'))
+            {
+                ++first;
+            }
+            std::size_t last = end;
+            while (last > first && (text[last - 1] == ' ' || text[last - 1] == '\t'))
+            {
+                --last;
+            }
+            std::uint64_t hash = 14695981039346656037ull;
+            for (std::size_t at = first; at < last; ++at)
+            {
+                hash ^= static_cast<unsigned char>(text[at]);
+                hash *= 1099511628211ull;
+            }
+            hashes.Add(UInt64(hash));
+            indents.Add(static_cast<UInt32>(first - start));
+        }
+    }
+
     void RemoveStale(const fs::path& directory, const Array<String>& written)
     {
         std::error_code error;
@@ -534,14 +576,19 @@ namespace
             if (writeLineMap)
             {
                 const String id = std::to_string(index++);
-                lineMap.Append("inline constexpr UInt32 Lines").Append(id.View()).Append("[] = {");
-                AppendNumbers(lineMap, stripped.Lines);
-                lineMap.Append("\n};\ninline constexpr UInt32 Starts").Append(id.View()).Append("[] = {");
+                Array<UInt64> hashes;
+                Array<UInt32> indents;
+                LineAnchors(stripped, hashes, indents);
+                lineMap.Append("inline constexpr UInt32 Starts").Append(id.View()).Append("[] = {");
                 AppendNumbers(lineMap, stripped.Starts);
+                lineMap.Append("\n};\ninline constexpr UInt64 Hashes").Append(id.View()).Append("[] = {");
+                AppendHashes(lineMap, hashes);
+                lineMap.Append("\n};\ninline constexpr UInt32 Indents").Append(id.View()).Append("[] = {");
+                AppendNumbers(lineMap, indents);
                 lineMap.Append("\n};\n");
                 table.Append("    {").Append(CppString(header.Key).View()).Append(", ").Append(CppString(header.Relative).View())
-                    .Append(", Lines").Append(id.View()).Append(", ").Append(std::to_string(stripped.Lines.Size()))
-                    .Append(", Starts").Append(id.View()).Append(", ").Append(std::to_string(stripped.Starts.Size())).Append("},\n");
+                    .Append(", Starts").Append(id.View()).Append(", Hashes").Append(id.View()).Append(", Indents").Append(id.View())
+                    .Append(", ").Append(std::to_string(stripped.Starts.Size())).Append("},\n");
             }
         }
 
@@ -572,7 +619,7 @@ namespace
         if (writeLineMap)
         {
             String out = "// JBroScriptSdk 가 만든 파일이다. 고치지 않는다.\r\n"
-                "// 원본 헤더의 줄(0 부터) -> 스크립트 SDK 사본의 줄(1 부터, 0 은 지운 줄)과 사본 줄의 시작 바이트.\r\n"
+                "// 스크립트 SDK 사본의 줄마다 시작 바이트, 코드 글자의 해시(닻), 앞 공백의 바이트 수(D-393).\r\n"
                 "namespace JBro::ScriptApiCatalog2D::Internal::ScriptSdk\r\n{\r\n";
             // 사본이 놓인 자리다. 산출물 자리는 빌드가 정하므로(D-370) 카탈로그는 경로를 짐작하지 않고 이것을 쓴다.
             String root = PathText(fs::absolute(output).lexically_normal());
@@ -584,7 +631,7 @@ namespace
             lineMap.ReplaceAll("\n", "\r\n");
             table.ReplaceAll("\n", "\r\n");
             out.Append(lineMap.View());
-            out.Append("struct HeaderMap { const char* Source; const char* Sdk; const UInt32* Lines; UInt32 LineCount; const UInt32* Starts; UInt32 StartCount; };\r\n");
+            out.Append("struct HeaderMap { const char* Source; const char* Sdk; const UInt32* Starts; const UInt64* Hashes; const UInt32* Indents; UInt32 LineCount; };\r\n");
             out.Append("inline constexpr HeaderMap Headers[] = {\r\n").Append(table.View()).Append("};\r\n}\r\n");
             WriteIfChanged(output / (std::string("ScriptSdkLineMap") + dimension + ".inc"), out);
         }

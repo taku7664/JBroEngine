@@ -1,4 +1,5 @@
-﻿#include <JBro/Host/GameHostArguments.h>
+﻿#include "TestCases.h"
+#include <JBro/Host/GameHostArguments.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
@@ -115,9 +116,9 @@ namespace
 
 JBro::Int32 RunGameHostArgumentTests()
 {
-    TestArgumentsAreParsedStrictly();
-    TestTheStartupCanvasComesFromTheArgumentsOrTheProject();
-    TestTheProjectBesideTheExecutableIsFound();
+    JBRO_CASE(TestArgumentsAreParsedStrictly());
+    JBRO_CASE(TestTheStartupCanvasComesFromTheArgumentsOrTheProject());
+    JBRO_CASE(TestTheProjectBesideTheExecutableIsFound());
     std::cout << "Game host argument tests passed.\n";
     return 0;
 }

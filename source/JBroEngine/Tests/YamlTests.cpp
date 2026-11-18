@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Yaml.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Yaml.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <cstdlib>
@@ -506,19 +507,19 @@ namespace
 
 JBro::Int32 RunYamlTests()
 {
-    TestAFlatMapReadsBack();
-    TestASequenceOfMapsKeepsItsShape();
-    TestTheTypeCanBeReadAfterTheFields();
-    TestEmptyContainersAreNotGuessed();
-    TestNestingGoesDeepAndComesBack();
-    TestAColonInsideAValueIsNotAKey();
-    TestANumberIsNotADash();
-    TestHalfANumberIsNotANumber();
-    TestBadInputIsRefusedWithALineNumber();
-    TestTheWriterProducesWhatTheReaderReads();
-    TestTheWrittenShapeMatchesTheLegacyFile();
-    TestFloatsAreWrittenSoTheyReadBackTheSame();
-    TestARealLegacyCanvasParses();
+    JBRO_CASE(TestAFlatMapReadsBack());
+    JBRO_CASE(TestASequenceOfMapsKeepsItsShape());
+    JBRO_CASE(TestTheTypeCanBeReadAfterTheFields());
+    JBRO_CASE(TestEmptyContainersAreNotGuessed());
+    JBRO_CASE(TestNestingGoesDeepAndComesBack());
+    JBRO_CASE(TestAColonInsideAValueIsNotAKey());
+    JBRO_CASE(TestANumberIsNotADash());
+    JBRO_CASE(TestHalfANumberIsNotANumber());
+    JBRO_CASE(TestBadInputIsRefusedWithALineNumber());
+    JBRO_CASE(TestTheWriterProducesWhatTheReaderReads());
+    JBRO_CASE(TestTheWrittenShapeMatchesTheLegacyFile());
+    JBRO_CASE(TestFloatsAreWrittenSoTheyReadBackTheSame());
+    JBRO_CASE(TestARealLegacyCanvasParses());
     std::cout << "Yaml tests passed.\n";
     return 0;
 }

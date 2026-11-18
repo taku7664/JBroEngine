@@ -1,4 +1,5 @@
-﻿#include <JBro/Runtime/GameScriptBase.h>
+﻿#include "TestCases.h"
+#include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Handle/Collider2D.h>
@@ -222,8 +223,8 @@ namespace
 
 JBro::Int32 RunGameScriptTests()
 {
-    TestBuiltinComponentHandles();
-    TestDerivedScriptReferenceSerialization();
+    JBRO_CASE(TestBuiltinComponentHandles());
+    JBRO_CASE(TestDerivedScriptReferenceSerialization());
 
     JBro::Canvas canvas(JBro::CreateDefaultAllocator());
     auto* object = canvas.CreateObject("script owner");

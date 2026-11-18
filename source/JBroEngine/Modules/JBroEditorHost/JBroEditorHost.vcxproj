@@ -30,7 +30,7 @@
     <Link>
       <!-- 창 프로그램이다. 진입점은 그대로 `main` 이고, 터미널에서 띄우면 `ParentConsole.cpp` 가 부모 콘솔에 붙는다. -->
       <SubSystem>Windows</SubSystem>
-      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <EntryPointSymbol>wmainCRTStartup</EntryPointSymbol>
       <AdditionalDependencies>d3d12.lib;d3d11.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <!-- 버전은 `JBro.Common.props` 한 곳에서 온다(D-101). 리소스에 손으로 적지 않는다. -->
@@ -114,6 +114,9 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
       <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)ufbx\ufbx.vcxproj">
+      <Project>{1b000003-0000-4000-8000-0000000fb0c0}</Project>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroAudioTypes\JBroAudioTypes.vcxproj">
       <Project>{1a000018-0000-4000-8000-0000000a0d17}</Project>

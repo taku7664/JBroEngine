@@ -75,6 +75,8 @@ namespace JBro
                 return Icons::Mesh;
             case AssetType::Shader:
                 return Icons::Shader;
+            case AssetType::Model:
+                return Icons::FileModel;
             default:
                 return Icons::File;
             }
@@ -183,8 +185,8 @@ namespace JBro
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);
-            // 이미지의 Sprite 레코드는 Texture 와 같은 파일이다. 줄은 하나다.
-            if (record.type == AssetType::Sprite && false == record.owner.IsNull())
+            // **하위 레코드는 제 줄을 갖지 않는다**(D-391). 그림의 Sprite 처럼 같은 파일에서 나온 것이라 파일의 줄 아래에 펼쳐 보인다(아래에서 단다).
+            if (false == record.owner.IsNull())
             {
                 continue;
             }
@@ -225,6 +227,50 @@ namespace JBro
         }
         std::sort(m_folders.Data(), m_folders.Data() + m_folders.Size(),
             [](const String& left, const String& right) { return left.View() < right.View(); });
+        // 하위 레코드를 제 파일의 줄에 단다. 부모가 없는 하위 레코드(파일이 사라진 메타의 찌꺼기)는 보이지 않는다 - 놓을 줄이 없다.
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const AssetRecord& record = registry.GetRecord(index);
+            if (record.owner.IsNull())
+            {
+                continue;
+            }
+            for (std::size_t at = 0; at < m_entries.Size(); ++at)
+            {
+                if (m_entries[at].record->id == record.owner)
+                {
+                    m_entries[at].children.Add(&record);
+                    break;
+                }
+            }
+        }
+        // 같은 그림의 수. 열쇠가 있는 레코드는 내장 그림뿐이라 적다 - 그것끼리만 견준다.
+        Array<const AssetRecord*> keyed;
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            if (registry.GetRecord(index).sharedImageKey != 0)
+            {
+                keyed.Add(&registry.GetRecord(index));
+            }
+        }
+        for (std::size_t at = 0; at < m_entries.Size(); ++at)
+        {
+            Entry& entry = m_entries[at];
+            entry.childSameImages.Clear();
+            for (std::size_t child = 0; child < entry.children.Size(); ++child)
+            {
+                UInt32 count = 0;
+                const UInt64 key = entry.children[child]->sharedImageKey;
+                for (std::size_t other = 0; key != 0 && other < keyed.Size(); ++other)
+                {
+                    if (keyed[other]->sharedImageKey == key)
+                    {
+                        ++count;
+                    }
+                }
+                entry.childSameImages.Add(count);
+            }
+        }
         SortEntries();
 
         // 열어 둔 폴더가 그 사이에 사라졌으면 뿌리로 돌아간다. 없는 폴더를 열어 두면
@@ -475,6 +521,17 @@ namespace JBro
 
     void AssetBrowserPanel::HandleEntryInput(const Entry& entry)
     {
+        if (entry.isChild)
+        {
+            HandleChildInput(entry);
+            return;
+        }
+        // 화살표를 눌러 펼친 것은 고르기가 아니다. 펼치려다 인스펙터가 바뀌면 보던 것을 잃는다.
+        if (ImGui::IsItemToggledOpen())
+        {
+            m_pressedPath.clear();
+            return;
+        }
         // **누를 때가 아니라 끌지 않고 뗄 때 고른다**(D-154). 누르는 순간 고르면, 에셋을 끌어
         // 인스펙터의 칸에 놓으려는 손짓이 시작하자마자 인스펙터를 그 에셋의 화면으로 바꿔
         // 놓을 칸이 사라진다.
@@ -614,24 +671,181 @@ namespace JBro
         m_editor->SetSelectedAsset(entry.record->id);
     }
 
+    void AssetBrowserPanel::HandleChildInput(const Entry& child)
+    {
+        // 고르기는 파일 줄과 같이 **같은 칸에서 끌지 않고 뗄 때**다. 누른 칸은 하위 아이디의 글자로 기억한다 - 경로는 부모와 같다.
+        String key = child.record->relativePath;
+        key += "#";
+        key += child.idText;
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right))
+        {
+            m_pressedPath = key;
+        }
+        const Bool released = ImGui::IsItemHovered()
+            && (ImGui::IsMouseReleased(ImGuiMouseButton_Left) || ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+            && false == Widget::MouseWasDragged(ImGuiMouseButton_Left)
+            && m_pressedPath == key;
+        if (released)
+        {
+            m_pressedPath.clear();
+            // 파일 선택은 비운다. 남겨 두면 하위 에셋을 본 채로 Delete 를 눌러 부모 파일이 지워진다.
+            m_selection.Clear();
+            m_editor->SetSelectedAsset(child.record->id);
+        }
+        // 끌면 하위 아이디만 싣는다. 칸(메시·스프라이트)은 아이디를 보고, 폴더는 경로를 보므로 폴더에 놓아도 아무것도 옮겨지지 않는다.
+        if (Widget::BeginDragSource())
+        {
+            Widget::SetAssetDragPayload(child.record->id, AssetId{}, String());
+            Widget::Text(child.name);
+            Widget::EndDragSource();
+        }
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && child.owner != nullptr)
+        {
+            if (AssetTypeRules::IsImageType(child.owner->type))
+            {
+                m_editor->OpenSpriteViewer(child.owner->id);
+            }
+            else
+            {
+                m_editor->OpenAssetExternally(child.owner->relativePath.c_str());
+            }
+        }
+    }
+
+    AssetBrowserPanel::Entry AssetBrowserPanel::MakeChildEntry(const Entry& owner, std::size_t index)
+    {
+        const AssetRecord& record = *owner.children[index];
+        Entry child;
+        child.sameImages = index < owner.childSameImages.Size() ? owner.childSameImages[index] : UInt32(0);
+        child.record = &record;
+        child.owner = owner.record;
+        child.isChild = true;
+        child.folder = owner.folder;
+        // 하위 에셋은 제 이름(모델 안의 `Body`)을 보인다. 이름이 없는 것(그림의 Sprite)은 종류를 보인다.
+        child.name = record.name.empty() ? AssetTypeRules::GetTypeName(record.type) : record.name.c_str();
+        child.modified = owner.modified;
+        child.modifiedText = owner.modifiedText;
+        char idText[Uuid::TextCapacity] = {};
+        if (record.id.ToText(idText, sizeof(idText)))
+        {
+            child.idText = idText;
+        }
+        return child;
+    }
+
+    void AssetBrowserPanel::DrawSameImageBadge(const Entry& entry, Float left, Float top)
+    {
+        char count[12] = {};
+        std::snprintf(count, sizeof(count), "%u", static_cast<unsigned>(entry.sameImages.Get()));
+        if (false == Widget::OverlayBadge(Icons::SameImage, count, ImVec2(left, top)))
+        {
+            return;
+        }
+        // 툴팁은 마우스를 올렸을 때만 짓는다. 첫 줄이 무엇의 목록인지 말하고, 줄마다 `모델 / 그림` 이다.
+        Array<const AssetRecord*> others;
+        m_editor->FindSameImages(entry.record->id, others);
+        String text = Loc::TextOr(LocKeys::AssetsSameImageTooltip, "The same image is also embedded in");
+        for (std::size_t index = 0; index < others.Size(); ++index)
+        {
+            text += "\n";
+            text += others[index]->relativePath;
+            text += " / ";
+            text += others[index]->name;
+        }
+        Widget::ShowTooltip(text.c_str());
+    }
+
+    Bool AssetBrowserPanel::IsExpanded(AssetId id) const
+    {
+        for (std::size_t index = 0; index < m_expanded.Size(); ++index)
+        {
+            if (m_expanded[index] == id)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void AssetBrowserPanel::SetExpanded(AssetId id, Bool expanded)
+    {
+        for (std::size_t index = 0; index < m_expanded.Size(); ++index)
+        {
+            if (m_expanded[index] == id)
+            {
+                if (false == expanded)
+                {
+                    m_expanded.RemoveAt(index);
+                }
+                return;
+            }
+        }
+        if (expanded)
+        {
+            m_expanded.Add(id);
+        }
+    }
+
+    void AssetBrowserPanel::DrawTileExpander(const Entry& entry, Float tileLeft, Float tileTop, Float tileWidth, Float tileHeight)
+    {
+        // **칸의 오른쪽 가장자리 가운데에 작은 단추**(Unity 의 프로젝트 창과 같은 자리). 펼치면 ◀ 로 바뀌어 접는 쪽을 가리킨다.
+        // 커서는 되돌리지 않는다 - 부르는 쪽이 이 뒤에 칸을 제자리에 그린다(ImGui 는 커서를 옮긴 뒤 항목 없이 창이 끝나면 단언한다).
+        const Bool expanded = IsExpanded(entry.record->id);
+        const Float side = ImGui::GetFrameHeight() * 0.8f;
+        ImGui::SetCursorScreenPos(ImVec2(tileLeft + tileWidth - side * 0.75f, tileTop + (tileHeight - side) * 0.5f));
+        if (Widget::IconButton("##expand", expanded ? Icons::ChevronLeft : Icons::ChevronRight)
+                .Size(ImVec2(side, side))
+                .Tooltip(expanded ? Loc::TextOr(LocKeys::AssetsCollapse, "Hide sub-assets")
+                                  : Loc::TextOr(LocKeys::AssetsExpand, "Show sub-assets"))
+                .Draw())
+        {
+            SetExpanded(entry.record->id, false == expanded);
+        }
+    }
+
     void AssetBrowserPanel::DrawFileTile(const Entry& entry)
     {
         ImGui::PushID(entry.record->relativePath.c_str());
+        if (entry.isChild)
+        {
+            ImGui::PushID(entry.idText.c_str());
+        }
         const Float side = m_iconSize;
         // 이름 한 줄의 자리를 밑에 둔다. 이름이 없으면 무엇을 고르는지 그림만으로 가려야 한다.
         const Float labelHeight = ImGui::GetTextLineHeight();
         const ImVec2 cell(side, side + labelHeight + 6.0f);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+
+        // **펼침 단추는 칸보다 먼저 낸다**(D-391). 먼저 낸 항목이 마우스를 차지하므로 단추 위를 누르면 칸이 골라지지 않고, 칸이 커서를 옮긴 뒤의
+        // 항목이 되어 ImGui 의 커서 규칙도 지킨다. 그림은 위 칸(1)에 그려 칸의 바탕·그림에 가려지지 않는다.
+        const Bool hasExpander = false == entry.isChild && entry.children.Size() > 0;
+        if (hasExpander)
+        {
+            draw->ChannelsSplit(2);
+            draw->ChannelsSetCurrent(1);
+            DrawTileExpander(entry, origin.x, origin.y, cell.x, side);
+            draw->ChannelsSetCurrent(0);
+            ImGui::SetCursorScreenPos(origin);
+        }
 
         ImGui::SetNextItemAllowOverlap();
         Widget::HitArea("##tile", cell,
             ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
         HandleEntryInput(entry);
-
-        ImDrawList* draw = ImGui::GetWindowDrawList();
         const ImVec2 imageMin(origin.x + 4.0f, origin.y + 2.0f);
         const ImVec2 imageMax(origin.x + side - 4.0f, origin.y + side - 4.0f);
-        if (IsSelected(entry.record->relativePath))
+        // **펼친 묶음은 한 띠 위에 선다**(D-391). 파일 칸과 그 하위 칸들이 같은 옅은 바탕을 깔아 어디까지가 한 파일인지 보인다.
+        const Bool grouped = entry.isChild || (entry.children.Size() > 0 && IsExpanded(entry.record->id));
+        if (grouped)
+        {
+            // 칸 사이(4 픽셀)를 반씩 덮어 이웃한 띠가 맞닿는다 - 묶음이 한 덩어리로 읽힌다.
+            draw->AddRectFilled(ImVec2(origin.x - 2.0f, origin.y - 2.0f), ImVec2(origin.x + cell.x + 2.0f, origin.y + cell.y + 2.0f),
+                ImGui::GetColorU32(ImGuiCol_FrameBgHovered), 4.0f);
+        }
+        const Bool selected = entry.isChild ? Bool(m_editor->GetSelectedAsset() == entry.record->id)
+                                            : IsSelected(entry.record->relativePath);
+        if (selected)
         {
             draw->AddRectFilled(origin, ImVec2(origin.x + cell.x, origin.y + cell.y),
                 ImGui::GetColorU32(ImGuiCol_Header), 3.0f);
@@ -656,29 +870,58 @@ namespace JBro
             Widget::DrawGlyphCentered(AssetTypeIcon(entry.record->type), imageMin, imageMax,
                 ImGui::GetColorU32(ImGuiCol_TextDisabled), (imageMax.y - imageMin.y) * 0.6f);
         }
+        if (entry.sameImages >= 2)
+        {
+            DrawSameImageBadge(entry, origin.x + 2.0f, origin.y + 2.0f);
+        }
         // 이름은 칸 안에서 잘린다. 줄바꿈으로 흘리면 칸마다 높이가 달라져 줄이 어긋난다.
         draw->PushClipRect(ImVec2(origin.x, origin.y + side - 2.0f),
             ImVec2(origin.x + cell.x, origin.y + cell.y), true);
         draw->AddText(ImVec2(origin.x + 4.0f, origin.y + side - 2.0f),
             ImGui::GetColorU32(ImGuiCol_Text), entry.name);
         draw->PopClipRect();
+        if (hasExpander)
+        {
+            draw->ChannelsMerge();
+        }
+        if (entry.isChild)
+        {
+            ImGui::PopID();
+        }
         ImGui::PopID();
     }
 
     void AssetBrowserPanel::DrawFile(const Entry& entry)
     {
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
-            | ImGuiTreeNodeFlags_SpanAvailWidth;
-        if (IsSelected(entry.record->relativePath)
-            || m_editor->GetSelectedAsset() == entry.record->id)
+        // **하위 에셋이 있으면 ▶ 로 펼친다**(D-391). 계층 패널의 오브젝트처럼 화살표만 펼치고, 줄을 누르는 것은 그대로 고르기다.
+        const Bool hasChildren = false == entry.isChild && entry.children.Size() > 0;
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+        flags |= hasChildren ? ImGuiTreeNodeFlags_OpenOnArrow : ImGuiTreeNodeFlags_Leaf;
+        const Bool selected = entry.isChild ? Bool(m_editor->GetSelectedAsset() == entry.record->id)
+            : Bool(IsSelected(entry.record->relativePath) || m_editor->GetSelectedAsset() == entry.record->id);
+        if (selected)
         {
             flags |= ImGuiTreeNodeFlags_Selected;
         }
-        // 줄의 정체는 상대경로다 - 같은 이름의 파일이 다른 폴더에 있어도 갈린다.
+        // 줄의 정체는 상대경로다 - 같은 이름의 파일이 다른 폴더에 있어도 갈린다. 하위 에셋은 경로가 부모와 같아 아이디를 더 쌓는다.
         ImGui::PushID(entry.record->relativePath.c_str());
+        if (entry.isChild)
+        {
+            ImGui::PushID(entry.idText.c_str());
+            // 하위 줄은 화살표 한 칸만큼 들어간다. 부모의 이름과 하위의 이름이 세로로 맞물려 묶음으로 읽힌다.
+            ImGui::Indent(ImGui::GetTreeNodeToLabelSpacing());
+        }
+        if (hasChildren)
+        {
+            ImGui::SetNextItemOpen(IsExpanded(entry.record->id), ImGuiCond_Always);
+        }
         Widget::TreeDrawContext row;
-        Widget::TreeBegin("##file", flags, &row);
+        const Bool open = Widget::TreeBegin("##file", flags, &row);
         Widget::TreeEnd();
+        if (hasChildren && open != IsExpanded(entry.record->id))
+        {
+            SetExpanded(entry.record->id, open);
+        }
         // **줄 전체가 누름을 받는다.** 이름을 그린 뒤에 물으면 마지막 항목이 글자라 글자 밖의 줄은 눌러도 반응이 없다.
         HandleEntryInput(entry);
 
@@ -687,15 +930,34 @@ namespace JBro
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
             const ImVec2 origin = row.ContentRect.Min;
             // 머리줄이 같은 자리에서 시작하도록 줄 글자가 줄 왼쪽에서 얼마나 들어갔는지 남긴다.
-            m_rowTextOffset = origin.x - ImGui::GetWindowPos().x - ImGui::GetStyle().WindowPadding.x
-                + ImGui::GetScrollX();
-            const Columns columns = ListColumns(row.ContentRect.GetWidth());
+            // 하위 줄은 들여 그리므로 재지 않는다. 재면 머리줄이 하위 줄의 자리로 밀린다.
+            if (false == entry.isChild)
+            {
+                m_rowTextOffset = origin.x - ImGui::GetWindowPos().x - ImGui::GetStyle().WindowPadding.x
+                    + ImGui::GetScrollX();
+            }
+            // 열의 자리는 줄 왼쪽에서 잰다. 하위 줄은 들여 쓴 만큼 당겨 부모 줄의 열과 맞춘다.
+            const Float inset = entry.isChild ? Float(ImGui::GetTreeNodeToLabelSpacing()) : Float(0.0f);
+            const Columns parentColumns = ListColumns(row.ContentRect.GetWidth() + inset);
+            Columns columns = parentColumns;
+            columns.type = parentColumns.type - inset;
+            columns.modified = parentColumns.modified - inset;
+            columns.id = parentColumns.id - inset;
             // 이름이 길면 종류 칸에서 잘린다. 겹쳐 그리면 둘 다 읽을 수 없다.
             ImGui::PushClipRect(origin,
                 ImVec2(origin.x + columns.type - 8.0f, row.ContentRect.Max.y), true);
             ImGui::SetCursorScreenPos(origin);
             Widget::InlineIcon(AssetTypeIcon(entry.record->type));
             Widget::Text(entry.name);
+            // 이름 바로 뒤에 같은 그림 표식. 줄 높이에 맞춰 세로 가운데에 둔다.
+            if (entry.sameImages >= 2)
+            {
+                const ImVec2 nameEnd = ImGui::GetItemRectMax();
+                const Float lineTop = row.ContentRect.Min.y;
+                const Float height = row.ContentRect.GetHeight();
+                const Float badgeHeight = ImGui::GetTextLineHeight() + 2.0f;
+                DrawSameImageBadge(entry, nameEnd.x + 6.0f, lineTop + (height - badgeHeight) * 0.5f);
+            }
             ImGui::PopClipRect();
             ImGui::SetCursorScreenPos(ImVec2(origin.x + columns.type, origin.y));
             Widget::HintText(AssetTypeRules::GetTypeName(entry.record->type));
@@ -704,6 +966,11 @@ namespace JBro
             ImGui::SetCursorScreenPos(ImVec2(origin.x + columns.id, origin.y));
             Widget::HintText(entry.idText.c_str());
             ImGui::SetCursorScreenPos(cursor);
+        }
+        if (entry.isChild)
+        {
+            ImGui::Unindent(ImGui::GetTreeNodeToLabelSpacing());
+            ImGui::PopID();
         }
         ImGui::PopID();
     }
@@ -1016,16 +1283,26 @@ namespace JBro
             }
             any = true;
             m_visible.Add(entry.record->relativePath);
+            // 펼쳐 두었으면 파일 바로 뒤에 하위 에셋이 선다 - 목록은 들여 쓴 줄로, 아이콘은 이어 붙는 칸으로(D-391).
+            const Bool expanded = entry.children.Size() > 0 && IsExpanded(entry.record->id);
             if (m_iconView)
             {
                 // 칸은 오른쪽으로 흐르다 자리가 모자라면 다음 줄로 간다.
-                const Float remaining = ImGui::GetContentRegionAvail().x;
-                if (drawnTiles > 0 && remaining >= m_iconSize)
-                {
-                    ImGui::SameLine(0.0f, 4.0f);
-                }
+                const auto placeTile = [&]() {
+                    const Float remaining = ImGui::GetContentRegionAvail().x;
+                    if (drawnTiles > 0 && remaining >= m_iconSize)
+                    {
+                        ImGui::SameLine(0.0f, 4.0f);
+                    }
+                    ++drawnTiles;
+                };
+                placeTile();
                 DrawFileTile(entry);
-                ++drawnTiles;
+                for (std::size_t child = 0; expanded && child < entry.children.Size(); ++child)
+                {
+                    placeTile();
+                    DrawFileTile(MakeChildEntry(entry, child));
+                }
             }
             else
             {
@@ -1035,6 +1312,10 @@ namespace JBro
                     headed = true;
                 }
                 DrawFile(entry);
+                for (std::size_t child = 0; expanded && child < entry.children.Size(); ++child)
+                {
+                    DrawFile(MakeChildEntry(entry, child));
+                }
             }
         }
         if (false == any)
@@ -1054,6 +1335,11 @@ namespace JBro
         // **새 캔버스**(D-174, 기존 `에셋 추가 ▸ 캔버스`). 만들고 바로 연다 - 만들어 놓고
         // 열리지 않으면 방금 만든 것이 어디 있는지 목록에서 찾아야 한다.
         // **새 폰트 패밀리**(D-225). 만들고 브라우저에서 고른다 - 네 칸은 인스펙터에서 채운다.
+        // **새 표준 머티리얼**(material-plan 4 단계, D-403). 기본값으로 만들고 브라우저에서 고른다 - 값은 인스펙터에서 고친다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewStandardMaterial, "New Standard Material")))
+        {
+            m_editor->CreateStandardMaterialAsset(m_openFolder.c_str());
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFontFamily, "New Font Family")))
         {
             m_editor->CreateFontFamilyAsset(m_openFolder.c_str());
@@ -1378,8 +1664,17 @@ namespace JBro
             {
                 m_openFolder = EditorPaths::FolderOf(record->relativePath.c_str());
                 m_inScripts = false;
-                SelectOnly(record->relativePath);
-                m_anchor = record->relativePath;
+                // 하위 에셋이면 제 파일을 펼쳐 그 줄을 고른다. 파일 선택은 비운다 - 하위 줄을 누른 것과 같다.
+                if (false == record->owner.IsNull())
+                {
+                    SetExpanded(record->owner, true);
+                    m_selection.Clear();
+                }
+                else
+                {
+                    SelectOnly(record->relativePath);
+                    m_anchor = record->relativePath;
+                }
                 m_editor->SetSelectedAsset(record->id);
                 // 찾아온 자리가 검색에 걸려 안 보이면 찾아 준 뜻이 없다.
                 m_filter.clear();

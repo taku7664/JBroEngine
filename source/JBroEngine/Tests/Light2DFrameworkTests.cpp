@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
@@ -415,12 +416,12 @@ namespace
 
 JBro::Int32 RunLight2DFrameworkTests()
 {
-    TestShadowCastersShadeTheLight<JBro::D3D12RHIModule>();
-    TestShadowCastersShadeTheLight<JBro::D3D11RHIModule>();
-    TestShadowCastersShadeTheLight<JBro::VulkanRHIModule>();
-    TestLightComponentsLightTheLitLayers<JBro::D3D12RHIModule>();
-    TestLightComponentsLightTheLitLayers<JBro::D3D11RHIModule>();
-    TestLightComponentsLightTheLitLayers<JBro::VulkanRHIModule>();
+    JBRO_CASE(TestShadowCastersShadeTheLight<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestShadowCastersShadeTheLight<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestShadowCastersShadeTheLight<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestLightComponentsLightTheLitLayers<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestLightComponentsLightTheLitLayers<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestLightComponentsLightTheLitLayers<JBro::VulkanRHIModule>());
     std::cout << "Light 2D framework tests passed.\n";
     return 0;
 }

@@ -106,7 +106,8 @@
 ### 2.3 타입 표
 
 `enum class AssetType : uint8 { Unknown, Texture, Sprite, Mesh, Material, Shader, Canvas, Prefab, Audio, Font }`.
-이번 계획에서 실체가 서는 것은 **Texture·Sprite** 이고 Mesh 는 `MeshLibrary` 의 빌트인만 잇는다. 확장자 표는
+이번 계획에서 실체가 서는 것은 **Texture·Sprite** 이고 Mesh 는 `MeshLibrary` 의 빌트인만 잇는다. (2026-11-16 D-391: 모델 파일 `.fbx .obj .gltf .glb` 는
+`Model` 이고 메시·재질은 그 하위 레코드다 - 아래 확장자 표의 메시 줄은 그렇게 바뀌었다. `model-import-plan.md`.) 확장자 표는
 기존 엔진 것을 그대로 쓴다(이미지 `.png .jpg .jpeg .bmp .tga`, 메시 `.obj .gltf .glb`, 재질 `.jmat`, 셰이더 `.hlsl`,
 캔버스 `.jcanvas`, 프리팹 `.jprefab`). 열거 값은 `.jmeta` 에 이름으로 적으므로 순서가 바뀌어도 파일이 깨지지 않는다.
 

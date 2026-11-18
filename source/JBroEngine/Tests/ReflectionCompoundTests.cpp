@@ -1,4 +1,5 @@
-﻿#include <JBro/Reflection/EnumDescriptor.h>
+﻿#include "TestCases.h"
+#include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Types/NameTable.h>
 
@@ -199,11 +200,11 @@ namespace
 
 JBro::Int32 RunReflectionCompoundTests()
 {
-    TestAnEnumSavesItsNameNotItsNumber();
-    TestAnEnumRefusesWhatItDoesNotKnow();
-    TestTheEnumIndexIsForTheDropdown();
-    TestAStructSpeaksThroughItsFields();
-    TestAComponentReachesAFieldInsideAStruct();
+    JBRO_CASE(TestAnEnumSavesItsNameNotItsNumber());
+    JBRO_CASE(TestAnEnumRefusesWhatItDoesNotKnow());
+    JBRO_CASE(TestTheEnumIndexIsForTheDropdown());
+    JBRO_CASE(TestAStructSpeaksThroughItsFields());
+    JBRO_CASE(TestAComponentReachesAFieldInsideAStruct());
     std::cout << "Reflection compound tests passed.\n";
     return 0;
 }

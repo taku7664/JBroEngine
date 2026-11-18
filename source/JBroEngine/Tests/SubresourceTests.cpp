@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/RHI/ConstantRing.h>
@@ -22,7 +23,7 @@ namespace Sm5
 #include "VolumeProbePS_SM5.generated.h"
 }
 
-// Vulkan SDK 의 dxc 가 구운 SPIR-V 다(`Tests/Shaders/Compile.ps1`).
+// Vulkan 의 SPIR-V(Vulkan SDK 의 dxc, `Tests/Shaders/Compile.ps1`).
 namespace Spv
 {
 #include "SubresourceProbeDepthPS_SPV.generated.h"
@@ -44,8 +45,8 @@ namespace Spv
 // 후처리 계획 2 단계(postprocess-plan §3)의 RHI 를 잰다 - mip 하나에 그리기·mip 하나 읽기·mip 마다의 상태·깊이 읽기.
 //
 // D3D12 와 D3D11 은 그려서 잰다. **D3D12 의 검증 레이어가 이 시험의 반이다** - mip 마다 상태를 들지 않으면 그림은 맞게 나와도
-// "mip 0 을 읽는 동안 mip 1 이 렌더 타깃" 같은 자리에서 검증 오류가 난다. Vulkan 도 그려서 잰다 - SPIR-V 탐침은 2026-10-26 에
-// 구웠다(그 전에는 만들기·거절만 쟀다).
+// "mip 0 을 읽는 동안 mip 1 이 렌더 타깃" 같은 자리에서 검증 오류가 난다. Vulkan 도 그려서 잰다 - SPIR-V 탐침은
+// 2026-11-17 에 구웠다(D-405). Vulkan 은 검증 레이어가 레이아웃 전이를 잰다.
 namespace
 {
     void Check(JBro::Bool condition, const char* message)
@@ -84,18 +85,18 @@ namespace
         return api == JBro::GraphicsApi::D3D12 || api == JBro::GraphicsApi::D3D11 || api == JBro::GraphicsApi::Vulkan;
     }
 
-    // 백엔드마다 읽는 바이트코드다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.
-    template <std::size_t DxilSize, std::size_t DxbcSize, std::size_t SpirvSize>
-    JBro::ShaderBytecode ProbeBytecode(JBro::GraphicsApi api, const unsigned char (&dxil)[DxilSize],
-        const unsigned char (&dxbc)[DxbcSize], const unsigned char (&spirv)[SpirvSize])
+    // 백엔드의 바이트코드를 고른다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.
+    template <std::size_t DxilSize, std::size_t Sm5Size, std::size_t SpvSize>
+    JBro::ShaderBytecode Pick(JBro::GraphicsApi api, const unsigned char (&dxil)[DxilSize], const unsigned char (&sm5)[Sm5Size],
+        const unsigned char (&spv)[SpvSize])
     {
         if (api == JBro::GraphicsApi::D3D11)
         {
-            return {dxbc, static_cast<JBro::UInt32>(DxbcSize)};
+            return {sm5, static_cast<JBro::UInt32>(Sm5Size)};
         }
         if (api == JBro::GraphicsApi::Vulkan)
         {
-            return {spirv, static_cast<JBro::UInt32>(SpirvSize)};
+            return {spv, static_cast<JBro::UInt32>(SpvSize)};
         }
         return {dxil, static_cast<JBro::UInt32>(DxilSize)};
     }
@@ -110,7 +111,7 @@ namespace
 
     JBro::ShaderBytecode VertexShader(JBro::GraphicsApi api)
     {
-        return ProbeBytecode(api, JBroTestSubresourceProbeVS, Sm5::JBroTestSubresourceProbeVS_SM5, Spv::JBroTestSubresourceProbeVS_SPV);
+        return Pick(api, JBroTestSubresourceProbeVS, Sm5::JBroTestSubresourceProbeVS_SM5, Spv::JBroTestSubresourceProbeVS_SPV);
     }
 
     JBro::ShaderBytecode PixelShader(JBro::GraphicsApi api, ProbePixel pixel)
@@ -118,15 +119,13 @@ namespace
         switch (pixel)
         {
         case ProbePixel::Tint:
-            return ProbeBytecode(api, JBroTestSubresourceProbeTintPS, Sm5::JBroTestSubresourceProbeTintPS_SM5, Spv::JBroTestSubresourceProbeTintPS_SPV);
+            return Pick(api, JBroTestSubresourceProbeTintPS, Sm5::JBroTestSubresourceProbeTintPS_SM5, Spv::JBroTestSubresourceProbeTintPS_SPV);
         case ProbePixel::Sample:
-            return ProbeBytecode(
-                api, JBroTestSubresourceProbeSamplePS, Sm5::JBroTestSubresourceProbeSamplePS_SM5, Spv::JBroTestSubresourceProbeSamplePS_SPV);
+            return Pick(api, JBroTestSubresourceProbeSamplePS, Sm5::JBroTestSubresourceProbeSamplePS_SM5, Spv::JBroTestSubresourceProbeSamplePS_SPV);
         case ProbePixel::Depth:
-            return ProbeBytecode(
-                api, JBroTestSubresourceProbeDepthPS, Sm5::JBroTestSubresourceProbeDepthPS_SM5, Spv::JBroTestSubresourceProbeDepthPS_SPV);
+            return Pick(api, JBroTestSubresourceProbeDepthPS, Sm5::JBroTestSubresourceProbeDepthPS_SM5, Spv::JBroTestSubresourceProbeDepthPS_SPV);
         case ProbePixel::Volume:
-            return ProbeBytecode(api, JBroTestVolumeProbePS, Sm5::JBroTestVolumeProbePS_SM5, Spv::JBroTestVolumeProbePS_SPV);
+            return Pick(api, JBroTestVolumeProbePS, Sm5::JBroTestVolumeProbePS_SM5, Spv::JBroTestVolumeProbePS_SPV);
         }
         return {};
     }

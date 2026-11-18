@@ -188,4 +188,32 @@ namespace JBro::Widget
         ImGui::Dummy(ImVec2(square, square));
         DrawGlyphCentered(glyph, min, ImVec2(min.x + square, min.y + square), ImGui::GetColorU32(ImGuiCol_Text));
     }
+
+    ImVec2 OverlayBadgeSize(const char* glyph, const char* text)
+    {
+        const Float line = ImGui::GetTextLineHeight();
+        const Float padding = 3.0f;
+        const Float textWidth = text != nullptr ? ImGui::CalcTextSize(text).x : 0.0f;
+        (void)glyph;
+        return ImVec2(padding + line + (textWidth > 0.0f ? Float(textWidth + 1.0f) : Float(0.0f)) + padding, line + 2.0f);
+    }
+
+    Bool OverlayBadge(const char* glyph, const char* text, const ImVec2& at)
+    {
+        const ImVec2 size = OverlayBadgeSize(glyph, text);
+        const ImVec2 max(at.x + size.x, at.y + size.y);
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        // 바탕은 창 바탕보다 진한 칸 색이다 - 그림 위에서도 글자가 읽힌다.
+        draw->AddRectFilled(at, max, ImGui::GetColorU32(ImGuiCol_PopupBg), size.y * 0.5f);
+        draw->AddRect(at, max, ImGui::GetColorU32(ImGuiCol_Border), size.y * 0.5f);
+        const Float line = ImGui::GetTextLineHeight();
+        const Float padding = 3.0f;
+        const ImVec2 glyphMin(at.x + padding, at.y + 1.0f);
+        DrawGlyphCentered(glyph, glyphMin, ImVec2(glyphMin.x + line, glyphMin.y + line), ImGui::GetColorU32(ImGuiCol_Text));
+        if (text != nullptr && text[0] != '\0')
+        {
+            draw->AddText(ImVec2(glyphMin.x + line + 1.0f, at.y + 1.0f), ImGui::GetColorU32(ImGuiCol_Text), text);
+        }
+        return ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) && ImGui::IsMouseHoveringRect(at, max);
+    }
 }

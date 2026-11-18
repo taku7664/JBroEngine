@@ -246,6 +246,11 @@ namespace JBro::LocKeys
     inline constexpr const char* NewProjectInvalidName = "new_project.invalid_name";
     inline constexpr const char* NewProjectAlreadyExists = "new_project.already_exists";
     inline constexpr const char* NewProjectCannotWrite = "new_project.cannot_write";
+    // `.jproject` 를 이 에디터와 잇기(D-389). 프로젝트가 없을 때의 파일 메뉴에 있다.
+    inline constexpr const char* MenuRegisterProjectFileType = "menu.register_project_file_type";
+    inline constexpr const char* PopupProjectFileTypeRegistered = "popup.project_file_type_registered";
+    inline constexpr const char* PopupProjectFileTypeFailed = "popup.project_file_type_failed";
+
 
     // ── 계층 ─────────────────────────────────────────────────────────────
     inline constexpr const char* HierarchyNoProject = "hierarchy.no_project";
@@ -603,6 +608,10 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorSpritePpuMismatch = "inspector.sprite_ppu_mismatch";
     inline constexpr const char* AssetsIconView = "assets.icon_view";
     inline constexpr const char* AssetsListView = "assets.list_view";
+    inline constexpr const char* AssetsExpand = "assets.expand";
+    inline constexpr const char* AssetsCollapse = "assets.collapse";
+    inline constexpr const char* AssetsNewStandardMaterial = "assets.new_standard_material";
+    inline constexpr const char* AssetsSameImageTooltip = "assets.same_image_tooltip";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
     inline constexpr const char* CommonCancel = "common.cancel";
     // 경로 칸의 단추(D-164, 기존 `CommonBrowse`)
@@ -614,6 +623,12 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorFontImportOptions = "inspector.font_import_options";
     inline constexpr const char* InspectorFontFamilyFaces = "inspector.font_family_faces";
     inline constexpr const char* InspectorStringTable = "inspector.string_table";
+    inline constexpr const char* InspectorModelImportOptions = "inspector.model_import_options";
+    inline constexpr const char* InspectorSameImage = "inspector.same_image";
+    inline constexpr const char* InspectorMaterial = "inspector.material";
+    inline constexpr const char* InspectorModelMaterialReadOnly = "inspector.model_material_read_only";
+    inline constexpr const char* InspectorSameImageSplitNote = "inspector.same_image_split_note";
+    inline constexpr const char* InspectorOwnerModel = "inspector.owner_model";
     inline constexpr const char* InspectorNoStringKey = "inspector.no_string_key";
     inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
     inline constexpr const char* InspectorAudioLength = "inspector.audio_length";

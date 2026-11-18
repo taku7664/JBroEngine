@@ -6,6 +6,8 @@
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Asset/AudioEffectFile.h>
 #include <JBro/Asset/ColorLutFile.h>
+#include <JBro/Asset/ModelDecoder.h>
+#include <JBro/Asset/ModelImport.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -295,6 +297,11 @@ namespace JBro
         return MetaPathOf(record);
     }
 
+    String AssetSystem::GetSourcePath(const AssetRecord& record) const
+    {
+        return SourcePathOf(record);
+    }
+
     String AssetSystem::MetaPathOf(const AssetRecord& record) const
     {
         return AssetTypeRules::MakeMetaPath(SourcePathOf(record));
@@ -307,12 +314,20 @@ namespace JBro
         {
             return false;
         }
-        // 빌드가 디코드해 둔 픽셀이 있으면 그것이다(D-232) - 게임에 이미지 디코더가 돌지 않는다.
-        if (m_source->Has(record, AssetBlob::CookedTexture))
+        data.sharedImageKey = record.sharedImageKey;
+        // 같은 그림이 이미 실렸으면 그 픽셀이다 - 모델을 다시 읽지도 블롭을 다시 풀지도 않는다(material-plan 5 단계).
+        if (CopySharedImage(record, data))
+        {
+            data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
+            return true;
+        }
+        // 빌드가 디코드해 둔 픽셀이 있으면 그것이다(D-232) - 게임에 이미지 디코더가 돌지 않는다. 모델의 내장 그림도 빌드가 꺼내 둔다(6 단계).
+        // 같은 그림은 빌드가 한 번만 구워 두므로 제 블롭이 없으면 같은 열쇠의 것을 읽는다.
+        if (const AssetRecord* cookedFrom = CookedImageOf(record))
         {
             Array<std::byte> cooked;
             CookedTextureInfo info;
-            if (false == m_source->Read(record, AssetBlob::CookedTexture, cooked) || false == ReadCookedTexture(cooked, info))
+            if (false == m_source->Read(*cookedFrom, AssetBlob::CookedTexture, cooked) || false == ReadCookedTexture(cooked, info))
             {
                 Log::Write(LogLevel::Warning, "asset", "%s: the cooked texture is damaged", record.relativePath.c_str());
                 return false;
@@ -323,6 +338,11 @@ namespace JBro
             std::memcpy(data.pixels.Data(), cooked.Data() + CookedTextureHeaderSize, data.pixels.Size());
             data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
             return true;
+        }
+        // 모델의 내장 그림은 모델 안의 바이트다(5 단계).
+        if (const AssetRecord* model = OwnerModelOf(record))
+        {
+            return ReadEmbeddedTexture(record, *model, data);
         }
         // 원본은 워커 로드와 같은 디코드를 부른다(D-236). 동기 로드는 메인에서 부를 뿐이다.
         AssetDecodeJob job;
@@ -490,6 +510,19 @@ namespace JBro
         {
             return false;
         }
+        // 모델의 내장 그림은 하위 목록의 제 항목이 옵션을 든다. 항목에 옵션이 없으면 모델 그림의 기본이다.
+        if (meta.type == AssetType::Model)
+        {
+            options = ModelTextureDefaults();
+            for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+            {
+                if (meta.subAssets[index].id == record.id && meta.subAssets[index].hasTextureOptions)
+                {
+                    options = meta.subAssets[index].textureOptions;
+                }
+            }
+            return true;
+        }
         options = meta.hasTextureOptions ? meta.textureOptions : TextureImportOptions{};
         return true;
     }
@@ -545,6 +578,11 @@ namespace JBro
             }
         }
         if (record->type != AssetType::Texture && record->type != AssetType::Audio)
+        {
+            return false;
+        }
+        // 모델의 내장 그림은 모델을 읽어야 나온다 - 들고 있는 모델이 메인 스레드의 것이라 동기 로드에 둔다.
+        if (OwnerModelOf(*record) != nullptr)
         {
             return false;
         }
@@ -867,67 +905,269 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
-    Bool AssetSystem::ReadMaterial(const AssetRecord& record, MaterialAssetData& data)
+    const MeshData* AssetSystem::GetMesh(AssetHandle handle) const
     {
-        Array<std::byte> bytes;
-        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        const Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const
+    {
+        out.Clear();
+        if (m_platform == nullptr || m_assetRoot.empty())
         {
             return false;
         }
-        data.text.assign(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
-        return true;
+        String path = m_assetRoot;
+        if (path.back() != '/' && path.back() != '\\')
+        {
+            path += "/";
+        }
+        path += String(relativePath);
+        return m_platform->ReadWholeFile(path.c_str(), out);
     }
 
-    Bool AssetSystem::ReadMesh(const AssetRecord& record, MeshAssetData& data)
+    const AssetRecord* AssetSystem::OwnerModelOf(const AssetRecord& record) const
+    {
+        const AssetRecord* owner = record.owner.IsNull() || m_registry == nullptr ? nullptr : m_registry->Find(record.owner);
+        return owner != nullptr && owner->type == AssetType::Model ? owner : nullptr;
+    }
+
+    const ModelData* AssetSystem::DecodeOwnerModel(const AssetRecord& model)
+    {
+        if (m_source == nullptr)
+        {
+            return nullptr;
+        }
+        if (m_decodedModelId == model.id)
+        {
+            return &m_decodedModel;
+        }
+        AssetMetaFile meta;
+        if (false == ReadMeta(model, meta))
+        {
+            return nullptr;
+        }
+        Array<std::byte> bytes;
+        if (false == m_source->Read(model, AssetBlob::Source, bytes))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the model file could not be read", model.relativePath.c_str());
+            return nullptr;
+        }
+        struct SideReader
+        {
+            const AssetSystem* assets;
+            String folder;
+            static Bool Read(void* user, const char* relativePath, Array<std::byte>& out)
+            {
+                const SideReader& self = *static_cast<const SideReader*>(user);
+                String path = self.folder;
+                path += relativePath;
+                return self.assets->ReadLooseFile(path, out);
+            }
+        };
+        const std::size_t slash = model.relativePath.find_last_of('/');
+        SideReader side{this, slash == String::npos ? String() : String(model.relativePath.substr(0, slash + 1))};
+        ModelFileReader reader;
+        reader.read = &SideReader::Read;
+        reader.user = &side;
+        ModelData decoded;
+        String error;
+        if (false == DecodeModel({bytes.Data(), static_cast<UInt32>(bytes.Size())}, ModelFormatFromPath(model.relativePath),
+                meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, reader, decoded, error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: %s", model.relativePath.c_str(), error.c_str());
+            return nullptr;
+        }
+        m_decodedModel = std::move(decoded);
+        m_decodedModelId = model.id;
+        return &m_decodedModel;
+    }
+
+    Bool AssetSystem::ReadMesh(const AssetRecord& record, MeshData& data)
+    {
+        // 빌드가 꺼내 둔 메시가 있으면 그것이다(6 단계) - 게임은 모델을 읽지 않는다. 패키지의 레코드는 이름이 없어 아이디로 찾는다.
+        if (m_source != nullptr && m_source->Has(record, AssetBlob::CookedMesh))
+        {
+            Array<std::byte> cooked;
+            if (false == m_source->Read(record, AssetBlob::CookedMesh, cooked)
+                || false == ReadCookedMesh(cooked, data.vertices, data.indices, data.hasUvs, data.hasTangents, data.material))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the cooked mesh is damaged", record.relativePath.c_str());
+                return false;
+            }
+            return true;
+        }
+        // 하위 메시는 모델 파일 안의 이름이 그 메시다(`AssetRecord::name`). 모델 레코드의 메타가 옵션을 든다.
+        const AssetRecord* model = OwnerModelOf(record);
+        const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
+        if (decoded == nullptr)
+        {
+            return false;
+        }
+        Array<ModelSubAsset> listed;
+        ListModelSubAssets(*decoded, listed);
+        if (const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Mesh, record.name))
+        {
+            const ModelMesh& mesh = decoded->meshes[sub->index.Get()];
+            data.vertices = mesh.vertices;
+            data.indices = mesh.indices;
+            data.hasUvs = mesh.hasUvs;
+            data.hasTangents = mesh.hasTangents;
+            data.material = m_registry != nullptr ? FindModelMeshMaterialId(*m_registry, *model, listed, mesh) : AssetId{};
+            return true;
+        }
+        // 메타의 목록이 파일보다 낡았다(파일이 바뀌고 목록을 아직 맞추지 않음). 에디터의 파일 감시가 맞춘다.
+        Log::Write(LogLevel::Warning, "asset", "%s: the model has no mesh named %s", model->relativePath.c_str(), record.name.c_str());
+        return false;
+    }
+
+    Bool AssetSystem::ReadMaterial(const AssetRecord& record, MaterialData& data)
     {
         if (m_source == nullptr)
         {
             return false;
         }
-        Array<std::byte> bytes;
-        // 패키지는 빌드가 푼 것을 든다(D-366).
-        if (m_source->Has(record, AssetBlob::CookedMesh))
+        String error;
+        // 갈래는 글자가 정한다 - 빌드가 옮긴 것과 모델의 재질은 늘 표준 머티리얼이다. 재로드가 같은 자리를 다시 쓰므로 둘 다 비우고 시작한다.
+        data.standard = true;
+        data.desc = MaterialDesc{};
+        data.text.clear();
+        // 빌드가 옮겨 둔 것이 먼저다 - 게임은 모델을 읽지 않는다. 그림 칸의 아이디까지 풀려 있다.
+        if (m_source->Has(record, AssetBlob::CookedMaterial))
         {
-            if (false == m_source->Read(record, AssetBlob::CookedMesh, bytes) || false == ReadCookedMesh(bytes.Data(), bytes.Size(), data))
+            Array<std::byte> cooked;
+            if (false == m_source->Read(record, AssetBlob::CookedMaterial, cooked)
+                || false == ParseMaterialFile(reinterpret_cast<const char*>(cooked.Data()), cooked.Size(), data.desc, error))
             {
-                Log::Write(LogLevel::Warning, "asset", "a cooked mesh is broken: %s", record.relativePath.c_str());
+                Log::Write(LogLevel::Warning, "asset", "%s: the cooked material is damaged", record.relativePath.c_str());
                 return false;
             }
             return true;
         }
-        if (false == m_source->Read(record, AssetBlob::Source, bytes))
+        // 모델의 하위 Material 은 모델의 재질을 옮긴 것이다(읽기 전용, D-399 (2)).
+        if (const AssetRecord* model = OwnerModelOf(record))
         {
+            const ModelData* decoded = DecodeOwnerModel(*model);
+            if (decoded == nullptr)
+            {
+                return false;
+            }
+            Array<ModelSubAsset> listed;
+            ListModelSubAssets(*decoded, listed);
+            const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Material, record.name);
+            if (sub == nullptr)
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the model has no material named %s", model->relativePath.c_str(), record.name.c_str());
+                return false;
+            }
+            UInt32 missing = 0;
+            data.desc = MakeModelMaterialDesc(*m_registry, *model, *decoded, listed, sub->index.Get(), missing);
+            if (missing > 0)
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: %u picture(s) of material %s are not in the project", model->relativePath.c_str(),
+                    static_cast<unsigned>(missing.Get()), record.name.c_str());
+            }
+            return true;
+        }
+        Array<std::byte> text;
+        if (false == m_source->Read(record, AssetBlob::Source, text))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the material file could not be read", record.relativePath.c_str());
             return false;
         }
-        struct Siblings
+        // 셰이더 머티리얼(D-347)은 글자째 든다 - 그래픽 모듈의 `MaterialLibrary` 가 셰이더를 보고 푼다.
+        if (false == IsStandardMaterialText(reinterpret_cast<const char*>(text.Data()), text.Size()))
         {
-            const IAssetSource* source;
-            const AssetRecord* record;
-        } siblings{m_source, &record};
-        String why;
-        if (false == ParseGltfMesh(bytes.Data(), bytes.Size(),
-                [](const char* uri, Array<std::byte>& out, void* user) -> Bool {
-                    const Siblings& found = *static_cast<const Siblings*>(user);
-                    return found.source->ReadSibling(*found.record, uri, out);
-                },
-                &siblings, data, &why))
+            data.standard = false;
+            data.text.assign(reinterpret_cast<const char*>(text.Data()), text.Size());
+            return true;
+        }
+        if (false == ParseMaterialFile(reinterpret_cast<const char*>(text.Data()), text.Size(), data.desc, error))
         {
-            Log::Write(LogLevel::Warning, "asset", "a mesh could not be read: %s: %s", record.relativePath.c_str(), why.c_str());
+            Log::Write(LogLevel::Warning, "asset", "%s: %s", record.relativePath.c_str(), error.c_str());
             return false;
         }
         return true;
     }
 
-    const MeshAssetData* AssetSystem::GetMesh(AssetHandle handle) const
+    const MaterialData* AssetSystem::GetMaterial(AssetHandle handle) const
     {
-        const Slot<MeshAssetData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
+        const Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material);
         return slot != nullptr ? &slot->data : nullptr;
     }
 
-    const MaterialAssetData* AssetSystem::GetMaterial(AssetHandle handle) const
+    Bool AssetSystem::CopySharedImage(const AssetRecord& record, TextureData& data) const
     {
-        const Slot<MaterialAssetData>* slot = FindSlot(m_materials, handle, AssetType::Material);
-        return slot != nullptr ? &slot->data : nullptr;
+        if (record.sharedImageKey == 0)
+        {
+            return false;
+        }
+        for (const Slot<TextureData>& slot : m_textures.slots)
+        {
+            if (slot.occupied && slot.id != record.id && slot.data.sharedImageKey == record.sharedImageKey && slot.data.width > 0)
+            {
+                data.width = slot.data.width;
+                data.height = slot.data.height;
+                data.pixels = slot.data.pixels;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    const AssetRecord* AssetSystem::CookedImageOf(const AssetRecord& record) const
+    {
+        if (m_source->Has(record, AssetBlob::CookedTexture))
+        {
+            return &record;
+        }
+        if (record.sharedImageKey == 0 || m_registry == nullptr)
+        {
+            return nullptr;
+        }
+        for (std::size_t index = 0; index < m_registry->GetCount(); ++index)
+        {
+            const AssetRecord& other = m_registry->GetRecord(index);
+            if (other.id != record.id && other.sharedImageKey == record.sharedImageKey && m_source->Has(other, AssetBlob::CookedTexture))
+            {
+                return &other;
+            }
+        }
+        return nullptr;
+    }
+
+    Bool AssetSystem::ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data)
+    {
+        const ModelData* decoded = DecodeOwnerModel(model);
+        if (decoded == nullptr)
+        {
+            return false;
+        }
+        Array<ModelSubAsset> listed;
+        ListModelSubAssets(*decoded, listed);
+        const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Texture, record.name);
+        if (sub == nullptr)
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the model has no embedded image named %s", model.relativePath.c_str(), record.name.c_str());
+            return false;
+        }
+        const ModelImage& image = decoded->images[sub->index.Get()];
+        JArrayView<std::byte> view;
+        view.data = image.embedded.Data();
+        view.size = static_cast<JBro::UInt32>(image.embedded.Size());
+        DecodedImage pixels;
+        if (false == DecodeImage(view, pixels))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the embedded image %s is not one this engine can decode",
+                model.relativePath.c_str(), record.name.c_str());
+            return false;
+        }
+        data.width = pixels.width;
+        data.height = pixels.height;
+        data.pixels = std::move(pixels.pixels);
+        data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
+        return true;
     }
 
     const StringTableData* AssetSystem::GetStringTable(AssetHandle handle) const
@@ -1158,14 +1398,14 @@ namespace JBro
                 }
                 break;
             case AssetType::Material:
-                if (Slot<MaterialAssetData>* slot = FindSlot(m_materials, handle, AssetType::Material))
+                if (Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material))
                 {
                     ++slot->referenceCount;
                     return handle;
                 }
                 break;
             case AssetType::Mesh:
-                if (Slot<MeshAssetData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh))
+                if (Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh))
                 {
                     ++slot->referenceCount;
                     return handle;
@@ -1310,7 +1550,7 @@ namespace JBro
         }
         case AssetType::Material:
         {
-            MaterialAssetData data;
+            MaterialData data;
             if (false == ReadMaterial(*record, data))
             {
                 return {};
@@ -1320,7 +1560,7 @@ namespace JBro
         }
         case AssetType::Mesh:
         {
-            MeshAssetData data;
+            MeshData data;
             if (false == ReadMesh(*record, data))
             {
                 return {};
@@ -1429,14 +1669,14 @@ namespace JBro
             }
             return;
         }
-        if (Slot<MaterialAssetData>* material = FindSlot(m_materials, handle, AssetType::Material))
+        if (Slot<MaterialData>* material = FindSlot(m_materials, handle, AssetType::Material))
         {
             if (material->referenceCount != 0)
             {
                 --material->referenceCount;
             }
         }
-        if (Slot<MeshAssetData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        if (Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
         {
             if (mesh->referenceCount != 0)
             {
@@ -1514,11 +1754,11 @@ namespace JBro
         {
             return shader->referenceCount;
         }
-        if (const Slot<MaterialAssetData>* material = FindSlot(m_materials, handle, AssetType::Material))
+        if (const Slot<MaterialData>* material = FindSlot(m_materials, handle, AssetType::Material))
         {
             return material->referenceCount;
         }
-        if (const Slot<MeshAssetData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        if (const Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
         {
             return mesh->referenceCount;
         }
@@ -1553,6 +1793,12 @@ namespace JBro
         }
         if (Slot<TextureData>* texture = FindSlot(m_textures, *loaded, AssetType::Texture))
         {
+            // 내장 그림이면 모델 파일이 바뀌었을 수 있다 - 메시와 같이 들고 있던 모델을 버린다.
+            if (OwnerModelOf(*record) != nullptr)
+            {
+                m_decodedModelId = {};
+                m_decodedModel = {};
+            }
             TextureData fresh;
             if (false == ReadTexture(*record, fresh))
             {
@@ -1687,9 +1933,15 @@ namespace JBro
             shader->data = std::move(fresh);
             return true;
         }
-        if (Slot<MaterialAssetData>* material = FindSlot(m_materials, *loaded, AssetType::Material))
+        if (Slot<MaterialData>* material = FindSlot(m_materials, *loaded, AssetType::Material))
         {
-            MaterialAssetData fresh;
+            // 모델의 재질이면 모델 파일이 바뀌었을 수 있다 - 들고 있던 모델을 버린다.
+            if (OwnerModelOf(*record) != nullptr)
+            {
+                m_decodedModelId = {};
+                m_decodedModel = {};
+            }
+            MaterialData fresh;
             if (false == ReadMaterial(*record, fresh))
             {
                 return false;
@@ -1698,9 +1950,12 @@ namespace JBro
             material->data = std::move(fresh);
             return true;
         }
-        if (Slot<MeshAssetData>* mesh = FindSlot(m_meshes, *loaded, AssetType::Mesh))
+        if (Slot<MeshData>* mesh = FindSlot(m_meshes, *loaded, AssetType::Mesh))
         {
-            MeshAssetData fresh;
+            // 모델 파일이 바뀌었다는 뜻이다 - 들고 있던 모델을 버리고 다시 읽는다.
+            m_decodedModelId = {};
+            m_decodedModel = {};
+            MeshData fresh;
             if (false == ReadMesh(*record, fresh))
             {
                 return false;
@@ -1833,7 +2088,7 @@ namespace JBro
         // 머티리얼이 먼저 - 셰이더는 머티리얼 라이브러리가 쥐므로 여기 순서와는 상관없지만 읽는 차례를 맞춘다.
         for (UInt32 index = 0; index < m_materials.slots.Size(); ++index)
         {
-            Slot<MaterialAssetData>& slot = m_materials.slots[index];
+            Slot<MaterialData>& slot = m_materials.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_materials, index);
@@ -1851,13 +2106,16 @@ namespace JBro
         }
         for (UInt32 index = 0; index < m_meshes.slots.Size(); ++index)
         {
-            Slot<MeshAssetData>& slot = m_meshes.slots[index];
+            Slot<MeshData>& slot = m_meshes.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_meshes, index);
                 ++freed;
             }
         }
+        // 들고 있던 모델도 놓는다 - 다음 메시 로드가 다시 읽는다.
+        m_decodedModelId = {};
+        m_decodedModel = {};
         return freed;
     }
 

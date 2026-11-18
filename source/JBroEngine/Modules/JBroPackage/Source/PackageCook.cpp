@@ -4,7 +4,9 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ImageDecoder.h>
-#include <JBro/Asset/MeshFile.h>
+#include <JBro/Asset/ModelImport.h>
+
+#include <cstring>
 #include <JBro/TextRendering/TextLibrary.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
@@ -42,6 +44,133 @@ namespace JBro::Package
             report.blobBytes += bytes.Size();
             return true;
         }
+
+        // 굽는 동안 마지막으로 읽은 모델 하나를 든다. 하위 에셋은 모델 아래에 이어 오므로 모델마다 한 번 읽는다.
+        struct ModelCache
+        {
+            AssetId id;
+            Bool ok = false;
+            ModelData model;
+            Array<ModelSubAsset> listed;
+        };
+
+        const ModelData* DecodeOwner(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRecord& owner,
+            ModelCache& cache, String& error)
+        {
+            if (cache.id != owner.id)
+            {
+                cache = ModelCache{};
+                cache.id = owner.id;
+                Array<std::byte> metaBytes;
+                AssetMetaFile meta;
+                AssetMetaError metaError;
+                if (false == loose.Read(owner, AssetBlob::Meta, metaBytes)
+                    || false == ParseAssetMetaFile(reinterpret_cast<const char*>(metaBytes.Data()), metaBytes.Size(), meta, metaError))
+                {
+                    error = "the model's meta file could not be read";
+                    return nullptr;
+                }
+                cache.ok = DecodeModelFile(platform, assetRoot, owner.relativePath,
+                    meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, cache.model, error);
+                if (cache.ok)
+                {
+                    ListModelSubAssets(cache.model, cache.listed);
+                }
+            }
+            if (false == cache.ok && error.empty())
+            {
+                error = "the model could not be decoded";
+            }
+            return cache.ok ? &cache.model : nullptr;
+        }
+
+        // 모델의 하위 메시·내장 그림 하나를 굽는다. 실패는 보고에 적는다.
+        void CookModelPart(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRegistry& registry,
+            const AssetRecord& owner, const AssetRecord& record, ModelCache& cache, Array<UInt64>& cookedImages, PackageWriter& writer,
+            CookReport& report)
+        {
+            // 같은 그림을 이미 구웠으면 레코드만 둔다 - 모델을 읽을 것도 없다. 게임의 에셋 시스템이 같은 열쇠의 블롭을 읽는다.
+            if (record.type == AssetType::Texture && record.sharedImageKey != 0)
+            {
+                for (const UInt64 key : cookedImages)
+                {
+                    if (key == record.sharedImageKey)
+                    {
+                        if (writer.Add(EntryOf(record, BlobKind::Record), {}))
+                        {
+                            ++report.sharedTextures;
+                        }
+                        else
+                        {
+                            Fail(report, record, "the asset appears twice in the package");
+                        }
+                        return;
+                    }
+                }
+            }
+            String error;
+            const ModelData* model = DecodeOwner(platform, loose, assetRoot, owner, cache, error);
+            if (model == nullptr)
+            {
+                Fail(report, record, error.c_str());
+                return;
+            }
+            const ModelSubAsset* sub = FindModelSubAsset(cache.listed, record.type, record.name);
+            if (sub == nullptr)
+            {
+                Fail(report, record, "the model no longer has this sub-asset - reopen the project in the editor to refresh its list");
+                return;
+            }
+            Array<std::byte> cooked;
+            if (record.type == AssetType::Material)
+            {
+                // 모델의 재질은 그림 칸의 아이디까지 풀어 `.jmat` 글자로 둔다 - 게임의 레코드에는 이름이 없어 스스로 풀 수 없다.
+                UInt32 missing = 0;
+                const MaterialDesc desc = MakeModelMaterialDesc(registry, owner, *model, cache.listed, sub->index.Get(), missing);
+                String text;
+                if (false == FormatMaterialFile(desc, text))
+                {
+                    Fail(report, record, "the material could not be written");
+                    return;
+                }
+                cooked.Resize(text.size());
+                std::memcpy(cooked.Data(), text.data(), text.size());
+                if (AddBlob(writer, report, record, BlobKind::CookedMaterial, cooked))
+                {
+                    ++report.cookedMaterials;
+                }
+                return;
+            }
+            if (record.type == AssetType::Mesh)
+            {
+                const ModelMesh& mesh = model->meshes[sub->index.Get()];
+                WriteCookedMesh(mesh.vertices, mesh.indices, mesh.hasUvs, mesh.hasTangents, FindModelMeshMaterialId(registry, owner, cache.listed, mesh), cooked);
+                if (AddBlob(writer, report, record, BlobKind::CookedMesh, cooked))
+                {
+                    ++report.cookedMeshes;
+                }
+                return;
+            }
+            const ModelImage& image = model->images[sub->index.Get()];
+            JArrayView<std::byte> view;
+            view.data = image.embedded.Data();
+            view.size = static_cast<JBro::UInt32>(image.embedded.Size());
+            DecodedImage pixels;
+            if (false == DecodeImage(view, pixels))
+            {
+                Fail(report, record, "the embedded image could not be decoded");
+                return;
+            }
+            WriteCookedTexture(pixels.width, pixels.height, pixels.pixels.Data(), cooked);
+            if (AddBlob(writer, report, record, BlobKind::CookedTexture, cooked))
+            {
+                ++report.cookedTextures;
+                if (record.sharedImageKey != 0)
+                {
+                    cookedImages.Add(record.sharedImageKey);
+                }
+            }
+        }
     }
 
     Bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
@@ -49,6 +178,8 @@ namespace JBro::Package
     {
         LooseAssetSource loose;
         loose.Bind(&platform, assetRoot);
+        ModelCache models;
+        Array<UInt64> cookedImages;
         for (const AssetId& id : ids)
         {
             const AssetRecord* record = registry.Find(id);
@@ -62,6 +193,14 @@ namespace JBro::Package
                 continue;
             }
             ++report.assets;
+            // 모델의 하위 메시·내장 그림은 모델에서 꺼내 굽는다(6 단계). 재질은 아직 레코드만이다.
+            const AssetRecord* owner = record->owner.IsNull() ? nullptr : registry.Find(record->owner);
+            if (owner != nullptr && owner->type == AssetType::Model
+                && (record->type == AssetType::Mesh || record->type == AssetType::Texture || record->type == AssetType::Material))
+            {
+                CookModelPart(platform, loose, assetRoot, registry, *owner, *record, models, cookedImages, writer, report);
+                continue;
+            }
             // 이미지의 Sprite 는 주인의 메타와 픽셀을 쓴다. 레코드만 둔다.
             if (false == record->owner.IsNull())
             {
@@ -78,6 +217,11 @@ namespace JBro::Package
                 continue;
             }
             if (false == AddBlob(writer, report, *record, BlobKind::Meta, meta))
+            {
+                continue;
+            }
+            // 모델은 메타만이다 - 하위 에셋이 제 블롭을 갖고, 게임은 원본을 읽지 않는다.
+            if (record->type == AssetType::Model)
             {
                 continue;
             }
@@ -124,31 +268,6 @@ namespace JBro::Package
                     ++report.bakedAtlases;
                 }
                 AddBlob(writer, report, *record, BlobKind::Source, font.bytes);
-                continue;
-            }
-            // 메시는 glTF 와 그 바깥 버퍼를 풀어 한 블롭으로 싣는다(D-366). 게임은 glTF 를 읽지 않는다.
-            if (record->type == AssetType::Mesh)
-            {
-                struct Siblings
-                {
-                    const LooseAssetSource* source;
-                    const AssetRecord* record;
-                } siblings{&loose, record};
-                MeshAssetData mesh;
-                String why;
-                if (false == ParseGltfMesh(source.Data(), source.Size(),
-                        [](const char* uri, Array<std::byte>& out, void* user) -> Bool {
-                            const Siblings& found = *static_cast<const Siblings*>(user);
-                            return found.source->ReadSibling(*found.record, uri, out);
-                        },
-                        &siblings, mesh, &why))
-                {
-                    Fail(report, *record, why.c_str());
-                    continue;
-                }
-                Array<std::byte> blob;
-                WriteCookedMesh(mesh, blob);
-                AddBlob(writer, report, *record, BlobKind::CookedMesh, blob);
                 continue;
             }
             if (record->type == AssetType::Shader)

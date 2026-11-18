@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
@@ -482,14 +483,14 @@ namespace
 
 JBro::Int32 RunScriptSchedulingTests()
 {
-    TestScriptsRunInLayerThenHierarchyOrder();
-    TestStartHappensOnceAndBeforeTheSameFrameUpdate();
-    TestFixedStepsReuseTheOrderAndSkipUnstartedScripts();
-    TestDisabledAndDestroyedScriptsLeaveTheSchedule();
-    TestDestroyingAnObjectFromAScriptHookIsDeferred();
-    TestSiblingSubtreesDoNotInterleave();
-    TestScriptsInOneObjectFollowTheComponentSlotOrder();
-    TestTheOrderIsRebuiltOnlyWhenSomethingChangedIt();
+    JBRO_CASE(TestScriptsRunInLayerThenHierarchyOrder());
+    JBRO_CASE(TestStartHappensOnceAndBeforeTheSameFrameUpdate());
+    JBRO_CASE(TestFixedStepsReuseTheOrderAndSkipUnstartedScripts());
+    JBRO_CASE(TestDisabledAndDestroyedScriptsLeaveTheSchedule());
+    JBRO_CASE(TestDestroyingAnObjectFromAScriptHookIsDeferred());
+    JBRO_CASE(TestSiblingSubtreesDoNotInterleave());
+    JBRO_CASE(TestScriptsInOneObjectFollowTheComponentSlotOrder());
+    JBRO_CASE(TestTheOrderIsRebuiltOnlyWhenSomethingChangedIt());
     std::cout << "Script scheduling tests passed.\n";
     return 0;
 }

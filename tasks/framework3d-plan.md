@@ -299,7 +299,7 @@
 
 ## 4. 메시 에셋과 3D 라이트 (2026-11-03, D-366·D-367)
 
-- 메시 에셋: `<JBro/Asset/MeshFile.h>` 의 `ParseGltfMesh`(결정은 D-366). 쿡은 `WriteCookedMesh`, 게임은 `ReadCookedMesh`. 시험 묶음 `MeshAsset`: 임베드·GLB·바깥 버퍼(이름에 공백)·노드 변환·거울·회전한 면의 법선·깨진 파일 일곱·폴더 밖 URI 거절·다시 읽기의 세대·원본을 지운 패키지.
+- ~~메시 에셋: `<JBro/Asset/MeshFile.h>` 의 `ParseGltfMesh`(결정은 D-366).~~ → 2026-11-19 main 통합(D-406)에서 원격의 모델 임포트(D-391, `model-import-plan.md`)로 대신하고 `MeshFile`·시험 묶음 `MeshAsset` 을 뺐다. 아래 줄은 그때의 기록이다. 쿡은 `WriteCookedMesh`, 게임은 `ReadCookedMesh`. 시험 묶음 `MeshAsset`: 임베드·GLB·바깥 버퍼(이름에 공백)·노드 변환·거울·회전한 면의 법선·깨진 파일 일곱·폴더 밖 URI 거절·다시 읽기의 세대·원본을 지운 패키지.
 - 라이트: `PostProcessPixel` 의 `TestLight3DLightsAMesh`(세 백엔드, 빌트인과 머티리얼 둘 다): 라이트 없음은 고정 방향광, 정면은 제 색, 60 도는 반, 뒤는 0(고정 방향광으로 돌아가지 않는다), 환경광, 점광의 제곱 감쇠, 17 번째부터 버리고 셈. `Framework3DSystem`: 켜진 라이트만 뜨고 방향은 -Z.
 - 3D 시나리오 `TestAMeshMaterialDrawsInA3DProject`: 머티리얼 정육면체 → 라이트가 뷰까지 → glTF 로 바꿔도 떨어지는 메시 없음 → 셰이더 그래프의 `.hlsl` 을 머티리얼이 씀.
 - 뮤테이션 넷이 겨냥한 검사에서 죽었다: glTF 감김을 뒤집지 않음, 머티리얼의 빛이 각과 거리를 보지 않음, 오브젝트 값이 에셋 전체에 얹힘(이웃의 초록 검사), 그래프 라벨을 버림. 다시 읽은 메시를 올리지 않는 뮤테이션은 처음에 살아남아 3D 시나리오에 재업로드 검사를 넣었고 다시 돌리니 죽었다.

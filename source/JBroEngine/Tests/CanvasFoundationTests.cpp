@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -460,18 +461,18 @@ namespace
 
 JBro::Int32 RunCanvasFoundationTests()
 {
-    TestObjectComponentSkeletonCompiles();
-    TestFramework2DBootstraps();
-    TestFramework3DBootstrapsRuntimeCanvas();
-    TestComponentLifecycleHooks();
-    TestDestroyDuringIterationIsDeferred();
-    TestActiveInHierarchyIsCachedAndPropagates();
-    TestLayerIdIsStableWhileOrderFollowsPosition();
-    TestRefIsPod();
-    TestStableTypeIdIsStable();
-    TestFramework2DComponentsArePolymorphic();
-    TestCanvasCollectsComponents();
-    TestCanvasReportsPoolUsage();
+    JBRO_CASE(TestObjectComponentSkeletonCompiles());
+    JBRO_CASE(TestFramework2DBootstraps());
+    JBRO_CASE(TestFramework3DBootstrapsRuntimeCanvas());
+    JBRO_CASE(TestComponentLifecycleHooks());
+    JBRO_CASE(TestDestroyDuringIterationIsDeferred());
+    JBRO_CASE(TestActiveInHierarchyIsCachedAndPropagates());
+    JBRO_CASE(TestLayerIdIsStableWhileOrderFollowsPosition());
+    JBRO_CASE(TestRefIsPod());
+    JBRO_CASE(TestStableTypeIdIsStable());
+    JBRO_CASE(TestFramework2DComponentsArePolymorphic());
+    JBRO_CASE(TestCanvasCollectsComponents());
+    JBRO_CASE(TestCanvasReportsPoolUsage());
     std::cout << "Canvas foundation tests passed.\n";
     return 0;
 }

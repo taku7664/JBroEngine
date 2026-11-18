@@ -1,4 +1,5 @@
-﻿#include <JBro/Task/TaskManager.h>
+﻿#include "TestCases.h"
+#include <JBro/Task/TaskManager.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -903,23 +904,23 @@ JBro::Int32 RunTaskManagerTests()
 {
     try
     {
-        TestParallelGroupRunsOnSeveralWorkersAtOnce();
-        TestSequentialGroupNeverOverlaps();
-        TestProgressCountsUpAndFailuresSeparately();
-        TestUnreportedSubTasksCountAsDone();
-        TestMainThreadPathGivesTheSameResults();
-        TestMainThreadBudgetSpreadsTasksAcrossUpdates();
-        TestCancelEndsTasksAsCanceled(true);
-        TestCancelEndsTasksAsCanceled(false);
-        TestExceptionBecomesFailureReason();
-        TestShutdownWaitsAndDrains(true);
-        TestShutdownWaitsAndDrains(false);
-        TestSubmitRules();
-        TestFinishedGroupsAreTrimmed();
-        TestWorkersCarryNames();
-        TestCallbackWaitDeliversNestedCallbacks();
-        TestThrowingCallbackIsNotCalledTwice();
-        TestEngineOwnsTheManager();
+        JBRO_CASE(TestParallelGroupRunsOnSeveralWorkersAtOnce());
+        JBRO_CASE(TestSequentialGroupNeverOverlaps());
+        JBRO_CASE(TestProgressCountsUpAndFailuresSeparately());
+        JBRO_CASE(TestUnreportedSubTasksCountAsDone());
+        JBRO_CASE(TestMainThreadPathGivesTheSameResults());
+        JBRO_CASE(TestMainThreadBudgetSpreadsTasksAcrossUpdates());
+        JBRO_CASE(TestCancelEndsTasksAsCanceled(true));
+        JBRO_CASE(TestCancelEndsTasksAsCanceled(false));
+        JBRO_CASE(TestExceptionBecomesFailureReason());
+        JBRO_CASE(TestShutdownWaitsAndDrains(true));
+        JBRO_CASE(TestShutdownWaitsAndDrains(false));
+        JBRO_CASE(TestSubmitRules());
+        JBRO_CASE(TestFinishedGroupsAreTrimmed());
+        JBRO_CASE(TestWorkersCarryNames());
+        JBRO_CASE(TestCallbackWaitDeliversNestedCallbacks());
+        JBRO_CASE(TestThrowingCallbackIsNotCalledTwice());
+        JBRO_CASE(TestEngineOwnsTheManager());
     }
     catch (const std::exception& error)
     {

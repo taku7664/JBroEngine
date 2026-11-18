@@ -4,6 +4,7 @@
 // 노리는 경우들이다. 풀의 블록 재활용·주소 탐색, 순회 중 파괴, 상속 활성 전파, 레이어 재색인,
 // 타입 캐시가 대상이다.
 
+#include "TestCases.h"
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Core/ObjectPool.h>
@@ -322,14 +323,14 @@ namespace
 
 JBro::Int32 RunCoreModelStressTests()
 {
-    TestPoolAddressLookupAcrossManyChunks();
-    TestControlBlockWithLiveReferenceIsNotRecycled();
-    TestDeferredDestroyWithParentAndChildQueued();
-    TestDeferredComponentDestroyDuringIteration();
-    TestNameTableHoldsTheTextThatTagsDropped();
-    TestCachedTypeIdMatchesTheVirtualAnswer();
-    TestLayerDestroyReassignsObjectsAndReindexes();
-    TestHandleDoesNotReviveOnARecycledSlot();
+    JBRO_CASE(TestPoolAddressLookupAcrossManyChunks());
+    JBRO_CASE(TestControlBlockWithLiveReferenceIsNotRecycled());
+    JBRO_CASE(TestDeferredDestroyWithParentAndChildQueued());
+    JBRO_CASE(TestDeferredComponentDestroyDuringIteration());
+    JBRO_CASE(TestNameTableHoldsTheTextThatTagsDropped());
+    JBRO_CASE(TestCachedTypeIdMatchesTheVirtualAnswer());
+    JBRO_CASE(TestLayerDestroyReassignsObjectsAndReindexes());
+    JBRO_CASE(TestHandleDoesNotReviveOnARecycledSlot());
     std::cout << "Core model stress tests passed.\n";
     return 0;
 }

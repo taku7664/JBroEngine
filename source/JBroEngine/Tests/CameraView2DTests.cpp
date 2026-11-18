@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestCases.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -327,13 +328,13 @@ namespace
 
 JBro::Int32 RunCameraView2DTests()
 {
-    TestThePixelPerfectAreaIsAnIntegerScaleInTheMiddle();
-    TestTheScreenAreaDrivesExtentsAndPointers();
-    TestOnlyDrawableCamerasAreDrawable();
-    TestTheCameraViewMatchesItsProjection();
-    TestTheCameraAreaFollowsTheCameraObject();
-    TestUndrawableCamerasAreSkippedWhenChoosing();
-    TestCameraViewportsSplitTheScreen();
+    JBRO_CASE(TestThePixelPerfectAreaIsAnIntegerScaleInTheMiddle());
+    JBRO_CASE(TestTheScreenAreaDrivesExtentsAndPointers());
+    JBRO_CASE(TestOnlyDrawableCamerasAreDrawable());
+    JBRO_CASE(TestTheCameraViewMatchesItsProjection());
+    JBRO_CASE(TestTheCameraAreaFollowsTheCameraObject());
+    JBRO_CASE(TestUndrawableCamerasAreSkippedWhenChoosing());
+    JBRO_CASE(TestCameraViewportsSplitTheScreen());
     std::cout << "Camera view 2D tests passed.\n";
     return 0;
 }

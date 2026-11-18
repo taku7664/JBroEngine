@@ -21,8 +21,13 @@ namespace JBro
         AssetType type = AssetType::Unknown;
         // 에셋 폴더 기준 상대경로. 구분자는 `/` 다. 이미지의 Sprite 레코드는 Texture 와 같은 경로를 갖는다.
         String relativePath;
-        // 이미지에서 함께 선 Sprite 레코드가 자기 Texture 를 가리킨다. 그 외에는 비어 있다.
+        // 이미지에서 함께 선 Sprite 레코드가 자기 Texture 를, 모델의 메시·재질이 자기 모델을 가리킨다(D-391). 그 외에는 비어 있다.
         AssetId owner;
+        // 하위 레코드의 이름이다(모델 안의 `Body`). 파일 자체의 레코드와 그림의 Sprite 는 비어 있다 - 에디터가 종류 이름으로 대신 보인다.
+        String name;
+        // **모델 내장 그림의 묶음 열쇠**다(model-import-plan §2.5, `MakeSharedImageKey`). 원본 바이트와 적용되는 옵션이 같은 그림끼리 같고, 0 이면 묶지 않는다
+        // (그림 파일·메시·재질, 해시를 적기 전의 메타). 에디터는 이것으로 같은 그림을 보이고, 재질 단계의 `AssetSystem` 은 이것으로 한 번만 읽는다.
+        UInt64 sharedImageKey = 0;
     };
 
     struct AssetScanOptions
@@ -49,6 +54,8 @@ namespace JBro
         // 이미 다른 파일이 쓰는 아이디를 든 메타다. 뒤에 온 파일은 등록하지 않는다.
         UInt32 duplicateId = 0;
         UInt32 ignored = 0;
+        // 하위 목록을 만들려고 읽었지만 읽히지 않은 모델이다(D-391). 모델 레코드는 서고 하위 에셋만 없다.
+        UInt32 unreadableModel = 0;
     };
 
     // 에셋 메타데이터 보관소다. 로드·캐시 소유는 `AssetSystem` 이 따로 가진다(D-50).

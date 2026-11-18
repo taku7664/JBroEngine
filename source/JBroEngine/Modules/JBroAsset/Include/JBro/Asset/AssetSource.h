@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/ModelDecoder.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
@@ -23,7 +24,8 @@ namespace JBro
         CookedTexture = 3, // 빌드가 디코드해 둔 RGBA8 - 있으면 디코드를 건너뛴다
         FontAtlas = 4,     // 빌드가 미리 떠 둔 글리프 아틀라스
         CompiledShader = 5, // 빌드가 구운 머티리얼 셰이더 묶음(`WriteCompiledShaderSet`, D-347) - 게임은 굽지 않는다
-        CookedMesh = 6,     // 빌드가 푼 메시(`WriteCookedMesh`, D-366) - 게임은 glTF 를 읽지 않는다
+        CookedMesh = 6,     // 빌드가 모델에서 꺼내 둔 메시(model-import-plan 6 단계) - 있으면 모델을 읽지 않는다
+        CookedMaterial = 7, // 빌드가 모델의 재질을 옮겨 둔 `.jmat` 글자(material-plan 2 단계) - 그림 칸의 아이디까지 풀려 있다
     };
 
     // `CookedTexture` 블롭의 모양이다: 16 바이트 머리(`JTEX`·폭·높이·0) 뒤에 `폭 * 높이 * 4` 바이트의 RGBA8(왼쪽 위 원점).
@@ -39,6 +41,16 @@ namespace JBro
     // 머리와 크기가 맞으면 참이다. 픽셀은 `bytes` 의 `CookedTextureHeaderSize` 뒤에 있다.
     Bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info);
 
+    // `CookedMesh` 블롭의 모양이다(model-import-plan 6 단계): 32 바이트 머리(`JMSH`·정점 수·인덱스 수·깃발 - 1 번 비트가 UV, 2 번 비트가 탄젠트 있음·제 재질의 아이디 16 바이트,
+    // material-plan 2 단계) 뒤에 정점(`ModelVertex` 그대로, 정점마다 48 바이트)과 32 비트 인덱스. 엔진이 읽는 모양 그대로라 게임은 모델 디코더를 돌리지 않는다.
+    inline constexpr std::size_t CookedMeshHeaderSize = 32;
+    static_assert(sizeof(ModelVertex) == 48, "the cooked mesh stores ModelVertex as twelve floats");
+    static_assert(sizeof(AssetId) == 16, "the cooked mesh stores the material id as sixteen bytes");
+
+    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, Bool hasTangents, AssetId material, Array<std::byte>& out);
+    // 머리·크기가 맞고 인덱스가 삼각형 목록이며 모두 정점 안을 가리키면 참이다. 거짓이면 결과를 손대지 않는다.
+    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs, Bool& hasTangents, AssetId& material);
+
     // 에셋 시스템이 바이트를 받는 곳이다(D-232). 에셋 폴더의 파일(`LooseAssetSource`)이든 패키지(`Package::PackageAssetSource`)든 같은 모양이라
     // 에셋 시스템은 어느 쪽인지 모른다. `Read`·`Has`·`MakeStreamPath` 는 메인 스레드이고, `OpenStream` 은 어느 스레드에서 불러도 된다
     // (디스크 스트리밍 오디오의 스트리머가 부른다).
@@ -48,14 +60,6 @@ namespace JBro
         virtual ~IAssetSource() = default;
 
         virtual Bool Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const = 0;
-        // 에셋 파일 옆의 파일을 읽는다(glTF 의 바깥 버퍼, D-366). `relative` 는 그 파일 기준이고 폴더 밖으로 나가면 거짓이다. 패키지에는 옆 파일이 없다.
-        virtual Bool ReadSibling(const AssetRecord& record, const char* relative, Array<std::byte>& out) const
-        {
-            (void)record;
-            (void)relative;
-            (void)out;
-            return false;
-        }
         virtual Bool Has(const AssetRecord& record, AssetBlob blob) const = 0;
         // 원본을 흘려 읽을 때 쓰는 이름이다. 느슨한 파일은 절대경로, 패키지는 `jpak:<아이디>` 다. 믹서가 이 글자를 들고 있다가 `OpenStream` 에 준다.
         virtual String MakeStreamPath(const AssetRecord& record) const = 0;
@@ -75,7 +79,6 @@ namespace JBro
         void Bind(IPlatform* platform, const char* assetRoot);
 
         Bool Read(const AssetRecord& record, AssetBlob blob, Array<std::byte>& out) const override;
-        Bool ReadSibling(const AssetRecord& record, const char* relative, Array<std::byte>& out) const override;
         Bool Has(const AssetRecord& record, AssetBlob blob) const override;
         String MakeStreamPath(const AssetRecord& record) const override;
         OwnerPtr<IFileStream> OpenStream(const char* streamPath) const override;

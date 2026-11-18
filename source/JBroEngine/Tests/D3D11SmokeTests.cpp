@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -133,7 +134,7 @@ namespace
 
 JBro::Int32 RunD3D11SmokeTests()
 {
-    TestD3D11ClearsPresentsResizesAndReadsBack();
+    JBRO_CASE(TestD3D11ClearsPresentsResizesAndReadsBack());
     std::cout << "D3D11 smoke tests passed.\n";
     return 0;
 }

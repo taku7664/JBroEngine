@@ -56,7 +56,10 @@ namespace JBro
         Quaternion rotation;
         Vector3 scale{1.0f, 1.0f, 1.0f};
         AssetHandle mesh;
+        // 셰이더 머티리얼(D-348)의 렌더러 핸들이다. 있으면 `meshMaterial` 은 보지 않는다.
         AssetHandle material;
+        // 표준 머티리얼(D-399)의 렌더러 핸들이다. 둘 다 비면 렌더러의 기본 표준 머티리얼이다.
+        AssetHandle meshMaterial;
         Color tint{1.0f, 1.0f, 1.0f, 1.0f};
         // 레이어의 차례와 얹는 방식이다(D-280). 브리지가 레이어마다 뷰를 하나 열어 차례대로 그린다 - 포토샵의 레이어처럼 뒤 레이어가 늘 위다.
         std::uint16_t layerOrder = 0;

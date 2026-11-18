@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/Asset.h>
+﻿#include "TestCases.h"
+#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
@@ -400,8 +401,8 @@ JBro::Int32 RunEditorLoadingTests()
 {
     try
     {
-        TestACanvasOpensBeforeItsAssetsFinishLoading();
-        TestTheStatusBarShowsRunningTasks();
+        JBRO_CASE(TestACanvasOpensBeforeItsAssetsFinishLoading());
+        JBRO_CASE(TestTheStatusBarShowsRunningTasks());
     }
     catch (const std::exception& error)
     {

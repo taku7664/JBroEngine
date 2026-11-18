@@ -108,6 +108,30 @@ PNG·JPEG·BMP·TGA 만 남긴다(`STBI_ONLY_*`). 파일은 열지 않는다(`ST
 쌍 조정(조회 형식 2, 부표 형식 1·2)을 읽는다. GPOS 확장 조회(형식 9)와 결합 문자 위치(mark), 합자(GSUB), 힌팅은 없다 - text-plan §3.4.
 고친 것은 없다.
 
+### ufbx — v0.23.1, MIT / 퍼블릭 도메인
+
+3D 모델 임포트의 FBX·OBJ 디코더다(D-391, `tasks/model-import-plan.md`). FBX SDK 는 소스가 닫혀 있고 재배포·Web 이 막혀 쓰지 않는다.
+**자기 빌드 단위가 있다**(`ufbx/ufbx.vcxproj`, C 로 컴파일하는 정적 라이브러리) - 구현이 `ufbx.c` 한 파일이다. 모델 디코더(`JBroAsset` 의 `ModelDecoder.cpp`)만 include 하고, 실행 파일(`JBroEditorHost`·`JBroGameHost`·`JBroTests`)이 miniaudio 와 같은 방식으로 링크한다.
+2026-11-16 에 `github.com/ufbx/ufbx` 의 `v0.23.1` 태그에서 `ufbx.c`·`ufbx.h`·`LICENSE` 를 받았다:
+
+```
+https://raw.githubusercontent.com/ufbx/ufbx/v0.23.1/<file>
+```
+
+SHA-256: `ufbx.c` `4A956C26A708E40D82ECB0AEAEE54DA709D5BA7C144C9642174970059BDA7E1D`, `ufbx.h` `F787BE529AF577EFC04F3E3E735844A08556718DBB613D1211C2B313D72895DC`.
+고친 것은 없다.
+
+### cgltf — v1.15, MIT
+
+3D 모델 임포트의 glTF 2.0(`.gltf`·`.glb`) 디코더다(D-391). 헤더 하나라 빌드 단위는 따로 없다(stb 와 같다) - 모델 디코더 소스 한 곳에서만
+구현을 켠다(`CGLTF_IMPLEMENTATION`, `JBroAsset` 의 `ModelDecoder.cpp`). 구현이 `fopen`·`strncpy` 를 써서 SDL 검사가 C4996 을 오류로 올리므로 그 include 동안만 `#pragma warning` 으로 끈다 - 소스는 고치지 않는다. 2026-11-16 에 `github.com/jkuhlmann/cgltf` 의 `v1.15` 태그에서 `cgltf.h`·`LICENSE` 를 받았다:
+
+```
+https://raw.githubusercontent.com/jkuhlmann/cgltf/v1.15/<file>
+```
+
+SHA-256: `cgltf.h` `E378A21C084BF1F288BB799DE827BB26906EFB024255F1ECF1705EA13F11C6EC`. 고친 것은 없다.
+
 ### Vulkan-Headers — SDK 1.4.350.0, Apache-2.0
 
 `JBroVulkanRHI` 의 API 헤더다(D-108). `vulkan-1.dll` 은 실행 시간에 열므로 SDK 의 가져오기 라이브러리는

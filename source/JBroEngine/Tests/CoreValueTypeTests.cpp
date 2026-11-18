@@ -1,4 +1,5 @@
-﻿#include <JBro/RHI/RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/RHI/RHI.h>
 #include <JBro/Types/Types.h>
 
 #include <cmath>
@@ -248,22 +249,22 @@ namespace
 
 JBro::Int32 RunCoreValueTypeTests()
 {
-    TestSizeDoesNotDivideByZero();
-    TestSizeIsEmptyWhenEitherSideIsGone();
-    TestExtentIsTheSameTypeAsSizeU();
-    TestHasAllIsNotHasAny();
-    TestFlagsCanBeTurnedOnAndOff();
-    TestATouchingRectCounts();
-    TestAMissedIntersectionComesBackEmpty();
-    TestOneBadPointDoesNotPoisonTheBounds();
-    TestRectsGrowAndMove();
-    TestNoInsetsByDefault();
-    TestAVectorIsNotAQuaternion();
-    TestPointsAndDirectionsDifferByW();
-    TestThePerspectiveDivideDoesNotMakeInfinities();
-    TestVector4Arithmetic();
-    TestOnlyWhatWasSeenThisFrameSurvives();
-    TestNothingSeenClearsTheCache();
+    JBRO_CASE(TestSizeDoesNotDivideByZero());
+    JBRO_CASE(TestSizeIsEmptyWhenEitherSideIsGone());
+    JBRO_CASE(TestExtentIsTheSameTypeAsSizeU());
+    JBRO_CASE(TestHasAllIsNotHasAny());
+    JBRO_CASE(TestFlagsCanBeTurnedOnAndOff());
+    JBRO_CASE(TestATouchingRectCounts());
+    JBRO_CASE(TestAMissedIntersectionComesBackEmpty());
+    JBRO_CASE(TestOneBadPointDoesNotPoisonTheBounds());
+    JBRO_CASE(TestRectsGrowAndMove());
+    JBRO_CASE(TestNoInsetsByDefault());
+    JBRO_CASE(TestAVectorIsNotAQuaternion());
+    JBRO_CASE(TestPointsAndDirectionsDifferByW());
+    JBRO_CASE(TestThePerspectiveDivideDoesNotMakeInfinities());
+    JBRO_CASE(TestVector4Arithmetic());
+    JBRO_CASE(TestOnlyWhatWasSeenThisFrameSurvives());
+    JBRO_CASE(TestNothingSeenClearsTheCache());
     std::cout << "Core value type tests passed.\n";
     return 0;
 }

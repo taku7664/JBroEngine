@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Gizmo/GizmoModel.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Graphics/Renderer.h>
 
@@ -369,14 +370,14 @@ namespace
 
 JBro::Int32 RunGizmoModelTests()
 {
-    TestProjectionMapsTheWorldOntoTheRectangle();
-    TestHandlesAreBuiltAndPickedInPixels();
-    TestTranslationFollowsTheMouseAlongTheAxis();
-    TestTranslationSnapsToTheGrid();
-    TestRotationSnapsInSteps();
-    TestRotationTurnsRightHandedAboutTheAxis();
-    TestScaleIsARatioAlongTheHandle();
-    TestPerspectiveDragKeepsTheHandleUnderTheMouse();
+    JBRO_CASE(TestProjectionMapsTheWorldOntoTheRectangle());
+    JBRO_CASE(TestHandlesAreBuiltAndPickedInPixels());
+    JBRO_CASE(TestTranslationFollowsTheMouseAlongTheAxis());
+    JBRO_CASE(TestTranslationSnapsToTheGrid());
+    JBRO_CASE(TestRotationSnapsInSteps());
+    JBRO_CASE(TestRotationTurnsRightHandedAboutTheAxis());
+    JBRO_CASE(TestScaleIsARatioAlongTheHandle());
+    JBRO_CASE(TestPerspectiveDragKeepsTheHandleUnderTheMouse());
     std::cout << "Gizmo model tests passed.\n";
     return 0;
 }

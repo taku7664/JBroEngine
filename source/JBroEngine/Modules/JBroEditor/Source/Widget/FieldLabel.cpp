@@ -51,10 +51,13 @@ namespace JBro::Widget
         {
             style.PushColor(ImGuiCol_Text, InvalidLabelColor);
         }
-        ImGui::TextUnformatted(m_text != nullptr ? m_text : "");
+        const char* text = m_text != nullptr ? m_text : "";
+        // 칸보다 긴 이름은 잘린다(`FormLayout` 의 이름 칸은 표 폭의 절반까지다). 따로 준 툴팁이 없으면 이름 전체를 띄운다.
+        const Bool clipped = ImGui::CalcTextSize(text).x > ImGui::GetContentRegionAvail().x;
+        ImGui::TextUnformatted(text);
         style.Pop();
 
-        HoveredTooltip(m_tooltip);
+        HoveredTooltip(m_tooltip != nullptr ? m_tooltip : (clipped ? text : nullptr));
 
         if (m_required)
         {

@@ -92,6 +92,15 @@ namespace JBro::Widget
         }
     }
 
+    void ShowTooltip(const char* text)
+    {
+        if (IsEmptyText(text))
+        {
+            return;
+        }
+        ImGui::SetTooltip("%s", text);
+    }
+
     Bool MouseWasDragged(ImGuiMouseButton button)
     {
         // `GetMouseDragDelta` 는 누른 자리에서의 거리이고 **놓는 프레임까지 살아 있다**.

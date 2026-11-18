@@ -1,4 +1,8 @@
-﻿#include <JBro/Editor/Widget/ItemLocator.h>
+﻿#include "TestCases.h"
+#include <JBro/Asset/MaterialFile.h>
+#include <JBro/Editor/Command/SetAssetFileCommand.h>
+#include "TestModels.h"
+#include <JBro/Editor/Widget/ItemLocator.h>
 #include <JBro/Core/Version.h>
 #include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
@@ -26,6 +30,7 @@
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/EditorHostArguments.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
@@ -75,6 +80,10 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Graphics/Renderer.h>
 #include "../Modules/JBroEditor/Source/Panel/RenderGraphPanel.h"
 #include <JBro/Physics2D/World.h>
@@ -5070,6 +5079,292 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **하위 에셋은 ▶ 로 펼친다**(D-391, model-import-plan 1 단계). 그림 파일은 Texture 와 그 짝 Sprite 두 레코드다 - Sprite 는 제 줄이 없고
+    // 파일 줄 아래에 펼친다. 목록 보기는 트리 화살표, 아이콘 보기는 칸 오른쪽의 단추다. 화살표로 펼치는 것은 고르기가 아니고,
+    // 하위 줄을 누르면 인스펙터가 그 하위 에셋을 본다. 펼친 상태는 두 보기가 함께 쓴다.
+    void TestTheAssetBrowserExpandsSubAssets()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAssetExpandProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "art", ignored);
+        for (const char* name : {"hero.png", "slime.png"})
+        {
+            std::ofstream png(root / "Assets" / "art" / name, std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        // 모델 하나(D-391, 3 단계) - 메시 둘·재질 둘이 하위 에셋으로 펼쳐지고 제 이름을 보인다.
+        {
+            std::ofstream obj(root / "Assets" / "art" / "crate.obj", std::ios::binary);
+            obj << "mtllib parts.mtl\nv 0 0 0\nv 0 0 1\nv 1 0 1\nv 1 0 0\no Crate\nusemtl Wood\nf 1 2 3\nusemtl Metal\nf 1 3 4\n";
+            std::ofstream mtl(root / "Assets" / "art" / "parts.mtl", std::ios::binary);
+            mtl << "newmtl Wood\nKd 0.6 0.4 0.2\nnewmtl Metal\nKd 0.7 0.7 0.7\n";
+        }
+        // 같은 그림이 내장된 모델 둘(5 단계) - 하위 Texture 에 고리 표식이 붙고 인스펙터가 `같은 그림` 을 보인다.
+        // 제 폴더에 둔다 - `art` 에 두면 이름순으로 앞에 서서 좁은 목록에서 위의 시험이 보는 줄을 밀어낸다.
+        fs::create_directories(root / "Assets" / "props", ignored);
+        for (const char* name : {"box.gltf", "barrel.gltf"})
+        {
+            std::ofstream gltf(root / "Assets" / "props" / name, std::ios::binary);
+            gltf << TestModels::SelfContainedQuadGltf("Bricks", std::string(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng)));
+        }
+        const JBro::String projectPath = TempPath("JBroAssetExpandProbe\\Expand.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; asset expansion not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const JBro::AssetRecord* hero = editor.GetAssetRegistry().FindByPath("art/hero.png");
+        Check(hero != nullptr, "the scan must have registered art/hero.png");
+        JBro::AssetId heroSprite;
+        for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
+        {
+            const JBro::AssetRecord& record = editor.GetAssetRegistry().GetRecord(index);
+            if (record.type == JBro::AssetType::Sprite && record.owner == hero->id)
+            {
+                heroSprite = record.id;
+            }
+        }
+        Check(false == heroSprite.IsNull(), "the image has its paired sprite");
+        char spriteText[JBro::Uuid::TextCapacity] = {};
+        Check(heroSprite.ToText(spriteText, sizeof(spriteText)), "the sprite id has a text form");
+
+        // 에셋 탭을 앞으로 꺼내고 `art` 폴더를 연다.
+        ImGuiWindow* assets = ImGui::FindWindowByName("Assets");
+        Check(assets != nullptr, "the asset browser must have a window");
+        if (false == assets->DockTabIsVisible && assets->DockNode != nullptr && assets->DockNode->TabBar != nullptr)
+        {
+            ImGuiTabBar* tabBar = assets->DockNode->TabBar;
+            ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, assets->TabId);
+            Check(tab != nullptr, "the asset browser must have a tab in its dock");
+            Spot tabSpot;
+            tabSpot.x = static_cast<JBro::Int32>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<JBro::Int32>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            ClickAt(editor, hwnd, tabSpot);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the tab");
+            }
+            assets = ImGui::FindWindowByName("Assets");
+        }
+        {
+            ImGuiWindow* tree = FindChildWindow(assets, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            Spot folder;
+            Check(FindItemAnywhereInWindow(editor, hwnd, tree, LabelId(LabelId(tree->ID, "art"), "##folder"), folder),
+                "the art folder must be a row in the tree");
+            ClickAt(editor, hwnd, folder);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the folder");
+            }
+        }
+        assets = ImGui::FindWindowByName("Assets");
+        ImGuiWindow* contents = FindChildWindow(assets, "##contents");
+        Check(contents != nullptr, "the contents pane must exist");
+        const ImGuiID heroScope = LabelId(contents->ID, "art/hero.png");
+        const ImGuiID heroRow = LabelId(heroScope, "##file");
+        const ImGuiID spriteRow = LabelId(LabelId(heroScope, spriteText), "##file");
+        Spot unused;
+        Check(LocateItem(editor, hwnd, spriteRow, -1, unused) != Located::Found, "folded, the sprite has no row of its own");
+
+        // ── 목록 보기: 화살표로 펼친다 ─────────────
+        JBro::Widget::ItemLocator::Watch(heroRow);
+        Check(editor.Tick(Frame), "the editor must tick while locating hero");
+        JBro::Widget::ItemLocator::ItemRect heroRect;
+        Check(JBro::Widget::ItemLocator::Take(heroRect), "hero.png is a row in the art folder");
+        Spot arrow;
+        arrow.x = static_cast<JBro::Int32>(heroRect.minX.Get() + ImGui::GetStyle().FramePadding.x + ImGui::GetFontSize() * 0.5f);
+        arrow.y = static_cast<JBro::Int32>((heroRect.minY.Get() + heroRect.maxY.Get()) * 0.5f);
+        ClickAt(editor, hwnd, arrow);
+        Check(editor.Tick(Frame), "the row unfolds");
+        Spot spriteSpot;
+        Check(LocateItem(editor, hwnd, spriteRow, -1, spriteSpot) == Located::Found, "the arrow unfolds the sprite under hero.png");
+        Check(editor.GetSelectedAsset().IsNull(), "unfolding is not choosing - the inspector keeps what it showed");
+        ClickAt(editor, hwnd, spriteSpot);
+        Check(editor.Tick(Frame), "the sprite row takes the click");
+        Check(editor.GetSelectedAsset() == heroSprite, "clicking the sub-asset row shows the sprite in the inspector");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_expanded_list");
+        ClickAt(editor, hwnd, arrow);
+        Check(editor.Tick(Frame), "the row folds");
+        Check(LocateItem(editor, hwnd, spriteRow, -1, unused) != Located::Found, "the arrow folds it again");
+        ClickAt(editor, hwnd, arrow);
+        Check(editor.Tick(Frame), "the row unfolds again");
+
+        // ── 아이콘 보기: 펼친 것이 그대로이고, 칸의 단추로 접는다 ─────────────
+        Spot iconButton;
+        Check(FindItemAnywhereInWindow(editor, hwnd, assets, LabelId(assets->ID, "##assets_view_icons"), iconButton),
+            "the view button must be on the asset browser tool bar");
+        ClickAt(editor, hwnd, iconButton);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the icon view");
+        }
+        contents = FindChildWindow(ImGui::FindWindowByName("Assets"), "##contents");
+        Check(contents != nullptr, "the contents pane must still exist");
+        const ImGuiID spriteTile = LabelId(LabelId(heroScope, spriteText), "##tile");
+        Check(LocateItem(editor, hwnd, spriteTile, -1, unused) == Located::Found, "the icon view keeps hero.png unfolded");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_expanded_icons");
+        Spot expander;
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(heroScope, "##expand"), expander),
+            "an unfolded tile has its fold button");
+        ClickAt(editor, hwnd, expander);
+        Check(editor.Tick(Frame), "the tile folds");
+        Check(LocateItem(editor, hwnd, spriteTile, -1, unused) != Located::Found, "the button folds the tile");
+        Check(LocateItem(editor, hwnd, LabelId(LabelId(contents->ID, "art/slime.png"), "##expand"), -1, unused) == Located::Found,
+            "every file with sub-assets has its own button");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_folded_icons");
+
+        // ── 모델: 펼치면 메시·재질이 제 이름으로 선다 ─────────────
+        const JBro::AssetRecord* crate = editor.GetAssetRegistry().FindByPath("art/crate.obj");
+        Check(crate != nullptr && crate->type == JBro::AssetType::Model, "the OBJ is registered as a model");
+        JBro::Array<JBro::AssetId> crateParts;
+        editor.GetAssetRegistry().CollectOwned(crate->id, crateParts);
+        Check(crateParts.Size() == 4, "with its two meshes and two materials");
+        const ImGuiID crateScope = LabelId(contents->ID, "art/crate.obj");
+        Spot crateExpander;
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(crateScope, "##expand"), crateExpander), "the model tile has a fold button");
+        ClickAt(editor, hwnd, crateExpander);
+        Check(editor.Tick(Frame), "the model unfolds");
+        for (std::size_t part = 0; part < crateParts.Size(); ++part)
+        {
+            char partText[JBro::Uuid::TextCapacity] = {};
+            Check(crateParts[part].ToText(partText, sizeof(partText)), "a part id has a text form");
+            Check(LocateItem(editor, hwnd, LabelId(LabelId(crateScope, partText), "##tile"), -1, unused) == Located::Found,
+                "every mesh and material of the model has a tile");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_model_icons");
+        // 모델을 고르면 인스펙터가 모델 임포트 옵션을 보인다(D-392).
+        Spot crateTile;
+        Check(LocateItem(editor, hwnd, LabelId(crateScope, "##tile"), -1, crateTile) == Located::Found, "the model tile is on screen");
+        ClickAt(editor, hwnd, crateTile);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector shows the model");
+        }
+        Check(editor.GetSelectedAsset() == crate->id, "clicking the model tile chooses the model");
+        const JBro::AssetMetaFile* crateMeta = editor.GetSelectedAssetMeta();
+        Check(crateMeta != nullptr && crateMeta->type == JBro::AssetType::Model && crateMeta->subAssets.Size() == 4,
+            "and the inspector reads its meta with the sub-asset list");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_model_inspector");
+
+        // ── 내장 그림(5 단계): 두 모델에 든 같은 그림 ─────────────
+        const auto embeddedImageOf = [&](const char* path) {
+            const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath(path);
+            Check(model != nullptr && model->type == JBro::AssetType::Model, "the glTF is registered as a model");
+            JBro::Array<JBro::AssetId> parts;
+            editor.GetAssetRegistry().CollectOwned(model->id, parts);
+            JBro::AssetId image;
+            for (std::size_t part = 0; part < parts.Size(); ++part)
+            {
+                if (editor.GetAssetRegistry().Find(parts[part])->type == JBro::AssetType::Texture)
+                {
+                    image = parts[part];
+                }
+            }
+            Check(false == image.IsNull(), "the model's embedded image is a Texture sub-asset");
+            return image;
+        };
+        const JBro::AssetId boxImage = embeddedImageOf("props/box.gltf");
+        const JBro::AssetId barrelImage = embeddedImageOf("props/barrel.gltf");
+        Check(editor.GetAssetRegistry().Find(boxImage)->sharedImageKey != 0
+                && editor.GetAssetRegistry().Find(boxImage)->sharedImageKey == editor.GetAssetRegistry().Find(barrelImage)->sharedImageKey,
+            "the same image in two models shares one key");
+        JBro::Array<const JBro::AssetRecord*> same;
+        editor.FindSameImages(barrelImage, same);
+        Check(same.Size() == 1 && same[0]->id == boxImage, "the barrel's image finds the box's as its same image");
+
+        // `props` 폴더를 연다(아이콘 보기 그대로).
+        assets = ImGui::FindWindowByName("Assets");
+        {
+            ImGuiWindow* tree = FindChildWindow(assets, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            Spot folder;
+            Check(FindItemAnywhereInWindow(editor, hwnd, tree, LabelId(LabelId(tree->ID, "props"), "##folder"), folder),
+                "the props folder must be a row in the tree");
+            ClickAt(editor, hwnd, folder);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the props folder");
+            }
+        }
+        contents = FindChildWindow(ImGui::FindWindowByName("Assets"), "##contents");
+        Check(contents != nullptr, "the contents pane must still exist");
+        const ImGuiID barrelScope = LabelId(contents->ID, "props/barrel.gltf");
+        Spot barrelExpander;
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(barrelScope, "##expand"), barrelExpander), "the barrel tile has a fold button");
+        ClickAt(editor, hwnd, barrelExpander);
+        Check(editor.Tick(Frame), "the barrel unfolds");
+        char barrelImageText[JBro::Uuid::TextCapacity] = {};
+        Check(barrelImage.ToText(barrelImageText, sizeof(barrelImageText)), "the image id has a text form");
+        const ImGuiID barrelImageTile = LabelId(LabelId(barrelScope, barrelImageText), "##tile");
+        JBro::Widget::ItemLocator::Watch(barrelImageTile);
+        Check(editor.Tick(Frame), "the editor must tick while locating the image tile");
+        JBro::Widget::ItemLocator::ItemRect imageRect;
+        Check(JBro::Widget::ItemLocator::Take(imageRect), "the embedded image has its own tile");
+        // 고리 표식은 칸의 왼쪽 위에 있다. 올리면 같은 그림의 목록이 뜬다.
+        const JBro::Int32 badgeX = static_cast<JBro::Int32>(imageRect.minX.Get() + 8.0f);
+        const JBro::Int32 badgeY = static_cast<JBro::Int32>(imageRect.minY.Get() + 8.0f);
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(badgeX, badgeY));
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor ticks under the badge");
+        Check(FindActiveWindowContaining("##Tooltip") != nullptr, "the ring badge on the image tile lists where the same image is");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_same_image_badge");
+        Spot imageSpot;
+        Check(LocateItem(editor, hwnd, barrelImageTile, -1, imageSpot) == Located::Found, "the image tile is on screen");
+        ClickAt(editor, hwnd, imageSpot);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector shows the embedded image");
+        }
+        Check(editor.GetSelectedAsset() == barrelImage, "clicking the image tile chooses the embedded image");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_same_image_inspector");
+
+        // `같은 그림` 줄이 부르는 길: 브라우저가 다른 모델을 펼치고 그 그림을 고른다. 먼저 통을 접어 상자의 칸이 한 줄에 들게 한다.
+        Check(FindItemAnywhereInWindow(editor, hwnd, contents, LabelId(barrelScope, "##expand"), barrelExpander), "the barrel keeps its fold button");
+        ClickAt(editor, hwnd, barrelExpander);
+        Check(editor.Tick(Frame), "the barrel folds");
+        char boxImageText[JBro::Uuid::TextCapacity] = {};
+        Check(boxImage.ToText(boxImageText, sizeof(boxImageText)), "the image id has a text form");
+        const ImGuiID boxImageTile = LabelId(LabelId(LabelId(contents->ID, "props/box.gltf"), boxImageText), "##tile");
+        Check(LocateItem(editor, hwnd, boxImageTile, -1, unused) != Located::Found, "folded, the box's image has no tile");
+        editor.RevealAssetInBrowser(boxImage);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the browser takes the reveal");
+        }
+        Check(editor.GetSelectedAsset() == boxImage, "revealing the same image chooses it");
+        JBro::Widget::ItemLocator::Watch(boxImageTile);
+        Check(editor.Tick(Frame), "the editor must tick while locating the box's image");
+        Check(JBro::Widget::ItemLocator::Take(imageRect), "and unfolds its model so it can be seen");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // 프레임마다 **처음 보는 글자**를 그리는 패널이다. ImGui 1.92 는 글리프를
     // 필요할 때 아틀라스에 굽고 백엔드에 "이 텍스처를 고쳐 올려라" 라고 말하므로,
     // 이 패널이 도는 동안에는 프레임마다 텍스처 업로드가 일어난다.
@@ -6246,7 +6541,8 @@ namespace
             "editor must reopen a project on its live process resources");
         editor.CloseProject();
 
-        // 3D 백엔드는 아직 그리지 않지만, 그것이 호스트를 끝내는 이유가 되어서는 안 된다(F-7).
+        // 카메라 없는 빈 3D 프로젝트도 제출할 것이 없다. 그것이 호스트를 끝내는 이유가 되어서는 안 된다(F-7).
+        // (새 프로젝트 팝업은 카메라와 큐브를 둔다 - 시나리오 D. 여기는 서술자로 연 빈 캔버스다.)
         JBro::ProjectDescriptor project3D;
         project3D.framework = JBro::FrameworkKind::Framework3D;
         project3D.graphicsApi = JBro::GraphicsApi::D3D12;
@@ -8349,23 +8645,15 @@ namespace
 
     // **파일 → 새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 폴더를 고르면 이름과 프레임워크를
     // 받는 팝업이 뜨고, 이름을 치고 Enter 를 누르면 그 폴더에 프로젝트가 서고 에디터가 그리로 넘어간다.
-    // 2D 프로젝트를 연 채로 3D 를 골라 프레임워크까지 바뀌는지 본다.
+    // **프로젝트가 없는 에디터에서만 된다**(D-389). 새 프로젝트로 넘어간 뒤에는 또 만들지도 열지도 못하고, 3D 는 프로젝트 없는
+    // 새 에디터에서 만들어 프레임워크까지 바뀌는지 본다.
     void TestNewProjectCreatesAndOpensIt()
     {
         namespace fs = std::filesystem;
         const fs::path root(TempPath("JBroNewProjectProbe").c_str());
         std::error_code ignored;
         fs::remove_all(root, ignored);
-        fs::create_directories(root / "Current" / "Assets", ignored);
         fs::create_directories(root / "Parent", ignored);
-        const JBro::String currentPath = TempPath("JBroNewProjectProbe\\Current\\Current.jproject");
-        Check(WriteTextFile(currentPath,
-            "Version: 1\n"
-            "EngineVersion: 0.1.0\n"
-            "Framework: 2D\n"
-            "RootPath: .\n"
-            "AssetDirectory: Assets\n"),
-            "the test must be able to write its own project file");
 
         DialogProbe dialog;
         dialog.path = TempPath("JBroNewProjectProbe\\Parent");
@@ -8381,9 +8669,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; new project not verified" << std::endl;
             return;
         }
-        JBro::ProjectFileError error;
-        Check(editor.OpenProjectFile(currentPath.c_str(), error), "the current project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.CanSwitchProject(), "an editor with no project can make one");
         // **시간이 흐르지 않은 프레임에 에디터가 멈추지 않는다**(D-160). 호스트의 첫 프레임이 0 초로 재어지면 UI 가
         // 프레임을 거절해 에디터가 켜지자마자 꺼졌다.
         Check(editor.Tick(0.0f), "a frame in which no time passed does not stop the editor");
@@ -8475,24 +8762,49 @@ namespace
             dialog.path = TempPath("JBroNewProjectProbe\\Parent");
         }
 
-        // 3D 를 고르면 프레임워크까지 바뀐다.
+        // **열린 프로젝트에서는 다른 프로젝트를 만들거나 열지 않는다**(D-389). 요청은 대화상자를 띄우지 않고, 직접 불러도 파일을 쓰지 않는다.
+        Check(false == editor.CanSwitchProject(), "with the new project open the editor offers no other");
+        dialog.calls = 0;
+        editor.RequestNewProject();
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick past the refused request");
+        }
+        Check(dialog.calls == 0 && false == editor.IsPopupOpenById("new_project"), "a new project is not asked for");
         JBro::ProjectCreateFailure failure = JBro::ProjectCreateFailure::None;
-        Check(false == editor.CreateProject(dialog.path.c_str(), "Space Game", JBro::FrameworkKind::Framework3D, &failure)
+        Check(false == editor.CreateProject(dialog.path.c_str(), "Other Game", JBro::FrameworkKind::Framework3D, &failure)
+                && false == fs::exists(root / "Parent" / "Other Game", ignored),
+            "and creating one directly writes nothing");
+        editor.RequestOpenProject();
+        Check(editor.Tick(Frame) && dialog.calls == 0, "opening another project is not asked for either");
+        Check(editor.GetProjectFile().build.productName == "Space Game", "the open project stays");
+        editor.Shutdown();
+
+        // 3D 를 고르면 프레임워크까지 바뀐다. 프로젝트가 없는 새 에디터에서 만든다.
+        JBro::EditorApplication second;
+        if (false == second.Initialize(config))
+        {
+            std::cout << "  [skip] the second editor did not start; the 3D project not verified" << std::endl;
+            fs::remove_all(root, ignored);
+            return;
+        }
+        Check(second.EnableEditorUi({64, 48}), "the second editor UI must turn on");
+        Check(false == second.CreateProject(dialog.path.c_str(), "Space Game", JBro::FrameworkKind::Framework3D, &failure)
                 && failure == JBro::ProjectCreateFailure::AlreadyExists,
             "the same name again is refused, saying why");
-        Check(false == editor.CreateProject(dialog.path.c_str(), "a/b", JBro::FrameworkKind::Framework3D, &failure)
+        Check(false == second.CreateProject(dialog.path.c_str(), "a/b", JBro::FrameworkKind::Framework3D, &failure)
                 && failure == JBro::ProjectCreateFailure::InvalidName,
             "and a name that cannot be a folder is refused as such");
-        Check(editor.CreateProject(dialog.path.c_str(), "Deep Space", JBro::FrameworkKind::Framework3D, &failure),
+        Check(second.CreateProject(dialog.path.c_str(), "Deep Space", JBro::FrameworkKind::Framework3D, &failure),
             "a 3D project is made");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must switch again");
+            Check(second.Tick(Frame), "the editor must switch again");
         }
-        Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
+        Check(second.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
             "and the editor now runs the 3D framework");
 
-        editor.Shutdown();
+        second.Shutdown();
         fs::remove_all(root, ignored);
     }
 
@@ -11053,7 +11365,7 @@ namespace
         document.domain = JBro::MaterialDomain::Mesh;
         Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the mesh material is written");
 
-        // ── 메시 에셋(D-366): 삼각형 하나인 glTF. 인덱스 없이 base64 임베드다. ──
+        // ── 모델의 메시(D-391·D-395, 2026-11-19 main 통합 전에는 glTF 메시 에셋 D-366): 삼각형 하나인 glTF. 인덱스 없이 base64 임베드다. ──
         const JBro::String meshName = JBro::String(root.generic_string().c_str()) + "/Assets/Triangle.gltf";
         Check(WriteTextFile(meshName,
                   "{\"asset\":{\"version\":\"2.0\"},\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
@@ -11062,9 +11374,19 @@ namespace
                   "\"buffers\":[{\"byteLength\":36,\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAA\"}]}"),
             "the test writes its glTF");
         Check(editor.RescanAssets(), "the registry finds the glTF");
-        const JBro::AssetRecord* meshRecord = editor.GetAssetRegistry().FindByPath("Triangle.gltf");
-        Check(meshRecord != nullptr && meshRecord->type == JBro::AssetType::Mesh, "a .gltf is a mesh asset");
-        const JBro::AssetId meshAssetId = meshRecord->id;
+        const JBro::AssetRecord* modelRecord = editor.GetAssetRegistry().FindByPath("Triangle.gltf");
+        Check(modelRecord != nullptr && modelRecord->type == JBro::AssetType::Model, "a .gltf is a model asset");
+        const JBro::AssetId modelId = modelRecord->id;
+        JBro::AssetId meshAssetId;
+        for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
+        {
+            const JBro::AssetRecord& part = editor.GetAssetRegistry().GetRecord(index);
+            if (part.owner == modelId && part.type == JBro::AssetType::Mesh)
+            {
+                meshAssetId = part.id;
+            }
+        }
+        Check(false == meshAssetId.IsNull(), "the model lists its mesh as a sub-asset");
 
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::Object::GameObject* box = canvas->CreateObject("Box");
@@ -11110,12 +11432,14 @@ namespace
             JBro::MeshLibrary library;
             Check(library.Initialize(editor.GetRenderer(), assets), "a mesh library opens over the editor's renderer");
             const JBro::AssetHandle asset = assets->Find(meshAssetId);
-            const JBro::AssetHandle first = library.ResolveHandle(asset);
-            const JBro::AssetHandle same = library.ResolveHandle(asset);
+            const JBro::AssetHandle first = library.ResolveAsset(asset);
+            const JBro::AssetHandle same = library.ResolveAsset(asset);
             Check(first.generation != 0 && first.index == same.index && first.generation == same.generation, "an unchanged mesh keeps its renderer handle");
             JBro::String gltf;
-            Check(editor.ReadAssetText(meshAssetId, gltf) && editor.WriteAssetText(meshAssetId, gltf), "the glTF is written again and reloads");
-            const JBro::AssetHandle fresh = library.ResolveHandle(asset);
+            Check(editor.ReadAssetText(modelId, gltf) && editor.WriteAssetText(modelId, gltf), "the glTF is written again");
+            // 모델 파일이 바뀌면 그 하위 메시를 다시 읽는다(D-395 - 에디터에서는 파일 감시가 한다).
+            Check(assets->ReloadInPlace(meshAssetId), "the model's mesh reloads in place");
+            const JBro::AssetHandle fresh = library.ResolveAsset(asset);
             Check(fresh.generation != 0 && (fresh.index != first.index || fresh.generation != first.generation), "a reloaded mesh is uploaded again");
             library.Shutdown();
         }
@@ -13738,6 +14062,127 @@ namespace
 
     // **새 폰트 패밀리**(D-225). 에셋 브라우저의 메뉴가 부르는 길이다. 겹치지 않는 이름의 `.jfontfamily` 가 FontFamily 로 등록되고
     // 골라지며, 인스펙터가 네 칸을 에셋 옵션 블록으로 보인다(칸 필드 이름이 `...FontId` 라 고르기가 폰트만 보인다).
+    // **에디터의 재질**(material-plan 4 단계). 브라우저의 `새 재질` 이 기본값의 `.jmat` 을 만들어 고르고, 인스펙터의 재질 블록이 그 값을 보인다.
+    // 칸을 끌면 커맨드 하나가 **그 파일**을 고쳐 쓰고(메타가 아니다), 실린 재질은 제자리에서 다시 읽히며, 되돌리면 파일의 글자가 그대로 돌아온다.
+    // 모델의 하위 Material 은 파일의 값을 보이되 읽기 전용이다(D-399 (2)).
+    void TestTheEditorMakesAndEditsMaterials()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; materials in the editor not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroMaterialEditorProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets" / "props", code);
+        {
+            std::ofstream model(root / "Assets" / "props" / "quad.gltf", std::ios::binary);
+            model << TestModels::SelfContainedQuadGltf("Bricks", TestModels::TinyPng());
+        }
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        const JBro::String created = editor.CreateStandardMaterialAsset("art");
+        const std::filesystem::path file = root / "Assets" / created.c_str();
+        Check(false == created.empty() && std::filesystem::exists(file) && file.extension() == ".jmat", "a material file is written");
+        const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(created.c_str());
+        Check(record != nullptr && record->type == JBro::AssetType::Material, "and registered as a material");
+        const JBro::AssetId materialId = record->id;
+        Check(editor.GetSelectedAsset() == materialId, "and selected so its values can be set");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the material");
+        }
+        const JBro::MaterialDesc* shown = editor.GetSelectedMaterial();
+        Check(shown != nullptr && false == editor.IsSelectedMaterialReadOnly() && shown->shader == JBro::MaterialShader::Standard
+                && shown->roughness == 1.0f,
+            "the inspector reads the new material's default values from its file, and may edit them");
+        // 실어 둔다 - 고친 뒤 제자리에서 다시 읽히는지 본다.
+        JBro::AssetSystem* assets = editor.GetAssetSystem();
+        Check(assets != nullptr, "the editor has an asset system");
+        const JBro::AssetHandle loaded = assets->Load(materialId);
+        Check(assets->GetMaterial(loaded) != nullptr, "the material loads");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "material_inspector");
+        }
+
+        const auto readFile = [&]() {
+            std::ifstream in(file, std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const std::string before = readFile();
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const JBro::TypeDescriptor& fields = JBro::TypeDescriptorOf<JBro::MaterialDesc>::Get();
+        const ImGuiID roughnessField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"),
+            static_cast<JBro::Int32>(FieldIndexOf(*fields.fields, "roughness"))), "##value");
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd, roughnessField, spot), "the material's roughness is a row in the inspector");
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x - 60);
+        Check(editor.Tick(Frame), "the editor must tick after the drag");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one command");
+        const std::string after = readFile();
+        JBro::MaterialDesc written;
+        JBro::String parseError;
+        Check(after != before && JBro::ParseMaterialFile(after.c_str(), after.size(), written, parseError) && written.roughness < 1.0f,
+            "the command rewrites the material file itself with the dragged roughness");
+        Check(std::filesystem::exists(root / "Assets" / (std::string(created.c_str()) + ".jmeta")) && readFile() == after,
+            "and leaves the meta alone");
+        Check(editor.GetSelectedMaterial() != nullptr && editor.GetSelectedMaterial()->roughness == written.roughness,
+            "the inspector's copy follows the disk");
+        Check(assets->GetMaterial(loaded)->desc.roughness == written.roughness, "and the loaded material was reloaded in place");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.Tick(Frame), "the editor must tick after undo");
+        Check(readFile() == before, "undo puts the original material text back");
+        Check(editor.GetSelectedMaterial()->roughness == 1.0f && assets->GetMaterial(loaded)->desc.roughness == 1.0f,
+            "and the inspector and the loaded material follow");
+        assets->Release(loaded);
+
+        // 모델의 재질: 파일의 값(기본색 1, 0.5, 0.25)을 보이되 고칠 수 없다.
+        const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath("props/quad.gltf");
+        Check(model != nullptr, "the model is registered");
+        JBro::Array<JBro::AssetId> parts;
+        editor.GetAssetRegistry().CollectOwned(model->id, parts);
+        JBro::AssetId modelMaterial;
+        for (const JBro::AssetId& id : parts)
+        {
+            modelMaterial = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::Material ? id : modelMaterial;
+        }
+        editor.SetSelectedAsset(modelMaterial);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the model's material");
+        }
+        Check(editor.GetSelectedMaterial() != nullptr && editor.IsSelectedMaterialReadOnly()
+                && editor.GetSelectedMaterial()->baseColor.G == 0.5f && false == editor.GetSelectedMaterial()->baseColorTextureId.IsNull(),
+            "a model's material shows the file's values, its picture slot filled, and is read-only");
+        JBro::AssetFileTarget target;
+        JBro::String text;
+        Check(false == editor.DescribeSelectedMaterialFile(target, text), "there is no file to rewrite for it");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "material_model_inspector");
+        }
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
     void TestTheEditorMakesFontFamilies()
     {
         JBro::EditorApplication editor;
@@ -15790,6 +16235,153 @@ namespace
         return nullptr;
     }
 
+    // **파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·`.jproject 연결` 은 프로젝트가 없을 때만 있다**(D-389). 프로젝트가 없는 에디터에서 메뉴로
+    // 프로젝트를 열면 그 항목들이 사라지고, `프로젝트 저장` 은 두 때 모두 있다(훑기가 항목을 찾을 수 있다는 대조다).
+    void TestProjectItemsShowOnlyWithoutAProject()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroProjectMenuProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        const JBro::String projectPath = TempPath("JBroProjectMenuProbe\\Menu.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        DialogProbe dialog;
+        dialog.path = projectPath;
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the project menu items not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND window = FindOwnEditorWindow();
+        Check(window != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick");
+        }
+
+        const char* fileLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuFile, "File");
+        const char* newLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuNewProject, "New Project");
+        const char* openLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuOpenProject, "Open Project");
+        const char* registerLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuRegisterProjectFileType, "Open .jproject Files with This Editor");
+        const char* saveLabel = JBro::Loc::TextOr(JBro::LocKeys::MenuSaveProject, "Save Project");
+        // 뿌리 창(`##EditorRoot`)의 메뉴 막대를 훑어 `파일` 을 찾는다. 디버그 메뉴와 달리 파일 메뉴는 메인 도크가 아니라 뿌리에 있다(D-134).
+        ImGuiWindow* main = ImGui::FindWindowByName("##EditorRoot");
+        Check(main != nullptr, "the editor root must be there");
+        const ImGuiID bar = LabelId(main->ID, "##MenuBar");
+        const ImRect rect = main->MenuBarRect();
+        const JBro::Int32 y = static_cast<JBro::Int32>(rect.GetCenter().y);
+        JBro::Int32 fileX = 0;
+        for (JBro::Int32 x = static_cast<JBro::Int32>(rect.Min.x); x < static_cast<JBro::Int32>(rect.Max.x); x += 3)
+        {
+            PostMessageW(window, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking for the File menu");
+            if (ImGui::GetHoveredID() == LabelId(bar, fileLabel))
+            {
+                fileX = x;
+                break;
+            }
+        }
+        Check(fileX != 0, "the File menu is in the bar");
+        // 파일 메뉴를 열어 그 이름의 항목이 있는지 본다. 보고 나면 같은 자리를 다시 눌러 닫는다.
+        struct Seen
+        {
+            JBro::Bool newProject = false;
+            JBro::Bool openProject = false;
+            JBro::Bool registerFileType = false;
+            JBro::Bool saveProject = false;
+        };
+        const auto lookInFileMenu = [&]() {
+            Seen seen;
+            ClickAt(editor, window, Spot{fileX, y});
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the File menu must open");
+            }
+            ImGuiWindow* menu = FindSubmenuWindow();
+            Check(menu != nullptr, "the File menu opens");
+            Spot at;
+            seen.newProject = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, newLabel), at);
+            seen.openProject = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, openLabel), at);
+            seen.registerFileType = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, registerLabel), at);
+            seen.saveProject = FindItemAnywhereInWindow(editor, window, menu, LabelId(menu->ID, saveLabel), at);
+            ClickAt(editor, window, Spot{fileX, y});
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the File menu must close");
+            }
+            return seen;
+        };
+
+        Check(editor.CanSwitchProject(), "with no project the editor may open one");
+        const Seen empty = lookInFileMenu();
+        Check(empty.saveProject, "the scan finds the save item with no project");
+        Check(empty.newProject && empty.openProject && empty.registerFileType,
+            "with no project the File menu offers new, open and the file type");
+
+        // 메뉴가 부르는 것과 같은 요청으로 연다. 대화상자는 프레임 밖에서 그 프로젝트를 준다.
+        editor.RequestOpenProject();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must open the chosen project");
+        }
+        Check(dialog.calls == 1 && editor.GetProjectFilePath() == projectPath, "the chosen project is open");
+        Check(false == editor.CanSwitchProject(), "with a project open the editor offers no other");
+        const Seen open = lookInFileMenu();
+        Check(open.saveProject, "the scan finds the save item with a project open");
+        Check(false == open.newProject && false == open.openProject && false == open.registerFileType,
+            "with a project open the File menu has no new, open or file type item");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
+    // **`.jproject` 연결은 메뉴에서 이 실행 파일로 선다**(D-389). 사람의 연결을 덮지 않으려고 시험의 자리(`fileTypeClassesKey`)에 쓰고 지운다.
+    void TestRegisteringTheProjectFileTypeFromTheEditor()
+    {
+        constexpr const char* TestClasses = "Software\\JBroEngineTests\\EditorClasses";
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        config.fileTypeClassesKey = TestClasses;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the file type from the editor not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::WindowsPlatform platform;
+        JBro::FileTypeAssociation desc;
+        Check(JBro::MakeProjectFileType(platform, desc), "the test knows its own executable");
+        desc.classesKey = TestClasses;
+        platform.UnregisterFileType(desc);
+        Check(editor.RegisterProjectFileType(), "the editor registers the file type");
+        Check(editor.Tick(Frame) && editor.IsPopupOpenById("project_file_type"), "and says so");
+        const JBro::String command = platform.ReadFileTypeCommand(TestClasses, ".jproject");
+        Check(command == desc.command, "double-clicking runs this executable on the file");
+        Check(platform.UnregisterFileType(desc) && platform.ReadFileTypeCommand(TestClasses, ".jproject").empty(),
+            "the test leaves nothing behind");
+        RegDeleteTreeW(HKEY_CURRENT_USER, L"Software\\JBroEngineTests");
+        editor.Shutdown();
+    }
+
     // **몸통을 잡아 끌면 지금 기즈모 모드의 중립 손잡이를 잡은 것과 같다**(D-298). 옮기기 모드는 두 축으로 옮기고(고르지 않은 것을 끌면
     // 그것을 고르고 옮긴다), 돌리기 모드는 돌리고, 크기 모드는 두 축을 같은 비율로 키운다. 한 번 끄는 것은 되돌리기 한 번이다.
     // 빈 곳에서 끌면 여전히 상자 선택이다(아무것도 바꾸지 않는다).
@@ -17118,16 +17710,16 @@ namespace
         answer("##NodeGraphClose", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
         Check(editor.FindPanels("NodeGraph", panels) == 1 && dirty(), "cancelling keeps the window and the change");
 
-        // ── 저장하지 않은 그래프가 있으면 다른 프로젝트를 열기·창 닫기 전에 묻는다(D-324) ──
+        // ── 저장하지 않은 그래프가 있으면 창 닫기 전에 묻는다(D-324) ──
+        // 다른 프로젝트 열기는 파일로 연 프로젝트에서는 아예 돌지 않는다(D-389) - 묻지도 닫지도 않는다.
         Check(dirty() && editor.HasUnsavedWork(), "an unsaved graph is unsaved work");
         editor.RequestOpenProject();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must settle while it asks");
+            Check(editor.Tick(Frame), "the editor must settle after the refused request");
         }
-        Check(editor.IsPopupOpenById("##UnsavedWork"), "opening another project over unsaved work asks first");
-        answer("##UnsavedWork", JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
-        Check(dirty() && editor.FindPanels("NodeGraph", panels) == 1, "cancelling keeps the project and the change");
+        Check(false == editor.IsPopupOpenById("##UnsavedWork"), "opening another project is not offered while a project is open");
+        Check(dirty() && editor.FindPanels("NodeGraph", panels) == 1, "the project and the change stay");
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -18873,149 +19465,397 @@ namespace
         Check(restored != nullptr && textOf(restored->text).empty(), "stopping puts the empty field back");
         editor.Shutdown();
     }
+
+    // 캔버스의 뿌리 오브젝트를 이름으로 찾는다. 실행을 멈추면 오브젝트가 새로 만들어지므로 포인터를 들고 다니지 않는다.
+    JBro::Object::GameObject* FindRootNamed(JBro::Canvas& canvas, const char* name)
+    {
+        JBro::Array<JBro::Object::GameObject*> roots;
+        canvas.GetRootObjects(roots);
+        for (JBro::Object::GameObject* each : roots)
+        {
+            if (std::strcmp(each->GetName(), name) == 0)
+            {
+                return each;
+            }
+        }
+        return nullptr;
+    }
+
+    // 창 `window` 의 안쪽에서 두 그림이 다른 픽셀 수다. 한 패널만의 변화를 다른 패널의 변화와 섞지 않으려 쓴다.
+    std::size_t CountDifferingPixelsInWindow(const JBro::Array<std::byte>& first, const JBro::Array<std::byte>& second,
+        const JBro::TextureReadback& readback, const ImGuiWindow& window)
+    {
+        // 픽셀 좌표는 표준 라이브러리 `std::max`·`std::min` 에 넘기는 경계라 원시 `int` 로 센다.
+        const int left = std::max(0, static_cast<int>(window.InnerRect.Min.x));
+        const int top = std::max(0, static_cast<int>(window.InnerRect.Min.y));
+        const int right = std::min(static_cast<int>(ScenarioWidth.Get()), static_cast<int>(window.InnerRect.Max.x));
+        const int bottom = std::min(static_cast<int>(ScenarioHeight.Get()), static_cast<int>(window.InnerRect.Max.y));
+        std::size_t differing = 0;
+        for (int y = top; y < bottom; ++y)
+        {
+            for (int x = left; x < right; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4;
+                if (std::memcmp(first.Data() + offset, second.Data() + offset, 4) != 0)
+                {
+                    ++differing;
+                }
+            }
+        }
+        return differing;
+    }
+
+    // **시나리오 D: 3D 로 처음 쓰는 사용자**(D-388, todo-3d 우선순위 1). 새 프로젝트에서 3D 를 고른다 → 열자마자 카메라와 큐브가 있고
+    // 캔버스 뷰 가운데에 큐브가 보인다 → 눌러 고른다 → 기즈모로 옮기고 되돌린다 → 실행하면 게임 화면에 큐브가 그려진다 → 멈추면 그대로다.
+    // 스크립트는 다루지 않는다(3D 스크립트는 우선순위 7). MSBuild 가 없어도 돈다.
+    void TestScenarioD3DFirstProject()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroUserScenarioD").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root, ignored);
+
+        DialogProbe dialog;
+        dialog.path = JBro::String(root.string().c_str());
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario D not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        // ── 1. 새 프로젝트에서 3D 를 고른다 ─────────────
+        editor.RequestNewProject();
+        Check(editor.Tick(Frame), "the folder dialog runs outside the frame");
+        Check(editor.IsPopupOpenById("new_project"), "a new project asks for a name");
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the popup settles");
+        }
+        TypeText(editor, "My 3D Game");
+        ImGuiWindow* popup = FindActiveWindowContaining("###popup_");
+        Check(popup != nullptr, "the new project popup has a window");
+        const ImGuiID frameworkCombo = LabelId(LabelId(popup->ID, "##newProject"), "##framework");
+        Spot comboSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, popup, frameworkCombo, comboSpot), "the framework list is in the popup");
+        ClickAt(editor, hwnd, comboSpot);
+        Check(editor.Tick(Frame), "the framework list opens");
+        ImGuiWindow* list = FindActiveWindowContaining("##Combo_");
+        Check(list != nullptr, "the framework list has a window");
+        const ImGuiID threeD = LabelId(PushedId(list->ID, 1), "3D");
+        Spot threeDSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, list, threeD, threeDSpot), "3D is in the list");
+        ScenarioShot(editor, "d01_new_project_framework");
+        ClickAt(editor, hwnd, threeDSpot);
+        Check(editor.Tick(Frame), "3D is chosen");
+        ScenarioShot(editor, "d02_new_project_3d");
+        Check(editor.IsPopupOpenById("new_project"), "choosing the framework keeps the popup open");
+        // 만들기 단추를 누른다 - 목록을 누른 뒤라 이름 칸에 포커스가 없어 Enter 가 아니다.
+        popup = FindActiveWindowContaining("###popup_");
+        Check(popup != nullptr, "the popup is still there");
+        const char* createLabel = JBro::Loc::TextOr(JBro::LocKeys::CommonCreate, "Create");
+        Spot createSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, popup, LabelId(popup->ID, createLabel), createSpot),
+            "the create button is in the popup");
+        ClickAt(editor, hwnd, createSpot);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor switches to the new project");
+        }
+        Check(false == editor.IsPopupOpenById("new_project"), "the popup closes");
+        Check(editor.HasOpenProject() && editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
+            "the new project is open as a 3D project");
+        Check(fs::is_regular_file(root / "My 3D Game" / "My 3D Game.jproject"), "its project file is written");
+
+        // ── 2. 열자마자 카메라와 큐브가 있다 ─────────────
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the new project has a canvas");
+        JBro::Object::GameObject* camera = FindRootNamed(*canvas, "Camera");
+        JBro::Object::GameObject* cube = FindRootNamed(*canvas, "Cube");
+        Check(camera != nullptr && cube != nullptr, "the new 3D canvas starts with a camera and a cube");
+        auto* lens = canvas->FindComponentRaw<JBro::Component::Camera3D>(camera);
+        auto* eye = canvas->FindComponentRaw<JBro::Component::Transform3D>(camera);
+        Check(lens != nullptr && lens->primary, "the camera is the primary 3D camera");
+        Check(eye != nullptr && JBro::Length(eye->position) > 1.0f, "and stands away from the origin");
+        // 카메라가 보는 쪽(-Z)이 원점의 큐브를 향한다.
+        const JBro::Vector3 forward = JBro::Rotate(eye->rotation, JBro::Vector3{0.0f, 0.0f, -1.0f});
+        const JBro::Vector3 toCube = JBro::Normalize(JBro::Scale(eye->position, -1.0f));
+        Check(JBro::Dot(forward, toCube) > 0.999f, "and looks straight at the cube");
+        auto* mesh = canvas->FindComponentRaw<JBro::Component::MeshRenderer3D>(cube);
+        Check(mesh != nullptr && mesh->meshId == JBro::MeshLibrary::BuiltinCubeId() && mesh->visible,
+            "the cube draws the builtin cube mesh");
+        Check(canvas->FindComponentRaw<JBro::Component::Transform3D>(cube) != nullptr, "and has a 3D transform");
+        Check(editor.GetCommands().CanUndo() == false, "the starter objects are not an edit to undo");
+        ScenarioShot(editor, "d03_project_open");
+
+        // ── 3. 캔버스 뷰 가운데를 누르면 큐브가 골라진다 ─────────────
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr && IsFrontTab("CanvasView"), "the canvas view is in front");
+        // 궤도 카메라는 원점을 그린 화면(텍스처)의 한가운데에 둔다. 패널은 그 텍스처의 왼쪽 위를 잘라 붙이므로(D-150)
+        // 원점은 패널의 가운데가 아니라 그림 왼쪽 위에서 텍스처 크기의 절반만큼 간 자리다.
+        JBro::Widget::ItemLocator::Watch(LabelId(view->ID, "##canvas"));
+        Check(editor.Tick(Frame), "the editor must tick while locating the picture");
+        JBro::Widget::ItemLocator::ItemRect picture;
+        Check(JBro::Widget::ItemLocator::Take(picture), "the canvas view's picture is on screen");
+        const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
+        Check(drawn.width != 0 && drawn.height != 0, "the canvas view has been drawn");
+        Spot center;
+        center.x = static_cast<JBro::Int32>(picture.minX.Get() + static_cast<float>(drawn.width.Get()) * 0.5f);
+        center.y = static_cast<JBro::Int32>(picture.minY.Get() + static_cast<float>(drawn.height.Get()) * 0.5f);
+        ClickAt(editor, hwnd, center);
+        Check(editor.Tick(Frame), "the click is taken");
+        Check(editor.GetSelectedObject() == cube, "clicking the middle of the view picks the cube the view looks at");
+        ScenarioShot(editor, "d04_cube_picked");
+
+        // ── 3b. 인스펙터의 메시 칸에서 도형을 바꾸고 되돌린다(D-388 우선순위 2) ─────────────
+        // 빌트인 도형은 레지스트리에 없지만 목록 앞에 이름으로 선다. 전에는 칸이 `(없는 에셋)` 이었다.
+        {
+            const JBro::PropertyTable* meshFields = JBro::PropertyRegistry::Lookup(
+                JBro::NameTable::Get().Intern("Component::MeshRenderer3D"));
+            Check(meshFields != nullptr, "the mesh renderer must have registered its properties");
+            Spot meshField;
+            Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(*meshFields, "meshId"), "##value"), meshField),
+                "the mesh field is in the inspector");
+            ClickAt(editor, hwnd, meshField);
+            Check(editor.Tick(Frame), "the mesh list opens");
+            ImGuiWindow* meshList = FindActiveWindowContaining("##Combo_");
+            Check(meshList != nullptr, "the mesh list has a window");
+            // 맨 위는 비우기 항목이고 그다음이 빌트인 차례다(Cube, Sphere, ...).
+            Spot sphereSpot;
+            Check(FindItemAnywhereInWindow(editor, hwnd, meshList, LabelId(PushedId(meshList->ID, 2), "Sphere"), sphereSpot),
+                "the builtin shapes are listed by name");
+            ScenarioShot(editor, "d04b_mesh_list");
+            ClickAt(editor, hwnd, sphereSpot);
+            Check(editor.Tick(Frame), "the sphere is chosen");
+            auto* chosenMesh = canvas->FindComponentRaw<JBro::Component::MeshRenderer3D>(cube);
+            Check(chosenMesh != nullptr && chosenMesh->meshId == JBro::MeshLibrary::GetBuiltin(1).id,
+                "choosing Sphere puts the builtin sphere in the field");
+            ScenarioShot(editor, "d04c_sphere");
+            Check(editor.GetCommands().Undo(), "the change is one edit to undo");
+            Check(editor.Tick(Frame), "the undo settles");
+            Check(chosenMesh->meshId == JBro::MeshLibrary::BuiltinCubeId(), "undo brings the cube back");
+        }
+
+        // ── 4. 기즈모로 옮기고 되돌린다 ─────────────
+        Spot handle;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), handle),
+            "the x handle stands on the picked cube");
+        DragFrom(editor, hwnd, handle, handle.x + 80);
+        Check(editor.Tick(Frame), "the drag settles");
+        auto* cubeTransform = canvas->FindComponentRaw<JBro::Component::Transform3D>(cube);
+        Check(cubeTransform != nullptr && std::fabs(cubeTransform->position.x) > 0.1f, "dragging the handle moves the cube");
+        Check(std::fabs(cubeTransform->position.y) < 0.0001f && std::fabs(cubeTransform->position.z) < 0.0001f,
+            "only along its x axis");
+        ScenarioShot(editor, "d05_cube_moved");
+        Check(editor.GetCommands().Undo(), "the move is one edit to undo");
+        Check(editor.Tick(Frame), "the undo settles");
+        Check(std::fabs(cubeTransform->position.x) < 0.0001f, "undo puts the cube back at the origin");
+
+        // ── 5. 실행하면 게임 화면에 큐브가 그려진다 ─────────────
+        Check(RunEditorAction(editor, "simulation.play"), "play (F5) starts");
+        if (JBro::EditorPanel* simulation = editor.FindPanel("Simulation"))
+        {
+            simulation->RequestFocus();
+        }
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor plays");
+        }
+        Check(editor.IsSimulationPlaying(), "the simulation runs");
+        Check(IsFrontTab("Simulation"), "the simulation view is in front");
+        ImGuiWindow* game = ImGui::FindWindowByName("Simulation");
+        Check(game != nullptr, "the simulation view has a window");
+        ScenarioShot(editor, "d06_playing");
+        // 큐브를 감춘 그림과 견준다. 게임 화면 안에서 달라져야 큐브가 그 카메라에 그려진 것이다.
+        JBro::Object::GameObject* playingCube = FindRootNamed(*editor.GetCanvas(), "Cube");
+        Check(playingCube != nullptr, "the cube is there while playing");
+        auto* playingMesh = editor.GetCanvas()->FindComponentRaw<JBro::Component::MeshRenderer3D>(playingCube);
+        Check(playingMesh != nullptr, "with its mesh");
+        JBro::Array<std::byte> withCube;
+        JBro::Array<std::byte> withoutCube;
+        JBro::TextureReadback readback;
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, withCube, readback);
+        playingMesh->visible = false;
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor draws without the cube");
+        }
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, withoutCube, readback);
+        playingMesh->visible = true;
+        const std::size_t cubePixels = CountDifferingPixelsInWindow(withCube, withoutCube, readback, *game);
+        std::cout << "  the starter cube covers " << cubePixels << " pixels of the game view" << std::endl;
+        Check(cubePixels > 100, "the game camera sees the starter cube");
+
+        // ── 6. 멈추면 그대로다 ─────────────
+        Check(RunEditorAction(editor, "simulation.play"), "pressing play again stops");
+        Check(editor.Tick(Frame), "the editor stops");
+        Check(false == editor.IsSimulationPlaying(), "the simulation stops");
+        JBro::Object::GameObject* stoppedCube = FindRootNamed(*editor.GetCanvas(), "Cube");
+        Check(stoppedCube != nullptr, "the cube is still there after stopping");
+        auto* stoppedMesh = editor.GetCanvas()->FindComponentRaw<JBro::Component::MeshRenderer3D>(stoppedCube);
+        Check(stoppedMesh != nullptr && stoppedMesh->visible, "and drawn");
+        ScenarioShot(editor, "d07_stopped");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
 }
 
 JBro::Int32 RunEditorApplicationTests()
 {
-    TestEditorProjectSessions();
-    TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D12);
-    TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D11);
-    TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::Vulkan);
-    TestTheEditorDrawsWithNoProjectOpen();
-    TestTheEditorFindsItsFilesFromAnywhere();
-    TestTheMenuBarSpeaksTheLoadedLocale();
-    TestTheDebugMenuShowsStartDebugging();
-    TestTheEditorForwardsInputToItsUi();
-    TestThePanelRegistryRefusesWhatItCannotHold();
-    TestUniqueAndInstancePanels();
-    TestAClosedPanelKeepsUpdatingButStopsDrawing();
-    TestClickingTheCloseButtonClosesThePanel();
-    TestTheDeviceSurvivesFontAtlasUpdates();
-    TestSelectingSeveralObjects();
-    TestAChosenChildUnderAChosenParentIsNotItsOwnTarget();
-    TestTheInspectorIsToldWhatItMayEdit();
-    TestTheInspectorEditsThroughCommands();
-    TestEditingWithSeveralChosenReachesThemAll();
-    TestAChosenChildDoesNotGetTheEditTwice();
-    TestMultiEditPicksTheSameOrdinalEverywhere();
-    TestListEditsReachEveryChosenObjectAsOneUndo();
-    TestTheInspectorEditsPolygonColliderPoints();
-    TestAPairElementDragsAsADeltaOnEveryChosenList();
-    TestAVectorFieldEditsThroughACommand();
-    TestTheSimulationViewKnowsWhenNoCameraDrew();
-    TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows();
-    TestDraggingTheGizmoMovesTheSelectionUnderOneUndo();
-    TestPopupsOpenOneAtATimeAndCloseByHandle();
-    TestSavingAsksForAPathOnceAndReportsFailure();
-    TestTheComponentMenuHasNoEnableOrMoveItems();
-    TestDraggingAComponentHeaderReordersIt();
-    TestCopyAndPasteMakeASiblingAndSelectIt();
-    TestCopyingAComponentPastesItsValuesOntoAnotherObject();
-    TestTheAddComponentListGroupsTypesAndMarksWhatIsAlreadyThere();
-    TestANewObjectLandsWhereItWasAskedFor();
-    TestAnObjectKeepsItsLayerThroughDeleteAndPaste();
-    TestAStructElementOpensAndEditsEveryChosenList();
-    TestDraggingAStructElementReordersEveryChosenList();
-    TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
-    TestTypingTheSameValueLeavesNothingToUndo();
-    TestOnlyTheFocusedSimulationViewGivesTheGameItsKeys();
-    TestTheAssetFieldPicksARegisteredSprite();
-    TestTheInspectorPreviewsAudioAndPicksABus();
-    TestTheAudioSettingsAndMetersDraw();
-    TestTheSoundEffectEditorMakesAndPlaysAnEffect();
-    TestTheNodeGraphEditorEditsWithItsOwnUndo();
-    TestTheNodeGraphEditorFindsAnnotatesAndEditsInPlace();
-    TestTheInputSettingsDrawAndSave();
-    TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
-    TestPlayingAndStoppingRestoresTheCanvas();
-    TestAScriptFaultStopsPlayAndTellsTheUser();
-    TestPlayingRunsPhysicsAndStoppingPutsItBack();
-    TestSteppingAPausedGameAndTheDebugLineToggles();
-    TestThePhysicsThreadsSettingReachesPlay();
-    TestBoxSelectInTheCanvasViewPicksWhatItTouches();
-    TestTheCanvasViewDrawsInA3DProject();
-    TestProjectSettingsAreWrittenBackToTheFile();
-    TestDraggingAnAssetOntoTheFieldPicksIt();
-    TestAssetToolsFollowTheOpenProject();
-    TestTheSpriteViewerDocksBesideTheMainDock();
-    TestDuplicatingAnAssetGivesItItsOwnId();
-    TestImportingAPictureCopiesAndRegistersIt();
-    TestNewProjectCreatesAndOpensIt();
-    TestTheCanvasViewPicksTheRootUntilYouStepInside();
-    TestSteppingInsideFramesTheObjectAndVeilsTheRest();
-    TestDoubleClickingAHierarchyRowStepsTheCanvasViewInside();
-    TestTheSelectionOutlineFollowsTheDrawnPixels();
-    TestCreatedObjectsCarryTheFrameworkTransform();
-    TestPanelsGoThroughTheWidgetLayer();
-    TestPickingFollowsTheSpriteAssetSize();
-    TestTheEditorEditsPicksAndWarnsAboutText();
-    TestTheProjectSettingsListTheFontsTextsFallBackOn();
-    TestTheEditorSessionSurvivesReopening();
-    TestClosingTheEditorRemembersWhereYouWere();
-    TestTheStatsPanelShowsWhatTheCanvasHolds();
-    TestTheCanvasViewDrawsColliderShapes();
-    TestTheCanvasViewEditsPolygonColliderPoints();
-    TestTheCanvasViewDragsLightHandles();
-    TestTheCanvasViewEditsButtonRects();
-    TestTheRenderGraphPanelShowsTheLastFrame();
-    TestThePostProcessProfileIsEditedInTheInspector();
-    TestALayerProfileOutlinesItsLayer();
-    TestAVolumeBlendsAroundTheCamera();
-    TestAMaterialShadesASpriteAndTheView();
-    TestAScriptAndAVolumeChangeAMaterial();
-    TestAMeshMaterialDrawsInA3DProject();
-    TestTheCanvasViewDrawsCapsuleColliders();
-    TestTheCanvasViewRulerReadsInPixelsToo();
-    TestTheCanvasViewGridLabelsStayOnTheirLines();
-    TestTheInspectorRenamesAndTogglesThroughCommands();
-    TestTheCanvasItselfCanBeSelectedAndPainted();
-    TestTheAssetBrowserSelectsManyFilesAtOnce();
-    TestTheAssetBrowserSortsByNameTypeOrDate();
-    TestUnknownFilesOpenAndAssetsCanBeFound();
-    TestAssetFileWorkCanBeUndone();
-    TestAssetFileOperationsCarryTheMeta();
-    TestDraggingInTheHierarchyReordersAndUnparents();
-    TestShiftClickingTheHierarchyPicksTheWholeRange();
-    TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
-    TestAnUndrawableCameraKeepsTheEditorRunning();
-    TestComponentHooksAreSubmenusPerInstance();
-    TestContextMenusShowRemappedShortcuts();
-    TestEditorActionsAreRegisteredFromTheStart();
-    TestRegisteredActionsAppearInContextMenus();
-    TestTheCommandPaletteFindsAndRunsActions();
-    TestComponentHooksAppearInTheInspectorHeaderMenu();
-    TestEditPointsFromTheMenuEditsThatCollider();
-    TestBringingAnObjectForwardReordersItsDrawing();
-    TestTaggingAnObjectFromTheInspector();
-    TestDraggingABodyUsesTheNeutralHandle();
-    TestOneAddComponentButtonOffersScriptsToo();
-    TestCopyingAndPastingALayer();
-    TestLightAndCameraMarkersCanBePicked();
-    TestRenamingALayerIsOneCommandNotOnePerLetter();
-    TestALayerRowSelectsTheLayerForTheInspector();
-    TestLayerAssetsSaveAndLoadInTheEditor();
-    TestTheHierarchyDrawsLayerThumbnails();
-    TestTheGizmoCanWorkInWorldAxes();
-    TestTheGizmoSnapsToTheGrid();
-    TestRemappedShortcutsAreSavedAndReadBack();
-    TestGizmoKeysFollowTheCanvasViewFocus();
-    TestTypingKeepsEditorShortcutsOutOfTheField();
-    TestEditorSettingsRemapsAShortcutByPressingAKey();
-    TestThePathHelpersAgreeOnOneAnswer();
-    TestTheEditorMakesAndOpensCanvases();
-    TestTheEditorMakesFontFamilies();
-    TestTheEditorPreviewsGameLanguages();
-    TestScreenLayersInTheEditor();
-    TestTheEditorSaysWhatIsChosen();
-    TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
-    TestCreatingAnObjectCanBeUndone();
-    TestDeletingAnObjectCanBeUndoneWithItsValues();
-    TestClosingTheWindowDoesNotTakeTheUiDownWithIt();
-    TestEditorOpensAProjectFile();
-    TestTheProjectFileDecidesTheFramework();
-    TestEditorSavesAndOpensACanvas();
-    TestCanvasWorkNeedsAnOpenProject();
-    TestAProjectOpensWithoutItsScriptModule();
+    JBRO_CASE(TestEditorProjectSessions());
+    JBRO_CASE(TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D12));
+    JBRO_CASE(TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D11));
+    JBRO_CASE(TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::Vulkan));
+    JBRO_CASE(TestTheEditorDrawsWithNoProjectOpen());
+    JBRO_CASE(TestTheEditorFindsItsFilesFromAnywhere());
+    JBRO_CASE(TestTheMenuBarSpeaksTheLoadedLocale());
+    JBRO_CASE(TestTheDebugMenuShowsStartDebugging());
+    JBRO_CASE(TestProjectItemsShowOnlyWithoutAProject());
+    JBRO_CASE(TestRegisteringTheProjectFileTypeFromTheEditor());
+    JBRO_CASE(TestTheEditorForwardsInputToItsUi());
+    JBRO_CASE(TestThePanelRegistryRefusesWhatItCannotHold());
+    JBRO_CASE(TestUniqueAndInstancePanels());
+    JBRO_CASE(TestAClosedPanelKeepsUpdatingButStopsDrawing());
+    JBRO_CASE(TestClickingTheCloseButtonClosesThePanel());
+    JBRO_CASE(TestTheDeviceSurvivesFontAtlasUpdates());
+    JBRO_CASE(TestSelectingSeveralObjects());
+    JBRO_CASE(TestAChosenChildUnderAChosenParentIsNotItsOwnTarget());
+    JBRO_CASE(TestTheInspectorIsToldWhatItMayEdit());
+    JBRO_CASE(TestTheInspectorEditsThroughCommands());
+    JBRO_CASE(TestEditingWithSeveralChosenReachesThemAll());
+    JBRO_CASE(TestAChosenChildDoesNotGetTheEditTwice());
+    JBRO_CASE(TestMultiEditPicksTheSameOrdinalEverywhere());
+    JBRO_CASE(TestListEditsReachEveryChosenObjectAsOneUndo());
+    JBRO_CASE(TestTheInspectorEditsPolygonColliderPoints());
+    JBRO_CASE(TestAPairElementDragsAsADeltaOnEveryChosenList());
+    JBRO_CASE(TestAVectorFieldEditsThroughACommand());
+    JBRO_CASE(TestTheSimulationViewKnowsWhenNoCameraDrew());
+    JBRO_CASE(TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows());
+    JBRO_CASE(TestDraggingTheGizmoMovesTheSelectionUnderOneUndo());
+    JBRO_CASE(TestPopupsOpenOneAtATimeAndCloseByHandle());
+    JBRO_CASE(TestSavingAsksForAPathOnceAndReportsFailure());
+    JBRO_CASE(TestTheComponentMenuHasNoEnableOrMoveItems());
+    JBRO_CASE(TestDraggingAComponentHeaderReordersIt());
+    JBRO_CASE(TestCopyAndPasteMakeASiblingAndSelectIt());
+    JBRO_CASE(TestCopyingAComponentPastesItsValuesOntoAnotherObject());
+    JBRO_CASE(TestTheAddComponentListGroupsTypesAndMarksWhatIsAlreadyThere());
+    JBRO_CASE(TestANewObjectLandsWhereItWasAskedFor());
+    JBRO_CASE(TestAnObjectKeepsItsLayerThroughDeleteAndPaste());
+    JBRO_CASE(TestAStructElementOpensAndEditsEveryChosenList());
+    JBRO_CASE(TestDraggingAStructElementReordersEveryChosenList());
+    JBRO_CASE(TestFlagCountAndToneElementsEditByMouseOnEveryChosenList());
+    JBRO_CASE(TestTypingTheSameValueLeavesNothingToUndo());
+    JBRO_CASE(TestOnlyTheFocusedSimulationViewGivesTheGameItsKeys());
+    JBRO_CASE(TestTheAssetFieldPicksARegisteredSprite());
+    JBRO_CASE(TestTheInspectorPreviewsAudioAndPicksABus());
+    JBRO_CASE(TestTheAudioSettingsAndMetersDraw());
+    JBRO_CASE(TestTheSoundEffectEditorMakesAndPlaysAnEffect());
+    JBRO_CASE(TestTheNodeGraphEditorEditsWithItsOwnUndo());
+    JBRO_CASE(TestTheNodeGraphEditorFindsAnnotatesAndEditsInPlace());
+    JBRO_CASE(TestTheInputSettingsDrawAndSave());
+    JBRO_CASE(TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta());
+    JBRO_CASE(TestTheAssetBrowserExpandsSubAssets());
+    JBRO_CASE(TestPlayingAndStoppingRestoresTheCanvas());
+    JBRO_CASE(TestAScriptFaultStopsPlayAndTellsTheUser());
+    JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBack());
+    JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());
+    JBRO_CASE(TestThePhysicsThreadsSettingReachesPlay());
+    JBRO_CASE(TestBoxSelectInTheCanvasViewPicksWhatItTouches());
+    JBRO_CASE(TestTheCanvasViewDrawsInA3DProject());
+    JBRO_CASE(TestProjectSettingsAreWrittenBackToTheFile());
+    JBRO_CASE(TestDraggingAnAssetOntoTheFieldPicksIt());
+    JBRO_CASE(TestAssetToolsFollowTheOpenProject());
+    JBRO_CASE(TestTheSpriteViewerDocksBesideTheMainDock());
+    JBRO_CASE(TestDuplicatingAnAssetGivesItItsOwnId());
+    JBRO_CASE(TestImportingAPictureCopiesAndRegistersIt());
+    JBRO_CASE(TestNewProjectCreatesAndOpensIt());
+    JBRO_CASE(TestTheCanvasViewPicksTheRootUntilYouStepInside());
+    JBRO_CASE(TestSteppingInsideFramesTheObjectAndVeilsTheRest());
+    JBRO_CASE(TestDoubleClickingAHierarchyRowStepsTheCanvasViewInside());
+    JBRO_CASE(TestTheSelectionOutlineFollowsTheDrawnPixels());
+    JBRO_CASE(TestCreatedObjectsCarryTheFrameworkTransform());
+    JBRO_CASE(TestPanelsGoThroughTheWidgetLayer());
+    JBRO_CASE(TestPickingFollowsTheSpriteAssetSize());
+    JBRO_CASE(TestTheEditorEditsPicksAndWarnsAboutText());
+    JBRO_CASE(TestTheProjectSettingsListTheFontsTextsFallBackOn());
+    JBRO_CASE(TestTheEditorSessionSurvivesReopening());
+    JBRO_CASE(TestClosingTheEditorRemembersWhereYouWere());
+    JBRO_CASE(TestTheStatsPanelShowsWhatTheCanvasHolds());
+    JBRO_CASE(TestTheCanvasViewDrawsColliderShapes());
+    JBRO_CASE(TestTheCanvasViewEditsPolygonColliderPoints());
+    JBRO_CASE(TestTheCanvasViewDragsLightHandles());
+    JBRO_CASE(TestTheCanvasViewEditsButtonRects());
+    JBRO_CASE(TestTheRenderGraphPanelShowsTheLastFrame());
+    JBRO_CASE(TestThePostProcessProfileIsEditedInTheInspector());
+    JBRO_CASE(TestALayerProfileOutlinesItsLayer());
+    JBRO_CASE(TestAVolumeBlendsAroundTheCamera());
+    JBRO_CASE(TestAMaterialShadesASpriteAndTheView());
+    JBRO_CASE(TestAScriptAndAVolumeChangeAMaterial());
+    JBRO_CASE(TestAMeshMaterialDrawsInA3DProject());
+    JBRO_CASE(TestTheCanvasViewDrawsCapsuleColliders());
+    JBRO_CASE(TestTheCanvasViewRulerReadsInPixelsToo());
+    JBRO_CASE(TestTheCanvasViewGridLabelsStayOnTheirLines());
+    JBRO_CASE(TestTheInspectorRenamesAndTogglesThroughCommands());
+    JBRO_CASE(TestTheCanvasItselfCanBeSelectedAndPainted());
+    JBRO_CASE(TestTheAssetBrowserSelectsManyFilesAtOnce());
+    JBRO_CASE(TestTheAssetBrowserSortsByNameTypeOrDate());
+    JBRO_CASE(TestUnknownFilesOpenAndAssetsCanBeFound());
+    JBRO_CASE(TestAssetFileWorkCanBeUndone());
+    JBRO_CASE(TestAssetFileOperationsCarryTheMeta());
+    JBRO_CASE(TestDraggingInTheHierarchyReordersAndUnparents());
+    JBRO_CASE(TestShiftClickingTheHierarchyPicksTheWholeRange());
+    JBRO_CASE(TestRightClickingAnObjectInTheCanvasViewOpensItsMenu());
+    JBRO_CASE(TestAnUndrawableCameraKeepsTheEditorRunning());
+    JBRO_CASE(TestComponentHooksAreSubmenusPerInstance());
+    JBRO_CASE(TestContextMenusShowRemappedShortcuts());
+    JBRO_CASE(TestEditorActionsAreRegisteredFromTheStart());
+    JBRO_CASE(TestRegisteredActionsAppearInContextMenus());
+    JBRO_CASE(TestTheCommandPaletteFindsAndRunsActions());
+    JBRO_CASE(TestComponentHooksAppearInTheInspectorHeaderMenu());
+    JBRO_CASE(TestEditPointsFromTheMenuEditsThatCollider());
+    JBRO_CASE(TestBringingAnObjectForwardReordersItsDrawing());
+    JBRO_CASE(TestTaggingAnObjectFromTheInspector());
+    JBRO_CASE(TestDraggingABodyUsesTheNeutralHandle());
+    JBRO_CASE(TestOneAddComponentButtonOffersScriptsToo());
+    JBRO_CASE(TestCopyingAndPastingALayer());
+    JBRO_CASE(TestLightAndCameraMarkersCanBePicked());
+    JBRO_CASE(TestRenamingALayerIsOneCommandNotOnePerLetter());
+    JBRO_CASE(TestALayerRowSelectsTheLayerForTheInspector());
+    JBRO_CASE(TestLayerAssetsSaveAndLoadInTheEditor());
+    JBRO_CASE(TestTheHierarchyDrawsLayerThumbnails());
+    JBRO_CASE(TestTheGizmoCanWorkInWorldAxes());
+    JBRO_CASE(TestTheGizmoSnapsToTheGrid());
+    JBRO_CASE(TestRemappedShortcutsAreSavedAndReadBack());
+    JBRO_CASE(TestGizmoKeysFollowTheCanvasViewFocus());
+    JBRO_CASE(TestTypingKeepsEditorShortcutsOutOfTheField());
+    JBRO_CASE(TestEditorSettingsRemapsAShortcutByPressingAKey());
+    JBRO_CASE(TestThePathHelpersAgreeOnOneAnswer());
+    JBRO_CASE(TestTheEditorMakesAndOpensCanvases());
+    JBRO_CASE(TestTheEditorMakesFontFamilies());
+    JBRO_CASE(TestTheEditorMakesAndEditsMaterials());
+    JBRO_CASE(TestTheEditorPreviewsGameLanguages());
+    JBRO_CASE(TestScreenLayersInTheEditor());
+    JBRO_CASE(TestTheEditorSaysWhatIsChosen());
+    JBRO_CASE(TestEditorHiddenObjectsLeaveOnlyTheCanvasView());
+    JBRO_CASE(TestCreatingAnObjectCanBeUndone());
+    JBRO_CASE(TestDeletingAnObjectCanBeUndoneWithItsValues());
+    JBRO_CASE(TestClosingTheWindowDoesNotTakeTheUiDownWithIt());
+    JBRO_CASE(TestEditorOpensAProjectFile());
+    JBRO_CASE(TestTheProjectFileDecidesTheFramework());
+    JBRO_CASE(TestEditorSavesAndOpensACanvas());
+    JBRO_CASE(TestCanvasWorkNeedsAnOpenProject());
+    JBRO_CASE(TestAProjectOpensWithoutItsScriptModule());
     std::cout << "Editor application tests passed.\n";
     return 0;
 }
@@ -19146,13 +19986,14 @@ namespace
 // 사용자 시나리오(tasks/script-user-scenario.md)는 실제 MSBuild 로 스크립트를 빌드해 오래 걸리므로 묶음을 따로 둔다.
 JBro::Int32 RunUserScenarioTests()
 {
-    TestScenarioAFirstScript();
-    TestScenarioBHostileUser();
-    TestScenarioCJBroScript();
-    TestScenarioDUiBuilder();
-    TestScenarioETextEntry();
-    TestTheCrashNotificationFitsTheWindow();
-    TestHandleWarningsShowInTheLogPanel();
+    JBRO_CASE(TestScenarioAFirstScript());
+    JBRO_CASE(TestScenarioBHostileUser());
+    JBRO_CASE(TestScenarioCJBroScript());
+    JBRO_CASE(TestScenarioDUiBuilder());
+    JBRO_CASE(TestScenarioETextEntry());
+    JBRO_CASE(TestTheCrashNotificationFitsTheWindow());
+    JBRO_CASE(TestHandleWarningsShowInTheLogPanel());
+    JBRO_CASE(TestScenarioD3DFirstProject());
     std::cout << "User scenario tests passed.\n";
     return 0;
 }

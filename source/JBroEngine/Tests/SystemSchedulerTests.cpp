@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Core/Profiler.h>
@@ -200,9 +201,9 @@ namespace
 
 JBro::Int32 RunSystemSchedulerTests()
 {
-    TestCanvasOwnsOrderedSystems();
-    TestEachSystemIsMeasuredUnderItsOwnName();
-    TestFrameworkFixedStepBudget();
+    JBRO_CASE(TestCanvasOwnsOrderedSystems());
+    JBRO_CASE(TestEachSystemIsMeasuredUnderItsOwnName());
+    JBRO_CASE(TestFrameworkFixedStepBudget());
     std::cout << "System scheduler tests passed.\n";
     return 0;
 }

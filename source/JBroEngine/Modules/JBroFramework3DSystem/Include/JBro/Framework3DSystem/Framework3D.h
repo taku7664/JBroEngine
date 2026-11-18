@@ -8,6 +8,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Internal/SystemContext.h>
 #include <JBro/Framework3D/ServiceContext.h>
+#include <JBro/Framework3DSystem/Rendering/MeshMaterialLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Graphics/MaterialLibrary.h>
 #include <JBro/Graphics/PostProcessLibrary.h>
@@ -58,6 +59,8 @@ namespace JBro
         MeshLibrary& GetMeshLibrary();
         // 화면 레이어의 그릴 것이다(D-362).
         RenderWorld2D* GetScreenRenderWorld();
+        // 표준 머티리얼(D-399)을 푸는 곳이다. 셰이더 머티리얼(D-347)은 `m_materials` 다.
+        MeshMaterialLibrary& GetMeshMaterialLibrary();
 
     private:
         void CreateDefaultSystems();
@@ -101,6 +104,8 @@ namespace JBro
         static constexpr UInt32 MaxVolumes = 64;
         // 레이어 효과 자리의 처음 크기다(레이어 수). 넘으면 그때 늘린다.
         static constexpr UInt32 LayerPostProcessCapacity = 64;
+        // 표준 머티리얼(D-399)·모델의 재질을 렌더러에 올린다. 셰이더 머티리얼은 위의 `m_materials` 다.
+        MeshMaterialLibrary m_meshMaterials;
         Bool m_initialized = false;
         Bool m_simulationEnabled = true;
         // 스크립트에 건네는 3D 컨텍스트다(D-224). 2D 의 `Framework2D` 와 같은 자리다.

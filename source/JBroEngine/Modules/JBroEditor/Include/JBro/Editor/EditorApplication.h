@@ -45,6 +45,8 @@ namespace JBro
     }
 
     struct AssetLoadResult;
+    struct AssetRecord;
+    struct MaterialDesc;
     class TaskManager;
     class Canvas;
     class EditorThumbnails;
@@ -80,7 +82,7 @@ namespace JBro
     }
     class AssetSystem;
     struct AssetMetaFile;
-    struct AssetMetaTarget;
+    struct AssetFileTarget;
     struct AssetSourceTarget;
 
     // `FrameworkKind` 는 `JBro/Host/ProjectFile.h` 에 있다(D-99). 프로젝트 파일이 그 값을
@@ -151,6 +153,9 @@ namespace JBro
         // **제어 포트**(D-270, `EditorControlPort`). 0 이 아니면 이 번호로 루프백에 열어 밖의 프로세스가 가이드를 켜게 한다.
         // 실제 에디터가 `EditorControlPort::DefaultPort` 를 준다. 테스트는 열지 않는 것이 기본이다 - 에디터 여럿이 한 포트를 다툰다.
         std::uint16_t controlPort = 0;
+        // **`.jproject` 연결을 쓸 자리**(D-389, `FileTypeAssociation::classesKey`). 널이면 현재 사용자의 진짜 자리다.
+        // 테스트는 사람의 연결을 덮지 않으려고 제 자리를 준다.
+        const char* fileTypeClassesKey = nullptr;
         JMemoryContext memory;
     };
 
@@ -316,6 +321,8 @@ namespace JBro
         const String& GetAssetRoot() const;
         // 에셋 폴더를 지금 다시 훑는다. 감시가 서지 않은 자리에서 사람이 새로 고치는 길이다.
         Bool RescanAssets();
+        // 다음 프레임 앞에서 다시 훑는다. 그리는 도중(커맨드 실행)에 레지스트리를 바꾸면 패널이 든 레코드 포인터가 죽는다.
+        void RequestAssetRescan();
 
         // **한 손짓이 여럿을 지우면 되돌리기도 하나다**(§11). 고른 것 전부를 한 커맨드로 묶는다.
         Bool DeleteAssets(const Array<String>& relativePaths);
@@ -358,6 +365,9 @@ namespace JBro
         // `RevealAsset` 은 탐색기를 여는 다른 일이다 - 이쪽은 에디터 안에서 찾아 준다.
         // 브라우저가 다음 프레임에 가져간다: 폴더를 열고 그 줄을 고른다.
         void RevealAssetInBrowser(AssetId asset);
+        // **같은 그림**(model-import-plan §2.5). 모델 내장 그림 `asset` 과 묶음 열쇠(`AssetRecord::sharedImageKey`)가 같은 다른 레코드들을 모은다.
+        // 열쇠가 없으면(그림 파일·메시·재질, 홀로인 그림) 비어 있다. 레지스트리를 한 번 훑는다 - 프레임마다 부르지 않고 바뀔 때·마우스를 올렸을 때 부른다.
+        void FindSameImages(AssetId asset, Array<const AssetRecord*>& others) const;
         // 브라우저가 부른다. 기다리는 것이 있으면 아이디를 주고 비운다.
         Bool TakeBrowserRevealRequest(AssetId& asset);
         // 엔진이 모르는 파일을 OS 의 기본 프로그램으로 연다. 열 프로그램이 없으면
@@ -383,7 +393,13 @@ namespace JBro
         // (판번호) 다시 읽으므로 편집·되돌리기 뒤에도 디스크와 같다.
         const AssetMetaFile* GetSelectedAssetMeta() const;
         // 고른 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다. 고른 것이 없으면 거짓이다.
-        Bool DescribeSelectedAssetMeta(AssetMetaTarget& target) const;
+        Bool DescribeSelectedAssetMeta(AssetFileTarget& target) const;
+        // **고른 재질**(material-plan 4 단계). 고른 에셋이 재질이면 그 값이다 - `.jmat` 은 파일을 읽은 것이고, 모델의 하위 Material 은
+        // 모델의 재질을 옮긴 것이라 읽기 전용이다(D-399 (2)). 재질이 아니거나 읽히지 않으면 nullptr. 커맨드가 돈 뒤 디스크에서 다시 읽는다.
+        const MaterialDesc* GetSelectedMaterial() const;
+        Bool IsSelectedMaterialReadOnly() const;
+        // 고른 `.jmat` 을 고치는 커맨드의 대상과 지금 파일의 글자(되돌릴 값)다. 고른 것이 고칠 수 있는 재질 파일이 아니면 거짓.
+        Bool DescribeSelectedMaterialFile(AssetFileTarget& target, String& currentText) const;
         // 이 프로젝트의 스크립트 DLL 이 실렸는지다. **열렸다고 실린 것은 아니다**(D-98) —
         // 아직 한 번도 빌드하지 않은 프로젝트도 열리므로, 스크립트가 있어야 하는 일은
         // 이것을 먼저 본다.
@@ -756,6 +772,9 @@ namespace JBro
         // **새 폰트 패밀리를 만든다**(D-225). 에셋 폴더 아래 `folder` 에 겹치지 않는 이름의 `.jfontfamily` 를 쓰고 등록한 뒤
         // 고르고 에셋 브라우저에서 보인다 - 네 칸은 인스펙터의 에셋 옵션으로 채운다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateFontFamilyAsset(const char* folder);
+        // **새 표준 머티리얼**(material-plan 4 단계, D-403). 기본값(`Standard`, 흰색, roughness 1)의 `.jmat` 을 만들고 브라우저에서 고른다 - 값은 인스펙터에서 고친다.
+        // 셰이더 머티리얼(D-347)은 `CreateMaterialAsset` 이다.
+        String CreateStandardMaterialAsset(const char* folder);
         // **새 문자열 표를 만든다**(D-226). `.jstrings` 를 쓰고, 프로젝트에 기본 언어(없으면 첫 언어)가 있으면 메타의 로케일로 적는다.
         // 고르고 에셋 브라우저에서 보인다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateStringTableAsset(const char* folder);
@@ -843,8 +862,8 @@ namespace JBro
         void NotifyScriptFieldsNotRead(const Array<ScriptResolveNote>& notes);
         // 새 프로젝트 이름을 검사한다(`CheckProjectName`). 새 프로젝트 팝업이 치는 동안 묻는다.
         ProjectCreateFailure CheckProjectName(const char* parentFolder, const char* name);
-        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 비어 있지 않으면 아무것도 하지 않는다.
-        void AddStarterCamera();
+        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 3D 는 원점의 큐브 하나를 더 둔다(D-388). 비어 있지 않으면 아무것도 하지 않는다.
+        void AddStarterObjects();
         // 오류 줄을 여는 편집기다(D-299). 에디터 설정에 저장된다.
         ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
         void SetScriptEditor(ScriptBuild::EditorKind kind);
@@ -882,13 +901,21 @@ namespace JBro
         // 캔버스를 저장하지 못했으면 세션도 적지 않는다 - 저장되지 않은 캔버스를 "마지막으로
         // 연 것" 으로 적어 두면 다음에 열 때 그 파일이 없거나 옛 것이다.
         void RequestSaveProject();
-        // 프로젝트를 골라 연다. 대화상자는 프레임 밖에서 뜬다 - 지금 연 프로젝트는 닫힌다.
+        // 프로젝트를 골라 연다. 대화상자는 프레임 밖에서 뜬다.
+        // **파일로 연 프로젝트가 있으면 아무것도 하지 않는다**(D-389) - 다른 프로젝트는 그 파일을 두 번 눌러 새 에디터로 연다.
         void RequestOpenProject();
         // **새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 프레임 밖에서 폴더를 고르고,
-        // 이름과 프레임워크를 받는 팝업을 띄운다.
+        // 이름과 프레임워크를 받는 팝업을 띄운다. 프로젝트 열기와 같이 파일로 연 프로젝트가 있으면 아무것도 하지 않는다(D-389).
         void RequestNewProject();
+        // **다른 프로젝트를 열거나 만들 수 있는가**(D-389). 파일로 연 프로젝트가 없을 때만 참이다 - 파일 메뉴의 `새 프로젝트`·`프로젝트 열기` 가
+        // 이때만 보인다. 열린 프로젝트를 다른 것으로 바꾸는 길을 두지 않는다.
+        Bool CanSwitchProject() const;
+        // **`.jproject` 를 이 에디터와 잇는다**(D-389). 탐색기에서 두 번 누르면 이 실행 파일이 그 프로젝트를 연다.
+        // 현재 사용자의 자리에만 쓴다. 결과는 팝업으로 알린다.
+        Bool RegisterProjectFileType();
         // `<parentFolder>/<name>/` 에 프로젝트를 세우고, 이 프레임이 끝나면 그 프로젝트로 넘어간다.
         // 실패하면 거짓이고 `failure` 에 까닭이 온다. 팝업이 그것으로 번역된 문장을 고른다.
+        // 파일로 연 프로젝트가 있으면 아무것도 쓰지 않고 거짓이다(D-389, `failure` 는 그대로다).
         Bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
             ProjectCreateFailure* failure = nullptr);
         // ── 스프라이트 프레임 고르기(D-165, 기존 `SpriteFramePick`) ─────────────────────────────
@@ -1069,6 +1096,7 @@ namespace JBro
         Bool m_saveRequested = false;
         Bool m_openProjectRequested = false;
         Bool m_newProjectRequested = false;
+        Bool m_assetRescanRequested = false;
         PathBrowseRequest m_browseRequest;
         Bool m_browseRequested = false;
         // 열어 달라고 한 캔버스(에셋 폴더 기준 상대경로). 비어 있으면 요청이 없다.
@@ -1107,6 +1135,7 @@ namespace JBro
         void* m_fileDialogUser = nullptr;
         Bool (*m_openPath)(const char* utf8Path, void* user) = nullptr;
         void* m_openPathUser = nullptr;
+        String m_fileTypeClassesKey;
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과
         // 같다). Ctrl 로 빼다 보면 목록의 머리가 바뀌는데, 그때마다 인스펙터가
         // 다른 것을 보여 주면 손이 미끄러진 것처럼 보인다.
@@ -1125,6 +1154,12 @@ namespace JBro
         OwnerPtr<AssetMetaFile> m_selectedAssetMeta;
         Bool m_selectedAssetMetaLoaded = false;
         void ReloadSelectedAssetMeta();
+        // 고른 재질의 값과 그 파일의 글자다(`.jmat` 만 글자가 있다). 메타와 같은 때에 다시 읽는다.
+        OwnerPtr<MaterialDesc> m_selectedMaterial;
+        Bool m_selectedMaterialLoaded = false;
+        Bool m_selectedMaterialReadOnly = false;
+        String m_selectedMaterialText;
+        void ReloadSelectedMaterial();
         EditorObjectRegistry m_objectIds;
         TextureHandle m_simulationView;
         Extent2D m_simulationViewExtent;

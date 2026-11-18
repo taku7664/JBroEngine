@@ -113,6 +113,8 @@ if ($SkipSpirv)
 }
 
 # 상수 버퍼(b#)는 옮기지 않는다 - b1..b7 이 그대로 binding 1..7 이다. b0 은 푸시 상수라 binding 이 없다.
+# `RWTexture2D<float4>` 는 형식을 적지 않고 굽는다(-fspv-use-unknown-image-format). 그러지 않으면 dxc 가 Rgba32f 로 짐작하고,
+# RGBA8 텍스처를 묶으면 명세상 값이 정의되지 않는다(D-405). Vulkan 백엔드는 형식 없는 쓰기를 지원하는 포맷만 읽고 쓰는 텍스처로 만든다.
 foreach ($t in $spirvTargets)
 {
     $source = Join-Path $here $t.File
@@ -120,7 +122,7 @@ foreach ($t in $spirvTargets)
     # Vulkan 백엔드는 모듈마다 진입점 이름 VSMain·PSMain 을 찾는다(VulkanPipeline.cpp). 다른 이름의 픽셀 진입점은 PSMain 으로 바꿔 굽는다 -
     # D3D 바이트코드는 이름을 싣지 않는다(엔진의 Compile.ps1 과 같다).
     $entryName = if ($t.Profile.StartsWith('vs')) { 'VSMain' } elseif ($t.Profile.StartsWith('cs')) { 'CSMain' } else { 'PSMain' }
-    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -fvk-u-shift 24 0 -Vn $t.Name -Fh $header $source
+    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -fvk-u-shift 24 0 -fspv-use-unknown-image-format -Vn $t.Name -Fh $header $source
     if ($LASTEXITCODE -ne 0)
     {
         throw "dxc -spirv failed for $($t.Entry) in $($t.File)"

@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/D3D11RHI/D3D11RHI.h>
@@ -650,21 +651,21 @@ JBro::Int32 RunDebugDrawTests()
 {
     try
     {
-        TestOneFrameLinesLiveOneFrame();
-        TestTimedLinesAgeInGameTime();
-        TestFixedStepLinesLastUntilTheNextStep();
-        TestAPausedFrameKeepsTheLastPicture();
-        TestCapacityAndBadValues();
-        TestTheFramePathDoesNotAllocate();
-        TestTheTwoDimensionalShapes();
-        TestTheThreeDimensionalShapes();
-        TestUnboundServicesDoNothing();
-        TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D12RHIModule>();
-        TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D11RHIModule>();
-        TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::VulkanRHIModule>();
-        TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D12RHIModule>();
-        TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D11RHIModule>();
-        TestThreeDimensionalLinesAreHiddenByMeshes<JBro::VulkanRHIModule>();
+        JBRO_CASE(TestOneFrameLinesLiveOneFrame());
+        JBRO_CASE(TestTimedLinesAgeInGameTime());
+        JBRO_CASE(TestFixedStepLinesLastUntilTheNextStep());
+        JBRO_CASE(TestAPausedFrameKeepsTheLastPicture());
+        JBRO_CASE(TestCapacityAndBadValues());
+        JBRO_CASE(TestTheFramePathDoesNotAllocate());
+        JBRO_CASE(TestTheTwoDimensionalShapes());
+        JBRO_CASE(TestTheThreeDimensionalShapes());
+        JBRO_CASE(TestUnboundServicesDoNothing());
+        JBRO_CASE(TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D12RHIModule>());
+        JBRO_CASE(TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::D3D11RHIModule>());
+        JBRO_CASE(TestTwoDimensionalLinesKeepTheirPixelWidth<JBro::VulkanRHIModule>());
+        JBRO_CASE(TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D12RHIModule>());
+        JBRO_CASE(TestThreeDimensionalLinesAreHiddenByMeshes<JBro::D3D11RHIModule>());
+        JBRO_CASE(TestThreeDimensionalLinesAreHiddenByMeshes<JBro::VulkanRHIModule>());
     }
     catch (const std::exception&)
     {

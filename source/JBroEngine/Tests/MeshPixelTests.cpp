@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
@@ -19,12 +20,25 @@
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Math3D.h>
+#include <JBro/Asset/Asset.h>
+#include <JBro/Asset/AssetRegistry.h>
+#include "TestModels.h"
+#include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Host/GameBuild.h>
+#include <JBro/Host/ProjectFile.h>
+#include <JBro/Package/PackageAssetSource.h>
+#include <JBro/Package/PackageReader.h>
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -52,6 +66,46 @@ namespace
         JBro::Float b = 0.0f;
         JBro::Float a = 0.0f;
     };
+
+    // **`Standard` 셰이더의 식을 CPU 로 다시 쓴 것**(material-plan 3 단계, `BuiltinMesh.hlsl` 의 `PSMain`). 그림 칸이 없는 재질 한 점의 기대색이다 -
+    // 선형 기본색(재질 × 틴트)·법선·월드 위치·카메라 위치에서 고정 방향광의 GGX·Lambert 와 주변광을 더하고 sRGB 로 싼다.
+    // 손으로 적은 숫자 대신 이것과 견주어, 셰이더의 항 하나가 틀리면 그 픽셀이 어긋난다.
+    float EncodeSrgb(float linear)
+    {
+        const float c = linear < 0.0f ? 0.0f : (linear > 1.0f ? 1.0f : linear);
+        return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+    }
+
+    Pixel ExpectStandard(const float base[3], JBro::Vector3 normal, JBro::Vector3 position, JBro::Vector3 camera, float metallic, float roughnessFactor)
+    {
+        constexpr float Pi = 3.14159265f;
+        const JBro::Vector3 light = JBro::Normalize(JBro::Vector3{0.4f, 0.8f, 0.45f});
+        normal = JBro::Normalize(normal);
+        const JBro::Vector3 view = JBro::Normalize(JBro::Subtract(camera, position));
+        const JBro::Vector3 halfway = JBro::Normalize(JBro::Add(light, view));
+        const float nl = std::max(0.0f, JBro::Dot(normal, light).Get());
+        const float nv = std::max(JBro::Dot(normal, view).Get(), 0.0001f);
+        const float nh = std::max(0.0f, JBro::Dot(normal, halfway).Get());
+        const float vh = std::max(0.0f, JBro::Dot(view, halfway).Get());
+        const float roughness = std::min(std::max(roughnessFactor, 0.045f), 1.0f);
+        const float alpha = roughness * roughness;
+        const float alpha2 = alpha * alpha;
+        const float denominator = nh * nh * (alpha2 - 1.0f) + 1.0f;
+        const float distribution = alpha2 / (Pi * denominator * denominator);
+        const float k = (roughness + 1.0f) * (roughness + 1.0f) / 8.0f;
+        const float geometry = (nv / (nv * (1.0f - k) + k)) * (nl / (nl * (1.0f - k) + k));
+        float out[3] = {};
+        for (int channel = 0; channel < 3; ++channel)
+        {
+            const float reflectance = 0.04f + (base[channel] - 0.04f) * metallic;
+            const float fresnel = reflectance + (1.0f - reflectance) * std::pow(1.0f - vh, 5.0f);
+            const float specular = distribution * geometry * fresnel / std::max(4.0f * nv * nl, 0.0001f);
+            const float diffuse = (1.0f - fresnel) * (1.0f - metallic) * base[channel];
+            const float direct = (diffuse + Pi * specular) * 0.75f * nl;
+            out[channel] = EncodeSrgb(0.25f * base[channel] + direct);
+        }
+        return Pixel{out[0], out[1], out[2], 1.0f};
+    }
 
     Pixel ReadPixel(const JBro::Array<std::byte>& image, JBro::UInt32 rowPitch,
         JBro::UInt32 x, JBro::UInt32 y)
@@ -127,8 +181,10 @@ namespace
             JBro::FrameTarget frameTarget;
             frameTarget.texture = target;
             frameTarget.extent = {TargetWidth, TargetHeight};
-            Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
+            // **호스트와 같은 차례다** - 갱신(Update)이 먼저, 렌더 프레임이 나중이다(`EngineInstance::Tick`). 렌더러는 프레임 안의 등록을 거절하므로
+            // 갱신에서 처음 만난 모델 메시를 올리는 길(D-395)은 이 차례에서만 선다. 전에는 거꾸로 불러도 빌트인만 있어 드러나지 않았다.
             JBro::Testing::Tick(framework, 1.0f / 60.0f);
+            Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
             Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit its view");
             Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must finish");
             image.Resize(TargetWidth * TargetHeight * 4);
@@ -181,7 +237,7 @@ namespace
         JBro::Testing::AttachClock(context);
         context.renderer = &stage.renderer;
         Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
-        Check(stage.renderer.GetMeshCount() == 1, "initializing must upload the builtin cube");
+        Check(stage.renderer.GetMeshCount() == JBro::MeshLibrary::GetBuiltinCount(), "initializing must upload every builtin shape");
         JBro::Canvas& canvas = *framework.GetCanvas();
 
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
@@ -202,13 +258,16 @@ namespace
 
         const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
         Check(center.r > 0.2f, "the cube must cover the middle of the frame");
-        Check(Near(center.g / center.r, 0.5f, 0.05f) && Near(center.b / center.r, 0.25f, 0.05f),
-            "and carry the tint's proportions through the lighting");
+        // 재질이 없는 메시는 흰 기본 재질(metallic 0, roughness 1)에 틴트를 곱한 `Standard` 다(material-plan 3 단계). 앞면 한가운데 (0, 0, 0.5) 를
+        // 카메라 (0, 0, 3) 에서 본 기대색과 채널마다 견준다. 앞면이 컬링돼 뒷면 안쪽이 보이면 빛의 항이 빠져 주변광만 남는다 - 앞면 판정이 뒤집힌 것도 여기서 잡힌다.
+        const float tint[3] = {1.0f, 0.5f, 0.25f};
+        const Pixel expected = ExpectStandard(tint, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.5f}, {0.0f, 0.0f, 3.0f}, 0.0f, 1.0f);
+        std::cout << "  front face: " << center.r.Get() << " " << center.g.Get() << " " << center.b.Get()
+                  << " expected " << expected.r.Get() << " " << expected.g.Get() << " " << expected.b.Get() << std::endl;
+        Check(Near(center.r, expected.r, 0.02f) && Near(center.g, expected.g, 0.02f) && Near(center.b, expected.b, 0.02f),
+            "the face towards the camera carries the Standard shading of the default material, tinted and encoded to sRGB");
         Check(center.r < 0.999f, "lit by one directional light, the front face is not full brightness");
-        // 앞면의 법선 (0,0,1) 과 고정 광원 (0.4,0.8,0.45) 의 내적은 0.449 이고 조명은 0.25 + 0.75 x 0.449 = 0.587 이다.
-        // 앞면이 컬링돼 뒷면 안쪽이 보이면 내적이 음수라 앰비언트 0.25 만 남는다 - 앞면 판정이 뒤집힌 것을 여기서 잡는다.
-        Check(Near(center.r, 0.587f, 0.03f),
-            "the face towards the camera must carry the light's Lambert term, not just the ambient of a back face");
+        Check(center.r > EncodeSrgb(0.25f) + 0.05f, "and is lit by the light, not just the ambient of a back face");
         const Pixel corner = ReadPixel(image, readback.rowPitch, 2, 2);
         Check(Near(corner.r, 0.0f) && Near(corner.g, 0.0f) && Near(corner.b, 0.0f),
             "the corner must stay at the camera's clear colour");
@@ -251,12 +310,13 @@ namespace
         stage.RenderOnce(framework, image, readback);
         Check(stage.renderer.GetLastFrameStats().meshCount == 2, "both cubes must be submitted");
         const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
-        Check(center.r > 0.2f && center.g < 0.05f,
+        // 메시 픽셀은 "다른 채널이 0" 이 아니라 "어느 색이 이기는가" 로 본다 - 유전체의 반사광은 흰색이라(F0 0.04, material-plan 3 단계) 빨간 정육면체에도 초록이 조금 든다.
+        Check(center.r > 0.2f && center.r > center.g * 2.0f,
             "the nearer red cube must win the middle even though the green one was drawn after it");
         // 작은 상자 밖, 큰 상자 안의 자리다. 카메라(z=4)에서 붉은 상자(z=1, 반 크기 0.3)는 세로 절반의
         // 17%(약 5px), 초록 상자(z=-2, 반 크기 1.5)는 43%(약 14px)를 덮는다 - 가운데서 10px 위는 초록만이다.
         const Pixel edge = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2 - 10);
-        Check(edge.g > 0.2f && edge.r < 0.05f, "away from the small cube the big green one shows");
+        Check(edge.g > 0.2f && edge.g > edge.r * 2.0f, "away from the small cube the big green one shows");
         Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0,
             "and the debug layer must have stayed quiet");
 
@@ -271,7 +331,7 @@ namespace
         Check(stage.renderer.ReadBackBuffer(windowImage.Data(), windowImage.Size(), windowReadback),
             "the back buffer must read back");
         const Pixel windowCenter = ReadPixel(windowImage, windowReadback.rowPitch, 32, 32);
-        Check(windowCenter.r > 0.2f && windowCenter.g < 0.05f, "with the red cube in its middle as well");
+        Check(windowCenter.r > 0.2f && windowCenter.r > windowCenter.g * 2.0f, "with the red cube in its middle as well");
         Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0,
             "and no validation error from switching depth targets");
 
@@ -338,7 +398,7 @@ namespace
         Check(stage.renderer.GetDevice()->ReadTexture(stage.target, image.Data(), image.Size(), readback),
             "the target must read back");
         const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
-        Check(center.r > 0.2f && center.b < 0.05f, "the cube must still fill the middle");
+        Check(center.r > 0.2f && center.r > center.b * 2.0f, "the cube must still fill the middle");
         const Pixel corner = ReadPixel(image, readback.rowPitch, 8, 8);
         Check(corner.b > 0.9f && corner.r < 0.05f, "the sprite must paint the corner over the depth pass");
         Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0,
@@ -437,7 +497,7 @@ namespace
         const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
         Check(center.b > 0.9f && center.r < 0.05f, "the blue plate in front of the cube draws over it");
         const Pixel onCube = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 11, TargetHeight / 2);
-        Check(onCube.r > 0.2f && onCube.g < 0.05f && onCube.b < 0.05f, "beside it the cube hides the green plate behind");
+        Check(onCube.r > 0.2f && onCube.r > onCube.g * 2.0f && onCube.r > onCube.b * 2.0f, "beside it the cube hides the green plate behind");
         const Pixel aboveCube = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2 - 16);
         Check(aboveCube.g > 0.9f && aboveCube.r < 0.05f, "above the cube the green plate shows");
         const Pixel nearBlueEdge = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 6, TargetHeight / 2);
@@ -451,7 +511,7 @@ namespace
         const JBro::WorldTextSubmit turnedScene[] = {behind, turnedFront};
         draw(true, {turnedScene, 2});
         const Pixel turnedEdge = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 6, TargetHeight / 2);
-        Check(turnedEdge.r > 0.2f && turnedEdge.b < 0.05f, "turned 60 degrees about Y the plate is narrower and the cube shows there");
+        Check(turnedEdge.r > 0.2f && turnedEdge.r > turnedEdge.b * 2.0f, "turned 60 degrees about Y the plate is narrower and the cube shows there");
         const Pixel turnedCenter = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
         Check(turnedCenter.b > 0.9f, "and it still covers the middle");
 
@@ -513,7 +573,8 @@ namespace
 
         const Pixel stacked = center();
         Check(stage.renderer.GetLastFrameStats().viewCount == 2, "two layers are two views");
-        Check(stacked.g > 0.2f && stacked.r < 0.05f,
+        // 유전체의 반사광은 흰색이라(F0 0.04 가 세 채널에 같다) 초록 정육면체에도 빨강이 조금 든다 - 빨강이 0 인지가 아니라 어느 정육면체인지를 본다.
+        Check(stacked.g > 0.2f && stacked.g > stacked.r * 2.0f,
             "the top layer's far green cube covers the bottom layer's near red one - layers stack, depth does not cross them");
         Check(stage.renderer.GetLastFrameStats().compositedLayerCount == 0, "plain layers draw straight to the target");
 
@@ -782,26 +843,533 @@ namespace
         framework.Shutdown();
         stage.Close();
     }
+
+    // **빌트인 도형마다 카메라를 향한 면이 빛을 받는다**(D-388 우선순위 2). 흰 도형 하나를 가운데 두고 가운데 픽셀이 고정 광원의
+    // 램버트 값인지 본다. 감김이 뒤집히면 바깥 면이 컬링되고 안쪽 면(앰비언트 0.25)이 보인다 - 정육면체 때 실제로 그랬다(D-108).
+    // 기대색은 흰 기본 재질의 `Standard` 식(`ExpectStandard`)이다 - 구·캡슐·원기둥은 옆에서(+Z) 본 앞 법선 (0,0,1), 평면은 위에서 내려다본 법선 (0,1,0).
+    template <typename TModule>
+    void TestEveryBuiltinShapeShowsItsLitFrontFace()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; builtin shapes not verified" << std::endl;
+            return;
+        }
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
+        Check(JBro::MeshLibrary::GetBuiltinCount() == 5, "the builtin shapes are the cube, sphere, capsule, cylinder and plane");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* shape = canvas.CreateObject("shape");
+        canvas.AttachComponent<JBro::Component::Transform3D>(shape);
+        auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(shape);
+        mesh->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+
+        for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+        {
+            const JBro::MeshLibrary::BuiltinMesh builtin = JBro::MeshLibrary::GetBuiltin(index);
+            Check(builtin.name != nullptr && false == builtin.id.IsNull(), "every builtin has a name and an id");
+            Check(false == (JBro::MeshLibrary::GetBuiltin(index).id == JBro::MeshLibrary::GetBuiltin((index + 1) % JBro::MeshLibrary::GetBuiltinCount()).id),
+                "and no two builtins share an id");
+            const JBro::Bool plane = std::strcmp(builtin.name, "Plane") == 0;
+            if (plane)
+            {
+                // 위에서 곧장 내려다본다. 카메라는 -Z 를 보므로 X 축으로 -90도 돌린다.
+                eyeTransform->position = {0.0f, 3.0f, 0.0f};
+                eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+            }
+            else
+            {
+                eyeTransform->position = {0.0f, 0.0f, 3.0f};
+                eyeTransform->rotation = {};
+            }
+            mesh->meshId = builtin.id;
+            // 아이디를 바꾸면 해석된 핸들도 비운다 - 에디터의 커맨드 뒤 해석 패스가 하는 일이다. 비우지 않으면 첫 도형(정육면체)의 핸들이
+            // 남아 다섯 번 모두 정육면체를 그렸고, 그래서 감김을 뒤집은 뮤테이션을 이 시험이 놓쳤다.
+            mesh->mesh = {};
+            JBro::Array<std::byte> image;
+            JBro::TextureReadback readback;
+            stage.RenderOnce(framework, image, readback);
+            Check(stage.renderer.GetLastFrameStats().meshCount == 1, "the shape must be submitted");
+            const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+            const float white[3] = {1.0f, 1.0f, 1.0f};
+            const JBro::Float expected = plane
+                ? ExpectStandard(white, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 3.0f, 0.0f}, 0.0f, 1.0f).r
+                : ExpectStandard(white, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 0.5f}, {0.0f, 0.0f, 3.0f}, 0.0f, 1.0f).r;
+            std::cout << "  " << builtin.name << " front face " << center.r.Get() << " (expected " << expected.Get() << ")" << std::endl;
+            Check(Near(center.r, expected, 0.05f), "the face towards the camera must be lit, not a culled shape's inside");
+            const Pixel corner = ReadPixel(image, readback.rowPitch, 2, 2);
+            if (false == plane)
+            {
+                Check(Near(corner.r, 0.0f), "the shape is no bigger than it should be - the corner stays clear");
+            }
+        }
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer must have stayed quiet");
+        framework.Shutdown();
+        Check(stage.renderer.GetMeshCount() == 0, "shutting the framework down must unregister every builtin");
+        stage.Close();
+    }
+}
+
+namespace
+{
+    // 카메라(z=3, 세로 화각 60°)에서 보이는 평면 z=0 의 삼각형 하나다. 위(+Z)에서 볼 때 반시계라 앞면이 카메라를 본다.
+    const char* const UpperLeftTriangle = "v -2.2 0.6 0\nv -1.0 0.6 0\nv -1.6 1.5 0\nf 1 2 3\n";
+    const char* const LowerRightTriangle = "v 1.0 -1.5 0\nv 2.2 -1.5 0\nv 1.6 -0.6 0\nf 1 2 3\n";
+
+    void WriteText(const std::filesystem::path& path, const char* text)
+    {
+        std::filesystem::create_directories(path.parent_path());
+        std::ofstream file(path, std::ios::binary);
+        file << text;
+    }
+
+    // **모델의 메시가 그려진다**(D-391·D-395, model-import-plan 4 단계). 레지스트리 스캔 → 해석 패스(`BindCanvasAssets`)가 `meshId` 로 에셋 핸들을 채움 →
+    // `MeshLibrary` 가 CPU 자료를 처음 만날 때 렌더러에 올림. 삼각형은 화면 왼쪽 위에 있어, 정육면체 대체(가운데)와 갈린다.
+    // 파일을 고쳐 다시 읽으면(in-place 재로드, 자료 세대가 오른다) 라이브러리가 다시 올려 그림이 오른쪽 아래로 옮겨진다.
+    template <typename TModule>
+    void TestAModelMeshIsDrawnAndFollowsAReload()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; model meshes not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroModelMeshProbe·모델";
+        fs::remove_all(root);
+        WriteText(root / "props" / "shard.obj", UpperLeftTriangle);
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const JBro::AssetRecord* model = registry.FindByPath("props/shard.obj");
+        Check(model != nullptr, "the model is registered");
+        JBro::Array<JBro::AssetId> parts;
+        registry.CollectOwned(model->id, parts);
+        Check(parts.Size() == 1 && registry.Find(parts[0])->type == JBro::AssetType::Mesh, "with its one mesh");
+        const JBro::AssetId meshId = parts[0];
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes with the renderer and the assets");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* shard = canvas.CreateObject("shard");
+        canvas.AttachComponent<JBro::Component::Transform3D>(shard);
+        auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(shard);
+        mesh->meshId = meshId;
+        mesh->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+        framework.BindCanvasAssets();
+        Check(mesh->mesh.generation != 0 && assets.GetMesh(mesh->mesh) != nullptr, "the resolve pass fills the component with the mesh asset");
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        stage.RenderOnce(framework, image, readback);
+        Check(framework.GetMeshLibrary().GetUploadedAssetCount() == 1, "the library uploads the model's mesh once");
+        const Pixel upperLeft = ReadPixel(image, readback.rowPitch, 18, 16);
+        const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        const Pixel lowerRight = ReadPixel(image, readback.rowPitch, 77, 53);
+        std::cout << "  model mesh: upper-left " << upperLeft.r.Get() << ", centre " << center.r.Get() << ", lower-right " << lowerRight.r.Get() << std::endl;
+        const float white[3] = {1.0f, 1.0f, 1.0f};
+        const Pixel litFront = ExpectStandard(white, {0.0f, 0.0f, 1.0f}, {-1.6f, 0.9f, 0.0f}, {0.0f, 0.0f, 3.0f}, 0.0f, 1.0f);
+        Check(Near(upperLeft.r, litFront.r, 0.05f), "the triangle is drawn where the file put it, lit from the front");
+        Check(Near(center.r, 0.0f) && Near(lowerRight.r, 0.0f), "and nowhere else - it is not the cube fallback");
+
+        // 파일을 고치고 다시 읽는다. 핸들은 그대로이고 자료 세대가 올라 라이브러리가 다시 올린다.
+        const JBro::AssetHandle before = mesh->mesh;
+        WriteText(root / "props" / "shard.obj", LowerRightTriangle);
+        Check(assets.ReloadInPlace(meshId), "the mesh reloads in place");
+        Check(mesh->mesh.index == before.index && mesh->mesh.generation == before.generation, "keeping its handle");
+        stage.RenderOnce(framework, image, readback);
+        const Pixel movedUpperLeft = ReadPixel(image, readback.rowPitch, 18, 16);
+        const Pixel movedLowerRight = ReadPixel(image, readback.rowPitch, 77, 53);
+        const Pixel movedLit = ExpectStandard(white, {0.0f, 0.0f, 1.0f}, {1.6f, -0.9f, 0.0f}, {0.0f, 0.0f, 3.0f}, 0.0f, 1.0f);
+        Check(Near(movedLowerRight.r, movedLit.r, 0.05f) && Near(movedUpperLeft.r, 0.0f), "after the reload the triangle is drawn where the file now puts it");
+        Check(framework.GetMeshLibrary().GetUploadedAssetCount() == 1, "the old upload was replaced, not added to");
+        // 한 번 더 고친다. 이제 에셋 시스템은 방금 읽은 모델을 들고 있다 - 다시 읽기가 그것을 버리지 않으면 낡은 자리를 그린다
+        // (첫 다시 읽기는 해석 패스의 `CollectUnused` 가 비워 둔 뒤라 이것을 드러내지 못했다 - 뮤테이션이 지나갔다).
+        WriteText(root / "props" / "shard.obj", UpperLeftTriangle);
+        Check(assets.ReloadInPlace(meshId), "the mesh reloads in place again");
+        stage.RenderOnce(framework, image, readback);
+        Check(Near(ReadPixel(image, readback.rowPitch, 18, 16).r, litFront.r, 0.05f) && Near(ReadPixel(image, readback.rowPitch, 77, 53).r, 0.0f),
+            "a second reload reads the file again rather than the model it last decoded");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+}
+
+namespace
+{
+    std::string IdText(JBro::AssetId id)
+    {
+        char text[JBro::Uuid::TextCapacity] = {};
+        id.ToText(text, sizeof(text));
+        return text;
+    }
+
+    // **재질이 그림과 값으로 그려진다**(material-plan 3 단계). 위에서 내려다본 1 x 1 사각형(모델, 내장 그림 2x2 와 재질 `Brick` - 기본색 (1, 0.5, 0.25),
+    // metallic 0.2, roughness 0.7)이 칸을 비워 둔 채로도 **파일의 재질**로 그려지고, 사분면마다 그림의 텍셀 × 기본색을 `Standard` 식으로 낸다
+    // (UV 의 방향까지 본다 - 왼쪽 위 빨강, 오른쪽 위 초록, 왼쪽 아래 파랑). 칸에 `.jmat` 을 넣으면 그것이 이긴다: `Unlit` 에 가운데 회색(128) 그림이면
+    // sRGB 뷰가 선형 0.216 으로 풀고 출력이 다시 싸서 0.502 가 나온다(sRGB 뷰가 없으면 0.735). 컷아웃 재질은 반투명 텍셀(오른쪽 아래)을 버린다.
+    template <typename TModule>
+    void TestMaterialsDrawTheirPicturesAndValues()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; materials not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroMaterialPixelProbe·재질";
+        fs::remove_all(root);
+        const std::string quad = TestModels::SelfContainedQuadGltf("Bricks", TestModels::TinyPng());
+        WriteText(root / "props" / "quad.gltf", quad.c_str());
+        {
+            const std::string grey = TestModels::SolidTga(128, 128, 128, 255);
+            std::filesystem::create_directories(root / "art");
+            std::ofstream file(root / "art" / "grey.tga", std::ios::binary);
+            file.write(grey.data(), static_cast<std::streamsize>(grey.size()));
+        }
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const JBro::AssetRecord* model = registry.FindByPath("props/quad.gltf");
+        Check(model != nullptr, "the quad model is registered");
+        JBro::AssetId meshId;
+        JBro::AssetId imageId;
+        JBro::Array<JBro::AssetId> parts;
+        registry.CollectOwned(model->id, parts);
+        for (const JBro::AssetId& id : parts)
+        {
+            meshId = registry.Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
+            imageId = registry.Find(id)->type == JBro::AssetType::Texture ? id : imageId;
+        }
+        const JBro::AssetId greyId = registry.FindByPath("art/grey.tga")->id;
+        const std::string flat = "Version: 1\nMaterial:\n  shader: Unlit\n  baseColorTextureId: " + IdText(greyId) + "\n";
+        const std::string cut = "Version: 1\nMaterial:\n  alpha: Cutout\n  alphaCutoff: 0.75\n  baseColorTextureId: " + IdText(imageId) + "\n";
+        WriteText(root / "art" / "flat.jmat", flat.c_str());
+        WriteText(root / "art" / "cut.jmat", cut.c_str());
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the folder scans again with the material files");
+        const JBro::AssetId flatId = registry.FindByPath("art/flat.jmat")->id;
+        const JBro::AssetId cutId = registry.FindByPath("art/cut.jmat")->id;
+
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes with the renderer and the assets");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+        // 위에서 곧장 내려다본다. 화면 위가 -Z, 오른쪽이 +X 다.
+        eyeTransform->position = {0.0f, 3.0f, 0.0f};
+        eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* object = canvas.CreateObject("quad");
+        // 사각형은 (0..1, 0, 0..1) 이라 가운데로 옮긴다.
+        canvas.AttachComponent<JBro::Component::Transform3D>(object)->position = {-0.5f, 0.0f, -0.5f};
+        auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(object);
+        mesh->meshId = meshId;
+        mesh->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+        framework.BindCanvasAssets();
+        const JBro::MeshData* quadMesh = assets.GetMesh(mesh->mesh);
+        Check(quadMesh != nullptr && false == quadMesh->material.IsNull() && registry.Find(quadMesh->material) != nullptr,
+            "the resolve pass loads the model's mesh, which knows the material it uses in the file");
+
+        // 사각형은 화면에서 한 변 약 18 픽셀이다(거리 3, 세로 화각 60°, 높이 64). 사분면 가운데는 화면 가운데에서 ±4.6 픽셀이다.
+        const JBro::UInt32 left = TargetWidth / 2 - 5;
+        const JBro::UInt32 right = TargetWidth / 2 + 5;
+        const JBro::UInt32 top = TargetHeight / 2 - 5;
+        const JBro::UInt32 bottom = TargetHeight / 2 + 5;
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        stage.RenderOnce(framework, image, readback);
+        Check(framework.GetMeshMaterialLibrary().GetUploadedMaterialCount() == 1 &&framework.GetMeshMaterialLibrary().GetUploadedTextureCount() == 1,
+            "with the slot empty the mesh's own material is uploaded, with its one picture");
+        const auto expect = [](float r, float g, float b, float x, float z) {
+            const float base[3] = {r, g, b};
+            return ExpectStandard(base, {0.0f, 1.0f, 0.0f}, {x, 0.0f, z}, {0.0f, 3.0f, 0.0f}, 0.2f, 0.7f);
+        };
+        const auto near = [](const Pixel& got, const Pixel& want) {
+            return Near(got.r, want.r, 0.04f) && Near(got.g, want.g, 0.04f) && Near(got.b, want.b, 0.04f);
+        };
+        const Pixel red = ReadPixel(image, readback.rowPitch, left, top);
+        const Pixel green = ReadPixel(image, readback.rowPitch, right, top);
+        const Pixel blue = ReadPixel(image, readback.rowPitch, left, bottom);
+        const Pixel wantRed = expect(1.0f, 0.0f, 0.0f, -0.25f, -0.25f);
+        const Pixel wantGreen = expect(0.0f, 0.5f, 0.0f, 0.25f, -0.25f);
+        const Pixel wantBlue = expect(0.0f, 0.0f, 0.25f, -0.25f, 0.25f);
+        std::cout << "  material quad: red " << red.r.Get() << "/" << wantRed.r.Get() << ", green " << green.g.Get() << "/" << wantGreen.g.Get()
+                  << ", blue " << blue.b.Get() << "/" << wantBlue.b.Get() << std::endl;
+        Check(near(red, wantRed), "the top-left quarter is the red texel times the material's base colour, shaded by Standard");
+        Check(near(green, wantGreen), "the top-right quarter is the green texel times the base colour's half green");
+        Check(near(blue, wantBlue), "the bottom-left quarter is the blue texel times the base colour's quarter blue");
+
+        // 칸에 재질을 넣으면 그것이다. `Unlit` 과 가운데 회색 그림 - sRGB 뷰가 선형으로 풀고 출력이 다시 싼다.
+        mesh->materialId = flatId;
+        mesh->material = {};
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, image, readback);
+        const Pixel grey = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        std::cout << "  unlit grey: " << grey.r.Get() << std::endl;
+        Check(Near(grey.r, 128.0f / 255.0f, 0.02f) && Near(grey.g, grey.r, 0.004f) && Near(grey.b, grey.r, 0.004f),
+            "an Unlit material in the slot wins, and a grey picture read through an sRGB view comes back as the same grey");
+
+        // 컷아웃: 반투명 텍셀(오른쪽 아래)은 버려져 바탕이 보이고, 불투명 텍셀은 남는다.
+        mesh->materialId = cutId;
+        mesh->material = {};
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, image, readback);
+        const Pixel kept = ReadPixel(image, readback.rowPitch, left, top);
+        const Pixel dropped = ReadPixel(image, readback.rowPitch, right, bottom);
+        Check(kept.r > 0.3f && Near(dropped.r, 0.0f) && Near(dropped.g, 0.0f) && Near(dropped.b, 0.0f),
+            "a cutout material drops the texel whose alpha is under its cutoff and keeps the opaque ones");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        Check(stage.renderer.GetMeshMaterialCount() == 0, "shutting the framework down unregisters its materials");
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+    // **3D 게임 빌드가 에디터와 같은 그림을 낸다**(material-plan 5 단계, todo-3d 우선순위 10). 같은 그림을 내장한 두 모델의 사각형을 위에서 내려다보는 캔버스를
+    // 느슨한 폴더에서 그린 것과, `BuildGame` 이 구운 패키지만으로(원본 폴더를 지운 뒤) 그린 것이 바이트까지 같다. 두 재질은 GPU 텍스처 하나를 나눠 쓰고,
+    // 패키지에는 그 그림의 픽셀이 한 번만 들며, 게임의 하위 레코드는 느슨한 것과 같은 이름·같은 그림 열쇠를 갖는다.
+    template <typename TModule>
+    void TestA3DGameBuildDrawsWhatTheEditorDraws()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open(true))
+        {
+            std::cout << "  [skip] no device for this API; the 3D game build not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBro3DGameBuildProbe·빌드";
+        fs::remove_all(root);
+        const fs::path source = root / "Source";
+        const std::string quad = TestModels::SelfContainedQuadGltf("Bricks", TestModels::TinyPng());
+        WriteText(source / "Assets" / "Props" / "left.gltf", quad.c_str());
+        WriteText(source / "Assets" / "Props" / "right.gltf", quad.c_str());
+        const fs::path projectPath = source / "Probe.jproject";
+        WriteText(projectPath, "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\nAssetDirectory: Assets\nScriptOutputLibraryPath: \"\"\n"
+            "Build:\n  ProductName: Probe3D\n  OutputDirectory: ../Out\n  StartupCanvas: Assets/Canvases/Main.jcanvas\n");
+        const auto utf8 = [](const fs::path& path) {
+            const std::u8string text = path.generic_u8string();
+            return JBro::String(reinterpret_cast<const char*>(text.data()), text.size());
+        };
+        const JBro::String assetRoot = utf8(source / "Assets");
+
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, assetRoot.c_str(), options, report), "the source assets scan");
+        const auto partOf = [&](const char* path, JBro::AssetType type) {
+            JBro::Array<JBro::AssetId> parts;
+            registry.CollectOwned(registry.FindByPath(path)->id, parts);
+            JBro::AssetId found;
+            for (const JBro::AssetId& id : parts)
+            {
+                found = registry.Find(id)->type == type ? id : found;
+            }
+            return found;
+        };
+        const JBro::AssetId leftImage = partOf("Props/left.gltf", JBro::AssetType::Texture);
+        const JBro::AssetId rightImage = partOf("Props/right.gltf", JBro::AssetType::Texture);
+        const JBro::UInt64 key = registry.Find(leftImage)->sharedImageKey;
+        Check(key != 0 && registry.Find(rightImage)->sharedImageKey == key, "the two models' images are the same picture");
+
+        const auto initialize = [&](JBro::AssetSystem& assets, JBro::Framework3D& framework) {
+            JBro::FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.renderer = &stage.renderer;
+            context.assets = &assets;
+            Check(framework.Initialize(context), "the 3D framework initializes");
+        };
+        // 에디터 쪽: 느슨한 폴더의 캔버스를 짓고 그린다.
+        JBro::Array<std::byte> looseImage;
+        JBro::TextureReadback readback;
+        {
+            JBro::AssetSystem assets;
+            Check(assets.Initialize(stage.memory), "the loose asset system initializes");
+            assets.Bind(stage.platform, registry, assetRoot.c_str());
+            JBro::Framework3D framework;
+            initialize(assets, framework);
+            JBro::Canvas& canvas = *framework.GetCanvas();
+            JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+            auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+            eyeTransform->position = {0.0f, 3.0f, 0.0f};
+            eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+            auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+            camera->primary = true;
+            camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            const auto place = [&](const char* name, JBro::AssetId mesh, JBro::Float x) {
+                JBro::Object::GameObject* object = canvas.CreateObject(name);
+                canvas.AttachComponent<JBro::Component::Transform3D>(object)->position = {x, 0.0f, -0.5f};
+                auto* renderer = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(object);
+                renderer->meshId = mesh;
+                renderer->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+            };
+            place("left", partOf("Props/left.gltf", JBro::AssetType::Mesh), -1.25f);
+            place("right", partOf("Props/right.gltf", JBro::AssetType::Mesh), 0.25f);
+            framework.BindCanvasAssets();
+            stage.RenderOnce(framework, looseImage, readback);
+            Check(framework.GetMeshMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMeshMaterialLibrary().GetUploadedTextureCount() == 1,
+                "each model's mesh draws with its own material, and the two materials share one texture for the one picture");
+            const Pixel left = ReadPixel(looseImage, readback.rowPitch, 30, 27);
+            const Pixel right = ReadPixel(looseImage, readback.rowPitch, 57, 27);
+            std::cout << "  shared picture: left " << left.r.Get() << "," << left.g.Get() << "," << left.b.Get() << " right " << right.r.Get() << "," << right.g.Get() << "," << right.b.Get() << std::endl;
+            // 둘의 빛 반사는 자리가 달라 조금 다르다(흰 정반사). 둘 다 빨강이 이기면 된다.
+            Check(left.r > 0.6f && left.g < 0.25f && left.b < 0.25f && right.r > 0.6f && right.g < 0.25f && right.b < 0.25f,
+                "both quads show the red texel of the shared picture");
+            JBro::String text;
+            JBro::CanvasFileError canvasError;
+            Check(JBro::WriteCanvasText(canvas, text, canvasError), "the canvas writes");
+            WriteText(source / "Assets" / "Canvases" / "Main.jcanvas", text.c_str());
+            framework.Shutdown();
+            // 에디터가 하듯 다시 훑어 캔버스의 메타를 세운다 - 빌드는 메타가 있는 에셋만 안다.
+            Check(registry.Scan(stage.platform, assetRoot.c_str(), options, report), "the source assets scan again with the canvas");
+            assets.Shutdown();
+        }
+
+        // 게임을 빌드하고 원본 폴더를 지운다.
+        JBro::ProjectFile project;
+        JBro::ProjectFileError projectError;
+        const JBro::String projectUtf8 = utf8(projectPath);
+        Check(JBro::LoadProjectFile(stage.platform, projectUtf8.c_str(), project, projectError), "the 3D project reads");
+        JBro::GameBuildOptions buildOptions;
+        buildOptions.physicsWorkers = 0;
+        JBro::GameBuildReport built;
+        const JBro::Bool ok = JBro::BuildGame(stage.platform, project, projectUtf8.c_str(), buildOptions, built);
+        if (false == ok)
+        {
+            std::cout << "  build error: " << built.error.c_str() << std::endl;
+        }
+        for (const JBro::String& warning : built.warnings)
+        {
+            std::cout << "  build warning: " << warning.c_str() << std::endl;
+        }
+        Check(ok && built.warnings.IsEmpty(), "the 3D game builds cleanly");
+        std::cout << "  3D game build: " << built.assets.Get() << " assets, " << built.packageBytes.Get() << " bytes" << std::endl;
+        Check(built.cookedTextures == 1 && built.sharedTextures == 1, "the shared picture's pixels are cooked once");
+        fs::remove_all(source);
+
+        JBro::Package::PackageReader package;
+        JBro::String error;
+        Check(package.Open(stage.platform, utf8(root / "Out" / "Probe3D" / "Content" / "game.jpak").c_str(), error), "the built package opens");
+        Check(package.Find(leftImage, JBro::Package::BlobKind::CookedTexture) != nullptr
+                && package.Find(rightImage, JBro::Package::BlobKind::CookedTexture) == nullptr
+                && package.Find(rightImage, JBro::Package::BlobKind::Record) != nullptr,
+            "one image carries the pixels and the other is a record only");
+        JBro::AssetRegistry packed;
+        JBro::Package::FillRegistry(package, packed);
+        const JBro::AssetRecord* packedRight = packed.Find(rightImage);
+        Check(packedRight != nullptr && packedRight->name == "Bricks" && packedRight->sharedImageKey == key,
+            "the game's sub-record has the loose name and the same picture key, filled from the model's meta");
+        JBro::Package::PackageAssetSource packageSource(package);
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the packaged asset system initializes");
+        assets.Bind(stage.platform, packed, packageSource);
+        // 픽셀이 없는 쪽을 먼저 싣는다 - 실린 쌍둥이가 없으니 같은 열쇠의 구운 블롭을 읽어야 선다.
+        const JBro::AssetHandle twin = assets.Load(rightImage);
+        Check(assets.GetTexture(twin) != nullptr && assets.GetTexture(twin)->width == 2,
+            "the image shipped as a record loads first, from its twin's cooked pixels");
+        assets.Release(twin);
+        JBro::Framework3D framework;
+        JBro::Array<std::byte> gameImage;
+        initialize(assets, framework);
+        JBro::Array<std::byte> canvasText;
+        Check(assets.ReadSourceByPath("Canvases/Main.jcanvas", canvasText), "the startup canvas reads from the package");
+        JBro::CanvasFileError canvasError;
+        Check(JBro::ReadCanvasText(*framework.GetCanvas(), reinterpret_cast<const char*>(canvasText.Data()), canvasText.Size(), canvasError),
+            "the packaged canvas loads");
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, gameImage, readback);
+        Check(framework.GetMeshMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMeshMaterialLibrary().GetUploadedTextureCount() == 1,
+            "the game shares the one texture too");
+        Check(gameImage.Size() == looseImage.Size() && std::memcmp(gameImage.Data(), looseImage.Data(), looseImage.Size()) == 0,
+            "the game built from the package draws the very same picture as the loose project");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+        framework.Shutdown();
+        assets.Shutdown();
+        package.Close();
+        stage.Close();
+        fs::remove_all(root);
+    }
 }
 
 JBro::Int32 RunMeshPixelTests()
 {
-    TestScreenLayersDrawScreenUiOverThe3DView<JBro::D3D12RHIModule>();
-    TestLayersStackAndBlendIn3D<JBro::D3D12RHIModule>();
-    TestLayersStackAndBlendIn3D<JBro::D3D11RHIModule>();
-    TestLayersStackAndBlendIn3D<JBro::VulkanRHIModule>();
-    TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>();
-    TestANearerCubeHidesAFartherOne<JBro::D3D12RHIModule>();
-    TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D11RHIModule>();
-    TestACubeIsDrawnWhereTheCameraLooks<JBro::VulkanRHIModule>();
-    TestANearerCubeHidesAFartherOne<JBro::D3D11RHIModule>();
-    TestANearerCubeHidesAFartherOne<JBro::VulkanRHIModule>();
-    TestSpritesLayOverMeshesInTheSameView<JBro::D3D12RHIModule>();
-    TestSpritesLayOverMeshesInTheSameView<JBro::D3D11RHIModule>();
-    TestSpritesLayOverMeshesInTheSameView<JBro::VulkanRHIModule>();
-    TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::D3D12RHIModule>();
-    TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::D3D11RHIModule>();
-    TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::VulkanRHIModule>();
+    JBRO_CASE(TestScreenLayersDrawScreenUiOverThe3DView<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestAModelMeshIsDrawnAndFollowsAReload<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestAModelMeshIsDrawnAndFollowsAReload<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestAModelMeshIsDrawnAndFollowsAReload<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestEveryBuiltinShapeShowsItsLitFrontFace<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestLayersStackAndBlendIn3D<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestLayersStackAndBlendIn3D<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestLayersStackAndBlendIn3D<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestANearerCubeHidesAFartherOne<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestACubeIsDrawnWhereTheCameraLooks<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestANearerCubeHidesAFartherOne<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestANearerCubeHidesAFartherOne<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestSpritesLayOverMeshesInTheSameView<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestSpritesLayOverMeshesInTheSameView<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestSpritesLayOverMeshesInTheSameView<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::VulkanRHIModule>());
     std::cout << "Mesh pixel tests passed.\n";
     return 0;
 }

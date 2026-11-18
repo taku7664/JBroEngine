@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Graphics/Renderer.h>
@@ -1115,30 +1116,30 @@ namespace
 
 JBro::Int32 RunSpritePixelTests()
 {
-    TestBackdropBlendsFollowTheirFormulas<JBro::D3D12RHIModule>();
-    TestBackdropBlendsFollowTheirFormulas<JBro::D3D11RHIModule>();
-    TestBackdropBlendsFollowTheirFormulas<JBro::VulkanRHIModule>();
-    TestLayerBlendsCompositeTheWholeLayer<JBro::D3D12RHIModule>();
-    TestLayerBlendsCompositeTheWholeLayer<JBro::D3D11RHIModule>();
-    TestLayerBlendsCompositeTheWholeLayer<JBro::VulkanRHIModule>();
-    TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D12RHIModule>();
-    TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D11RHIModule>();
-    TestATexturedSpriteShowsItsTexelsAndCells<JBro::VulkanRHIModule>();
-    TestSpritePacketReachesTheShaderFields<JBro::D3D12RHIModule>();
-    TestSpritePacketReachesTheShaderFields<JBro::D3D11RHIModule>();
-    TestSpritePacketReachesTheShaderFields<JBro::VulkanRHIModule>();
-    TestTheSameSpriteGoesToATextureInstead<JBro::D3D12RHIModule>();
-    TestTheSameSpriteGoesToATextureInstead<JBro::D3D11RHIModule>();
-    TestTheSameSpriteGoesToATextureInstead<JBro::VulkanRHIModule>();
-    TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D12RHIModule>();
-    TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D11RHIModule>();
-    TestTheOverlayGetsTheFrameAfterTheGame<JBro::VulkanRHIModule>();
-    TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D12RHIModule>();
-    TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D11RHIModule>();
-    TestSdfTextDrawsFillAndOutlineInOnePass<JBro::VulkanRHIModule>();
-    TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D12RHIModule>();
-    TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D11RHIModule>();
-    TestATextureRegionUpdatesOnlyItsRectangle<JBro::VulkanRHIModule>();
+    JBRO_CASE(TestBackdropBlendsFollowTheirFormulas<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestBackdropBlendsFollowTheirFormulas<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestBackdropBlendsFollowTheirFormulas<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestLayerBlendsCompositeTheWholeLayer<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestLayerBlendsCompositeTheWholeLayer<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestLayerBlendsCompositeTheWholeLayer<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestATexturedSpriteShowsItsTexelsAndCells<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestSpritePacketReachesTheShaderFields<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestSpritePacketReachesTheShaderFields<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestSpritePacketReachesTheShaderFields<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestTheSameSpriteGoesToATextureInstead<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestTheSameSpriteGoesToATextureInstead<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestTheSameSpriteGoesToATextureInstead<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestTheOverlayGetsTheFrameAfterTheGame<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestSdfTextDrawsFillAndOutlineInOnePass<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestATextureRegionUpdatesOnlyItsRectangle<JBro::VulkanRHIModule>());
     std::cout << "Sprite pixel tests passed.\n";
     return 0;
 }

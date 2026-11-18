@@ -24,6 +24,8 @@ namespace JBro
     struct PropertyEditInfo;
     struct PropertyTable;
     struct TypeDescriptor;
+    struct AssetRecord;
+    struct MaterialDesc;
 
     namespace Widget
     {
@@ -57,6 +59,8 @@ namespace JBro
         // 렌더 텍스처(`.jrt`, D-362)의 크기·필터를 고친다. 파일에 적는 커맨드라 실행 취소가 되고, 실린 에셋을 제자리에서 다시 읽는다.
         void DrawRenderTexture(const AssetMetaFile& meta);
         void CommitMaterial(AssetId asset, const MaterialDocument& document);
+        // 모델의 하위 에셋을 골랐을 때의 옵션 자리다. 내장 그림만 제 텍스처 옵션과 `같은 그림` 줄이 있다(model-import-plan 5 단계).
+        void DrawSubAssetOptions(const AssetMetaFile& meta, const AssetRecord& record);
 
         // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
         static constexpr const char* TypeName = "Inspector";
@@ -82,17 +86,20 @@ namespace JBro
         // 지금 그리는 컴포넌트와, 거기서 여기까지 내려온 길이다. 잎사귀에서
         // 커맨드를 만들 때 둘 다 필요하다.
         // 에셋의 임포트 옵션을 그리는 중이면 이것이 있다(D-120). 잎사귀 편집은 컴포넌트 커맨드가 아니라
-        // 메타 전체의 글자를 뜬 `SetAssetMetaCommand` 로 간다.
+        // 메타 전체의 글자를 뜬 `SetAssetFileCommand` 로 간다.
         struct AssetEditScope
         {
             // 이번 프레임의 편집본. 원본은 `EditorApplication::GetSelectedAssetMeta` 다.
             AssetMetaFile* scratch = nullptr;
-            // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다.
-            Bool spriteBlock = false;
-            Bool audioBlock = false;
-            Bool fontBlock = false;
-            Bool fontFamilyBlock = false;
-            Bool stringTableBlock = false;
+            // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다. 블록마다 불 값을 두던 것을 하나로 모았다 -
+            // 블록이 늘 때마다 불 값과 그 판정 사슬이 함께 늘었다(D-391 의 모델 블록을 더하며 바꿨다).
+            // `SubTexture` 는 모델 내장 그림 하나의 옵션이다 - 모델 메타의 하위 목록 `subIndex` 번째 항목에 적는다(model-import-plan 5 단계).
+            // `Material` 은 `.jmat` 본문의 값이다(material-plan 4 단계) - 메타가 아니라 그 파일을 고친다.
+            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model, SubTexture, Material };
+            Block block = Block::Texture;
+            std::size_t subIndex = 0;
+            // `Material` 블록의 편집본이다. 원본은 `EditorApplication::GetSelectedMaterial` 이다.
+            MaterialDesc* material = nullptr;
             // 후처리 프로필의 편집본이다(D-344). 있으면 잎사귀 편집은 메타가 아니라 프로필 본문으로 간다. 그리는 중인 항목과 필드다.
             PostProcessProfileDocument* profile = nullptr;
             UInt32 profileEntry = 0;

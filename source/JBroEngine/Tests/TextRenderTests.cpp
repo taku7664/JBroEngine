@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -2723,29 +2724,29 @@ JBro::Int32 RunTextRenderTests()
 {
     try
     {
-        TestTheStoreHandsOutSlots();
-        TestTheCodecSurvivesTheCanvasFile();
-        TestCopiesGetTheirOwnSlot();
-        TestFontAssetsLoadAndReload();
-        TestFontFamilyAssetsHoldTheirFonts();
-        TestStringTableAssetsLoadAndReload();
-        TestFontFamiliesDrawBoldFromTheBoldFace();
-        TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
-        TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
-        TestSdfTextKeepsItsOutlineInProportion();
-        TestPrewarmedFontsUploadOnce();
-        TestPrewarmRunsOnWorkers();
-        TestBakedAtlasesRestoreFromAPackage();
-        TestPixelSnapLandsGlyphsOnWholePixels();
-        TestRichTextDrawsTaggedColourAndSize();
-        TestHighlightRangesPaintEachLine();
-        TestText3DDrawsInTheWorld();
-        TestScreenExtentsFollowTheirScaleMode();
-        TestScreenLayersDrawOverTheWorld();
-        TestLayerBlendReachesTheScreen();
-        TestParallaxLayersFollowTheCameraPartly();
-        TestLayerThumbnailsDrawOnlyTheirLayer();
-        TestLocalizedTextFollowsTheLocale();
+        JBRO_CASE(TestTheStoreHandsOutSlots());
+        JBRO_CASE(TestTheCodecSurvivesTheCanvasFile());
+        JBRO_CASE(TestCopiesGetTheirOwnSlot());
+        JBRO_CASE(TestFontAssetsLoadAndReload());
+        JBRO_CASE(TestFontFamilyAssetsHoldTheirFonts());
+        JBRO_CASE(TestStringTableAssetsLoadAndReload());
+        JBRO_CASE(TestFontFamiliesDrawBoldFromTheBoldFace());
+        JBRO_CASE(TestTextDrawsCachesAndUploadsOnlyNewGlyphs());
+        JBRO_CASE(TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters());
+        JBRO_CASE(TestSdfTextKeepsItsOutlineInProportion());
+        JBRO_CASE(TestPrewarmedFontsUploadOnce());
+        JBRO_CASE(TestPrewarmRunsOnWorkers());
+        JBRO_CASE(TestBakedAtlasesRestoreFromAPackage());
+        JBRO_CASE(TestPixelSnapLandsGlyphsOnWholePixels());
+        JBRO_CASE(TestRichTextDrawsTaggedColourAndSize());
+        JBRO_CASE(TestHighlightRangesPaintEachLine());
+        JBRO_CASE(TestText3DDrawsInTheWorld());
+        JBRO_CASE(TestScreenExtentsFollowTheirScaleMode());
+        JBRO_CASE(TestScreenLayersDrawOverTheWorld());
+        JBRO_CASE(TestLayerBlendReachesTheScreen());
+        JBRO_CASE(TestParallaxLayersFollowTheCameraPartly());
+        JBRO_CASE(TestLayerThumbnailsDrawOnlyTheirLayer());
+        JBRO_CASE(TestLocalizedTextFollowsTheLocale());
     }
     catch (const std::exception&)
     {

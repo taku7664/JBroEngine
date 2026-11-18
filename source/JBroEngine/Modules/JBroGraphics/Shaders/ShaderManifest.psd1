@@ -1,4 +1,4 @@
-# The one list of built-in shaders (D-329, postprocess-plan section 2.4).
+﻿# The one list of built-in shaders (D-329, postprocess-plan section 2.4).
 #
 # Compile.ps1 reads this file. It bakes every stage to DXIL (D3D12), DXBC (D3D11) and SPIR-V (Vulkan) as
 # <Symbol>.generated.h, <Symbol>_SM5.generated.h and <Symbol>_SPV.generated.h next to Source/, and writes
@@ -18,6 +18,7 @@
         @{ Symbol = 'BuiltinSpriteLitPS';        File = 'BuiltinSprite.hlsl';           Entry = 'PSLitMain';      Stage = 'Pixel' }
         @{ Symbol = 'BuiltinMeshVS';             File = 'BuiltinMesh.hlsl';             Entry = 'VSMain';         Stage = 'Vertex' }
         @{ Symbol = 'BuiltinMeshPS';             File = 'BuiltinMesh.hlsl';             Entry = 'PSMain';         Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinMeshUnlitPS';        File = 'BuiltinMesh.hlsl';             Entry = 'PSUnlitMain';    Stage = 'Pixel' }
         @{ Symbol = 'BuiltinSdfTextVS';          File = 'BuiltinSdfText.hlsl';          Entry = 'VSMain';         Stage = 'Vertex' }
         @{ Symbol = 'BuiltinSdfTextPS';          File = 'BuiltinSdfText.hlsl';          Entry = 'PSMain';         Stage = 'Pixel' }
         @{ Symbol = 'BuiltinSdfTextLitPS';       File = 'BuiltinSdfText.hlsl';          Entry = 'PSLitMain';      Stage = 'Pixel' }
@@ -57,7 +58,9 @@
         @{ Name = 'SdfText';          Vertex = 'BuiltinSdfTextVS';   Pixel = 'BuiltinSdfTextPS';          PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 1; Samplers = 1 }
         @{ Name = 'SdfTextLit';       Vertex = 'BuiltinSdfTextVS';   Pixel = 'BuiltinSdfTextLitPS';       PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 2; Samplers = 1 }
         @{ Name = 'WorldText';        Vertex = 'BuiltinWorldTextVS'; Pixel = 'BuiltinWorldTextPS';        PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 1; Samplers = 1 }
-        @{ Name = 'Mesh';             Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshPS';             PushConstantBytes = 64; PushConstantStages = 'Vertex'; ConstantBuffers = 1; ConstantBufferStages = 'Pixel' }
+        # Meshes: the standard material (D-402) - b1 the material block, b2 the view's 3D lights (D-367), t0..t4 its pictures.
+        @{ Name = 'Mesh';             Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshPS';             PushConstantBytes = 80; PushConstantStages = 'Vertex|Pixel'; ConstantBuffers = 2; ConstantBufferStages = 'Pixel'; SampledTextures = 5; Samplers = 1 }
+        @{ Name = 'MeshUnlit';        Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshUnlitPS';        PushConstantBytes = 80; PushConstantStages = 'Vertex'; ConstantBuffers = 1; ConstantBufferStages = 'Pixel'; SampledTextures = 2; Samplers = 1 }
         # Full screen passes over a quad: the selection outline and layer compositing read their inputs in the pixel stage.
         @{ Name = 'OutlineGrow';      Vertex = 'BuiltinOutlineVS';   Pixel = 'BuiltinOutlineGrowPS';      PushConstantBytes = 32; PushConstantStages = 'Pixel';  SampledTextures = 1 }
         @{ Name = 'OutlineComposite'; Vertex = 'BuiltinOutlineVS';   Pixel = 'BuiltinOutlineCompositePS'; PushConstantBytes = 32; PushConstantStages = 'Pixel';  SampledTextures = 2 }

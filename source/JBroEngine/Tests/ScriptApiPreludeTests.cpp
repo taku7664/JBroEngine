@@ -1,4 +1,5 @@
-﻿#include <JBro/ScriptAPI.h>
+﻿#include "TestCases.h"
+#include <JBro/ScriptAPI.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 
@@ -111,7 +112,7 @@ namespace
 
 JBro::Int32 RunScriptApiPreludeTests()
 {
-    TestScriptPreludeSurface();
+    JBRO_CASE(TestScriptPreludeSurface());
     std::cout << "Script API prelude tests passed.\n";
     return 0;
 }

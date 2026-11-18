@@ -1,4 +1,5 @@
-﻿#include "TestClock.h"
+﻿#include "TestCases.h"
+#include "TestClock.h"
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -1356,23 +1357,23 @@ JBro::Int32 RunAudioIntegrationTests()
     JBro::Log::SetEchoToConsole(false);
     try
     {
-        TestProjectFileReadsAndKeepsAudioBuses();
-        TestAudioAssetsLoadAndAnnounceTheirRelease();
-        TestTheDevicePullsTheMixerAndStopsWhenAsked();
-        TestStreamingFromDisk();
-        TestImportShapesClipsForTheMixer();
-        TestWorkerLoadShapesClipsLikeTheSyncLoad();
-        TestSourceAuditRegressions();
-        TestSourcesFollowTheirLifecycle();
-        TestBusesAndSpatialSources();
-        TestTheScriptServiceReachesTheMixer();
-        TestMasterAndListenerVolume();
-        TestEffectFilesReadAndWrite();
-        TestSourceEffectChainsFromAssets();
-        TestProjectFileKeepsTheMasterVolume();
-        TestAReloadedClipIsReleasedBeforeItsDataGoes();
-        TestRoutingFromTheProjectAndSourceFilters();
-        TestSteadyAudioFramesDoNotAllocate();
+        JBRO_CASE(TestProjectFileReadsAndKeepsAudioBuses());
+        JBRO_CASE(TestAudioAssetsLoadAndAnnounceTheirRelease());
+        JBRO_CASE(TestTheDevicePullsTheMixerAndStopsWhenAsked());
+        JBRO_CASE(TestStreamingFromDisk());
+        JBRO_CASE(TestImportShapesClipsForTheMixer());
+        JBRO_CASE(TestWorkerLoadShapesClipsLikeTheSyncLoad());
+        JBRO_CASE(TestSourceAuditRegressions());
+        JBRO_CASE(TestSourcesFollowTheirLifecycle());
+        JBRO_CASE(TestBusesAndSpatialSources());
+        JBRO_CASE(TestTheScriptServiceReachesTheMixer());
+        JBRO_CASE(TestMasterAndListenerVolume());
+        JBRO_CASE(TestEffectFilesReadAndWrite());
+        JBRO_CASE(TestSourceEffectChainsFromAssets());
+        JBRO_CASE(TestProjectFileKeepsTheMasterVolume());
+        JBRO_CASE(TestAReloadedClipIsReleasedBeforeItsDataGoes());
+        JBRO_CASE(TestRoutingFromTheProjectAndSourceFilters());
+        JBRO_CASE(TestSteadyAudioFramesDoNotAllocate());
     }
     catch (const std::exception&)
     {

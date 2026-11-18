@@ -474,7 +474,7 @@ float4 PSMain(JBroPostProcessInput input) : SV_TARGET
             Check(looseAssets.Initialize(memory), "the loose asset system initializes");
             looseAssets.Bind(platform, loose, assetRoot.c_str());
             const ShaderAssetData* shader = looseAssets.GetShader(looseAssets.Load(shaderId));
-            const MaterialAssetData* loaded = looseAssets.GetMaterial(looseAssets.Load(materialId));
+            const MaterialData* loaded = looseAssets.GetMaterial(looseAssets.Load(materialId));
             Check(shader != nullptr && false == shader->hasCompiled && shader->source.Contains("tintColor"), "a loose shader holds its text");
             Check(loaded != nullptr && loaded->text == material, "a loose material holds its text");
             looseAssets.Shutdown();

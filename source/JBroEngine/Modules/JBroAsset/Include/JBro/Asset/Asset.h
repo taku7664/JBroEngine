@@ -6,7 +6,6 @@
 #include <JBro/Asset/ColorLutFile.h>
 #include <JBro/Asset/RenderTextureFile.h>
 #include <JBro/Asset/MaterialShader.h>
-#include <JBro/Asset/MeshFile.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -20,6 +19,9 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
+
+#include <JBro/Asset/MaterialFile.h>
+#include <JBro/Asset/ModelDecoder.h>
 
 namespace JBro
 {
@@ -38,6 +40,9 @@ namespace JBro
         TextureImportOptions options;
         // 프로젝트 기본을 적용한 값이다(D-117). `Default` 는 여기 오지 않는다 - 그리는 쪽은 이것만 본다.
         TextureFilter filter = TextureFilter::Nearest;
+        // 실을 때 레코드의 같은 그림 열쇠다(`AssetRecord::sharedImageKey`, 모델의 내장 그림만, 아니면 0). 같은 열쇠의 그림은 픽셀이 같아
+        // 에셋 시스템은 한 번만 읽고(material-plan 5 단계) 재질 라이브러리는 GPU 텍스처 하나를 나눠 쓴다.
+        UInt64 sharedImageKey = 0;
     };
 
     // 로드된 스프라이트다. 자기 텍스처를 참조 수로 잡고 있다.
@@ -152,9 +157,28 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
-    // 로드된 머티리얼(`.jmat`, D-347)의 본문 글자다. 풀어 쓰는 것은 그래픽 모듈의 `MaterialLibrary` 다(셰이더를 굽고 렌더러에 올린다).
-    struct MaterialAssetData
+    // 로드된 메시다(D-391, model-import-plan 4 단계). 모델의 하위 `Mesh` 레코드 하나 - 모델 파일을 읽어 그 이름의 메시를 꺼낸 것이다.
+    // **CPU 자료만이다** - GPU 메시는 `MeshLibrary`(Framework3DSystem)가 든다(스프라이트와 같은 자리, asset-plan §2.5). 정점은 엔진 좌표·엔진 감김이다
+    // (`ModelDecoder`). `dataGeneration` 은 in-place 재로드마다 오른다 - 라이브러리가 이것을 보고 다시 올린다.
+    struct MeshData
     {
+        Array<ModelVertex> vertices;
+        Array<UInt32> indices;
+        Bool hasUvs = false;
+        // 파일에 탄젠트가 있었는가. 없으면 노멀맵을 읽지 않는다(D-399 (5)).
+        Bool hasTangents = false;
+        // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-399 (3)).
+        AssetId material;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 머티리얼이다. `.jmat` 은 두 갈래다(2026-11-19 main 통합, `IsStandardMaterialText`): 표준 머티리얼(D-399 - `desc`, 모델의 하위 Material 도 이것이다)과
+    // 셰이더 머티리얼(D-347 - 본문 글자 `text`, 그래픽 모듈의 `MaterialLibrary` 가 셰이더를 굽고 렌더러에 올린다). `standard` 가 어느 쪽인지 말한다.
+    // **값만이다** - 그림 칸은 아이디이고 GPU 자원은 라이브러리가 든다. `dataGeneration` 은 in-place 재로드마다 오른다.
+    struct MaterialData
+    {
+        Bool standard = false;
+        MaterialDesc desc;
         String text;
         UInt32 dataGeneration = 1;
     };
@@ -222,6 +246,8 @@ namespace JBro
         // 잇긴 에셋 폴더(UTF-8 절대경로)와 레지스트리의 레코드가 가리키는 메타 경로다. 에디터가 메타를 고쳐 쓸 때 쓴다(D-120).
         const String& GetAssetRoot() const;
         String GetMetaPath(const AssetRecord& record) const;
+        // 레코드가 가리키는 원본 파일의 경로다. 에디터가 값을 본문에 든 에셋(`.jmat`)을 고쳐 쓸 때 쓴다(material-plan 4 단계).
+        String GetSourcePath(const AssetRecord& record) const;
 
         // 로드돼 있으면 참조 수만 올리고 같은 핸들을 준다. 레지스트리에 없거나 이 판이 아직 싣지 못하는 타입
         // (Mesh·Material·Shader·Canvas·...)이거나 읽기·디코드가 실패하면 빈 핸들이다.
@@ -251,8 +277,8 @@ namespace JBro
         const PostProcessProfileData* GetPostProcessProfile(AssetHandle handle) const;
         const RenderTextureData* GetRenderTexture(AssetHandle handle) const;
         const ShaderAssetData* GetShader(AssetHandle handle) const;
-        const MaterialAssetData* GetMaterial(AssetHandle handle) const;
-        const MeshAssetData* GetMesh(AssetHandle handle) const;
+        const MeshData* GetMesh(AssetHandle handle) const;
+        const MaterialData* GetMaterial(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
@@ -325,8 +351,24 @@ namespace JBro
         Bool ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data);
         Bool ReadRenderTexture(const AssetRecord& record, RenderTextureData& data);
         Bool ReadShader(const AssetRecord& record, ShaderAssetData& data);
-        Bool ReadMaterial(const AssetRecord& record, MaterialAssetData& data);
-        Bool ReadMesh(const AssetRecord& record, MeshAssetData& data);
+        // 모델의 하위 메시 하나를 읽는다. 같은 모델의 메시를 연달아 읽는 일이 흔해 마지막으로 읽은 모델 하나를 들고 있는다.
+        Bool ReadMesh(const AssetRecord& record, MeshData& data);
+        // 재질 하나를 읽는다: 빌드가 옮겨 둔 것(`CookedMaterial`), 모델의 하위 Material(모델을 읽어 옮김), `.jmat` 파일 차례다.
+        Bool ReadMaterial(const AssetRecord& record, MaterialData& data);
+        // 모델의 내장 그림 하나를 읽는다(model-import-plan 5 단계). 바이트는 모델 안에 있고 디코드는 그림 파일과 같은 이미지 디코더다.
+        Bool ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data);
+        // **같은 그림이 이미 실렸으면 그 픽셀을 옮겨 쓴다**(material-plan 5 단계). 모델을 다시 읽거나 블롭을 풀지 않는다. 열쇠가 0 이거나 없으면 false.
+        Bool CopySharedImage(const AssetRecord& record, TextureData& data) const;
+        // 빌드가 구운 픽셀을 든 레코드다 - 제 것이 없으면 같은 그림 열쇠의 다른 레코드(빌드는 같은 그림을 한 번만 굽는다). 없으면 nullptr.
+        const AssetRecord* CookedImageOf(const AssetRecord& record) const;
+        // 하위 에셋의 주인 모델을 읽어 들고 있는다(메시·내장 그림이 함께 쓴다). 실패하면 nullptr.
+        const ModelData* DecodeOwnerModel(const AssetRecord& model);
+        // 하위 에셋 레코드의 주인이 모델이면 그 레코드, 아니면 nullptr.
+        const AssetRecord* OwnerModelOf(const AssetRecord& record) const;
+        // 곁 파일(`.gltf` 의 `.bin`, OBJ 의 `.mtl`)은 에셋이 아니라 레지스트리에 없다 - 에셋 폴더에서 바로 읽는다. 패키지에는 곁 파일이 없다 - 빌드가 메시를 꺼내 두므로(`CookedMesh`) 게임은 여기에 오지 않는다.
+        Bool ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const;
+        AssetId m_decodedModelId;
+        ModelData m_decodedModel;
         void NotifyAudioRelease(UInt32 slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
@@ -357,8 +399,8 @@ namespace JBro
         Pool<PostProcessProfileData> m_postProcessProfiles;
         Pool<RenderTextureData> m_renderTextures;
         Pool<ShaderAssetData> m_shaders;
-        Pool<MaterialAssetData> m_materials;
-        Pool<MeshAssetData> m_meshes;
+        Pool<MeshData> m_meshes;
+        Pool<MaterialData> m_materials;
         AudioReleaseCallback m_audioRelease = nullptr;
         UInt32 m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;

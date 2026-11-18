@@ -1,4 +1,5 @@
-﻿#include <JBro/Input/InputSystem.h>
+﻿#include "TestCases.h"
+#include <JBro/Input/InputSystem.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
@@ -195,11 +196,11 @@ namespace
 
 JBro::Int32 RunInputTouchTests()
 {
-    TestATouchLivesThroughItsPhases();
-    TestTouchesInOneFrameAndStrangers();
-    TestTenFingersAndTheFocus();
-    TestInjectedTouchesAndConsumption();
-    TestWindowsPointerMessages();
+    JBRO_CASE(TestATouchLivesThroughItsPhases());
+    JBRO_CASE(TestTouchesInOneFrameAndStrangers());
+    JBRO_CASE(TestTenFingersAndTheFocus());
+    JBRO_CASE(TestInjectedTouchesAndConsumption());
+    JBRO_CASE(TestWindowsPointerMessages());
     std::cout << "Input touch tests passed.\n";
     return 0;
 }

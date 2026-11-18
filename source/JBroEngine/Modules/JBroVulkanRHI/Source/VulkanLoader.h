@@ -29,6 +29,7 @@ namespace JBro::Internal
     X(vkGetPhysicalDeviceQueueFamilyProperties)                                                                \
     X(vkGetPhysicalDeviceMemoryProperties)                                                                     \
     X(vkGetPhysicalDeviceFormatProperties)                                                                     \
+    X(vkGetPhysicalDeviceFormatProperties2)                                                                    \
     X(vkGetPhysicalDeviceFeatures2)                                                                            \
     X(vkEnumerateDeviceExtensionProperties)                                                                    \
     X(vkCreateDevice)                                                                                          \

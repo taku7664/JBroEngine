@@ -72,7 +72,7 @@
 - [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 폐기된 스크립트 객체 안전성 초안
 - [tasks/todo.md](./tasks/todo.md) — 공용 남은 일과 확정 결정(Decisions) 기록. **남은 일은 공용·2D·3D 로 나눈다**(D-116):
   [tasks/todo-2d.md](./tasks/todo-2d.md)(2D 프레임워크·에디터 화면·스프라이트, `[논의]` 항목 포함),
-  [tasks/todo-3d.md](./tasks/todo-3d.md)(재질·물리 3D·3D 기즈모, 2D 뒤의 순서)
+  [tasks/todo-3d.md](./tasks/todo-3d.md)(재질·물리 3D·3D 기즈모. **지금은 2D 를 멈추고 3D 를 먼저 한다** - 순서는 그 문서의 "우선순위" 절, D-388)
 - [tasks/jbroscript-plan.md](./tasks/jbroscript-plan.md) — JBroScript(`.jscript`) 언어와 리플렉션 계획(D-56).
   언어는 **미구현**이고 리플렉션(`PropertyInfo`·`JBRO_FIELD`·컨테이너 조작)은 섰다.
   기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
@@ -101,7 +101,7 @@
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
   엔진 버전은 `JBro.Common.props` 한 곳에 있고 실행 파일의 버전 리소스가 말한다(D-101)
 - [tasks/framework3d-plan.md](./tasks/framework3d-plan.md) — 3D 프레임워크·D3D11/Vulkan 백엔드·트랜스폼 기즈모(D-106~D-109).
-  네 단계가 모두 섰다. 실측·가정·열린 것이 §2.6~§2.9·§3 에 있다. glTF 메시 에셋(D-366)과 `Light3D`(D-367)가 §4 다
+  네 단계가 모두 섰다. 실측·가정·열린 것이 §2.6~§2.9·§3 에 있다. glTF 메시 에셋(D-366 - 2026-11-19 통합에서 원격의 모델 임포트 D-391 로 대신했다)과 `Light3D`(D-367)가 §4 다
 - [tasks/asset-plan.md](./tasks/asset-plan.md) — 에셋 시스템 계획(D-111~D-113). 1 단계(`Uuid`·레지스트리·`.jmeta`·스캔),
   2 단계(타입별 풀·텍스처와 스프라이트 로드·해석 패스), 3 단계(텍스처 있는 스프라이트·UV 사각형·`SpriteLibrary`)가 섰다.
   4 단계(에디터: 검색 드롭다운·에셋 필드·에셋 크기와 샘플러·에셋 브라우저와 옵션 편집·파일 감시, D-118~D-121)까지 섰다.
@@ -136,6 +136,13 @@
   섰다. `.jpak` 에 미리 뜬 아틀라스는 패키지 계획(D-232)에서 섰다. 옛한글은 커널이 GSUB 의 자모 기능(`ljmo`·`vjmo`·`tjmo`)을 직접 읽는다(D-238). 남은 것은 일반 GSUB(합자·아랍 문자)다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
+- [tasks/model-import-plan.md](./tasks/model-import-plan.md) — 3D 모델 임포트(D-391). 파일 하나가 `Model` 이고 메시·재질·내장 그림이 하위 에셋이다. 디코더는 ufbx(FBX·OBJ)와 cgltf(glTF),
+  브라우저는 하위 에셋을 ▶ 로 펼치고(그림도), 내장된 같은 그림은 해시로 묶어 배지로 보인다. 지금 상태가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4
+- [tasks/material-plan.md](./tasks/material-plan.md) — 3D 재질(D-399). 빌트인 `Standard`(metallic-roughness PBR)·`Unlit`, 출처는 모델의 하위 Material(읽기 전용)과 `.jmat`,
+  `materialId` 가 비면 메시가 파일에서 쓰던 재질. **다섯 단계가 모두 섰다**(정점·재질 자료·렌더러·에디터·같은 그림 한 번과 3D 게임 빌드 실측, D-400~D-404).
+  지금 상태가 §1, 사용자와 정한 여덟 항목이 §2, 단계가 §3, `[열림]` 이 §4
+- [tasks/main-merge-plan.md](./tasks/main-merge-plan.md) — 로컬 main 과 원격 main 의 통합(D-406, 2026-11-19). 겹침 표·결정 번호 대응표(원격 D-335~D-352 → D-388~D-405)·
+  머티리얼 두 갈래(셰이더 머티리얼·표준 머티리얼)와 이름을 가른 것, 시험 결과가 있다
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.
   새 Tier E 모듈 `JBroPackage`, 에셋 시스템의 바이트 출처 `IAssetSource`, 호스트의 `BuildGame` 과 패키지로 여는 프로젝트(`AssetPackage`), 에디터 파일 메뉴 "게임 빌드".
   기존 엔진 `.jbpack` 의 구조와 아팠던 것 K1~K6(쓰는 곳 둘·색인의 임포트 옵션·`ifstream`·고정 키)이 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4, 실측이 §5 에 있다

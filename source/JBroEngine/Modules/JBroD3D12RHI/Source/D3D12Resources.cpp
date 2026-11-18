@@ -1420,16 +1420,23 @@ namespace JBro::Internal
             return false;
         }
         const D3D12_RESOURCE_DESC resourceDesc = state.resource->GetDesc();
+        if (mipLevel >= resourceDesc.MipLevels)
+        {
+            return false;
+        }
+        // **그 mip 의 발자국이다.** 전에는 0 번 서브리소스의 크기로 재어 1 번 이상의 mip 을 늘 크기가 다르다고 거절했다 -
+        // 밉 체인을 처음 올린 재질 단계(material-plan 3 단계)에서 드러났다. 2D 의 mip 서브리소스 번호는 mip 번호다(배열·평면 없음).
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
         UINT rowCount = 0;
         UINT64 rowSizeInBytes = 0;
-        m_device->GetCopyableFootprints(&resourceDesc, 0, 1, 0, nullptr, &rowCount, &rowSizeInBytes, nullptr);
+        m_device->GetCopyableFootprints(&resourceDesc, mipLevel, 1, 0, &footprint, &rowCount, &rowSizeInBytes, nullptr);
         // 3D 는 조각을 차례로 이어 받는다. 2D 의 깊이는 1 이다.
         const UInt32 depth = state.desc.dimension == TextureDimension::Texture3D ? state.desc.depthOrLayers : UInt32(1);
         if (rowCount == 0 || data.size != static_cast<std::size_t>(rowSizeInBytes) * rowCount * depth)
         {
             return false;
         }
-        return UploadTextureBox(texture, mipLevel, 0, 0, static_cast<JBro::UInt32>(resourceDesc.Width), resourceDesc.Height,
+        return UploadTextureBox(texture, mipLevel, 0, 0, footprint.Footprint.Width, footprint.Footprint.Height,
             depth, data, static_cast<JBro::UInt32>(rowSizeInBytes));
     }
 
@@ -1458,9 +1465,8 @@ namespace JBro::Internal
         {
             return false;
         }
-        if (data.data == nullptr || data.size == 0 || mipLevel != 0 || width == 0 || height == 0 || depth == 0)
+        if (data.data == nullptr || data.size == 0 || width == 0 || height == 0 || depth == 0)
         {
-            // 밉 하나짜리만 올린다. 밉 체인이 필요해지면 그때 연다.
             return false;
         }
         if (texture.index < TextureResourceBase)
@@ -1479,7 +1485,15 @@ namespace JBro::Internal
         }
 
         const D3D12_RESOURCE_DESC resourceDesc = state.resource->GetDesc();
-        if (static_cast<UINT64>(x) + width > resourceDesc.Width || static_cast<UINT64>(y) + height > resourceDesc.Height
+        // **mip 마다 올린다**(material-plan 3 단계 - 재질 그림의 밉 체인). 전에는 0 번만 받았다. 범위는 그 mip 의 크기이고,
+        // 2D 의 mip 서브리소스 번호는 mip 번호다(배열·평면 없음). 3D 는 mip 하나다(`IsTextureDimensionValid`).
+        if (mipLevel >= resourceDesc.MipLevels || mipLevel >= MaxTextureMipLevels)
+        {
+            return false;
+        }
+        const UINT64 mipWidth = (std::max)(UINT64(1), resourceDesc.Width >> mipLevel.Get());
+        const UINT64 mipHeight = (std::max)(UINT64(1), static_cast<UINT64>(resourceDesc.Height) >> mipLevel.Get());
+        if (static_cast<UINT64>(x) + width > mipWidth || static_cast<UINT64>(y) + height > mipHeight
             || (resourceDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D ? depth != resourceDesc.DepthOrArraySize : depth != 1))
         {
             return false;
@@ -1574,22 +1588,23 @@ namespace JBro::Internal
             return false;
         }
 
-        if (state.states[0] != D3D12_RESOURCE_STATE_COPY_DEST)
+        const UINT subresource = mipLevel.Get();
+        if (state.states[subresource] != D3D12_RESOURCE_STATE_COPY_DEST)
         {
             D3D12_RESOURCE_BARRIER toCopy = {};
             toCopy.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
             toCopy.Transition.pResource = state.resource.Get();
-            toCopy.Transition.Subresource = 0;
-            toCopy.Transition.StateBefore = state.states[0];
+            toCopy.Transition.Subresource = subresource;
+            toCopy.Transition.StateBefore = state.states[subresource];
             toCopy.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
             m_commandList->ResourceBarrier(1, &toCopy);
-            state.states[0] = D3D12_RESOURCE_STATE_COPY_DEST;
+            state.states[subresource] = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
         D3D12_TEXTURE_COPY_LOCATION destination = {};
         destination.pResource = state.resource.Get();
         destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-        destination.SubresourceIndex = 0;
+        destination.SubresourceIndex = subresource;
         D3D12_TEXTURE_COPY_LOCATION source = {};
         source.pResource = upload.Get();
         source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
@@ -1601,11 +1616,11 @@ namespace JBro::Internal
         D3D12_RESOURCE_BARRIER toRead = {};
         toRead.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         toRead.Transition.pResource = state.resource.Get();
-        toRead.Transition.Subresource = 0;
+        toRead.Transition.Subresource = subresource;
         toRead.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
         toRead.Transition.StateAfter = ShaderReadState;
         m_commandList->ResourceBarrier(1, &toRead);
-        state.states[0] = ShaderReadState;
+        state.states[subresource] = ShaderReadState;
 
         if (FAILED(m_commandList->Close()))
         {

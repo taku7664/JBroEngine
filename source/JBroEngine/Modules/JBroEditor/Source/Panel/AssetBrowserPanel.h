@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/EditorPanel.h>
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Bool.h>
@@ -54,6 +55,16 @@ namespace JBro
             String modifiedText;
             // 아이디의 글자(32 자리). 기존 목록의 넷째 열이다.
             String idText;
+            // **하위 에셋**(D-391). 이 파일에서 나온 레코드들이다(`AssetRecord::owner` 가 이 파일) - 그림의 Sprite, 모델의 메시·재질·내장 그림.
+            // 있으면 ▶ 로 펼친다. 레지스트리가 바뀔 때만 모은다.
+            Array<const AssetRecord*> children;
+            // 참이면 이 줄은 하위 에셋 하나다. `record` 가 그 하위 레코드이고 `owner` 가 파일의 레코드다. 파일 손놀림(옮기기·지우기·이름 바꾸기)을 받지 않는다.
+            Bool isChild = false;
+            const AssetRecord* owner = nullptr;
+            // **같은 그림의 수**(model-import-plan §2.5). 하위 내장 그림이 다른 모델에도 같은 그림(묶음 열쇠가 같음)으로 들어 있으면
+            // 자기를 포함한 수이고, 2 이상일 때 고리 표식을 단다. 파일 줄은 `childSameImages` 가 하위 줄마다 든다 - 레지스트리가 바뀔 때만 센다.
+            UInt32 sameImages = 0;
+            Array<UInt32> childSameImages;
         };
 
         // **무엇으로 늘어놓는가**(D-196, 기존 `ESortMode`). 폴더는 늘 이름순으로 먼저 온다.
@@ -72,6 +83,8 @@ namespace JBro
             Float id = 0.0f;
         };
         static Columns ListColumns(Float width);
+        // 하위 줄의 같은 그림 표식을 `at`(왼쪽 위)에 그리고, 마우스가 위에 있으면 같은 그림들을 툴팁으로 보인다.
+        void DrawSameImageBadge(const Entry& entry, Float left, Float top);
         void SortEntries();
         void DrawListHeader();
 
@@ -87,6 +100,16 @@ namespace JBro
         // 줄에 붙는 손놀림(고르기·끌기·메뉴)은 두 보기가 같이 쓴다 - 보기를 바꿨다고
         // 고르는 법이 달라지면 같은 창이 둘로 나뉜다.
         void HandleEntryInput(const Entry& entry);
+        // 하위 에셋 줄·칸의 손놀림이다. 누르면 인스펙터가 그 하위 에셋을 보고, 끌면 그 아이디만 싣는다(경로는 싣지 않는다 - 폴더에 놓아도
+        // 부모 파일이 옮겨지지 않는다). 두 번 누르면 부모 파일을 두 번 누른 것과 같다.
+        void HandleChildInput(const Entry& child);
+        // 하위 에셋 `record` 를 그릴 줄·칸의 항목을 짓는다.
+        static Entry MakeChildEntry(const Entry& owner, std::size_t child);
+        // 펼쳐 둔 파일인가. 아이디로 기억한다 - 레코드 포인터는 다시 훑으면 다른 것을 가리킨다.
+        Bool IsExpanded(AssetId id) const;
+        void SetExpanded(AssetId id, Bool expanded);
+        // 아이콘 칸의 펼침 단추(▶/◀)다. 하위 에셋이 있는 칸의 오른쪽 가운데에 선다.
+        void DrawTileExpander(const Entry& entry, Float tileLeft, Float tileTop, Float tileWidth, Float tileHeight);
         // 고른 것들. 상대경로로 기억한다 - 레코드 포인터는 다시 훑으면 다른 것을 가리킨다.
         Bool IsSelected(const String& path) const;
         void SelectOnly(const String& path);
@@ -162,6 +185,8 @@ namespace JBro
         // 시작하도록 지난 프레임의 줄에서 잰다(트리 줄은 화살표 몫만큼 안으로 들어간다).
         Float m_rowTextOffset = 0.0f;
 
+        // 펼쳐 둔 파일들(D-391). 아이디다.
+        Array<AssetId> m_expanded;
         // 고른 파일들의 상대경로다. 폴더는 여기 들어오지 않는다.
         Array<String> m_selection;
         // 범위 선택의 닻. Shift 로 누르면 여기서부터 누른 줄까지다.

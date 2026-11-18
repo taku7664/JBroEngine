@@ -117,6 +117,7 @@ namespace JBro::Internal
                     submit.world = MakeTransformMatrix3D(item.position, item.rotation, item.scale);
                     submit.mesh = item.mesh;
                     submit.material = item.material;
+                    submit.meshMaterial = item.meshMaterial;
                     submit.tint[0] = item.tint.R;
                     submit.tint[1] = item.tint.G;
                     submit.tint[2] = item.tint.B;

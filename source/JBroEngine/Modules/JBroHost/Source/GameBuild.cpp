@@ -159,6 +159,7 @@ namespace JBro
         }
         report.assets = cooked.assets;
         report.cookedTextures = cooked.cookedTextures;
+        report.sharedTextures = cooked.sharedTextures;
 
         const String productName = project.build.productName.empty() ? String("Game") : project.build.productName;
         const String output = Join(Slashed(ResolveProjectRelativePath(project.build.outputDirectory.c_str(), projectFilePath)),

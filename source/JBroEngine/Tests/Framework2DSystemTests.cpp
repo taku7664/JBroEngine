@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Core.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Core.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/ComponentLookupStats.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -667,16 +668,16 @@ namespace
 
 JBro::Int32 RunFramework2DSystemTests()
 {
-    TestTransformHierarchyPropagation();
-    TestDisablingAParentTransformSkipsTheSubtreeInsteadOfMovingIt();
-    TestAParentWithNoTransformLeavesTheChildAtItsOwnLocal();
-    TestLayerOrderDrivesSpriteSorting();
-    TestPhysicsGravityIntegration();
-    TestPhysicsQueries();
-    TestDeepHierarchyLookupBudget();
-    TestRenderWorldCollection();
-    TestRenderExtraction();
-    TestRenderWorldCapacityLimit();
+    JBRO_CASE(TestTransformHierarchyPropagation());
+    JBRO_CASE(TestDisablingAParentTransformSkipsTheSubtreeInsteadOfMovingIt());
+    JBRO_CASE(TestAParentWithNoTransformLeavesTheChildAtItsOwnLocal());
+    JBRO_CASE(TestLayerOrderDrivesSpriteSorting());
+    JBRO_CASE(TestPhysicsGravityIntegration());
+    JBRO_CASE(TestPhysicsQueries());
+    JBRO_CASE(TestDeepHierarchyLookupBudget());
+    JBRO_CASE(TestRenderWorldCollection());
+    JBRO_CASE(TestRenderExtraction());
+    JBRO_CASE(TestRenderWorldCapacityLimit());
     std::cout << "Framework2D system tests passed.\n";
     return 0;
 }

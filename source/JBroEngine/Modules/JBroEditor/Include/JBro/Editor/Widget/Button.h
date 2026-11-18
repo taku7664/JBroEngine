@@ -40,4 +40,10 @@ namespace JBro::Widget
     // 고르는 줄)이 그 뒤에서 시작한다. 색을 주지 않으면 지금 글자색이다. 글자와 같은 높이에 선다(`DrawGlyphCentered`).
     void InlineIcon(const char* glyph);
     void InlineIcon(const char* glyph, ImU32 color);
+
+    // **겹쳐 그리는 작은 표식**이다(아이콘 + 짧은 글자, 둥근 바탕). 에셋 칸의 모서리처럼 다른 것 위에 얹는 자리라 커서와 항목을 남기지 않는다.
+    // `at` 은 왼쪽 위다. 돌려주는 값: 마우스가 그 위에 있는가 - 툴팁 글은 부르는 쪽이 그때만 짓는다(`ShowTooltip`).
+    Bool OverlayBadge(const char* glyph, const char* text, const ImVec2& at);
+    // 표식의 크기다. 오른쪽 끝에 붙일 때 부르는 쪽이 자리를 잰다.
+    ImVec2 OverlayBadgeSize(const char* glyph, const char* text);
 }

@@ -7,6 +7,7 @@
 namespace JBro
 {
     class MaterialLibrary;
+    class MeshMaterialLibrary;
     class MeshLibrary;
     class RenderWorld3D;
 }
@@ -19,9 +20,12 @@ namespace JBro::System
     public:
         Int32 GetExecutionOrder() const override;
         void SetRenderWorld(RenderWorld3D* renderWorld);
+        // 라이브러리는 처음 만난 모델 메시를 올리므로 고칠 수 있는 것을 받는다(D-395).
         void SetMeshLibrary(MeshLibrary* library);
-        // 머티리얼 에셋 → 렌더러 머티리얼(D-348). 없으면 메시는 빌트인 셰이더로 그린다.
+        // 셰이더 머티리얼 에셋 → 렌더러 머티리얼(D-348). 칸의 머티리얼이 셰이더 머티리얼이면 이것으로 그린다.
         void SetMaterialLibrary(MaterialLibrary* library);
+        // 표준 머티리얼(D-399)을 푸는 곳이다(material-plan 3 단계). 없으면 셰이더 머티리얼이 아닌 메시는 모두 렌더러의 기본 표준 머티리얼이다.
+        void SetMeshMaterialLibrary(MeshMaterialLibrary* library);
         void ExtractRenderWorld(Canvas& canvas);
 
     protected:
@@ -31,5 +35,6 @@ namespace JBro::System
         RenderWorld3D* m_renderWorld = nullptr;
         MeshLibrary* m_library = nullptr;
         MaterialLibrary* m_materialLibrary = nullptr;
+        MeshMaterialLibrary* m_meshMaterials = nullptr;
     };
 }

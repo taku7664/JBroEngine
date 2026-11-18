@@ -1,4 +1,5 @@
-﻿#include <JBro/Types/Array.h>
+﻿#include "TestCases.h"
+#include <JBro/Types/Array.h>
 #include <JBro/Types/LinearAllocator.h>
 #include <JBro/Types/Table.h>
 
@@ -264,13 +265,13 @@ namespace
 
 JBro::Int32 RunFrameMemoryTests()
 {
-    TestStatelessPolicyCostsNothing();
-    TestLinearAllocatorHandsOutAndRewinds();
-    TestArenaOverflowFallsBackAndIsReclaimed();
-    TestMarkKeepsTheOuterFrame();
-    TestContainersDrawFromTheArena();
-    TestGrowthAndCopyKeepTheRightAllocator();
-    TestUnboundReferenceFallsBackToTheHeap();
+    JBRO_CASE(TestStatelessPolicyCostsNothing());
+    JBRO_CASE(TestLinearAllocatorHandsOutAndRewinds());
+    JBRO_CASE(TestArenaOverflowFallsBackAndIsReclaimed());
+    JBRO_CASE(TestMarkKeepsTheOuterFrame());
+    JBRO_CASE(TestContainersDrawFromTheArena());
+    JBRO_CASE(TestGrowthAndCopyKeepTheRightAllocator());
+    JBRO_CASE(TestUnboundReferenceFallsBackToTheHeap());
     std::cout << "Frame memory tests passed.\n";
     return 0;
 }

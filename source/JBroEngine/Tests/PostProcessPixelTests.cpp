@@ -81,6 +81,91 @@ namespace
         return std::exp2(ev / 2.2f);
     }
 
+    // **빌트인 메시의 표준 머티리얼을 CPU 로 다시 쓴 것**(D-402, `BuiltinMesh.hlsl` 의 `PSMain`). 흰 기본 머티리얼(metallic 0, roughness 1)에 회색 틴트를
+    // 곱한 판(법선 +z, z 0.5) 한 점의 sRGB 값이다. 무대의 카메라는 뷰가 단위 행렬이라 자리가 원점이고, 픽셀 (x, y) 의 월드 자리는 NDC 그대로다.
+    // `lights` 가 비면 고정 방향광(0.75)과 주변광(0.25)이다. 2026-11-19 main 통합 전에는 빌트인 메시가 머티리얼의 `JBroMeshLight` 와 같은 식이었다.
+    JBro::Float StandardGrey(JBro::Float tint, const JBro::Array<JBro::Light3DSubmit>& lights, JBro::UInt32 x, JBro::UInt32 y)
+    {
+        constexpr float Pi = 3.14159265f;
+        const float px = (static_cast<float>(x.Get()) + 0.5f) / (static_cast<float>(Side.Get()) * 0.5f) - 1.0f;
+        const float py = 1.0f - (static_cast<float>(y.Get()) + 0.5f) / (static_cast<float>(Side.Get()) * 0.5f);
+        const float position[3] = {px, py, 0.5f};
+        const auto normalize = [](float (&v)[3]) {
+            const float length = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+            for (float& c : v)
+            {
+                c /= length > 0.0001f ? length : 0.0001f;
+            }
+        };
+        float view[3] = {-position[0], -position[1], -position[2]};
+        normalize(view);
+        const float base = tint.Get();
+        const auto shade = [&](float (&towards)[3], float radiance) {
+            float halfway[3] = {towards[0] + view[0], towards[1] + view[1], towards[2] + view[2]};
+            normalize(halfway);
+            const float nl = std::fmax(0.0f, std::fmin(1.0f, towards[2]));
+            const float nv = std::fmax(view[2], 0.0001f);
+            const float nh = std::fmax(0.0f, std::fmin(1.0f, halfway[2]));
+            const float vh = std::fmax(0.0f, std::fmin(1.0f, view[0] * halfway[0] + view[1] * halfway[1] + view[2] * halfway[2]));
+            const float roughness = 1.0f;
+            const float alpha2 = roughness * roughness * roughness * roughness;
+            const float denominator = nh * nh * (alpha2 - 1.0f) + 1.0f;
+            const float distribution = alpha2 / (Pi * denominator * denominator);
+            const float k = (roughness + 1.0f) * (roughness + 1.0f) / 8.0f;
+            const float geometry = (nv / (nv * (1.0f - k) + k)) * (nl / (nl * (1.0f - k) + k));
+            const float fresnel = 0.04f + 0.96f * std::pow(1.0f - vh, 5.0f);
+            const float specular = distribution * geometry * fresnel / std::fmax(4.0f * nv * nl, 0.0001f);
+            const float diffuse = (1.0f - fresnel) * base;
+            return (diffuse + Pi * specular) * radiance * nl;
+        };
+        float lit = 0.0f;
+        if (lights.IsEmpty())
+        {
+            float towards[3] = {0.4f, 0.8f, 0.45f};
+            normalize(towards);
+            lit = 0.25f * base + shade(towards, 0.75f);
+        }
+        else
+        {
+            std::size_t used = 0;
+            for (const JBro::Light3DSubmit& light : lights)
+            {
+                if (light.kind == JBro::Light3DKind::Ambient)
+                {
+                    lit += light.color[0].Get() * base;
+                    continue;
+                }
+                if (used++ >= JBro::Renderer::MaxLights3D)
+                {
+                    continue;
+                }
+                float towards[3] = {};
+                float attenuation = 1.0f;
+                if (light.kind == JBro::Light3DKind::Point)
+                {
+                    for (int axis = 0; axis < 3; ++axis)
+                    {
+                        towards[axis] = light.position[axis].Get() - position[axis];
+                    }
+                    const float distance = std::sqrt(towards[0] * towards[0] + towards[1] * towards[1] + towards[2] * towards[2]);
+                    const float fade = std::fmax(0.0f, std::fmin(1.0f, 1.0f - distance / std::fmax(light.range.Get(), 0.0001f)));
+                    attenuation = fade * fade;
+                }
+                else
+                {
+                    for (int axis = 0; axis < 3; ++axis)
+                    {
+                        towards[axis] = -light.direction[axis].Get();
+                    }
+                }
+                normalize(towards);
+                lit += shade(towards, light.color[0].Get() * attenuation);
+            }
+        }
+        const float c = std::fmax(0.0f, std::fmin(1.0f, lit));
+        return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+    }
+
     // 회색 하나(세 채널이 같다)를 곡선에 넣은 화면 값이다.
     JBro::Float Curve(JBro::Tonemapper curve, JBro::Float display)
     {
@@ -523,9 +608,8 @@ namespace
         }
         Check(stage.renderer.GetLastFrameStats().postProcessedViewCount == 1 && stage.renderer.GetLastFrameStats().viewsWithoutDepthCount == 0,
             "the mesh view is post-processed with its depth");
-        // 셰이더의 고정 빛: 0.25f + 0.75f · dot(+z, normalize(0.4f, 0.8f, 0.45f)).
-        const JBro::Float lambert = 0.45f / std::sqrt(0.4f * 0.4f + 0.8f * 0.8f + 0.45f * 0.45f);
-        const JBro::Float shaded = 0.4f * (0.25f + 0.75f * lambert) * ExposureScale(2.2f);
+        // 빌트인 메시는 표준 머티리얼(D-402)이다 - 고정 빛의 PBR 값을 sRGB 로 싸서 장면에 낸다(`StandardGrey`).
+        const JBro::Float shaded = StandardGrey(0.4f, {}, 32, 32) * ExposureScale(2.2f);
         stage.Expect(32, 32, shaded, shaded, shaded, "the plate is shaded and exposed");
         stage.Expect(32, 4, 0.0f, 0.0f, 0.0f, "the clear colour outside the plate stays black");
         stage.Close(rhi);
@@ -1212,7 +1296,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         }
         const std::byte grey[4] = {std::byte{128}, std::byte{128}, std::byte{128}, std::byte{255}};
         const JBro::AssetHandle texture = stage.renderer.RegisterTexture({1, 1}, {grey, 4});
-        JBro::MaterialDesc desc;
+        JBro::ShaderMaterialDesc desc;
         desc.shader = &materialShaders.post;
         JBro::Array<std::byte> parameters;
         parameters.Resize(materialShaders.post.parameterBytes);
@@ -1266,7 +1350,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         {
             return;
         }
-        JBro::MaterialDesc desc;
+        JBro::ShaderMaterialDesc desc;
         desc.shader = &materialShaders.sprite;
         JBro::Array<std::byte> parameters;
         parameters.Resize(materialShaders.sprite.parameterBytes);
@@ -1340,7 +1424,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         {
             return;
         }
-        JBro::MaterialDesc desc;
+        JBro::ShaderMaterialDesc desc;
         desc.shader = &materialShaders.sprite;
         JBro::Array<std::byte> parameters;
         parameters.Resize(materialShaders.sprite.parameterBytes);
@@ -1388,7 +1472,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
             JBro::Array<std::byte> own;
             own.Resize(parameters.Size());
             std::memcpy(own.Data(), blue, sizeof(blue));
-            JBro::MaterialDesc ownDesc;
+            JBro::ShaderMaterialDesc ownDesc;
             ownDesc.shader = &materialShaders.sprite;
             ownDesc.parameters = {own.Data(), static_cast<JBro::UInt32>(own.Size())};
             const JBro::AssetHandle instance = stage.renderer.RegisterMaterialInstance(material, ownDesc);
@@ -1446,7 +1530,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         const std::byte texels[8] = {std::byte{0}, std::byte{0}, std::byte{255}, std::byte{255}, std::byte{255}, std::byte{0}, std::byte{0}, std::byte{255}};
         const JBro::AssetHandle texture = stage.renderer.RegisterTexture({2, 1}, {texels, 8});
         Check(mesh.generation != 0 && texture.generation != 0, "the plate and the texture must register");
-        JBro::MaterialDesc desc;
+        JBro::ShaderMaterialDesc desc;
         desc.shader = &materialShaders.mesh;
         JBro::Array<std::byte> parameters;
         parameters.Resize(materialShaders.mesh.parameterBytes);
@@ -1483,18 +1567,20 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         const JBro::Float light = 0.25f + 0.75f * lambert;
         stage.Expect(16, 24, 0.0f, light, 0.0f, "the left half of the material plate is the parameter's green under the engine's light");
         stage.Expect(48, 24, 1.0f, 0.0f, 0.0f, "the right half reads the material texture at its UV");
-        stage.Expect(16, 40, light, light, light, "the built-in plate below is the plain lit white");
+        const JBro::Float builtin = StandardGrey(1.0f, {}, 16, 40);
+        stage.Expect(16, 40, builtin, builtin, builtin, "the built-in plate below is the white standard material");
 
         stage.renderer.UnregisterMaterial(material);
         draw();
         Check(stage.renderer.GetLastFrameStats().staleMaterialCount == 1 && stage.renderer.GetLastFrameStats().materialMeshCount == 0,
             "a mesh with a removed material is counted");
-        stage.Expect(48, 24, light, light, light, "and drawn with the built-in shader");
+        const JBro::Float fallback = StandardGrey(1.0f, {}, 48, 24);
+        stage.Expect(48, 24, fallback, fallback, fallback, "and drawn with the built-in shader");
         stage.Close(rhi);
     }
 
     // **3D 라이트가 메시를 비춘다**(D-367). 법선 +z 인 판(z 0.5)에 라이트를 바꿔 가며 잰다. 라이트가 없으면 고정 방향광이고, 방향광은 법선과의 각으로, 점광은
-    // 거리로 줄며(1 - d / range)^2, 환경광은 더한다. 머티리얼의 `JBroMeshLight` 가 빌트인과 같은 값을 낸다. 상한을 넘은 라이트는 버리고 센다.
+    // 거리로 줄며(1 - d / range)^2, 환경광은 더한다. 머티리얼은 `JBroMeshLight` 의 값이고, 빌트인은 같은 라이트의 표준 머티리얼(PBR, D-402) 값이다(`StandardGrey`). 상한을 넘은 라이트는 버리고 센다.
     template <typename TModule>
     void TestLight3DLightsAMesh()
     {
@@ -1510,7 +1596,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         const JBro::UInt32 indices[] = {0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2};
         const JBro::AssetHandle mesh = stage.renderer.RegisterMesh({vertices, 4}, {indices, 12});
         Check(mesh.generation != 0, "the plate must register");
-        JBro::MaterialDesc desc;
+        JBro::ShaderMaterialDesc desc;
         desc.shader = &materialShaders.mesh;
         JBro::Array<std::byte> parameters;
         parameters.Resize(materialShaders.mesh.parameterBytes);
@@ -1539,8 +1625,9 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
                         Check(stage.renderer.SubmitMesh(plate), "the plate must submit");
                     });
                 }
-                // 머티리얼 셰이더는 UV 왼쪽 절반에 빛을 곱한다. 16 은 왼쪽이고 빌트인도 같은 값이다.
-                stage.Expect(16, 32, level, level, level, message);
+                // 머티리얼 셰이더는 UV 왼쪽 절반에 빛을 곱한다(16 은 왼쪽이다). 빌트인은 표준 머티리얼(D-402)이라 같은 라이트의 PBR 값이다.
+                const JBro::Float want = useMaterial ? level : StandardGrey(1.0f, lights, 16, 32);
+                stage.Expect(16, 32, want, want, want, message);
             }
         };
         JBro::Array<JBro::Light3DSubmit> lights;

@@ -30,6 +30,8 @@ namespace JBro
         String outputFolder;
         UInt32 assets = 0;
         UInt32 cookedTextures = 0;
+        // 같은 그림이라 픽셀 없이 레코드만 실은 모델 내장 그림 수다(`Package::CookReport::sharedTextures`).
+        UInt32 sharedTextures = 0;
         UInt64 packageBytes = 0;
         // 빌드를 멈추지 않는 것(레지스트리에 없는 아이디 따위)이다. 영어, 로그용이다.
         Array<String> warnings;

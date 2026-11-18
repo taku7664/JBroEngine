@@ -65,6 +65,12 @@ namespace JBro::Icons
     inline constexpr const char* Menu         = "\xF3\xB0\x87\x99"; // F01D9 dots-vertical - 컴포넌트 메뉴
     inline constexpr const char* ArrowUp      = "\xF3\xB0\x81\x9D"; // F005D arrow-up - 위로
     inline constexpr const char* ArrowDown    = "\xF3\xB0\x81\x85"; // F0045 arrow-down - 아래로
+    inline constexpr const char* ChevronRight = "\xF3\xB0\x85\x82"; // F0142 chevron-right - 에셋 브라우저 아이콘 칸의 하위 에셋 펼치기(D-391)
+    inline constexpr const char* ChevronLeft  = "\xF3\xB0\x85\x81"; // F0141 chevron-left - 그 접기
+    inline constexpr const char* FileModel    = "\xF3\xB0\x86\xA6"; // F01A6 cube - 모델 에셋(D-391)
+    inline constexpr const char* FileMesh     = "\xF3\xB0\x94\xB7"; // F0537 triangle-outline - 모델의 하위 메시
+    inline constexpr const char* FileMaterial = "\xF3\xB0\x8F\x98"; // F03D8 palette - 재질
+    inline constexpr const char* SameImage    = "\xF3\xB0\x8C\xB9"; // F0339 link-variant - 다른 모델에도 든 같은 내장 그림(model-import-plan §2.5)
     inline constexpr const char* Copy         = "\xF3\xB0\x86\x8F"; // F018F content-copy - 복사
     inline constexpr const char* Play         = "\xF3\xB0\x90\x8A"; // F040A play - 재생
     inline constexpr const char* Stop         = "\xF3\xB0\x93\x9B"; // F04DB stop - 정지
@@ -94,7 +100,8 @@ namespace JBro::Icons
         GripLines, Xmark, Eye, EyeSlash, Search, FolderOpen, Move, Rotate, Scale, SpaceLocal, SpaceWorld, Grid, GridSnap,
         Colliders, Lighting, Frame, ViewWorld, ViewScreen, Language, Ruler, EditCollider, Success, Warning, Error, Info, Plus,
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,
-        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, Copy, Cut, Paste, SelectAll, Undo, Redo, Play, Stop, Pause, StepFrame,
+        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, ChevronRight, ChevronLeft, FileModel, FileMesh, FileMaterial, SameImage,
+        Copy, Cut, Paste, SelectAll, Undo, Redo, Play, Stop, Pause, StepFrame,
         ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker, ScriptFunction, ScriptVariable
     };
 

@@ -263,7 +263,10 @@ namespace JBro
     {
         Matrix4x4 world;
         AssetHandle mesh;
+        // 셰이더 머티리얼(`RegisterMaterial`, 자리 `Mesh`, D-348)이다. 있으면 이것으로 그리고 `meshMaterial` 은 보지 않는다.
         AssetHandle material;
+        // 표준 머티리얼(`RegisterMeshMaterial`, D-402)이다. 둘 다 비면 흰 기본 표준 머티리얼이다.
+        AssetHandle meshMaterial;
         Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     };
 
@@ -283,19 +286,60 @@ namespace JBro
         std::uint8_t outlineColor[4] = {0, 0, 0, 0};
     };
 
-    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV 다 - UV 는 메시 머티리얼(D-348)이 읽는다(빌트인 셰이더는 보지 않는다).
+    // 텍스처를 올릴 때의 선택이다(material-plan 3 단계, D-392 의 효과). 기본값은 지금까지와 같다 - 2D 그림은 UNORM 한 장이다.
+    struct TextureUploadOptions
+    {
+        // 참이면 sRGB 로 본다 - 셰이더가 읽을 때 선형으로 풀린다. 기본색·발광 그림이 그렇다.
+        Bool srgb = false;
+        // 참이면 밉 체인을 만들어 올린다(가장 긴 변이 1 이 될 때까지, sRGB 면 선형으로 평균한다). 3D 표면이 멀어질 때 반짝이지 않는다.
+        Bool mipmaps = false;
+    };
+
+    enum class MeshShading : std::uint8_t
+    {
+        // metallic-roughness PBR, 고정 방향광 하나와 주변광(D-399 (1)).
+        Standard,
+        // 빛을 받지 않는다.
+        Unlit
+    };
+
+    // **렌더러가 그리는 재질 하나**(material-plan 3 단계). 에셋의 재질 값을 프레임워크의 `MaterialLibrary` 가 옮겨 넣는다 - 렌더러는 에셋을 모른다.
+    // 색은 선형이다. 그림 칸은 `RegisterTexture` 의 핸들이고 비거나 사라졌으면 그 칸은 중립(흰색, 노멀은 평평)이다.
+    struct MeshMaterialDesc
+    {
+        MeshShading shading = MeshShading::Standard;
+        Float baseColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        Float emissive[3] = {0.0f, 0.0f, 0.0f};
+        Float metallic = 0.0f;
+        Float roughness = 1.0f;
+        // 참이면 알파가 `alphaCutoff` 보다 작은 픽셀을 버린다.
+        Bool cutout = false;
+        Float alphaCutoff = 0.5f;
+        // 참이면 가장 가까운 텍셀을 집는다(픽셀 아트 그림). 거짓이면 선형·밉이다. 주소는 반복이다.
+        Bool nearestFilter = false;
+        AssetHandle baseColorTexture;
+        AssetHandle metallicRoughnessTexture;
+        // 탄젠트가 있는 메시(`RegisterMesh` 의 `hasTangents`)에만 쓰인다(D-399 (5)).
+        AssetHandle normalTexture;
+        AssetHandle occlusionTexture;
+        AssetHandle emissiveTexture;
+    };
+
+    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV·탄젠트(material-plan 1 단계, D-399). 모델의 CPU 정점(`ModelVertex`)과 같은 모양이라
+    // 모델 메시는 통째로 옮긴다(`MeshLibrary` 가 단언한다). UV 는 왼쪽 위가 0 이고, 탄젠트의 w 는 바이탄젠트의 방향(±1)이다.
     // 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
     struct MeshVertex
     {
         Float position[3] = {0.0f, 0.0f, 0.0f};
         Float normal[3] = {0.0f, 0.0f, 1.0f};
         Float uv[2] = {0.0f, 0.0f};
+        Float tangent[4] = {1.0f, 0.0f, 0.0f, 1.0f};
     };
 
     // **머티리얼 하나를 올릴 것**(D-347, `Renderer::RegisterMaterial`). 셰이더는 자리(`shader->domain`)로 구운 것이고, 렌더러의 API 에 맞는 바이트코드가
     // 있어야 한다. 파라미터는 `shader->parameterBytes` 바이트(셰이더의 `cbuffer Material` 그대로의 배치)다. 텍스처는 t 자리 - 1 의 칸에 렌더러가
     // 발급한 텍스처(`RegisterTexture`)다. 비면 1x1 흰색이다.
-    struct MaterialDesc
+    struct ShaderMaterialDesc
     {
         const CompiledMaterialShader* shader = nullptr;
         JArrayView<std::byte> parameters;
@@ -468,7 +512,8 @@ namespace JBro
         // **핸들 모양이 `AssetHandle` 인 것은 `MeshSubmit` 이 그 타입이기 때문이다.** 발급자가 렌더러라는
         // 것은 `MeshLibrary`(Framework3DSystem)만 안다 - `AssetSystem` 이 실제로 로드하게 되면 그쪽이
         // 발급한다(`[가정]`, framework3d-plan §2.3).
-        AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices);
+        // `hasTangents` 가 거짓이면 그 메시는 노멀맵을 읽지 않는다 - 탄젠트가 없는 모델 파일이다(D-399 (5)).
+        AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices, Bool hasTangents = true);
         void UnregisterMesh(AssetHandle mesh);
         UInt32 GetMeshCount() const;
         // RGBA8 픽셀(왼쪽 위 원점, 행마다 `width * 4` 바이트)을 GPU 에 올리고 `SpriteSubmit::texture` 에 넣을 핸들을
@@ -479,6 +524,8 @@ namespace JBro
         // 차례로 이어 준다. 프레임 밖에서만 부른다. 크기가 0 이거나 장치 상한을 넘거나 바이트 수가 맞지 않으면 빈 핸들이다.
         // 지우기는 `UnregisterTexture` 다. `UpdateTexture`·`UpdateTextureRegion` 은 3D 를 받지 않는다.
         AssetHandle RegisterVolumeTexture(UInt32 width, UInt32 height, UInt32 depth, JArrayView<std::byte> rgba16f);
+        // sRGB 로 보거나 밉 체인을 만들어 올린다(3D 재질의 그림). `UpdateTexture` 는 밉을 다시 만든다.
+        AssetHandle RegisterTexture(const Extent2D& extent, JArrayView<std::byte> rgba8, const TextureUploadOptions& options);
         // 같은 크기의 새 픽셀로 갈아 끼운다(에셋의 in-place 재로드). 크기가 다르면 거짓이다 - 새로 등록한다.
         Bool UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8);
         // 사각형 하나만 갈아 끼운다(글리프 아틀라스의 새 칸). rgba8 은 사각형 왼쪽 위 텍셀부터이고 행 간격은 rowPitch 바이트다.
@@ -495,16 +542,22 @@ namespace JBro
         // **머티리얼을 올린다**(D-347). 자리마다 파이프라인을 장면 포맷(출력·HDR)마다 미리 만든다 - 스프라이트는 깊이가 달린 패스의 쌍둥이까지
         // 넷, 후처리는 둘이다. 프레임 밖에서만 부른다. 셰이더가 없거나 이 API 의 바이트코드가 없거나 파라미터 크기가 맞지 않거나 파이프라인을
         // 만들지 못하면 빈 핸들이다. `SpriteSubmit::material`·`PostProcessPassDesc::material` 에 넣는다.
-        AssetHandle RegisterMaterial(const MaterialDesc& desc);
+        AssetHandle RegisterMaterial(const ShaderMaterialDesc& desc);
         // 같은 셰이더의 파라미터·텍스처만 갈아 끼운다(머티리얼 파일의 재로드). 셰이더가 바뀌면 지우고 다시 올린다. 프레임 밖에서만 부른다.
-        Bool UpdateMaterial(AssetHandle material, const MaterialDesc& desc);
+        Bool UpdateMaterial(AssetHandle material, const ShaderMaterialDesc& desc);
         // **머티리얼 인스턴스를 올린다**(D-368). `base` 의 파이프라인을 나눠 쓰고 파라미터와 텍스처만 제 것이다 - 오브젝트마다 값이 다른 머티리얼이 파이프라인을
         // 늘리지 않는다. 핸들은 머티리얼과 같이 스프라이트·메시·`UpdateMaterial`·`UnregisterMaterial` 에 쓴다. `base` 를 지우면 그 인스턴스도 함께 지워진다.
-        AssetHandle RegisterMaterialInstance(AssetHandle base, const MaterialDesc& desc);
+        AssetHandle RegisterMaterialInstance(AssetHandle base, const ShaderMaterialDesc& desc);
         void UnregisterMaterial(AssetHandle material);
         UInt32 GetMaterialCount() const;
         // 머티리얼 셰이더가 읽는 시각(`JBroTime`, 초)이다. 부르지 않으면 렌더러를 연 뒤로 흐른 실제 시간이다. 프레임 밖에서 부른다.
         void SetMaterialTime(Float seconds, Float delta);
+        // **표준 머티리얼**(material-plan 3 단계, D-402). 값을 GPU 상수 블록 하나로 올리고 `MeshSubmit::meshMaterial` 에 넣을 핸들을 준다. 프레임 밖에서만 부른다.
+        // 비거나 사라진 재질의 메시는 흰 기본 재질로 그린다(빛을 받아 회색조로 보인다).
+        AssetHandle RegisterMeshMaterial(const MeshMaterialDesc& desc);
+        Bool UpdateMeshMaterial(AssetHandle material, const MeshMaterialDesc& desc);
+        void UnregisterMeshMaterial(AssetHandle material);
+        UInt32 GetMeshMaterialCount() const;
         Bool EndView();
         FrameStatus EndFrame();
         void AbortFrame();
@@ -650,7 +703,9 @@ namespace JBro
             GraphicsPipelineHandle litSprite;
             GraphicsPipelineHandle litSdfText;
             GraphicsPipelineHandle worldText;
+            // 표준 머티리얼의 `Standard`·`Unlit` 이다(D-402).
             GraphicsPipelineHandle mesh;
+            GraphicsPipelineHandle meshUnlit;
             // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
             GraphicsPipelineHandle layerComposite[4];
             // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
@@ -878,8 +933,10 @@ namespace JBro
         // 드로우 하나가 구간 하나다 - 메시마다 드로우를 내던 것에서 메시 **종류**마다 드로우를 내는 것으로.
         struct MeshRun
         {
+            // `material` 이 0 일 때 그리는 표준 머티리얼이다. 비면 기본 표준 머티리얼이다. 업로드가 (머티리얼, 메시)로 묶는다.
+            AssetHandle meshMaterial;
             AssetHandle mesh;
-            // 렌더러 머티리얼 자리 + 1 이다. 0 이면 빌트인 셰이더다(D-348).
+            // 셰이더 머티리얼 자리 + 1 이다. 0 이면 빌트인 메시 셰이더(표준 머티리얼)다(D-348).
             UInt32 material = 0;
             UInt32 firstInstance = 0;
             UInt32 instanceCount = 0;
@@ -928,7 +985,7 @@ namespace JBro
         static_assert(offsetof(GpuTextInstance, outline) == 40, "text attribute 5 reads the outline colour from offset 40");
         static_assert(offsetof(GpuTextInstance, params) == 44, "text attribute 6 reads the params from offset 44");
 
-        // 뷰 하나의 3D 라이트 블록이다(D-367). `BuiltinMesh.hlsl` 의 `MeshLights`(b1)·머리글의 `JBroLights`(b2)와 같은 배치다.
+        // 뷰 하나의 3D 라이트 블록이다(D-367). `BuiltinMesh.hlsl` 의 `MeshLights`·머리글의 `JBroLights` 와 같은 배치이고 둘 다 b2 다(b1 은 머티리얼 블록).
         struct GpuMeshLights
         {
             Float count[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -937,15 +994,34 @@ namespace JBro
             Float color[MaxLights3D.Get()][4] = {};
         };
         static_assert(sizeof(GpuMeshLights) == 544, "the light block is part of the shader ABI");
+
+        // 재질 상수 블록(b1). `BuiltinMesh.hlsl` 의 `MaterialConstants` 와 같은 모양이다.
+        struct GpuMaterialConstants
+        {
+            Float baseColor[4];
+            // rgb 발광, w 는 컷아웃 문턱(불투명이면 -1).
+            Float emissiveCutoff[4];
+            // x metallic, y roughness, z 노멀맵 있음(1), w 비움.
+            Float params[4];
+        };
+        static_assert(sizeof(GpuMaterialConstants) == 48, "the material block is part of the shader ABI");
+        // 메시 패스의 푸시 상수(b0). 뷰-투영과 카메라 위치, w 는 이 메시에 탄젠트가 있는가(1).
+        struct MeshPushConstants
+        {
+            Matrix4x4 viewProjection;
+            Float cameraAndFlags[4];
+        };
+        static_assert(sizeof(MeshPushConstants) == 80, "the mesh push constants are part of the shader ABI");
         // 메시 인스턴스 하나. 월드 4x4(행 넷)와 tint. `BuiltinMesh.hlsl` 의 ATTRIBUTE2..6 이 이것을 읽는다.
         struct GpuMeshInstance
         {
             Matrix4x4 world;
             Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         };
-        static_assert(sizeof(MeshVertex) == 32, "mesh vertex stride is part of the shader ABI");
+        static_assert(sizeof(MeshVertex) == 48, "mesh vertex stride is part of the shader ABI");
         static_assert(offsetof(MeshVertex, normal) == 12, "attribute 1 reads the normal from offset 12");
-        static_assert(offsetof(MeshVertex, uv) == 24, "attribute 7 reads the uv from offset 24");
+        static_assert(offsetof(MeshVertex, uv) == 24, "attribute 7 reads the UV from offset 24");
+        static_assert(offsetof(MeshVertex, tangent) == 32, "attribute 8 reads the tangent from offset 32");
         static_assert(sizeof(GpuMeshInstance) == 80, "mesh instance stride is part of the shader ABI");
         static_assert(offsetof(GpuMeshInstance, tint) == 64, "attribute 6 reads the tint from offset 64");
 
@@ -971,6 +1047,7 @@ namespace JBro
             BufferHandle vertexBuffer;
             BufferHandle indexBuffer;
             UInt32 indexCount = 0;
+            Bool hasTangents = true;
             UInt32 generation = 1;
             Bool occupied = false;
         };
@@ -982,6 +1059,8 @@ namespace JBro
             Extent2D extent;
             // 3D 텍스처(LUT)의 깊이다. 2D 는 1 이다.
             UInt32 depth = 1;
+            UInt32 mipLevels = 1;
+            Bool srgb = false;
             UInt32 generation = 1;
             Bool occupied = false;
             // 뷰의 대상으로 쓸 수 있는가(D-362).
@@ -1002,6 +1081,21 @@ namespace JBro
         Bool UploadWorldTextInstances();
         void DestroyMeshResources();
         const MeshResource* FindMesh(AssetHandle mesh) const;
+        // 올라간 표준 머티리얼 하나. 값과 그 값의 GPU 상수 블록이다.
+        struct MeshMaterialResource
+        {
+            MeshMaterialDesc desc;
+            BufferHandle constants;
+            UInt32 generation = 1;
+            Bool occupied = false;
+        };
+        const MeshMaterialResource* FindMeshMaterial(AssetHandle material) const;
+        // 재질 값을 상수 블록 하나로 만들어 올린다. 실패하면 빈 버퍼다.
+        BufferHandle CreateMeshMaterialConstants(const MeshMaterialDesc& desc);
+        // 그림 칸 하나의 GPU 텍스처다. 비거나 사라졌으면 `fallback` 이다.
+        TextureHandle MaterialTexture(AssetHandle texture, TextureHandle fallback) const;
+        // 0 번 밉에 픽셀을 쓰고, 밉이 더 있으면 상자 필터로 줄여 차례로 쓴다(sRGB 면 선형으로 평균).
+        Bool WriteTextureLevels(TextureHandle texture, const Extent2D& extent, JArrayView<std::byte> rgba8, UInt32 mipLevels, Bool srgb);
         const TextureResource* FindTexture(AssetHandle texture) const;
         void DestroyTextureResources();
         // 핸들의 머티리얼 자리 + 1 이다. 빈 핸들·죽은 핸들은 0 이다.
@@ -1021,7 +1115,7 @@ namespace JBro
         // 메시의 정점 배치다. 빌트인 메시와 머티리얼 메시가 같은 것을 쓴다.
         struct MeshVertexLayout
         {
-            VertexAttributeDesc vertex[3];
+            VertexAttributeDesc vertex[4];
             VertexAttributeDesc instance[5];
             VertexBufferLayoutDesc buffers[2];
         };
@@ -1235,14 +1329,19 @@ namespace JBro
         static constexpr std::size_t MaxClearedTargets = 8;
         TextureHandle m_clearedTargets[MaxClearedTargets];
         std::size_t m_clearedTargetCount = 0;
-        // 뷰마다 메시 슬롯별 개수를 세는 작업 배열. 크기는 등록된 메시 슬롯 수다.
-        Array<UInt32> m_meshHistogram;
-        // 제출 하나마다 푼 머티리얼 자리(+1, 0 은 빌트인)와, 뷰에 나온 머티리얼의 차례다(D-348). 제출 상한만큼 미리 잡는다.
-        Array<UInt32> m_meshMaterialOf;
-        Array<UInt32> m_meshMaterialOrder;
         // 뷰마다 하나다. `BeginView` 가 비우고 `SubmitLight3D` 가 채운다.
         Array<GpuMeshLights> m_viewLights3D;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
+        // 뷰마다 (머티리얼, 메시, 제출 차례)를 한 값에 담아 정렬하는 작업 배열이다. 크기는 메시 제출 상한이라 프레임 안에서 할당하지 않는다.
+        Array<UInt64> m_meshSortKeys;
+        Array<MeshMaterialResource> m_meshMaterialResources;
+        // 재질이 비거나 사라진 메시의 재질(흰색, roughness 1).
+        MeshMaterialResource m_defaultMeshMaterial;
+        // 노멀맵이 없는 칸의 평평한 노멀(0.5, 0.5, 1).
+        TextureHandle m_flatNormalTexture;
+        // 재질 그림은 반복해 읽는다(타일). 2D 의 샘플러는 가장자리를 늘린다.
+        SamplerHandle m_meshLinearSampler;
+        SamplerHandle m_meshNearestSampler;
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
         CameraParams m_lastViewCamera;

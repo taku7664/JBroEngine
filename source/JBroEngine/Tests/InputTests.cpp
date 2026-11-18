@@ -1,4 +1,5 @@
-﻿#include <JBro/Platform/WindowsPlatform.h>
+﻿#include "TestCases.h"
+#include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
 #include <imm.h>
@@ -469,14 +470,14 @@ namespace
 
 JBro::Int32 RunInputTests()
 {
-    TestUnreadInputSurvivesAnotherPump();
-    TestKeysComeOutAsKeys();
-    TestTextComesOutSeparately();
-    TestCompositionAndTheClipboardComeThroughThePlatform();
-    TestARealImeComposesThroughThePlatform();
-    TestTheMouseComesOut();
-    TestTheThumbButtonsComeOut();
-    TestThePumpOwnsTheList();
+    JBRO_CASE(TestUnreadInputSurvivesAnotherPump());
+    JBRO_CASE(TestKeysComeOutAsKeys());
+    JBRO_CASE(TestTextComesOutSeparately());
+    JBRO_CASE(TestCompositionAndTheClipboardComeThroughThePlatform());
+    JBRO_CASE(TestARealImeComposesThroughThePlatform());
+    JBRO_CASE(TestTheMouseComesOut());
+    JBRO_CASE(TestTheThumbButtonsComeOut());
+    JBRO_CASE(TestThePumpOwnsTheList());
     std::cout << "Input tests passed.\n";
     return 0;
 }

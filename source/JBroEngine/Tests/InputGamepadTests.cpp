@@ -1,4 +1,5 @@
-﻿#include <JBro/Input/InputSystem.h>
+﻿#include "TestCases.h"
+#include <JBro/Input/InputSystem.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
@@ -339,13 +340,13 @@ namespace
 
 JBro::Int32 RunInputGamepadTests()
 {
-    TestButtonsPressHoldAndRelease();
-    TestSticksAndTriggersPassTheirDeadzones();
-    TestAnUnpluggedPadReleasesEverything();
-    TestEmptySlotsAreAskedRarely();
-    TestVibrationTimesOutAndStopsWithTheFocus();
-    TestGamepadBindingsDriveActions();
-    TestTheWindowsPlatformAnswers();
+    JBRO_CASE(TestButtonsPressHoldAndRelease());
+    JBRO_CASE(TestSticksAndTriggersPassTheirDeadzones());
+    JBRO_CASE(TestAnUnpluggedPadReleasesEverything());
+    JBRO_CASE(TestEmptySlotsAreAskedRarely());
+    JBRO_CASE(TestVibrationTimesOutAndStopsWithTheFocus());
+    JBRO_CASE(TestGamepadBindingsDriveActions());
+    JBRO_CASE(TestTheWindowsPlatformAnswers());
     std::cout << "Input gamepad tests passed.\n";
     return 0;
 }

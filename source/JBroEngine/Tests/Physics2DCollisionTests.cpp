@@ -1,4 +1,5 @@
-﻿#include <JBro/Physics2D/BroadPhase.h>
+﻿#include "TestCases.h"
+#include <JBro/Physics2D/BroadPhase.h>
 #include <JBro/Physics2D/Collision.h>
 #include <JBro/Physics2D/Geometry.h>
 
@@ -773,25 +774,25 @@ namespace
 
 JBro::Int32 RunPhysics2DCollisionTests()
 {
-    TestABoxInTheNotchOfAUIsPushedOutOfTheWall();
-    TestSwappingTheShapesFlipsOnlyTheNormal();
-    TestACircleInTheInnerCornerOfAnLGetsBothWalls();
-    TestCircleAgainstACornerAndFromInside();
-    TestRaycasts();
-    TestOverlaps();
-    TestPointsAndCircles();
-    TestSweeps();
-    TestCircles();
-    TestSpeculativeContacts();
-    TestContactIdsStayWhileTheSameFacesTouch();
-    TestARotatedBoxTouchesWithItsCorner();
-    TestBounds();
-    TestSweepAndPruneMatchesBruteForce();
-    TestCapsuleShapeAndMass();
-    TestCapsuleContacts();
-    TestCapsuleQueries();
-    TestChainSegmentsHaveNoGhostCollisions();
-    TestAConvexChainCornerIsOwnedOnce();
+    JBRO_CASE(TestABoxInTheNotchOfAUIsPushedOutOfTheWall());
+    JBRO_CASE(TestSwappingTheShapesFlipsOnlyTheNormal());
+    JBRO_CASE(TestACircleInTheInnerCornerOfAnLGetsBothWalls());
+    JBRO_CASE(TestCircleAgainstACornerAndFromInside());
+    JBRO_CASE(TestRaycasts());
+    JBRO_CASE(TestOverlaps());
+    JBRO_CASE(TestPointsAndCircles());
+    JBRO_CASE(TestSweeps());
+    JBRO_CASE(TestCircles());
+    JBRO_CASE(TestSpeculativeContacts());
+    JBRO_CASE(TestContactIdsStayWhileTheSameFacesTouch());
+    JBRO_CASE(TestARotatedBoxTouchesWithItsCorner());
+    JBRO_CASE(TestBounds());
+    JBRO_CASE(TestSweepAndPruneMatchesBruteForce());
+    JBRO_CASE(TestCapsuleShapeAndMass());
+    JBRO_CASE(TestCapsuleContacts());
+    JBRO_CASE(TestCapsuleQueries());
+    JBRO_CASE(TestChainSegmentsHaveNoGhostCollisions());
+    JBRO_CASE(TestAConvexChainCornerIsOwnedOnce());
     std::cout << "Physics2D collision tests passed.\n";
     return 0;
 }

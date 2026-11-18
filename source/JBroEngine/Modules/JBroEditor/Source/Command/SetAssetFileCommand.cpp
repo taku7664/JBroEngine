@@ -1,4 +1,4 @@
-﻿#include <JBro/Editor/Command/SetAssetMetaCommand.h>
+﻿#include <JBro/Editor/Command/SetAssetFileCommand.h>
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Platform/Platform.h>
@@ -9,64 +9,64 @@
 
 namespace JBro
 {
-    SetAssetMetaCommand::SetAssetMetaCommand(const AssetMetaTarget& target, String oldText, String newText)
+    SetAssetFileCommand::SetAssetFileCommand(const AssetFileTarget& target, String oldText, String newText)
         : m_target(target)
         , m_oldText(std::move(oldText))
         , m_newText(std::move(newText))
     {
     }
 
-    const char* SetAssetMetaCommand::GetName() const
+    const char* SetAssetFileCommand::GetName() const
     {
-        return "Edit Import Options";
+        return m_target.name != nullptr ? m_target.name : "Edit Asset File";
     }
 
-    Bool SetAssetMetaCommand::Execute()
+    Bool SetAssetFileCommand::Execute()
     {
-        if (m_target.platform == nullptr || m_target.metaPath.empty() || m_oldText == m_newText)
+        if (m_target.platform == nullptr || m_target.path.empty() || m_oldText == m_newText)
         {
             return false;
         }
         return Write(m_newText);
     }
 
-    void SetAssetMetaCommand::Undo()
+    void SetAssetFileCommand::Undo()
     {
         Write(m_oldText);
     }
 
-    void SetAssetMetaCommand::Redo()
+    void SetAssetFileCommand::Redo()
     {
         Write(m_newText);
     }
 
-    Bool SetAssetMetaCommand::CanMerge(const EditorCommand& newer) const
+    Bool SetAssetFileCommand::CanMerge(const EditorCommand& newer) const
     {
-        const auto* other = dynamic_cast<const SetAssetMetaCommand*>(&newer);
-        return other != nullptr && other->m_target.metaPath == m_target.metaPath;
+        const auto* other = dynamic_cast<const SetAssetFileCommand*>(&newer);
+        return other != nullptr && other->m_target.path == m_target.path;
     }
 
-    Bool SetAssetMetaCommand::TryMerge(const EditorCommand& newer)
+    Bool SetAssetFileCommand::TryMerge(const EditorCommand& newer)
     {
         if (false == CanMerge(newer))
         {
             return false;
         }
-        m_newText = static_cast<const SetAssetMetaCommand&>(newer).m_newText;
+        m_newText = static_cast<const SetAssetFileCommand&>(newer).m_newText;
         return true;
     }
 
-    const String& SetAssetMetaCommand::GetMetaPath() const
+    const String& SetAssetFileCommand::GetPath() const
     {
-        return m_target.metaPath;
+        return m_target.path;
     }
 
-    Bool SetAssetMetaCommand::Write(const String& text)
+    Bool SetAssetFileCommand::Write(const String& text)
     {
         JArrayView<std::byte> view;
         view.data = reinterpret_cast<const std::byte*>(text.data());
         view.size = static_cast<JBro::UInt32>(text.size());
-        if (false == m_target.platform->WriteWholeFile(m_target.metaPath.c_str(), view))
+        if (false == m_target.platform->WriteWholeFile(m_target.path.c_str(), view))
         {
             return false;
         }
@@ -81,6 +81,10 @@ namespace JBro
             {
                 m_target.assets->ReloadInPlace(m_target.spriteId);
             }
+        }
+        if (m_target.afterWrite != nullptr)
+        {
+            m_target.afterWrite(m_target.afterWriteUser);
         }
         return true;
     }

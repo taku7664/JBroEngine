@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Command/CompoundCommand.h>
+﻿#include "TestCases.h"
+#include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/EditorCommand.h>
 
 #include <imgui.h>
@@ -504,18 +505,18 @@ namespace
 
 JBro::Int32 RunEditorCommandTests()
 {
-    TestTheStackUndoesAndRedoes();
-    TestAFailedEditIsNotRemembered();
-    TestEditsDoNotMergeWithoutAMouse();
-    TestOneDragIsOneUndo();
-    TestACompoundIsOneUndo();
-    TestAFailedPartInsideACompoundRollsBackTheRest();
-    TestCompoundsMergeAsAWhole();
-    TestACompoundUndoesInReverse();
-    TestSavingIsTrackedByRevisionNotByAFlag();
-    TestClearingForgetsEverything();
-    TestClearingHistoryKeepsUnsavedWork();
-    TestTheStackHasACeiling();
+    JBRO_CASE(TestTheStackUndoesAndRedoes());
+    JBRO_CASE(TestAFailedEditIsNotRemembered());
+    JBRO_CASE(TestEditsDoNotMergeWithoutAMouse());
+    JBRO_CASE(TestOneDragIsOneUndo());
+    JBRO_CASE(TestACompoundIsOneUndo());
+    JBRO_CASE(TestAFailedPartInsideACompoundRollsBackTheRest());
+    JBRO_CASE(TestCompoundsMergeAsAWhole());
+    JBRO_CASE(TestACompoundUndoesInReverse());
+    JBRO_CASE(TestSavingIsTrackedByRevisionNotByAFlag());
+    JBRO_CASE(TestClearingForgetsEverything());
+    JBRO_CASE(TestClearingHistoryKeepsUnsavedWork());
+    JBRO_CASE(TestTheStackHasACeiling());
     std::cout << "Editor command tests passed.\n";
     return 0;
 }

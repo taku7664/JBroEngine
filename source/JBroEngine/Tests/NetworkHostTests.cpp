@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestCases.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
 #include <JBro/Network/Testing/ManualClock.h>
@@ -581,12 +582,12 @@ JBro::Int32 RunNetworkHostTests()
 {
     try
     {
-        TestTwoHostsReplicateTransforms();
-        TestNothingIsBuiltUntilTheGameAsks();
-        TestNoSocketsFailsQuietly();
-        TestScriptServicesDriveASession();
-        TestOwnershipMovesAuthorityToTheClient();
-        TestOwnerWritesTravelThroughTheServer();
+        JBRO_CASE(TestTwoHostsReplicateTransforms());
+        JBRO_CASE(TestNothingIsBuiltUntilTheGameAsks());
+        JBRO_CASE(TestNoSocketsFailsQuietly());
+        JBRO_CASE(TestScriptServicesDriveASession());
+        JBRO_CASE(TestOwnershipMovesAuthorityToTheClient());
+        JBRO_CASE(TestOwnerWritesTravelThroughTheServer());
     }
     catch (const std::exception& error)
     {

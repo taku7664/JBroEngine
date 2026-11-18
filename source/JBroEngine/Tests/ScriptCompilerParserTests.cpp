@@ -3,6 +3,7 @@
 // 트리는 들여쓴 덤프 글로 바꿔 비교한다. 틀렸을 때 기대와 실제를 나란히 보이기 위해서다.
 // 문법 문서(jbroscript-syntax.md)의 모양마다 하나씩, 그리고 에러는 "무엇을 어디서 내는가" 를 본다.
 
+#include "TestCases.h"
 #include <JBro/ScriptCompiler/Parser.h>
 
 #include <cstdint>
@@ -732,16 +733,16 @@ namespace
 
 JBro::Int32 RunScriptCompilerParserTests()
 {
-    TestEmptyFile();
-    TestTypeDeclarationsAndFields();
-    TestFunctions();
-    TestDeclarationsAreToldFromExpressionsByShape();
-    TestOperatorPrecedence();
-    TestControlFlow();
-    TestRangesCoverTheirSource();
-    TestErrors();
-    TestEqualityOperatorDeclarationsParse();
-    TestTheSyntaxDocumentExampleParses();
+    JBRO_CASE(TestEmptyFile());
+    JBRO_CASE(TestTypeDeclarationsAndFields());
+    JBRO_CASE(TestFunctions());
+    JBRO_CASE(TestDeclarationsAreToldFromExpressionsByShape());
+    JBRO_CASE(TestOperatorPrecedence());
+    JBRO_CASE(TestControlFlow());
+    JBRO_CASE(TestRangesCoverTheirSource());
+    JBRO_CASE(TestErrors());
+    JBRO_CASE(TestEqualityOperatorDeclarationsParse());
+    JBRO_CASE(TestTheSyntaxDocumentExampleParses());
     std::cout << "Script compiler parser tests passed.\n";
     return 0;
 }

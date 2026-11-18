@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Log.h>
+﻿#include "TestCases.h"
+#include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/Widget/Notification.h>
@@ -737,25 +738,25 @@ namespace
 
 JBro::Int32 RunEditorNotificationTests()
 {
-    TestOnlyFiveShowAndTheRestWaitInOrder();
-    TestAnUntitledNotificationIsRefused();
-    TestANewNotificationSlidesInFromTheRight();
-    TestTimedNotificationsLeaveAndStickyOnesStay();
-    TestHoveringOrDraggingStopsTheClock();
-    TestSwipingFarDismissesAndSwipingShortSnapsBack();
-    TestTheSameIdUpdatesInsteadOfStacking();
-    TestActivatingCallsTheActionOnceAndCloses();
-    TestWaitingNotificationsCanBeDismissedBeforeTheyShow();
-    TestNotificationsAreWrittenToTheLog();
-    TestTheStackFollowsItsTargetSmoothly();
-    TestBoxesStackUpFromTheBottomRight();
-    TestTheBoxAboveComesDownWhileTheOneBelowLeaves();
-    TestBoxesStayInFrontOfOtherWindows();
-    TestClickingABoxHandsBackItsHandle();
-    TestReleasingOutsideTheBoxIsNotAClick();
-    TestDraggingABoxSidewaysSwipesItAway();
-    TestTheCloseMarkDismisses();
-    TestTheEditorShowsAndActivatesNotifications();
+    JBRO_CASE(TestOnlyFiveShowAndTheRestWaitInOrder());
+    JBRO_CASE(TestAnUntitledNotificationIsRefused());
+    JBRO_CASE(TestANewNotificationSlidesInFromTheRight());
+    JBRO_CASE(TestTimedNotificationsLeaveAndStickyOnesStay());
+    JBRO_CASE(TestHoveringOrDraggingStopsTheClock());
+    JBRO_CASE(TestSwipingFarDismissesAndSwipingShortSnapsBack());
+    JBRO_CASE(TestTheSameIdUpdatesInsteadOfStacking());
+    JBRO_CASE(TestActivatingCallsTheActionOnceAndCloses());
+    JBRO_CASE(TestWaitingNotificationsCanBeDismissedBeforeTheyShow());
+    JBRO_CASE(TestNotificationsAreWrittenToTheLog());
+    JBRO_CASE(TestTheStackFollowsItsTargetSmoothly());
+    JBRO_CASE(TestBoxesStackUpFromTheBottomRight());
+    JBRO_CASE(TestTheBoxAboveComesDownWhileTheOneBelowLeaves());
+    JBRO_CASE(TestBoxesStayInFrontOfOtherWindows());
+    JBRO_CASE(TestClickingABoxHandsBackItsHandle());
+    JBRO_CASE(TestReleasingOutsideTheBoxIsNotAClick());
+    JBRO_CASE(TestDraggingABoxSidewaysSwipesItAway());
+    JBRO_CASE(TestTheCloseMarkDismisses());
+    JBRO_CASE(TestTheEditorShowsAndActivatesNotifications());
     std::cout << "Editor notification tests passed.\n";
     return 0;
 }

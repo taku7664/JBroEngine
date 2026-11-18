@@ -1,4 +1,5 @@
-﻿#include <JBro/Types/FixedString.h>
+﻿#include "TestCases.h"
+#include <JBro/Types/FixedString.h>
 #include <JBro/Types/String.h>
 
 #include <cstring>
@@ -294,20 +295,20 @@ JBro::Int32 RunFixedStringTests()
 {
     try
     {
-        TestEmptyIsUsableAsText();
-        TestAppendChains();
-        TestOverflowTruncatesAndSaysSo();
-        TestFillingToTheBrimIsNotTruncation();
-        TestTruncationSticksUntilCleared();
-        TestReusingTheBufferLeavesNoTail();
-        TestNumbers();
-        TestFloats();
-        TestComparisonLooksOnlyAtTheText();
-        TestIterationStopsAtTheText();
-        TestItIsPlainDataUnlikeTheHeapString();
-        TestItInteroperatesWithTheHeapString();
-        TestTheTwoStringsAreDistinctTypes();
-        TestSizeIsPredictable();
+        JBRO_CASE(TestEmptyIsUsableAsText());
+        JBRO_CASE(TestAppendChains());
+        JBRO_CASE(TestOverflowTruncatesAndSaysSo());
+        JBRO_CASE(TestFillingToTheBrimIsNotTruncation());
+        JBRO_CASE(TestTruncationSticksUntilCleared());
+        JBRO_CASE(TestReusingTheBufferLeavesNoTail());
+        JBRO_CASE(TestNumbers());
+        JBRO_CASE(TestFloats());
+        JBRO_CASE(TestComparisonLooksOnlyAtTheText());
+        JBRO_CASE(TestIterationStopsAtTheText());
+        JBRO_CASE(TestItIsPlainDataUnlikeTheHeapString());
+        JBRO_CASE(TestItInteroperatesWithTheHeapString());
+        JBRO_CASE(TestTheTwoStringsAreDistinctTypes());
+        JBRO_CASE(TestSizeIsPredictable());
     }
     catch (const std::exception&)
     {
