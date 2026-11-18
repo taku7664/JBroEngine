@@ -205,8 +205,8 @@ namespace JBro
         ReleaseEntry(entry);
         entry.asset = materialAsset;
         const MaterialDesc& source = material->desc;
-        const AssetId ids[SlotCount] = {source.baseColorTexture, source.metallicRoughnessTexture, source.normalTexture,
-            source.occlusionTexture, source.emissiveTexture};
+        const AssetId ids[SlotCount] = {source.baseColorTextureId, source.metallicRoughnessTextureId, source.normalTextureId,
+            source.occlusionTextureId, source.emissiveTextureId};
         const Bool srgbByDefault[SlotCount] = {true, false, false, false, true};
         AssetHandle handles[SlotCount];
         for (UInt32 at = 0; at < SlotCount; ++at)

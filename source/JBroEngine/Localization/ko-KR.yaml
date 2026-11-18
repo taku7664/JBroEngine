@@ -190,6 +190,8 @@ Entries:
   inspector.string_table: "문자열 표"
   inspector.model_import_options: "모델 임포트 옵션"
   inspector.same_image: "같은 그림"
+  inspector.material: "재질"
+  inspector.model_material_read_only: "모델 파일에서 온 재질이라 여기서 고칠 수 없습니다"
   inspector.same_image_split_note: "옵션을 바꾸면 이 그림은 같은 그림들과 따로 읽힙니다"
   inspector.owner_model: "모델"
   inspector.no_string_key: "(없음)"
@@ -558,6 +560,7 @@ Entries:
   assets.list_view: 목록
   assets.expand: 하위 에셋 펼치기
   assets.collapse: 하위 에셋 접기
+  assets.new_material: 새 재질
   assets.same_image_tooltip: 같은 그림이 여기에도 들어 있습니다
   assets.view_tooltip: 목록과 아이콘 보기를 오갑니다
   menu.new_project: 새 프로젝트

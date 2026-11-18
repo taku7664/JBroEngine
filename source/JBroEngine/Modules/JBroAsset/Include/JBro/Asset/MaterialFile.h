@@ -43,14 +43,14 @@ namespace JBro
         Color emissive{0.0f, 0.0f, 0.0f, 1.0f};
         MaterialAlpha alpha = MaterialAlpha::Opaque;
         Float alphaCutoff = 0.5f;
-        AssetId baseColorTexture;
+        AssetId baseColorTextureId;
         // glTF 처럼 G 가 roughness, B 가 metallic 이다.
-        AssetId metallicRoughnessTexture;
+        AssetId metallicRoughnessTextureId;
         // 메시에 탄젠트가 있을 때만 쓴다(D-346 (5)).
-        AssetId normalTexture;
+        AssetId normalTextureId;
         // R 이 차폐다. MR 그림과 같은 그림인 경우가 흔하다.
-        AssetId occlusionTexture;
-        AssetId emissiveTexture;
+        AssetId occlusionTextureId;
+        AssetId emissiveTextureId;
     };
 
     // `.jmat` 을 읽는다. 블록이 없거나 모르는 키·틀린 값이면 실패다(메타의 옵션과 같은 규칙 - 조용히 버리면 값이 사라진다). 실패하면 `result` 는 그대로다.
@@ -91,11 +91,11 @@ namespace JBro
                 MakeFieldEntry<&MaterialDesc::emissive>(),
                 MakeFieldEntry<&MaterialDesc::alpha>(),
                 MakeFieldEntry<&MaterialDesc::alphaCutoff>(Attribute::Range(0.0f, 1.0f)),
-                MakeFieldEntry<&MaterialDesc::baseColorTexture>(),
-                MakeFieldEntry<&MaterialDesc::metallicRoughnessTexture>(),
-                MakeFieldEntry<&MaterialDesc::normalTexture>(),
-                MakeFieldEntry<&MaterialDesc::occlusionTexture>(),
-                MakeFieldEntry<&MaterialDesc::emissiveTexture>(),
+                MakeFieldEntry<&MaterialDesc::baseColorTextureId>(),
+                MakeFieldEntry<&MaterialDesc::metallicRoughnessTextureId>(),
+                MakeFieldEntry<&MaterialDesc::normalTextureId>(),
+                MakeFieldEntry<&MaterialDesc::occlusionTextureId>(),
+                MakeFieldEntry<&MaterialDesc::emissiveTextureId>(),
             };
             static const StaticPropertyTable<12> fields { entries };
             static const TypeDescriptor descriptor =

@@ -50,6 +50,7 @@
 #include <JBro/Types/Math3D.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -58,7 +59,7 @@
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/TaskProgress.h>
 #include <JBro/Asset/AssetTypeRules.h>
-#include <JBro/Editor/Command/SetAssetMetaCommand.h>
+#include <JBro/Editor/Command/SetAssetFileCommand.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -1707,7 +1708,7 @@ namespace JBro
         return m_selectedAssetMetaLoaded ? m_selectedAssetMeta.Get() : nullptr;
     }
 
-    Bool EditorApplication::DescribeSelectedAssetMeta(AssetMetaTarget& target) const
+    Bool EditorApplication::DescribeSelectedAssetMeta(AssetFileTarget& target) const
     {
         if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
         {
@@ -1721,7 +1722,7 @@ namespace JBro
         }
         target.platform = m_platform.Get();
         target.assets = assets;
-        target.metaPath = assets->GetMetaPath(*record);
+        target.path = assets->GetMetaPath(*record);
         target.id = record->id;
         target.spriteId = m_selectedAssetMetaLoaded ? m_selectedAssetMeta->spriteId : AssetId{};
         // 모델 메타를 쓰면 레지스트리를 다시 훑는다 - 하위 목록이 바뀌었거나(모델 옵션), 내장 그림의 옵션이 묶음 열쇠를 바꿨다(하위 그림 옵션).
@@ -1734,10 +1735,84 @@ namespace JBro
         return true;
     }
 
+    void EditorApplication::ReloadSelectedMaterial()
+    {
+        m_selectedMaterialLoaded = false;
+        m_selectedMaterialReadOnly = false;
+        m_selectedMaterialText.clear();
+        if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
+        {
+            return;
+        }
+        const AssetRecord* record = m_engine->GetAssetRegistry().Find(m_selectedAsset);
+        AssetSystem* assets = m_engine->GetAssetSystem();
+        if (record == nullptr || assets == nullptr || record->type != AssetType::Material)
+        {
+            return;
+        }
+        if (m_selectedMaterial.Get() == nullptr)
+        {
+            m_selectedMaterial = MakeOwnerPtr<MaterialDesc>();
+        }
+        // 모델의 하위 Material 은 모델의 재질을 옮긴 값이다 - 에셋 시스템이 옮기는 길(그림 칸의 아이디까지)을 그대로 쓴다.
+        if (false == record->owner.IsNull())
+        {
+            const AssetHandle handle = assets->Load(record->id);
+            if (const MaterialData* material = assets->GetMaterial(handle))
+            {
+                *m_selectedMaterial = material->desc;
+                m_selectedMaterialLoaded = true;
+                m_selectedMaterialReadOnly = true;
+            }
+            assets->Release(handle);
+            return;
+        }
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(assets->GetSourcePath(*record).c_str(), bytes))
+        {
+            return;
+        }
+        m_selectedMaterialText = String(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        String error;
+        m_selectedMaterialLoaded = ParseMaterialFile(m_selectedMaterialText.c_str(), m_selectedMaterialText.size(), *m_selectedMaterial, error);
+    }
+
+    const MaterialDesc* EditorApplication::GetSelectedMaterial() const
+    {
+        return m_selectedMaterialLoaded ? m_selectedMaterial.Get() : nullptr;
+    }
+
+    Bool EditorApplication::IsSelectedMaterialReadOnly() const
+    {
+        return m_selectedMaterialReadOnly;
+    }
+
+    Bool EditorApplication::DescribeSelectedMaterialFile(AssetFileTarget& target, String& currentText) const
+    {
+        if (false == m_selectedMaterialLoaded || m_selectedMaterialReadOnly || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const AssetRecord* record = m_engine->GetAssetRegistry().Find(m_selectedAsset);
+        AssetSystem* assets = m_engine->GetAssetSystem();
+        if (record == nullptr || assets == nullptr)
+        {
+            return false;
+        }
+        target.platform = m_platform.Get();
+        target.assets = assets;
+        target.path = assets->GetSourcePath(*record);
+        target.id = record->id;
+        target.name = "Edit Material";
+        currentText = m_selectedMaterialText;
+        return true;
+    }
+
     void EditorApplication::ReloadSelectedAssetMeta()
     {
+        ReloadSelectedMaterial();
         m_selectedAssetMetaLoaded = false;
-        AssetMetaTarget target;
+        AssetFileTarget target;
         if (false == DescribeSelectedAssetMeta(target))
         {
             return;
@@ -1748,7 +1823,7 @@ namespace JBro
         }
         AssetMetaError error;
         m_selectedAssetMetaLoaded =
-            LoadAssetMetaFile(*target.platform, target.metaPath.c_str(), *m_selectedAssetMeta, error);
+            LoadAssetMetaFile(*target.platform, target.path.c_str(), *m_selectedAssetMeta, error);
     }
 
     Bool EditorApplication::IsScriptModuleLoaded() const
@@ -2890,6 +2965,26 @@ namespace JBro
             SetSelectedAsset(record->id);
             RevealAssetInBrowser(record->id);
             OpenNodeGraphEditor(record->id);
+        }
+        return created;
+    }
+
+    String EditorApplication::CreateMaterialAsset(const char* folder)
+    {
+        String text;
+        if (false == FormatMaterialFile(MaterialDesc{}, text))
+        {
+            return String();
+        }
+        const String created = WriteNewAssetFile(folder, "NewMaterial", ".jmat", text);
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
         }
         return created;
     }

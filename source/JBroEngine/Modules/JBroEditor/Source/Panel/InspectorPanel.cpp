@@ -47,7 +47,7 @@
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
-#include <JBro/Editor/Command/SetAssetMetaCommand.h>
+#include <JBro/Editor/Command/SetAssetFileCommand.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
@@ -65,6 +65,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Asset/ModelImport.h>
 
 namespace JBro
@@ -1673,6 +1674,34 @@ namespace JBro
                 subIndex = index;
             }
         }
+        // **모델의 재질은 보이되 고치지 않는다**(D-346 (2)). 파일에서 온 값이라 여기서 고쳐도 다시 가져오면 사라진다 - 고치려면 재질을 꺼내야 한다(뒤).
+        if (record.type == AssetType::Material)
+        {
+            const MaterialDesc* shown = m_editor->GetSelectedMaterial();
+            if (shown == nullptr)
+            {
+                return;
+            }
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorModelMaterialReadOnly, "This material comes from the model file and cannot be edited here"));
+            MaterialDesc copy = *shown;
+            AssetEditScope readOnly;
+            readOnly.block = AssetEditScope::Block::Material;
+            Context context;
+            context.asset = &readOnly;
+            ImGui::PushID("##modelMaterial");
+            if (Widget::CollapsingSection(Loc::TextOr(LocKeys::InspectorMaterial, "Material")))
+            {
+                Widget::DisableScope disabled(true);
+                Widget::FormLayout layout("##import");
+                const TypeDescriptor& type = TypeDescriptorOf<MaterialDesc>::Get();
+                if (type.fields != nullptr)
+                {
+                    DrawFieldsInto(layout, *type.fields, &copy, context);
+                }
+            }
+            ImGui::PopID();
+            return;
+        }
         if (record.type != AssetType::Texture || subIndex == meta.subAssets.Size())
         {
             return;
@@ -1788,6 +1817,16 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorStringTable, "String Table"),
                 TypeDescriptorOf<StringTableOptions>::Get(), &scratch.stringTableOptions, Block::StringTable);
         }
+        // **재질 파일의 값**(material-plan 4 단계). 메타가 아니라 `.jmat` 본문이다 - 고치면 그 파일을 쓰는 커맨드다(되돌리면 옛 글자).
+        // 그림 칸은 `...TextureId` 라 Texture 목록이 붙고(칸 이름의 마지막 낱말), 기본색·발광은 색 고르개가 견본이다.
+        MaterialDesc material;
+        if (meta.type == AssetType::Material && m_editor->GetSelectedMaterial() != nullptr && false == m_editor->IsSelectedMaterialReadOnly())
+        {
+            material = *m_editor->GetSelectedMaterial();
+            scope.material = &material;
+            drawBlock(Loc::TextOr(LocKeys::InspectorMaterial, "Material"),
+                TypeDescriptorOf<MaterialDesc>::Get(), &material, Block::Material);
+        }
         // 모델의 임포트 옵션(D-339). 고치면 하위 목록을 새 옵션으로 다시 맞춰 같은 커맨드에 담는다 - `importMaterials` 를 끄면 재질 하위 에셋이 빠지고, 되돌리면 같은 아이디로 돌아온다.
         if (meta.type == AssetType::Model)
         {
@@ -1798,8 +1837,22 @@ namespace JBro
 
     void InspectorPanel::CommitAssetEdit(Context& context)
     {
+        // 재질 파일은 메타가 아니라 그 파일을 쓴다. 모델의 재질(편집본이 없다)은 읽기 전용이라 아무 일도 없다.
+        if (context.asset != nullptr && context.asset->block == AssetEditScope::Block::Material)
+        {
+            AssetFileTarget target;
+            String before;
+            String after;
+            if (context.asset->material == nullptr || false == m_editor->DescribeSelectedMaterialFile(target, before)
+                || false == FormatMaterialFile(*context.asset->material, after) || before == after)
+            {
+                return;
+            }
+            m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetFileCommand>(target, before, after));
+            return;
+        }
         const AssetMetaFile* original = m_editor->GetSelectedAssetMeta();
-        AssetMetaTarget target;
+        AssetFileTarget target;
         if (original == nullptr || context.asset == nullptr || context.asset->scratch == nullptr
             || false == m_editor->DescribeSelectedAssetMeta(target))
         {
@@ -1855,7 +1908,7 @@ namespace JBro
         {
             return;
         }
-        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetMetaCommand>(target, before, after));
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetFileCommand>(target, before, after));
     }
 
     void InspectorPanel::CommitEdit(

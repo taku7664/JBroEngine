@@ -291,6 +291,11 @@ namespace JBro
         return MetaPathOf(record);
     }
 
+    String AssetSystem::GetSourcePath(const AssetRecord& record) const
+    {
+        return SourcePathOf(record);
+    }
+
     String AssetSystem::MetaPathOf(const AssetRecord& record) const
     {
         return AssetTypeRules::MakeMetaPath(SourcePathOf(record));

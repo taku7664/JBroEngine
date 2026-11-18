@@ -190,6 +190,8 @@ Entries:
   inspector.string_table: "String Table"
   inspector.model_import_options: "Model Import Options"
   inspector.same_image: "Same Image"
+  inspector.material: "Material"
+  inspector.model_material_read_only: "This material comes from the model file and cannot be edited here"
   inspector.same_image_split_note: "Changing the options reads this image apart from its same images"
   inspector.owner_model: "Model"
   inspector.no_string_key: "(none)"
@@ -558,6 +560,7 @@ Entries:
   assets.list_view: List
   assets.expand: Show sub-assets
   assets.collapse: Hide sub-assets
+  assets.new_material: New Material
   assets.same_image_tooltip: The same image is also embedded in
   assets.view_tooltip: switch between the list and the icons
   menu.new_project: New Project

@@ -19,6 +19,9 @@ namespace JBro::Widget
     class FormLayout
     {
     public:
+        // `labelWidth` 가 0 이면 **이름 칸은 가장 긴 이름에 맞추되 표 폭의 절반을 넘지 않는다**(material-plan 4 단계). 이름이 짧으면 전과 같고,
+        // 긴 이름(`metallicRoughnessTextureId`)이 값 칸을 손댈 수 없을 만큼 밀어내던 것을 막는다 - 넘는 이름은 잘리고 올리면 다 보인다(`FieldLabel`).
+        // 긴 이름은 지난 프레임에 잰 것이다(ImGui 의 창 상태에 표 이름으로 둔다). 첫 프레임은 ImGui 가 내용에 맞춘다.
         // `width` 가 0 이면 남은 폭을 다 쓴다. 목록 행 안처럼 오른쪽에 다른 것이 붙는 자리는
         // 그 자리의 폭을 준다 - 다 쓰면 옆의 것(행 끝의 삭제 표시)이 밀려난다(D-89).
         explicit FormLayout(
@@ -53,6 +56,9 @@ namespace JBro::Widget
             // 라벨만 위로 붙어 눈에 거슬린다.
             ImGui::AlignTextToFramePadding();
             label();
+            // 잘렸더라도 항목의 사각형은 글자 전체다 - 다음 프레임의 이름 칸 폭을 정하는 데 쓴다.
+            const Float labelWidth = ImGui::GetItemRectMax().x - m_rowMin.x;
+            m_measuredLabel = labelWidth > m_measuredLabel ? labelWidth : m_measuredLabel;
 
             ImGui::TableSetColumnIndex(1);
             if (m_spacing > 0.0f)
@@ -118,6 +124,9 @@ namespace JBro::Widget
         Float m_width = 0.0f;
         ImVec2 m_rowMin;
         ImVec2 m_rowMax;
+        // 이번 프레임에 그린 이름 중 가장 넓은 것과 그것을 넘겨 둘 창 상태의 열쇠다.
+        Float m_measuredLabel = 0.0f;
+        ImGuiID m_labelKey = 0;
         StyleScope m_style;
     };
 }

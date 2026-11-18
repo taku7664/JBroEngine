@@ -1,4 +1,6 @@
-﻿#include "TestCases.h"
+﻿#include <JBro/Asset/MaterialFile.h>
+#include <JBro/Editor/Command/SetAssetFileCommand.h>
+#include "TestCases.h"
 #include "TestModels.h"
 #include <JBro/Editor/Widget/ItemLocator.h>
 #include <JBro/Core/Version.h>
@@ -12724,6 +12726,127 @@ namespace
 
     // **새 폰트 패밀리**(D-225). 에셋 브라우저의 메뉴가 부르는 길이다. 겹치지 않는 이름의 `.jfontfamily` 가 FontFamily 로 등록되고
     // 골라지며, 인스펙터가 네 칸을 에셋 옵션 블록으로 보인다(칸 필드 이름이 `...FontId` 라 고르기가 폰트만 보인다).
+    // **에디터의 재질**(material-plan 4 단계). 브라우저의 `새 재질` 이 기본값의 `.jmat` 을 만들어 고르고, 인스펙터의 재질 블록이 그 값을 보인다.
+    // 칸을 끌면 커맨드 하나가 **그 파일**을 고쳐 쓰고(메타가 아니다), 실린 재질은 제자리에서 다시 읽히며, 되돌리면 파일의 글자가 그대로 돌아온다.
+    // 모델의 하위 Material 은 파일의 값을 보이되 읽기 전용이다(D-346 (2)).
+    void TestTheEditorMakesAndEditsMaterials()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; materials in the editor not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroMaterialEditorProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets" / "props", code);
+        {
+            std::ofstream model(root / "Assets" / "props" / "quad.gltf", std::ios::binary);
+            model << TestModels::SelfContainedQuadGltf("Bricks", TestModels::TinyPng());
+        }
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        const JBro::String created = editor.CreateMaterialAsset("art");
+        const std::filesystem::path file = root / "Assets" / created.c_str();
+        Check(false == created.empty() && std::filesystem::exists(file) && file.extension() == ".jmat", "a material file is written");
+        const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(created.c_str());
+        Check(record != nullptr && record->type == JBro::AssetType::Material, "and registered as a material");
+        const JBro::AssetId materialId = record->id;
+        Check(editor.GetSelectedAsset() == materialId, "and selected so its values can be set");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the material");
+        }
+        const JBro::MaterialDesc* shown = editor.GetSelectedMaterial();
+        Check(shown != nullptr && false == editor.IsSelectedMaterialReadOnly() && shown->shader == JBro::MaterialShader::Standard
+                && shown->roughness == 1.0f,
+            "the inspector reads the new material's default values from its file, and may edit them");
+        // 실어 둔다 - 고친 뒤 제자리에서 다시 읽히는지 본다.
+        JBro::AssetSystem* assets = editor.GetAssetSystem();
+        Check(assets != nullptr, "the editor has an asset system");
+        const JBro::AssetHandle loaded = assets->Load(materialId);
+        Check(assets->GetMaterial(loaded) != nullptr, "the material loads");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "material_inspector");
+        }
+
+        const auto readFile = [&]() {
+            std::ifstream in(file, std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const std::string before = readFile();
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const JBro::TypeDescriptor& fields = JBro::TypeDescriptorOf<JBro::MaterialDesc>::Get();
+        const ImGuiID roughnessField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"),
+            static_cast<JBro::Int32>(FieldIndexOf(*fields.fields, "roughness"))), "##value");
+        Spot spot;
+        Check(FindInspectorItem(editor, hwnd, roughnessField, spot), "the material's roughness is a row in the inspector");
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragFrom(editor, hwnd, spot, spot.x - 60);
+        Check(editor.Tick(Frame), "the editor must tick after the drag");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one command");
+        const std::string after = readFile();
+        JBro::MaterialDesc written;
+        JBro::String parseError;
+        Check(after != before && JBro::ParseMaterialFile(after.c_str(), after.size(), written, parseError) && written.roughness < 1.0f,
+            "the command rewrites the material file itself with the dragged roughness");
+        Check(std::filesystem::exists(root / "Assets" / (std::string(created.c_str()) + ".jmeta")) && readFile() == after,
+            "and leaves the meta alone");
+        Check(editor.GetSelectedMaterial() != nullptr && editor.GetSelectedMaterial()->roughness == written.roughness,
+            "the inspector's copy follows the disk");
+        Check(assets->GetMaterial(loaded)->desc.roughness == written.roughness, "and the loaded material was reloaded in place");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.Tick(Frame), "the editor must tick after undo");
+        Check(readFile() == before, "undo puts the original material text back");
+        Check(editor.GetSelectedMaterial()->roughness == 1.0f && assets->GetMaterial(loaded)->desc.roughness == 1.0f,
+            "and the inspector and the loaded material follow");
+        assets->Release(loaded);
+
+        // 모델의 재질: 파일의 값(기본색 1, 0.5, 0.25)을 보이되 고칠 수 없다.
+        const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath("props/quad.gltf");
+        Check(model != nullptr, "the model is registered");
+        JBro::Array<JBro::AssetId> parts;
+        editor.GetAssetRegistry().CollectOwned(model->id, parts);
+        JBro::AssetId modelMaterial;
+        for (const JBro::AssetId& id : parts)
+        {
+            modelMaterial = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::Material ? id : modelMaterial;
+        }
+        editor.SetSelectedAsset(modelMaterial);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the model's material");
+        }
+        Check(editor.GetSelectedMaterial() != nullptr && editor.IsSelectedMaterialReadOnly()
+                && editor.GetSelectedMaterial()->baseColor.G == 0.5f && false == editor.GetSelectedMaterial()->baseColorTextureId.IsNull(),
+            "a model's material shows the file's values, its picture slot filled, and is read-only");
+        JBro::AssetFileTarget target;
+        JBro::String text;
+        Check(false == editor.DescribeSelectedMaterialFile(target, text), "there is no file to rewrite for it");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "material_model_inspector");
+        }
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
     void TestTheEditorMakesFontFamilies()
     {
         JBro::EditorApplication editor;
@@ -17730,6 +17853,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestThePathHelpersAgreeOnOneAnswer());
     JBRO_CASE(TestTheEditorMakesAndOpensCanvases());
     JBRO_CASE(TestTheEditorMakesFontFamilies());
+    JBRO_CASE(TestTheEditorMakesAndEditsMaterials());
     JBRO_CASE(TestTheEditorPreviewsGameLanguages());
     JBRO_CASE(TestScreenLayersInTheEditor());
     JBRO_CASE(TestTheEditorSaysWhatIsChosen());

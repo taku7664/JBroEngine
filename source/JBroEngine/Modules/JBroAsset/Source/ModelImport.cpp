@@ -240,11 +240,11 @@ namespace JBro
             }
             return file->id;
         };
-        desc.baseColorTexture = textureOf(ModelTextureSlot::BaseColor);
-        desc.metallicRoughnessTexture = textureOf(ModelTextureSlot::MetallicRoughness);
-        desc.normalTexture = textureOf(ModelTextureSlot::Normal);
-        desc.occlusionTexture = textureOf(ModelTextureSlot::Occlusion);
-        desc.emissiveTexture = textureOf(ModelTextureSlot::Emissive);
+        desc.baseColorTextureId = textureOf(ModelTextureSlot::BaseColor);
+        desc.metallicRoughnessTextureId = textureOf(ModelTextureSlot::MetallicRoughness);
+        desc.normalTextureId = textureOf(ModelTextureSlot::Normal);
+        desc.occlusionTextureId = textureOf(ModelTextureSlot::Occlusion);
+        desc.emissiveTextureId = textureOf(ModelTextureSlot::Emissive);
         return desc;
     }
 

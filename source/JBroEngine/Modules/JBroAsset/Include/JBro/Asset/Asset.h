@@ -204,6 +204,8 @@ namespace JBro
         // 잇긴 에셋 폴더(UTF-8 절대경로)와 레지스트리의 레코드가 가리키는 메타 경로다. 에디터가 메타를 고쳐 쓸 때 쓴다(D-120).
         const String& GetAssetRoot() const;
         String GetMetaPath(const AssetRecord& record) const;
+        // 레코드가 가리키는 원본 파일의 경로다. 에디터가 값을 본문에 든 에셋(`.jmat`)을 고쳐 쓸 때 쓴다(material-plan 4 단계).
+        String GetSourcePath(const AssetRecord& record) const;
 
         // 로드돼 있으면 참조 수만 올리고 같은 핸들을 준다. 레지스트리에 없거나 이 판이 아직 싣지 못하는 타입
         // (Mesh·Material·Shader·Canvas·...)이거나 읽기·디코드가 실패하면 빈 핸들이다.

@@ -379,7 +379,7 @@ namespace
         looseAssets.Bind(platform, loose, assetRoot.c_str());
         const MeshData looseMesh = *looseAssets.GetMesh(looseAssets.Load(meshId));
         const MaterialData looseMaterial = *looseAssets.GetMaterial(looseAssets.Load(materialId));
-        Check(looseMesh.material == materialId && looseMaterial.desc.baseColorTexture == imageId, "loose, the mesh knows its material and the material its picture");
+        Check(looseMesh.material == materialId && looseMaterial.desc.baseColorTextureId == imageId, "loose, the mesh knows its material and the material its picture");
         const TextureData looseImage = *looseAssets.GetTexture(looseAssets.Load(imageId));
         looseAssets.Shutdown();
 
@@ -423,7 +423,7 @@ namespace
             "the cooked mesh is the loose mesh, vertex for vertex");
         Check(mesh->material == materialId, "and still knows its material");
         const MaterialData* packedMaterial = assets.GetMaterial(assets.Load(materialId));
-        Check(packedMaterial != nullptr && packedMaterial->desc.baseColorTexture == imageId
+        Check(packedMaterial != nullptr && packedMaterial->desc.baseColorTextureId == imageId
                 && packedMaterial->desc.baseColor == looseMaterial.desc.baseColor && packedMaterial->desc.roughness == looseMaterial.desc.roughness,
             "the packaged material is the loose material, picture slot included, without reading the model");
         const TextureData* image = assets.GetTexture(assets.Load(imageId));

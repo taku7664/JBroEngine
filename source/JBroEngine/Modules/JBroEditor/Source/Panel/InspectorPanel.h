@@ -22,6 +22,7 @@ namespace JBro
     struct PropertyTable;
     struct TypeDescriptor;
     struct AssetRecord;
+    struct MaterialDesc;
 
     namespace Widget
     {
@@ -73,7 +74,7 @@ namespace JBro
         // 지금 그리는 컴포넌트와, 거기서 여기까지 내려온 길이다. 잎사귀에서
         // 커맨드를 만들 때 둘 다 필요하다.
         // 에셋의 임포트 옵션을 그리는 중이면 이것이 있다(D-120). 잎사귀 편집은 컴포넌트 커맨드가 아니라
-        // 메타 전체의 글자를 뜬 `SetAssetMetaCommand` 로 간다.
+        // 메타 전체의 글자를 뜬 `SetAssetFileCommand` 로 간다.
         struct AssetEditScope
         {
             // 이번 프레임의 편집본. 원본은 `EditorApplication::GetSelectedAssetMeta` 다.
@@ -81,9 +82,12 @@ namespace JBro
             // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다. 블록마다 불 값을 두던 것을 하나로 모았다 -
             // 블록이 늘 때마다 불 값과 그 판정 사슬이 함께 늘었다(D-338 의 모델 블록을 더하며 바꿨다).
             // `SubTexture` 는 모델 내장 그림 하나의 옵션이다 - 모델 메타의 하위 목록 `subIndex` 번째 항목에 적는다(model-import-plan 5 단계).
-            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model, SubTexture };
+            // `Material` 은 `.jmat` 본문의 값이다(material-plan 4 단계) - 메타가 아니라 그 파일을 고친다.
+            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model, SubTexture, Material };
             Block block = Block::Texture;
             std::size_t subIndex = 0;
+            // `Material` 블록의 편집본이다. 원본은 `EditorApplication::GetSelectedMaterial` 이다.
+            MaterialDesc* material = nullptr;
         };
 
         struct Context

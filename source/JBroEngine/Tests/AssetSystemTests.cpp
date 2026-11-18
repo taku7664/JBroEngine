@@ -747,10 +747,10 @@ namespace
         Check(material->desc.baseColor.R == 1.0f && material->desc.baseColor.G == 0.5f && material->desc.baseColor.B == 0.25f
                 && std::fabs(material->desc.metallic.Get() - 0.2f) < 0.0001f && std::fabs(material->desc.roughness.Get() - 0.7f) < 0.0001f,
             "with the file's colour, metallic and roughness");
-        Check(material->desc.baseColorTexture == crateImage && material->desc.normalTexture.IsNull(),
+        Check(material->desc.baseColorTextureId == crateImage && material->desc.normalTextureId.IsNull(),
             "its base colour picture is the model's embedded image, and empty slots stay empty");
         const JBro::MaterialData* wall = fixture.assets.GetMaterial(fixture.assets.Load(partOf("Art/Props/wall.gltf", JBro::AssetType::Material)));
-        Check(wall != nullptr && wall->desc.baseColorTexture == fixture.textureId,
+        Check(wall != nullptr && wall->desc.baseColorTextureId == fixture.textureId,
             "a picture outside the model is the Texture of that file, found beside the model");
 
         // 재질이 둘인 모델: 메시마다 제 재질을 가리키고, 재질은 제 색을 읽는다(번호가 어긋나면 서로 바뀐다).
@@ -808,13 +808,13 @@ namespace
         desc.alpha = JBro::MaterialAlpha::Cutout;
         desc.alphaCutoff = 0.25f;
         desc.emissive = JBro::Color{0.5f, 0.0f, 0.0f, 1.0f};
-        desc.baseColorTexture = crateImage;
+        desc.baseColorTextureId = crateImage;
         JBro::String text;
         JBro::MaterialDesc reread;
         JBro::String error;
         Check(JBro::FormatMaterialFile(desc, text) && JBro::ParseMaterialFile(text.c_str(), text.size(), reread, error), "a material file round-trips");
         Check(reread.shader == desc.shader && reread.alpha == desc.alpha && reread.alphaCutoff == desc.alphaCutoff
-                && reread.emissive == desc.emissive && reread.baseColorTexture == desc.baseColorTexture,
+                && reread.emissive == desc.emissive && reread.baseColorTextureId == desc.baseColorTextureId,
             "with every value");
         const char unknown[] = "Version: 1\nMaterial:\n  shininess: 3\n";
         Check(false == JBro::ParseMaterialFile(unknown, sizeof(unknown) - 1, reread, error), "a key the engine does not know is refused");

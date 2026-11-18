@@ -526,6 +526,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsListView = "assets.list_view";
     inline constexpr const char* AssetsExpand = "assets.expand";
     inline constexpr const char* AssetsCollapse = "assets.collapse";
+    inline constexpr const char* AssetsNewMaterial = "assets.new_material";
     inline constexpr const char* AssetsSameImageTooltip = "assets.same_image_tooltip";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
     inline constexpr const char* CommonCancel = "common.cancel";
@@ -540,6 +541,8 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorStringTable = "inspector.string_table";
     inline constexpr const char* InspectorModelImportOptions = "inspector.model_import_options";
     inline constexpr const char* InspectorSameImage = "inspector.same_image";
+    inline constexpr const char* InspectorMaterial = "inspector.material";
+    inline constexpr const char* InspectorModelMaterialReadOnly = "inspector.model_material_read_only";
     inline constexpr const char* InspectorSameImageSplitNote = "inspector.same_image_split_note";
     inline constexpr const char* InspectorOwnerModel = "inspector.owner_model";
     inline constexpr const char* InspectorNoStringKey = "inspector.no_string_key";

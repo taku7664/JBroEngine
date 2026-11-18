@@ -887,8 +887,8 @@ namespace
             imageId = registry.Find(id)->type == JBro::AssetType::Texture ? id : imageId;
         }
         const JBro::AssetId greyId = registry.FindByPath("art/grey.tga")->id;
-        const std::string flat = "Version: 1\nMaterial:\n  shader: Unlit\n  baseColorTexture: " + IdText(greyId) + "\n";
-        const std::string cut = "Version: 1\nMaterial:\n  alpha: Cutout\n  alphaCutoff: 0.75\n  baseColorTexture: " + IdText(imageId) + "\n";
+        const std::string flat = "Version: 1\nMaterial:\n  shader: Unlit\n  baseColorTextureId: " + IdText(greyId) + "\n";
+        const std::string cut = "Version: 1\nMaterial:\n  alpha: Cutout\n  alphaCutoff: 0.75\n  baseColorTextureId: " + IdText(imageId) + "\n";
         WriteText(root / "art" / "flat.jmat", flat.c_str());
         WriteText(root / "art" / "cut.jmat", cut.c_str());
         Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the folder scans again with the material files");

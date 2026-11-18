@@ -42,6 +42,7 @@ namespace JBro
 
     struct AssetLoadResult;
     struct AssetRecord;
+    struct MaterialDesc;
     class TaskManager;
     class Canvas;
     class EditorThumbnails;
@@ -76,7 +77,7 @@ namespace JBro
     }
     class AssetSystem;
     struct AssetMetaFile;
-    struct AssetMetaTarget;
+    struct AssetFileTarget;
 
     // `FrameworkKind` 는 `JBro/Host/ProjectFile.h` 에 있다(D-99). 프로젝트 파일이 그 값을
     // 적는 자리이므로 형식과 같이 둔다.
@@ -376,7 +377,13 @@ namespace JBro
         // (판번호) 다시 읽으므로 편집·되돌리기 뒤에도 디스크와 같다.
         const AssetMetaFile* GetSelectedAssetMeta() const;
         // 고른 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다. 고른 것이 없으면 거짓이다.
-        Bool DescribeSelectedAssetMeta(AssetMetaTarget& target) const;
+        Bool DescribeSelectedAssetMeta(AssetFileTarget& target) const;
+        // **고른 재질**(material-plan 4 단계). 고른 에셋이 재질이면 그 값이다 - `.jmat` 은 파일을 읽은 것이고, 모델의 하위 Material 은
+        // 모델의 재질을 옮긴 것이라 읽기 전용이다(D-346 (2)). 재질이 아니거나 읽히지 않으면 nullptr. 커맨드가 돈 뒤 디스크에서 다시 읽는다.
+        const MaterialDesc* GetSelectedMaterial() const;
+        Bool IsSelectedMaterialReadOnly() const;
+        // 고른 `.jmat` 을 고치는 커맨드의 대상과 지금 파일의 글자(되돌릴 값)다. 고른 것이 고칠 수 있는 재질 파일이 아니면 거짓.
+        Bool DescribeSelectedMaterialFile(AssetFileTarget& target, String& currentText) const;
         // 이 프로젝트의 스크립트 DLL 이 실렸는지다. **열렸다고 실린 것은 아니다**(D-98) —
         // 아직 한 번도 빌드하지 않은 프로젝트도 열리므로, 스크립트가 있어야 하는 일은
         // 이것을 먼저 본다.
@@ -732,6 +739,8 @@ namespace JBro
         // **새 폰트 패밀리를 만든다**(D-225). 에셋 폴더 아래 `folder` 에 겹치지 않는 이름의 `.jfontfamily` 를 쓰고 등록한 뒤
         // 고르고 에셋 브라우저에서 보인다 - 네 칸은 인스펙터의 에셋 옵션으로 채운다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateFontFamilyAsset(const char* folder);
+        // **새 재질**(material-plan 4 단계). 기본값(`Standard`, 흰색, roughness 1)의 `.jmat` 을 만들고 브라우저에서 고른다 - 값은 인스펙터에서 고친다.
+        String CreateMaterialAsset(const char* folder);
         // **새 문자열 표를 만든다**(D-226). `.jstrings` 를 쓰고, 프로젝트에 기본 언어(없으면 첫 언어)가 있으면 메타의 로케일로 적는다.
         // 고르고 에셋 브라우저에서 보인다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateStringTableAsset(const char* folder);
@@ -1076,6 +1085,12 @@ namespace JBro
         OwnerPtr<AssetMetaFile> m_selectedAssetMeta;
         Bool m_selectedAssetMetaLoaded = false;
         void ReloadSelectedAssetMeta();
+        // 고른 재질의 값과 그 파일의 글자다(`.jmat` 만 글자가 있다). 메타와 같은 때에 다시 읽는다.
+        OwnerPtr<MaterialDesc> m_selectedMaterial;
+        Bool m_selectedMaterialLoaded = false;
+        Bool m_selectedMaterialReadOnly = false;
+        String m_selectedMaterialText;
+        void ReloadSelectedMaterial();
         EditorObjectRegistry m_objectIds;
         TextureHandle m_simulationView;
         Extent2D m_simulationViewExtent;
