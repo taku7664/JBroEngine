@@ -141,6 +141,8 @@
 - [tasks/material-plan.md](./tasks/material-plan.md) — 3D 재질(D-346). 빌트인 `Standard`(metallic-roughness PBR)·`Unlit`, 출처는 모델의 하위 Material(읽기 전용)과 `.jmat`,
   `materialId` 가 비면 메시가 파일에서 쓰던 재질. **다섯 단계가 모두 섰다**(정점·재질 자료·렌더러·에디터·같은 그림 한 번과 3D 게임 빌드 실측, D-347~D-351).
   지금 상태가 §1, 사용자와 정한 여덟 항목이 §2, 단계가 §3, `[열림]` 이 §4
+- [tasks/lighting3d-plan.md](./tasks/lighting3d-plan.md) — 3D 조명(D-353). `Light3D` 하나에 `Ambient`·`Directional`·`Point`·`Spot`, glTF 의 거리·원뿔 감쇠, 라이트가 없으면 지금의 고정 빛,
+  뷰마다 라이트 64 의 포워드. 지금 상태와 상용 엔진·glTF 비교가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.
   새 Tier E 모듈 `JBroPackage`, 에셋 시스템의 바이트 출처 `IAssetSource`, 호스트의 `BuildGame` 과 패키지로 여는 프로젝트(`AssetPackage`), 에디터 파일 메뉴 "게임 빌드".
   기존 엔진 `.jbpack` 의 구조와 아팠던 것 K1~K6(쓰는 곳 둘·색인의 임포트 옵션·`ifstream`·고정 키)이 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4, 실측이 §5 에 있다
