@@ -43,7 +43,7 @@
         @{ Name = 'SdfText';          Vertex = 'BuiltinSdfTextVS';   Pixel = 'BuiltinSdfTextPS';          PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 1; Samplers = 1 }
         @{ Name = 'SdfTextLit';       Vertex = 'BuiltinSdfTextVS';   Pixel = 'BuiltinSdfTextLitPS';       PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 2; Samplers = 1 }
         @{ Name = 'WorldText';        Vertex = 'BuiltinWorldTextVS'; Pixel = 'BuiltinWorldTextPS';        PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 1; Samplers = 1 }
-        @{ Name = 'Mesh';             Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshPS';             PushConstantBytes = 80; PushConstantStages = 'Vertex|Pixel'; ConstantBuffers = 1; ConstantBufferStages = 'Pixel'; SampledTextures = 5; Samplers = 1 }
+        @{ Name = 'Mesh';             Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshPS';             PushConstantBytes = 80; PushConstantStages = 'Vertex|Pixel'; ConstantBuffers = 2; ConstantBufferStages = 'Pixel'; SampledTextures = 5; Samplers = 1 }
         @{ Name = 'MeshUnlit';        Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshUnlitPS';        PushConstantBytes = 80; PushConstantStages = 'Vertex'; ConstantBuffers = 1; ConstantBufferStages = 'Pixel'; SampledTextures = 2; Samplers = 1 }
         # Full screen passes over a quad: the selection outline and layer compositing read their inputs in the pixel stage.
         @{ Name = 'OutlineGrow';      Vertex = 'BuiltinOutlineVS';   Pixel = 'BuiltinOutlineGrowPS';      PushConstantBytes = 32; PushConstantStages = 'Pixel';  SampledTextures = 1 }

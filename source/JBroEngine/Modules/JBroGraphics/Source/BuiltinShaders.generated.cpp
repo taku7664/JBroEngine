@@ -120,7 +120,7 @@ namespace JBro
                 {{View(JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS)), View(Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5)), View(Spv::JBroBuiltinMeshVS_SPV, sizeof(Spv::JBroBuiltinMeshVS_SPV))},
                     {View(JBroBuiltinMeshPS, sizeof(JBroBuiltinMeshPS)), View(Sm5::JBroBuiltinMeshPS_SM5, sizeof(Sm5::JBroBuiltinMeshPS_SM5)), View(Spv::JBroBuiltinMeshPS_SPV, sizeof(Spv::JBroBuiltinMeshPS_SPV))},
                     {}},
-                80, 3, {1, 2}, {5, 2}, {1, 2}, {0, 0}, {0, 0}},
+                80, 3, {2, 2}, {5, 2}, {1, 2}, {0, 0}, {0, 0}},
             {"MeshUnlit",
                 {{View(JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS)), View(Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5)), View(Spv::JBroBuiltinMeshVS_SPV, sizeof(Spv::JBroBuiltinMeshVS_SPV))},
                     {View(JBroBuiltinMeshUnlitPS, sizeof(JBroBuiltinMeshUnlitPS)), View(Sm5::JBroBuiltinMeshUnlitPS_SM5, sizeof(Sm5::JBroBuiltinMeshUnlitPS_SM5)), View(Spv::JBroBuiltinMeshUnlitPS_SPV, sizeof(Spv::JBroBuiltinMeshUnlitPS_SPV))},

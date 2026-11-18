@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/RHI/ConstantRing.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Matrix4x4.h>
@@ -35,6 +36,9 @@ namespace JBro
         UInt32 maxLights2D = 1024;
         // 한 프레임의 그림자 변(`SubmitShadowEdges2D`) 상한이다(D-291). 0 이면 그림자를 그리지 않는다.
         UInt32 maxShadowEdges2D = 16384;
+        // 한 프레임의 3D 라이트(`SubmitLight3D` 의 `Directional`·`Point`·`Spot`) 상한이다(D-353). 레이어마다 뷰가 열려 같은 라이트를 다시 내므로
+        // 뷰 수의 몫까지 잡는다. 뷰 하나는 `Renderer::MaxLights3DPerView` 를 넘지 않는다. `Ambient` 는 세지 않는다.
+        UInt32 maxLights3D = 1024;
         Bool validation = false;
     };
 
@@ -222,6 +226,32 @@ namespace JBro
         Bool selfShadow = false;
     };
 
+    enum class Light3DKind : std::uint8_t
+    {
+        // 뷰의 환경광에 더한다. 자리·방향을 보지 않는다.
+        Ambient,
+        Directional,
+        Point,
+        Spot,
+    };
+
+    // **3D 라이트 하나**(D-353, tasks/lighting3d-plan.md §2.3). 뷰 안에서 낸다. 값은 월드다. 뷰에 3D 라이트가 하나도 없으면 그 뷰의 메시는
+    // 렌더러의 기본 빛(라이트 기능 전의 고정 방향광과 주변광)을 받는다 - 하나라도(`Ambient` 포함) 있으면 낸 라이트만 빛이다.
+    struct Light3DSubmit
+    {
+        Light3DKind kind = Light3DKind::Point;
+        Float position[3] = {0.0f, 0.0f, 0.0f};
+        // 빛이 **나아가는** 방향이다(월드, 길이 1). `Directional`·`Spot` 만 본다. 오브젝트의 로컬 -Z 다.
+        Float direction[3] = {0.0f, 0.0f, -1.0f};
+        // 색에 세기를 곱한 값이다(선형). `Directional` 은 마주 보는 흰 램버트 면이, `Point`·`Spot` 은 1 유닛 거리의 그 면이 이 값이 된다.
+        Float color[3] = {1.0f, 1.0f, 1.0f};
+        // `Point`·`Spot` 의 빛이 0 이 되는 거리다. 감쇠는 glTF 권장식 `clamp(1 - (d/range)^4, 0, 1) / d^2` 이고, 0 이면 무한(거리 제곱만)이다.
+        Float range = 0.0f;
+        // `Spot` 의 원뿔 **전체** 각이다. 안쪽 각 안은 빛이 다 닿고 바깥 각에서 0 이 된다(glTF 의 원뿔 감쇠).
+        Radian innerAngle = Radian(0.5235988f);
+        Radian outerAngle = Radian(1.0471976f);
+    };
+
     struct MeshSubmit
     {
         Matrix4x4 world;
@@ -335,6 +365,10 @@ namespace JBro
         // 라이트맵이 아직 없어 빛을 받는 스프라이트를 빛 없이 그린 뷰다. 그 크기의 라이트맵은 다음 프레임을 열 때 생긴다.
         // 깊이가 달린 뷰(3D)도 여기 든다 - 그 뷰는 라이팅을 보지 않는다.
         UInt32 viewsWithoutLightMapCount = 0;
+        // 받은 3D 라이트다(`Ambient` 포함, D-353).
+        UInt32 light3DCount = 0;
+        // 뷰마다의 상한(`Renderer::MaxLights3DPerView`)이나 프레임 상한(`RendererConfig::maxLights3D`)을 넘어 버린 라이트다.
+        UInt32 droppedLight3DCount = 0;
     };
 
     class Renderer final
@@ -375,6 +409,11 @@ namespace JBro
         // 곱해 그린다 - 빛을 받는 레이어의 구간이다. 뷰마다 거짓으로 시작한다. 레이어 묶음(`BeginLayer`)과 겹쳐도 된다.
         // 깊이가 달린 뷰(3D)에서는 보지 않는다.
         Bool SetSpriteLighting(Bool lit);
+        // **3D 라이트를 낸다**(D-353). 뷰 안에서만 받는다. 그 뷰의 메시가 빛을 받는다. `Ambient` 는 뷰의 환경광에 더한다.
+        // 뷰 하나에 `MaxLights3DPerView` 를 넘는 것은 버리고 센다 - 셰이더의 라이트 배열 길이다.
+        static constexpr UInt32 MaxLights3DPerView = 64;
+        Bool SubmitLight3D(const Light3DSubmit& light);
+        Bool SubmitLights3D(JArrayView<Light3DSubmit> lights);
 
         // 메시 지오메트리를 GPU 에 올리고 `MeshSubmit::mesh` 에 넣을 핸들을 준다. 프레임 밖에서만
         // 부른다. 빈 배열·너무 큰 배열·프레임 안이면 빈 핸들이다.
@@ -493,6 +532,11 @@ namespace JBro
             Bool lighting = false;
             // 빛을 받는 스프라이트 구간이 있는가. 업로드가 채운다.
             Bool hasLitRun = false;
+            // 이 뷰의 3D 라이트(`m_lights3D`)와 `Ambient` 의 합이다(D-353). `lighting3D` 가 거짓이면 기본 빛을 받는다.
+            UInt32 light3DOffset = 0;
+            UInt32 light3DCount = 0;
+            Float ambient3D[3] = {0.0f, 0.0f, 0.0f};
+            Bool lighting3D = false;
         };
 
         // `SetSpriteLighting(true)` 와 `false` 사이에 낸 스프라이트 번호 구간 [first, end) 다(D-291).
@@ -659,6 +703,27 @@ namespace JBro
             Float cameraAndFlags[4];
         };
         static_assert(sizeof(MeshPushConstants) == 80, "the mesh push constants are part of the shader ABI");
+        // 3D 라이트 하나(D-353). `BuiltinMesh.hlsl` 의 `Light` 와 같은 모양이다.
+        struct GpuLight3D
+        {
+            // xyz 자리, w 는 `range`(0 이면 무한).
+            Float positionRange[4];
+            // xyz 빛이 나아가는 방향, w 는 종류(0 방향광, 1 점광, 2 스포트).
+            Float directionKind[4];
+            // rgb 색 × 세기.
+            Float color[4];
+            // x·y 는 스포트의 원뿔 감쇠 scale·offset(cos 에 곱하고 더한다).
+            Float cone[4];
+        };
+        static_assert(sizeof(GpuLight3D) == 64, "a 3D light is part of the shader ABI");
+        // 메시 패스의 라이트 블록(b2). `BuiltinMesh.hlsl` 의 `LightConstants` 와 같은 모양이다. 뷰마다 `ConstantRing` 에 하나 올린다.
+        struct GpuLightConstants
+        {
+            // rgb 환경광, w 는 라이트 수.
+            Float ambientCount[4];
+            GpuLight3D lights[MaxLights3DPerView];
+        };
+        static_assert(sizeof(GpuLightConstants) == 16 + 64 * 64, "the light block is part of the shader ABI");
 
         // 메시 인스턴스 하나. 월드 4x4(행 넷)와 tint. `BuiltinMesh.hlsl` 의 ATTRIBUTE2..6 이 이것을 읽는다.
         struct GpuMeshInstance
@@ -833,6 +898,17 @@ namespace JBro
         GraphicsPipelineHandle m_litSdfTextPipeline;
         BufferHandle m_lightInstanceBuffers[MaxFrameSlots];
         Array<Light2DSubmit> m_lights;
+        // 3D 라이트(D-353). 낸 차례대로 GPU 모양으로 담는다. 라이트 블록은 뷰를 그릴 때 `m_lightBlock` 에 짓고 링에 올린다 - 앞 뷰와 같으면 그 구간을 다시 쓴다.
+        Array<GpuLight3D> m_lights3D;
+        ConstantRing m_lightRing;
+        GpuLightConstants m_lightBlock{};
+        // 라이트 기능 전의 고정 방향광과 주변광이다. 3D 라이트를 받지 않은 뷰가 쓴다.
+        GpuLightConstants m_defaultLightBlock{};
+        // 이 프레임에 마지막으로 링에 올린 블록이다. 빈 구간이면 아직 없다.
+        ConstantRange m_lastLightRange;
+        GpuLightConstants m_lastLightBlock{};
+        std::size_t m_lastLightBlockBytes = 0;
+        Bool BindLightBlock(const ViewPacket& view);
         Array<GpuLight2DInstance> m_gpuLightInstances;
         Array<LitRange> m_litRanges;
         // 열린 빛을 받는 구간(`m_litRanges` 의 자리)이다. 없으면 `NoLayerGroup` 이다.

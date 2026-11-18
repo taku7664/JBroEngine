@@ -83,7 +83,7 @@
 
 | 단계 | 내용 | 완료 조건 | 상태 |
 |---|---|---|---|
-| 1 | 렌더러: `Light3DSubmit`·b2 라이트 블록·셰이더 루프·기본 빛·넘침 세기 | 세 백엔드 픽셀 시험 - 라이트 없음은 전과 같은 그림, 방향광의 방향, 점광의 `range` 밖은 환경광만, 스포트의 안·밖, `Ambient` 만, 넘침 셈. 뮤테이션 | |
+| 1 | 렌더러: `Light3DSubmit`·b2 라이트 블록·셰이더 루프·기본 빛·넘침 세기 | 세 백엔드 픽셀 시험 - 라이트 없음은 전과 같은 그림, 방향광의 방향, 점광의 `range` 밖은 환경광만, 스포트의 안·밖, `Ambient` 만, 넘침 셈. 뮤테이션 | `[완료]` 2026-11-19 · D-354 · `Light3DSubmit`·`SubmitLight3D(s)`·`RendererConfig::maxLights3D`(1024)·`Renderer::MaxLights3DPerView`(64)·`RendererFrameStats::light3DCount`/`droppedLight3DCount`, 메시 셰이더의 라이트 루프와 b2 블록(`ShaderManifest` 의 `Mesh` 상수 버퍼 둘), 뷰마다 `ConstantRing` 에 한 번(앞 뷰와 같은 바이트면 그 구간을 다시 묶는다), 기본 빛 블록 · 시험 `MeshPixel` 의 `TestLightsLightTheMeshes`(세 백엔드) |
 | 2 | `Light3D` 컴포넌트·`Light3DSystem`·브리지·스크립트 핸들·시작 오브젝트의 방향광 | 캔버스로 그린 픽셀 시험, 감춘 레이어의 라이트, 캔버스 파일 왕복, 새 3D 프로젝트의 라이트 | |
 | 3 | 에디터: 전구 표시·기즈모(`range` 구·원뿔 손잡이·방향 화살표) | 손잡이를 끌어 값이 바뀌고 되돌리기 한 번, 시험 스크린숏 | |
 
