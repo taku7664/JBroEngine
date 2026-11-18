@@ -16,6 +16,13 @@ namespace Sm5
 #include "ConstantProbeVS_SM5.generated.h"
 }
 
+// Vulkan 의 SPIR-V(Vulkan SDK 의 dxc, `Tests/Shaders/Compile.ps1`).
+namespace Spv
+{
+#include "ConstantProbePS_SPV.generated.h"
+#include "ConstantProbeVS_SPV.generated.h"
+}
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -28,9 +35,25 @@ namespace Sm5
 #include <JBro/Types/UInt.h>
 
 // 후처리의 중간 텍스처 포맷 다섯(postprocess-plan §2.1)에 그려 되읽는다. 1 보다 큰 값을 칠한다 - UNORM 으로 잘못 만들어졌다면
-// 1 로 잘려 드러난다. Vulkan 은 SPIR-V 탐침이 없어 그리기는 건너뛰고 텍셀 크기만 본다(ConstantBufferTests.cpp 의 머리말).
+// 1 로 잘려 드러난다. 세 백엔드 모두 그린다(Vulkan 의 SPIR-V 탐침은 2026-11-17 에 구웠다, D-352).
 namespace
 {
+    // 백엔드의 바이트코드를 고른다 - D3D12 는 DXIL, D3D11 은 SM 5.0 DXBC, Vulkan 은 SPIR-V.
+    template <std::size_t DxilSize, std::size_t Sm5Size, std::size_t SpvSize>
+    JBro::ShaderBytecode Pick(JBro::GraphicsApi api, const unsigned char (&dxil)[DxilSize], const unsigned char (&sm5)[Sm5Size],
+        const unsigned char (&spv)[SpvSize])
+    {
+        if (api == JBro::GraphicsApi::D3D11)
+        {
+            return {sm5, static_cast<JBro::UInt32>(Sm5Size)};
+        }
+        if (api == JBro::GraphicsApi::Vulkan)
+        {
+            return {spv, static_cast<JBro::UInt32>(SpvSize)};
+        }
+        return {dxil, static_cast<JBro::UInt32>(DxilSize)};
+    }
+
     void Check(JBro::Bool condition, const char* message)
     {
         if (false == condition)
@@ -167,14 +190,6 @@ namespace
             return;
         }
         const JBro::GraphicsApi api = rhi.GetApi();
-        if (api != JBro::GraphicsApi::D3D12 && api != JBro::GraphicsApi::D3D11)
-        {
-            rhi.DestroyDevice(device);
-            rhi.Shutdown();
-            platform.Shutdown();
-            std::cout << "  [skip] no SPIR-V probe shaders yet; render target formats not drawn" << std::endl;
-            return;
-        }
 
         JBro::WindowDesc windowDesc;
         const char title[] = "JBro format probe";
@@ -208,18 +223,8 @@ namespace
             Check(target.IsValid(), "a render target of each post process format must be created");
 
             JBro::GraphicsPipelineDesc pipelineDesc;
-            if (api == JBro::GraphicsApi::D3D11)
-            {
-                pipelineDesc.vertexShader = {Sm5::JBroTestConstantProbeVS_SM5,
-                    static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestConstantProbeVS_SM5))};
-                pipelineDesc.pixelShader = {Sm5::JBroTestConstantProbePS_SM5,
-                    static_cast<JBro::UInt32>(sizeof(Sm5::JBroTestConstantProbePS_SM5))};
-            }
-            else
-            {
-                pipelineDesc.vertexShader = {JBroTestConstantProbeVS, static_cast<JBro::UInt32>(sizeof(JBroTestConstantProbeVS))};
-                pipelineDesc.pixelShader = {JBroTestConstantProbePS, static_cast<JBro::UInt32>(sizeof(JBroTestConstantProbePS))};
-            }
+            pipelineDesc.vertexShader = Pick(api, JBroTestConstantProbeVS, Sm5::JBroTestConstantProbeVS_SM5, Spv::JBroTestConstantProbeVS_SPV);
+            pipelineDesc.pixelShader = Pick(api, JBroTestConstantProbePS, Sm5::JBroTestConstantProbePS_SM5, Spv::JBroTestConstantProbePS_SPV);
             pipelineDesc.colorFormats = {&testCase.format, 1};
             pipelineDesc.cull = JBro::CullMode::None;
             pipelineDesc.bindings.constantBuffers = {2, JBro::ShaderStage::Vertex | JBro::ShaderStage::Pixel};
