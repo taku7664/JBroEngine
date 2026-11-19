@@ -59,6 +59,8 @@ namespace JBro
         MeshLibrary& GetMeshLibrary();
         // 3D 물리의 워커 수(D-419). 호스트가 프로젝트를 연 뒤 `ResolvePhysicsWorkerCount3D` 로 푼 값을 넘긴다(2D 의 `Framework2D` 와 같은 자리).
         void SetPhysicsWorkerCount(UInt32 count);
+        // 레이어 충돌 표(D-421). 호스트가 `ResolvePhysicsIgnoredLayers` 로 푼 표를 넘긴다(2D 와 같다).
+        void SetPhysicsIgnoredLayers(const UInt32 (&rows)[32]);
         // 화면 레이어의 그릴 것이다(D-362).
         RenderWorld2D* GetScreenRenderWorld();
         // 표준 머티리얼(D-399)을 푸는 곳이다. 셰이더 머티리얼(D-347)은 `m_materials` 다.

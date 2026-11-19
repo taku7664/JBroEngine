@@ -1638,6 +1638,9 @@ namespace JBro
         {
             Framework3D& framework3D = *static_cast<Framework3D*>(m_framework.Get());
             framework3D.SetPhysicsWorkerCount(ResolvePhysicsWorkerCount3D(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
+            UInt32 ignored3D[32] = {};
+            ResolvePhysicsIgnoredLayers(GetProjectFile(), ignored3D);
+            framework3D.SetPhysicsIgnoredLayers(ignored3D);
             return;
         }
         if (m_frameworkKind != FrameworkKind::Framework2D)

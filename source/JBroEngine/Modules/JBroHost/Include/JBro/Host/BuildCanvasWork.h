@@ -12,4 +12,8 @@ namespace JBro
     // 물리 스레드의 추천 값이 2D·3D 모두 이 길로 일감을 센다 - 읽는 길은 차원과 무관하고 세는 것만 다르다(D-223 의 2D 코드에서 뗐다).
     // 읽지 못한 캔버스는 건너뛰고 로그에 남긴다. 캔버스를 읽으려면 컴포넌트 타입이 등록돼 있어야 하므로 프레임워크를 연 뒤에 부른다.
     UInt32 SumBuildCanvasWork(IPlatform& platform, const ProjectFile& project, const char* projectFilePath, UInt32 (*count)(Canvas& canvas));
+
+    // 프로젝트의 `PhysicsIgnoredLayerPairs` 를 레이어 충돌 표로 푼다(D-233). 쌍마다 두 행에 대칭으로 비트를 세운다.
+    // 2D·3D 물리가 함께 쓴다(D-421 에서 2D 코드에서 옮겼다).
+    void ResolvePhysicsIgnoredLayers(const ProjectFile& project, UInt32 (&rows)[32]);
 }

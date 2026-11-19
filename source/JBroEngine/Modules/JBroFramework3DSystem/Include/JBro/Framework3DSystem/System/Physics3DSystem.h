@@ -9,6 +9,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/PhysicsLayerMask.h>
 #include <JBro/Types/UInt.h>
 
 namespace JBro
@@ -36,6 +37,8 @@ namespace JBro::System
         // 스텝을 나눌 물리 전용 워커 수(D-419). 다음 고정 스텝에서 커널에 먹인다. 0 이면 메인 한 스레드다.
         void SetWorkerCount(UInt32 count);
         UInt32 GetWorkerCount() const;
+        // 프로젝트의 레이어 충돌 표(D-421, 2D 의 `Physics2DSystem::SetIgnoredLayers` 와 같은 뜻). 다음 고정 스텝부터 먹는다.
+        void SetIgnoredLayers(const UInt32 (&rows)[PhysicsLayerCount]);
         // 메시 콜라이더가 모델의 메시 자료를 읽는 곳이다(D-418). 없으면 빌트인 도형만 메시 콜라이더가 된다.
         void SetAssets(const AssetSystem* assets);
         Vector3 GetGravity() const;
@@ -68,6 +71,7 @@ namespace JBro::System
         Canvas* m_canvas = nullptr;
         const AssetSystem* m_assets = nullptr;
         UInt32 m_workerCount = 0;
+        UInt32 m_ignoredLayers[PhysicsLayerCount] = {};
         Vector3 m_gravity{0.0f, -9.81f, 0.0f};
         OwnerPtr<State> m_state;
     };

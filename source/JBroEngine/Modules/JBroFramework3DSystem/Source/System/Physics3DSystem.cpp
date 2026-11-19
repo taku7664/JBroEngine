@@ -111,6 +111,9 @@ namespace JBro::System
             Physics3D::ShapeDesc desc;
             desc.offset = Multiply(collider.offset, scale);
             desc.friction = collider.friction;
+            // 레이어는 콜라이더마다다(D-421) - 한 바디의 콜라이더 여럿도 저마다 거른다.
+            desc.layer = collider.layer;
+            desc.mask = collider.mask;
             desc.restitution = collider.restitution;
             switch (collider.shape)
             {
@@ -159,6 +162,8 @@ namespace JBro::System
             print.Mix(desc.offset);
             print.Mix(desc.friction);
             print.Mix(desc.restitution);
+            print.Mix(desc.layer);
+            print.Mix(desc.mask);
             const UInt64 points = desc.points.Size();
             const UInt64 indices = desc.indices.Size();
             print.Mix(&points, sizeof(points));
@@ -180,10 +185,8 @@ namespace JBro::System
         }
 
         // 바디의 성질(제자리에서 바뀌는 것). 레이어·마스크는 첫 고체 콜라이더의 것이다.
-        void FillProperties(const Component::Rigidbody3D* rigidbody, UInt32 layer, UInt32 mask, Physics3D::BodyDef& def)
+        void FillProperties(const Component::Rigidbody3D* rigidbody, Physics3D::BodyDef& def)
         {
-            def.layer = layer;
-            def.mask = mask;
             if (rigidbody == nullptr)
             {
                 return;
@@ -215,8 +218,6 @@ namespace JBro::System
             print.Mix(def.freezeRotationY);
             print.Mix(def.freezeRotationZ);
             print.Mix(def.canSleep);
-            print.Mix(def.layer);
-            print.Mix(def.mask);
             return print.value;
         }
 
@@ -257,8 +258,6 @@ namespace JBro::System
             Array<Physics3D::ShapeDesc> shapes;
             // 메시 사본의 판을 섞은 값. 도형 지문에 더한다.
             UInt64 meshVersions = 0;
-            UInt32 layer = 0x00000001u;
-            UInt32 mask = 0xFFFFFFFFu;
             Object::GameObject* object = nullptr;
             Pose pose;
         };
@@ -331,6 +330,14 @@ namespace JBro::System
     void Physics3DSystem::SetGravity(const Vector3& gravity)
     {
         m_gravity = gravity;
+    }
+
+    void Physics3DSystem::SetIgnoredLayers(const UInt32 (&rows)[PhysicsLayerCount])
+    {
+        for (std::uint32_t row = 0; row < PhysicsLayerCount; ++row)
+        {
+            m_ignoredLayers[row] = rows[row];
+        }
     }
 
     void Physics3DSystem::SetWorkerCount(UInt32 count)
@@ -498,8 +505,6 @@ namespace JBro::System
                 MixShape(print, desc);
                 print.Mix(&meshVersion, sizeof(meshVersion));
                 print.Mix(moving);
-                print.Mix(UInt32(collider.layer));
-                print.Mix(UInt32(collider.mask));
                 const InstanceId colliderId = collider.GetInstanceId();
                 State::SensorLink* link = state.sensors.Find(colliderId);
                 if (link != nullptr && (link->signature != print.value || link->object != object->GetInstanceId()
@@ -518,8 +523,6 @@ namespace JBro::System
                     def.triggerSeesStatic = moving;
                     def.position = pose.position;
                     def.rotation = pose.rotation;
-                    def.layer = collider.layer;
-                    def.mask = collider.mask;
                     // 사건과 질의가 오브젝트를 찾도록 센서도 오브젝트 아이디를 싣는다.
                     def.userData = object->GetInstanceId();
                     State::SensorLink fresh;
@@ -542,12 +545,6 @@ namespace JBro::System
             {
                 state.groups.TryAdd(object->GetInstanceId(), State::Group{});
                 group = state.groups.Find(object->GetInstanceId());
-            }
-            if (group->shapes.Size() == 0)
-            {
-                // 레이어는 바디마다 하나라 첫 고체 콜라이더의 것을 쓴다.
-                group->layer = collider.layer;
-                group->mask = collider.mask;
             }
             group->shapes.Add(desc);
             group->meshVersions = group->meshVersions * 1099511628211ull + meshVersion;
@@ -574,7 +571,7 @@ namespace JBro::System
             const Physics3D::BodyType type = rigidbody != nullptr ? ToKernel(rigidbody->bodyType) : Physics3D::BodyType::Static;
             const InstanceId rigidbodyId = rigidbody != nullptr ? rigidbody->GetInstanceId() : InvalidInstanceId;
             Physics3D::BodyDef properties;
-            FillProperties(rigidbody, group.layer, group.mask, properties);
+            FillProperties(rigidbody, properties);
             const UInt64 propertiesPrint = PropertiesPrint(properties);
             Fingerprint shapesPrint;
             for (const Physics3D::ShapeDesc& desc : group.shapes)
@@ -757,6 +754,8 @@ namespace JBro::System
 
         // ── 4. 스텝 ─────────────────────────────────────────────────────────────────
         world.SetGravity(m_gravity);
+        // 프로젝트의 레이어 충돌 표(D-421). 표 하나를 옮기는 값싼 일이라 스텝마다 먹인다.
+        world.SetIgnoredLayers(m_ignoredLayers);
         // 같은 수면 커널이 아무것도 하지 않는다 - 스텝마다 풀을 세웠다 허물지 않는다.
         world.SetWorkerCount(m_workerCount);
         world.Step(fixedDeltaTime);

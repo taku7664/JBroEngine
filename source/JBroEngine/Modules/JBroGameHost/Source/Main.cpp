@@ -168,6 +168,9 @@ namespace
                         // 3D 도 게임이 시작할 때 한 번 정한다(D-419).
                         framework.SetPhysicsWorkerCount(
                             JBro::ResolvePhysicsWorkerCount3D(platform, engine.GetProjectFile(), projectFile.c_str()));
+                        JBro::UInt32 ignoredLayers3D[32] = {};
+                        JBro::ResolvePhysicsIgnoredLayers(engine.GetProjectFile(), ignoredLayers3D);
+                        framework.SetPhysicsIgnoredLayers(ignoredLayers3D);
 #endif
                         LoadStartupCanvas(framework, platform, engine, engine.IsRunningFromPackage()
                                 ? JBro::ResolvePackagedStartupCanvas(arguments, engine.GetProjectFile())

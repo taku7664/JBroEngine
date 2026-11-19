@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Host/BuildCanvasWork.h>
+
 #include <cstdint>
 #include <JBro/Types/UInt.h>
 
@@ -24,6 +26,5 @@ namespace JBro
     // 설정을 워커 수로 푼다. Single 은 0, Workers 는 그 값(상한 `MaxWorkerCount`), Auto 는 추천 값이다.
     UInt32 ResolvePhysicsWorkerCount(IPlatform& platform, const ProjectFile& project, const char* projectFilePath);
 
-    // 프로젝트의 `PhysicsIgnoredLayerPairs` 를 레이어 충돌 표로 푼다(D-233). 쌍마다 두 행에 대칭으로 비트를 세운다.
-    void ResolvePhysicsIgnoredLayers(const ProjectFile& project, UInt32 (&rows)[32]);
+    // 레이어 충돌 표 풀이(`ResolvePhysicsIgnoredLayers`)는 3D 와 함께 쓰므로 `JBro/Host/BuildCanvasWork.h` 로 옮겼다(D-421) - 아래 include 가 준다.
 }

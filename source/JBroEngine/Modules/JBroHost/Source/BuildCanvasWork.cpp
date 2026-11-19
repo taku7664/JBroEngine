@@ -44,4 +44,21 @@ namespace JBro
         }
         return work;
     }
+
+    void ResolvePhysicsIgnoredLayers(const ProjectFile& project, UInt32 (&rows)[32])
+    {
+        for (UInt32& row : rows)
+        {
+            row = 0u;
+        }
+        for (const ProjectLayerPair& pair : project.physicsIgnoredLayerPairs)
+        {
+            if (pair.first >= 32 || pair.second >= 32)
+            {
+                continue;
+            }
+            rows[pair.first] |= 1u << pair.second;
+            rows[pair.second] |= 1u << pair.first;
+        }
+    }
 }

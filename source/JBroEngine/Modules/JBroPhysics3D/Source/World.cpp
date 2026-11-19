@@ -99,32 +99,102 @@ namespace JBro::Physics3D
             return JPH::EMotionType::Static;
         }
 
-        // 도형마다의 마찰·반발을 Jolt 의 도형 userData 64 비트에 싣는다(위 32 비트 마찰, 아래 32 비트 반발). 접촉 때 닿은 잎 도형에서
-        // 꺼내 섞는다 - 복합 도형 안에서도 `GetSubShapeUserData` 가 잎 도형의 것을 준다.
-        JPH::uint64 PackSurface(Float friction, Float restitution)
-        {
-            const float f = friction;
-            const float r = restitution;
-            std::uint32_t fb = 0;
-            std::uint32_t rb = 0;
-            std::memcpy(&fb, &f, sizeof(fb));
-            std::memcpy(&rb, &r, sizeof(rb));
-            return (static_cast<JPH::uint64>(fb) << 32) | rb;
-        }
+        // ── 잎 도형 표(D-421) ─────────────────────────────────────────────
+        // 도형마다의 표면(마찰·반발)과 레이어는 커널이 바디마다 든 표에 있고, Jolt 의 잎 도형에는 그 표의 자리(꼬리표 + 번호)만 싣는다.
+        // 접촉과 질의는 닿은 잎의 번호로 표를 찾는다 - 복합 도형 안에서도 `GetSubShapeUserData` 가 잎 도형의 것을 준다.
+        // (전에는 마찰·반발을 userData 64 비트에 우겨 넣었다 - 레이어까지는 들어가지 않았다.)
+        constexpr JPH::uint64 LeafTag = 0x4C45414600000000ull;
+        constexpr JPH::uint64 LeafTagMask = 0xFFFFFFFF00000000ull;
 
-        void UnpackSurface(JPH::uint64 packed, float& friction, float& restitution)
+        struct LeafInfo
         {
-            const std::uint32_t fb = static_cast<std::uint32_t>(packed >> 32);
-            const std::uint32_t rb = static_cast<std::uint32_t>(packed & 0xFFFFFFFFu);
-            std::memcpy(&friction, &fb, sizeof(friction));
-            std::memcpy(&restitution, &rb, sizeof(restitution));
-        }
+            float friction = 0.6f;
+            float restitution = 0.0f;
+            std::uint32_t layer = 0x00000001u;
+            std::uint32_t mask = 0xFFFFFFFFu;
+        };
+
+        // 바디(번호)마다 잎 정보의 표다. 바디를 만들고 도형을 바꾸고 지울 때(메인 스레드, 스텝 밖)만 바뀌고, 스텝 안의 콜백(워커)과 질의는 읽기만 한다.
+        class LeafTable
+        {
+        public:
+            void Set(JPH::BodyID body, ArrayView<const ShapeDesc> shapes)
+            {
+                Array<LeafInfo> leaves;
+                leaves.Reserve(shapes.Size());
+                for (const ShapeDesc& desc : shapes)
+                {
+                    LeafInfo leaf;
+                    leaf.friction = desc.friction;
+                    leaf.restitution = desc.restitution;
+                    leaf.layer = desc.layer;
+                    leaf.mask = desc.mask;
+                    leaves.Add(leaf);
+                }
+                const UInt32 key = body.GetIndexAndSequenceNumber();
+                m_bodies.Remove(key);
+                m_bodies.TryAdd(key, std::move(leaves));
+            }
+
+            void Remove(JPH::BodyID body)
+            {
+                m_bodies.Remove(UInt32(body.GetIndexAndSequenceNumber()));
+            }
+
+            // 바디의 잎 하나. 잎 도형의 userData 가 꼬리표를 달지 않았거나(복합 도형 자체·옮긴 도형) 모르는 바디면 널이다.
+            const LeafInfo* Find(JPH::BodyID body, JPH::uint64 leafData) const
+            {
+                if ((leafData & LeafTagMask) != LeafTag)
+                {
+                    return nullptr;
+                }
+                const Array<LeafInfo>* leaves = m_bodies.Find(UInt32(body.GetIndexAndSequenceNumber()));
+                const std::uint32_t index = static_cast<std::uint32_t>(leafData & 0xFFFFFFFFull);
+                return leaves != nullptr && index < leaves->Size() ? &(*leaves)[index] : nullptr;
+            }
+
+            // 두 잎이 만나는가: 서로의 마스크가 상대 레이어를 품고, 레이어 충돌 표가 떼어 두지 않은 비트 쌍이 하나라도 있다.
+            Bool Meet(const LeafInfo& a, const LeafInfo& b) const
+            {
+                if ((a.layer & b.mask) == 0 || (b.layer & a.mask) == 0)
+                {
+                    return false;
+                }
+                if (false == m_anyIgnored)
+                {
+                    return true;
+                }
+                for (std::uint32_t bit = 0; bit < 32; ++bit)
+                {
+                    if ((a.layer & (1u << bit)) != 0 && (b.layer & ~m_ignored[bit]) != 0)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            void SetIgnored(const UInt32 (&rows)[32])
+            {
+                m_anyIgnored = false;
+                for (std::uint32_t row = 0; row < 32; ++row)
+                {
+                    m_ignored[row] = rows[row];
+                    m_anyIgnored = m_anyIgnored || rows[row] != 0;
+                }
+            }
+
+        private:
+            Table<UInt32, Array<LeafInfo>> m_bodies;
+            std::uint32_t m_ignored[32] = {};
+            Bool m_anyIgnored = false;
+        };
 
         // 잎 도형 하나(원점 기준, offset 없이). 크기가 0 이하면 만들지 않는다 - Jolt 는 그런 도형을 오류로 돌려주거나 단언으로 멈춘다.
-        JPH::ShapeRefC MakeLeaf(const ShapeDesc& desc)
+        JPH::ShapeRefC MakeLeaf(const ShapeDesc& desc, std::uint32_t leafIndex)
         {
             JPH::ShapeRefC inner;
-            const JPH::uint64 surface = PackSurface(desc.friction, desc.restitution);
+            const JPH::uint64 surface = LeafTag | leafIndex;
             switch (desc.type)
             {
             case ShapeType::Box:
@@ -268,7 +338,7 @@ namespace JBro::Physics3D
                 JPH::StaticCompoundShapeSettings compound;
                 for (std::size_t index = 0; index < shapes.Size(); ++index)
                 {
-                    JPH::ShapeRefC leaf = MakeLeaf(shapes[index]);
+                    JPH::ShapeRefC leaf = MakeLeaf(shapes[index], static_cast<std::uint32_t>(index));
                     if (leaf == nullptr)
                     {
                         return {};
@@ -283,7 +353,7 @@ namespace JBro::Physics3D
                 return result.Get();
             }
             const ShapeDesc& desc = shapes[0];
-            JPH::ShapeRefC inner = MakeLeaf(desc);
+            JPH::ShapeRefC inner = MakeLeaf(desc, 0);
             if (inner == nullptr)
             {
                 return {};
@@ -346,6 +416,21 @@ namespace JBro::Physics3D
                 stays.Reserve(256);
                 ends.Reserve(64);
                 pendingEnds.Reserve(64);
+            }
+
+            // **잎마다 거른다**(D-421). 바디 쌍은 넓은 판정에서 두 바디의 레이어를 합친 것으로 느슨하게 지났다 - 여기서 닿은 두 잎의 레이어·마스크·충돌 표로 다시 본다.
+            // 이 접촉 하나만 받거나 버린다(한 바디 쌍의 다른 잎 쌍은 따로 묻는다).
+            JPH::ValidateResult OnContactValidate(const JPH::Body& first, const JPH::Body& second, JPH::RVec3Arg baseOffset,
+                const JPH::CollideShapeResult& result) override
+            {
+                (void)baseOffset;
+                const LeafInfo* a = leaves->Find(first.GetID(), first.GetShape()->GetSubShapeUserData(result.mSubShapeID1));
+                const LeafInfo* b = leaves->Find(second.GetID(), second.GetShape()->GetSubShapeUserData(result.mSubShapeID2));
+                if (a == nullptr || b == nullptr || leaves->Meet(*a, *b))
+                {
+                    return JPH::ValidateResult::AcceptContact;
+                }
+                return JPH::ValidateResult::RejectContact;
             }
 
             void OnContactAdded(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
@@ -494,6 +579,8 @@ namespace JBro::Physics3D
             Array<ContactEvent> begins;
             Array<ContactEvent> stays;
             Array<ContactEvent> ends;
+            // 잎 표. Impl 이 만들 때 걸어 둔다.
+            const LeafTable* leaves = nullptr;
 
         private:
             static UInt64 Key(JPH::BodyID a, JPH::BodyID b)
@@ -531,15 +618,15 @@ namespace JBro::Physics3D
             Array<UInt64> removals;
             Array<UInt64> emptied;
 
-            static void Mix(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
-                JPH::ContactSettings& settings)
+            void Mix(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
+                JPH::ContactSettings& settings) const
             {
-                float frictionA = 0.0f;
-                float restitutionA = 0.0f;
-                float frictionB = 0.0f;
-                float restitutionB = 0.0f;
-                UnpackSurface(first.GetShape()->GetSubShapeUserData(manifold.mSubShapeID1), frictionA, restitutionA);
-                UnpackSurface(second.GetShape()->GetSubShapeUserData(manifold.mSubShapeID2), frictionB, restitutionB);
+                const LeafInfo* a = leaves->Find(first.GetID(), first.GetShape()->GetSubShapeUserData(manifold.mSubShapeID1));
+                const LeafInfo* b = leaves->Find(second.GetID(), second.GetShape()->GetSubShapeUserData(manifold.mSubShapeID2));
+                const float frictionA = a != nullptr ? a->friction : first.GetFriction();
+                const float restitutionA = a != nullptr ? a->restitution : first.GetRestitution();
+                const float frictionB = b != nullptr ? b->friction : second.GetFriction();
+                const float restitutionB = b != nullptr ? b->restitution : second.GetRestitution();
                 settings.mCombinedFriction = std::sqrt(frictionA * frictionB);
                 settings.mCombinedRestitution = restitutionA > restitutionB ? restitutionA : restitutionB;
             }
@@ -623,7 +710,21 @@ namespace JBro::Physics3D
             physics.Init(settings.maxBodies, 0, settings.maxBodyPairs, settings.maxContactConstraints, broadPhaseLayers,
                 objectVsBroadPhase, objectPairs);
             physics.SetGravity(ToJolt(settings.gravity));
+            contacts.leaves = &leaves;
             physics.SetContactListener(&contacts);
+        }
+
+        // 바디의 넓은 판정 층: 잎들의 레이어를 합친 것과 마스크를 합친 것. 잎 쌍마다 다시 거르므로 여기서는 느슨해도 된다 - 넓게 지난 쌍만 묻는다.
+        JPH::ObjectLayer ComboFor(ArrayView<const ShapeDesc> shapes, Bool moving)
+        {
+            std::uint32_t layer = 0;
+            std::uint32_t mask = 0;
+            for (const ShapeDesc& desc : shapes)
+            {
+                layer |= desc.layer;
+                mask |= desc.mask;
+            }
+            return FindOrAddCombo(layer, mask, moving);
         }
 
         // 동적 바디의 질량을 도형의 관성 모양 그대로 `mass` 로 맞춘다. 축 고정도 여기서 먹는다(Jolt 는 둘을 함께 받는다).
@@ -674,8 +775,37 @@ namespace JBro::Physics3D
         BroadPhaseLayers broadPhaseLayers;
         ObjectVsBroadPhase objectVsBroadPhase;
         ObjectPairs objectPairs;
+        LeafTable leaves;
         ContactTracker contacts;
         JPH::PhysicsSystem physics;
+
+        // 질의가 잎마다 거르는 자리다(D-421). 바디 쌍의 거르기(아래 QueryLayers)를 지난 바디의 잎이 마스크와 겹쳐야 맞는다.
+        class QueryShapes final : public JPH::ShapeFilter
+        {
+        public:
+            QueryShapes(const Impl& owner, UInt32 mask) : m_owner(owner), m_mask(mask)
+            {
+            }
+
+            bool ShouldCollide(const JPH::Shape* shape, const JPH::SubShapeID& subShape) const override
+            {
+                (void)subShape;
+                const LeafInfo* leaf = m_owner.leaves.Find(mBodyID2, shape->GetUserData());
+                return leaf == nullptr || (leaf->layer & m_mask) != 0;
+            }
+
+            bool ShouldCollide(const JPH::Shape* first, const JPH::SubShapeID& firstSub, const JPH::Shape* second,
+                const JPH::SubShapeID& secondSub) const override
+            {
+                (void)first;
+                (void)firstSub;
+                return ShouldCollide(second, secondSub);
+            }
+
+        private:
+            const Impl& m_owner;
+            UInt32 m_mask;
+        };
 
         // 질의가 레이어 마스크로 거르는 자리다. 표의 조합 번호에서 그 바디의 레이어를 찾는다.
         class QueryLayers final : public JPH::ObjectLayerFilter
@@ -752,7 +882,7 @@ namespace JBro::Physics3D
             dofs = JPH::EAllowedDOFs::All;
         }
         const Bool moving = motion != JPH::EMotionType::Static;
-        const JPH::ObjectLayer layer = m_impl->FindOrAddCombo(def.layer, def.mask, moving);
+        const JPH::ObjectLayer layer = m_impl->ComboFor(shapes, moving);
         if (layer == JPH::cObjectLayerInvalid)
         {
             return {};
@@ -789,6 +919,7 @@ namespace JBro::Physics3D
         {
             return {};
         }
+        m_impl->leaves.Set(id, shapes);
         return BodyId{id.GetIndexAndSequenceNumber()};
     }
 
@@ -802,6 +933,7 @@ namespace JBro::Physics3D
         JPH::BodyInterface& bodyInterface = m_impl->physics.GetBodyInterfaceNoLock();
         bodyInterface.RemoveBody(ToJolt(body));
         bodyInterface.DestroyBody(ToJolt(body));
+        m_impl->leaves.Remove(ToJolt(body));
     }
 
     Bool World::IsValid(BodyId body) const
@@ -979,6 +1111,14 @@ namespace JBro::Physics3D
         {
             return false;
         }
+        // 잎 표를 먼저 바꾼다 - 새 도형의 잎 번호가 곧 이 표의 자리다. 넓은 판정 층도 새 잎들의 레이어로.
+        m_impl->leaves.Set(ToJolt(body), shapes);
+        const Bool moving = m_impl->physics.GetBodyInterfaceNoLock().GetMotionType(ToJolt(body)) != JPH::EMotionType::Static;
+        const JPH::ObjectLayer layer = m_impl->ComboFor(shapes, moving);
+        if (layer != JPH::cObjectLayerInvalid)
+        {
+            m_impl->physics.GetBodyInterfaceNoLock().SetObjectLayer(ToJolt(body), layer);
+        }
         // 질량은 Jolt 가 밀도로 다시 셈하지 않게 하고(false), 지금의 질량을 새 도형의 관성 모양으로 다시 나눈다.
         m_impl->physics.GetBodyInterfaceNoLock().SetShape(ToJolt(body), shape.GetPtr(), false, JPH::EActivation::Activate);
         JPH::BodyLockWrite lock(m_impl->physics.GetBodyLockInterfaceNoLock(), ToJolt(body));
@@ -1022,16 +1162,16 @@ namespace JBro::Physics3D
             }
         }
         const Bool moving = bodyInterface.GetMotionType(ToJolt(body)) != JPH::EMotionType::Static;
-        const JPH::ObjectLayer layer = m_impl->FindOrAddCombo(def.layer, def.mask, moving);
-        if (layer != JPH::cObjectLayerInvalid)
-        {
-            bodyInterface.SetObjectLayer(ToJolt(body), layer);
-        }
         // 성질을 바꾸면 깨운다(2D 와 같다) - 중력을 다시 켜도 잠든 채면 떨어지지 않는다.
         if (moving)
         {
             bodyInterface.ActivateBody(ToJolt(body));
         }
+    }
+
+    void World::SetIgnoredLayers(const UInt32 (&rows)[32])
+    {
+        m_impl->leaves.SetIgnored(rows);
     }
 
     void World::SetGravity(const Vector3& gravity)
@@ -1151,7 +1291,8 @@ namespace JBro::Physics3D
         settings.mTreatConvexAsSolid = true;
         JPH::ClosestHitCollisionCollector<JPH::CastRayCollector> collector;
         const Impl::QueryLayers layers(*m_impl, layerMask);
-        m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, settings, collector, {}, layers);
+        const Impl::QueryShapes leafFilter(*m_impl, layerMask);
+        m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, settings, collector, {}, layers, {}, leafFilter);
         if (false == collector.HadHit())
         {
             return false;
@@ -1176,7 +1317,8 @@ namespace JBro::Physics3D
         settings.mBackFaceModeConvex = JPH::EBackFaceMode::IgnoreBackFaces;
         JPH::AllHitCollisionCollector<JPH::CastRayCollector> collector;
         const Impl::QueryLayers layers(*m_impl, layerMask);
-        m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, settings, collector, {}, layers);
+        const Impl::QueryShapes leafFilter(*m_impl, layerMask);
+        m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, settings, collector, {}, layers, {}, leafFilter);
         collector.Sort();
         for (const JPH::RayCastResult& result : collector.mHits)
         {
@@ -1208,8 +1350,9 @@ namespace JBro::Physics3D
         JPH::CollideShapeSettings settings;
         JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
         const Impl::QueryLayers layers(*m_impl, layerMask);
+        const Impl::QueryShapes leafFilter(*m_impl, layerMask);
         m_impl->physics.GetNarrowPhaseQueryNoLock().CollideShape(&sphere, JPH::Vec3::sOne(),
-            JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z)), settings, JPH::RVec3::sZero(), collector, {}, layers);
+            JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z)), settings, JPH::RVec3::sZero(), collector, {}, layers, {}, leafFilter);
         Array<JPH::uint32> seen;
         for (const JPH::CollideShapeResult& result : collector.mHits)
         {
@@ -1233,9 +1376,10 @@ namespace JBro::Physics3D
         JPH::CollideShapeSettings settings;
         JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
         const Impl::QueryLayers layers(*m_impl, layerMask);
+        const Impl::QueryShapes leafFilter(*m_impl, layerMask);
         m_impl->physics.GetNarrowPhaseQueryNoLock().CollideShape(&box, JPH::Vec3::sOne(),
             JPH::RMat44::sRotationTranslation(ToJolt(rotation), JPH::RVec3(center.x, center.y, center.z)), settings, JPH::RVec3::sZero(),
-            collector, {}, layers);
+            collector, {}, layers, {}, leafFilter);
         Array<JPH::uint32> seen;
         for (const JPH::CollideShapeResult& result : collector.mHits)
         {
@@ -1259,7 +1403,8 @@ namespace JBro::Physics3D
             settings.mBackFaceModeConvex = JPH::EBackFaceMode::IgnoreBackFaces;
             JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
             const typename ImplT::QueryLayers layers(impl, layerMask);
-            impl.physics.GetNarrowPhaseQueryNoLock().CastShape(cast, settings, JPH::RVec3::sZero(), collector, {}, layers);
+            const typename ImplT::QueryShapes leafFilter(impl, layerMask);
+            impl.physics.GetNarrowPhaseQueryNoLock().CastShape(cast, settings, JPH::RVec3::sZero(), collector, {}, layers, {}, leafFilter);
             if (false == collector.HadHit())
             {
                 return false;

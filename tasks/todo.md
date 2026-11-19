@@ -3058,6 +3058,17 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-421. 3D 레이어는 콜라이더마다이고, 프로젝트의 레이어 충돌 표를 따른다.** (2026-11-20, physics3d-plan §4 의 열림)
+  Updates: D-416(한 오브젝트의 고체 콜라이더 여럿은 첫 콜라이더의 레이어), D-233(레이어 충돌 표를 3D 에도).
+  (1) 커널: `ShapeDesc` 가 `layer`·`mask` 를 든다(`BodyDef` 에서 뺐다). 바디마다 잎 도형 표(`LeafTable`: 마찰·반발·레이어·마스크)를 들고 잎 도형의 userData 는 그 자리(꼬리표 + 번호)다 -
+  전에는 마찰·반발을 64 비트에 우겨 넣어 레이어가 들어갈 자리가 없었다. 넓은 판정은 잎들을 합친 레이어·마스크로 느슨하게, `OnContactValidate` 가 닿은 두 잎으로,
+  질의는 `ShapeFilter` 가 맞은 잎으로 다시 거른다. `SetIgnoredLayers` 가 2D 와 같은 뜻의 충돌 표다.
+  (2) 어댑터는 콜라이더마다 레이어를 도형에 싣고(첫 콜라이더 규칙을 지웠다), `SetIgnoredLayers` 를 스텝마다 먹인다. `Framework3D::SetPhysicsIgnoredLayers`, 에디터·게임 호스트 연결.
+  `ResolvePhysicsIgnoredLayers` 를 2D 시스템에서 `JBroHost`(`BuildCanvasWork.h`)로 옮겼다 - 2D 헤더는 그것을 include 해 기존 호출이 그대로다.
+  확인: `Physics3DWorld` 의 `TestEachShapeHasItsOwnLayer`(두 레이어 바디가 위 도형으로 서고 아래 도형은 바닥을 지난다, 질의가 도형의 레이어로 거른다, 충돌 표),
+  에디터 `TestTheLayerTableAndPerColliderLayersReachPlayIn3D`(저장한 충돌 표로 레이어 3 상자가 레이어 4 바닥을 지나고, 콜라이더 둘의 오브젝트가 레이어 0 콜라이더로 선다).
+  뮤테이션 일곱이 모두 잡혔다(잎 쌍을 거르지 않음·충돌 표 무시·질의의 잎 거르기 빼기·넓은 판정을 첫 도형으로·어댑터가 레이어 하나만·에디터와 어댑터가 충돌 표를 넘기지 않음). Physics3DWorld·Physics2D 둘·ScriptHotReload·EditorApplication 전체가 지난다.
+
 - **D-420. 3D 스크립트가 몸에 힘과 충격량을 준다 - 2D 와 같은 이름·같은 때.** (2026-11-20, physics3d-plan §4 의 열림)
   Updates: D-416(`Rigidbody3D` 핸들), D-227(2D 의 힘·충격량을 3D 로).
   (1) `Component::Rigidbody3D` 에 `PendingForces3D` 와 `AddForce`·`AddForceAtPosition`·`AddTorque`·`AddImpulse`·`AddImpulseAtPosition`·`AddAngularImpulse`·`WakeUp`·`IsSleeping`.

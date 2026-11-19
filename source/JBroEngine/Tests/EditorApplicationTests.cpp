@@ -7173,6 +7173,82 @@ namespace
         editor.Shutdown();
     }
 
+    // **프로젝트의 레이어 충돌 표가 3D 재생까지 간다**(D-421, 전에는 2D 만 따랐다). 한 오브젝트의 콜라이더 둘도 저마다의 레이어로 거른다.
+    void TestTheLayerTableAndPerColliderLayersReachPlayIn3D()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroLayerTable3DProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root, ignored);
+        const JBro::String projectPath = TempPath("JBroLayerTable3DProbe\\Layers.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: Layers3DProbe\n"),
+            "the test must be able to write its own project file");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the 3D layer table not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::ProjectFile settings = editor.GetProjectFile();
+        settings.physicsIgnoredLayerPairs.Add(JBro::ProjectLayerPair{3, 4});
+        Check(editor.SaveProjectSettings(settings, error), "the layer table saves");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto place = [&](const char* tag, JBro::Vector3 position, JBro::UInt32 layer, JBro::Bool dynamic) {
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
+            canvas->AttachComponent<JBro::Component::Transform3D>(object)->position = position;
+            auto* collider = canvas->AttachComponent<JBro::Component::Collider3D>(object);
+            collider->layer = layer;
+            if (dynamic)
+            {
+                canvas->AttachComponent<JBro::Component::Rigidbody3D>(object);
+            }
+            return object;
+        };
+        JBro::Object::GameObject* ground = place("Ground", {0.0f, -0.5f, 0.0f}, 0x10u, false);
+        canvas->FindComponentRaw<JBro::Component::Collider3D>(ground)->size = {20.0f, 1.0f, 20.0f};
+        JBro::Object::GameObject* sinker = place("Sinker", {-3.0f, 2.0f, 0.0f}, 0x8u, true);
+        JBro::Object::GameObject* lander = place("Lander", {3.0f, 2.0f, 0.0f}, 0x1u, true);
+        // 콜라이더 둘: 아래로 비켜 앉은 것은 레이어 3(바닥과 떼어 둠), 원점의 것은 레이어 0. 위 것으로 바닥에 선다.
+        JBro::Object::GameObject* pair = place("Pair", {0.0f, 3.0f, 3.0f}, 0x1u, true);
+        auto* sunk = canvas->AttachComponent<JBro::Component::Collider3D>(pair);
+        sunk->offset = {0.0f, -1.0f, 0.0f};
+        sunk->layer = JBro::UInt32(0x8u);
+        auto* pairBody = canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(pair);
+        pairBody->freezeRotationX = pairBody->freezeRotationY = pairBody->freezeRotationZ = true;
+        const auto positionOf = [&](JBro::Object::GameObject* object) {
+            return canvas->FindComponentRaw<JBro::Component::Transform3D>(object)->position;
+        };
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        for (JBro::Int32 frame = 0; frame < 150; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        std::cout << "  sinker " << positionOf(sinker).y << ", lander " << positionOf(lander).y << ", pair " << positionOf(pair).y << std::endl;
+        Check(positionOf(sinker).y < -3.0f, "the project's layer table lets layer 3 pass through the layer 4 ground");
+        Check(positionOf(lander).y > 0.45f && positionOf(lander).y < 0.505f, "a layer 0 box still rests on it");
+        Check(positionOf(pair).y > 0.45f && positionOf(pair).y < 0.505f,
+            "two colliders on one object filter by their own layers - the layer 0 one holds the body up while the layer 3 one sinks");
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
     void TestThePhysicsThreadsSettingReachesPlayIn3D()
     {
         namespace fs = std::filesystem;
@@ -20672,6 +20748,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D());
     JBRO_CASE(TestThePhysicsThreadsSettingReachesPlayIn3D());
     JBRO_CASE(TestForcesAndImpulsesReachA3DBody());
+    JBRO_CASE(TestTheLayerTableAndPerColliderLayersReachPlayIn3D());
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());

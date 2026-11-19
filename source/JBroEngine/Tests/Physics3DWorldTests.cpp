@@ -63,7 +63,7 @@ namespace
         ground.shape.type = ShapeType::Box;
         ground.shape.halfExtents = {20.0f, 0.5f, 20.0f};
         ground.position = {0.0f, -0.5f, 0.0f};
-        ground.layer = layer;
+        ground.shape.layer = layer;
         ground.isTrigger = trigger;
         const BodyId id = world.CreateBody(ground);
         Check(world.IsValid(id), "the ground must be made");
@@ -132,7 +132,7 @@ namespace
         const BodyId stands = world.CreateBody(hits);
         BodyDef skips = BoxAt({2.0f, 2.0f, 0.0f});
         // 바닥의 층(비트 1)을 마스크에서 뺐다.
-        skips.mask = 0xFFFFFFFDu;
+        skips.shape.mask = 0xFFFFFFFDu;
         const BodyId falls = world.CreateBody(skips);
         Run(world, 2.0f);
         Check(RestsOnGround(world.GetPosition(stands).y), "a box whose mask has the ground's layer rests on it");
@@ -365,8 +365,9 @@ namespace
         props.SetBodyProperties(body, def);
         Run(props, 2.0f);
         Check(RestsOnGround(props.GetPosition(body).y), "gravity back on, it falls and rests");
-        def.mask = 0xFFFFFFFEu;
-        props.SetBodyProperties(body, def);
+        // 레이어는 도형에 있다(D-421) - 마스크를 바꾸려면 도형을 바꾼다.
+        def.shape.mask = 0xFFFFFFFEu;
+        Check(props.SetShapes(body, JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(&def.shape, 1)), "the body takes its shape with a new mask");
         props.SetTransform(body, {0.0f, 1.0f, 0.0f}, {});
         Run(props, 2.0f);
         Check(props.GetPosition(body).y < -5.0f, "leaving the ground's layer out of its mask lets it fall through");
@@ -499,7 +500,7 @@ namespace
         block.type = BodyType::Static;
         block.shape.halfExtents = {0.5f, 0.5f, 0.5f};
         block.position = {3.0f, 0.5f, 0.0f};
-        block.layer = 0x4u;
+        block.shape.layer = 0x4u;
         block.userData = 2;
         world.CreateBody(block);
         const JBro::UInt32 all = 0xFFFFFFFFu;
@@ -673,6 +674,60 @@ namespace
     }
 }
 
+namespace
+{
+    // **도형마다의 레이어**(D-421). 한 바디의 두 도형이 저마다 거른다: 아래 상자는 바닥의 레이어를 마스크에서 뺐고 위 상자는 바닥과 만난다 -
+    // 바디는 위 상자로 바닥에 선다(아래 상자는 바닥을 지난다). 첫 도형의 값만 쓰면 바디 전체가 바닥을 지난다.
+    // 레이어 충돌 표가 떼어 둔 두 레이어도 지나간다. 질의는 맞은 도형의 레이어로 거른다.
+    void TestEachShapeHasItsOwnLayer()
+    {
+        World world;
+        MakeGround(world, 0x2u);
+        JBro::Physics3D::ShapeDesc parts[2];
+        parts[0].halfExtents = {0.5f, 0.5f, 0.5f};
+        parts[0].offset = {0.0f, -1.0f, 0.0f};
+        parts[0].mask = ~JBro::UInt32(0x2u);
+        parts[0].layer = 0x8u;
+        parts[1].halfExtents = {0.5f, 0.5f, 0.5f};
+        parts[1].layer = 0x1u;
+        BodyDef stack = BoxAt({0.0f, 3.0f, 0.0f});
+        stack.shapes = JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(parts);
+        stack.freezeRotationX = stack.freezeRotationY = stack.freezeRotationZ = true;
+        const BodyId body = world.CreateBody(stack);
+        Run(world, 3.0f);
+        std::cout << "  two-layer body rests at y=" << world.GetPosition(body).y << '\n';
+        Check(RestsOnGround(world.GetPosition(body).y), "the upper shape stands on the ground while the lower one, masked off, sinks through it");
+
+        // 질의: 위 도형의 레이어(비트 0)만 묻는 반직선은 아래 도형을 지나 위 도형에 맞는다.
+        JBro::Physics3D::QueryHit hit;
+        Check(world.Raycast({3.0f, world.GetPosition(body).y, 0.0f}, {-1.0f, 0.0f, 0.0f}, 10.0f, 0x1u, hit) && Near(hit.point.x, 0.5f, 1.0e-2f),
+            "a ray asking for the upper shape's layer hits the upper shape");
+        Check(false == world.Raycast({3.0f, world.GetPosition(body).y - 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, 10.0f, 0x1u, hit),
+            "and passes the lower shape, which is on another layer of the same body");
+        Check(world.Raycast({3.0f, world.GetPosition(body).y - 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, 10.0f, 0x8u, hit),
+            "asking for the lower shape's layer finds it");
+
+        // 레이어 충돌 표: 레이어 3 과 4 를 떼어 두면 레이어 3 상자가 레이어 4 바닥을 지난다.
+        World table;
+        MakeGround(table, 0x10u);
+        BodyDef box = BoxAt({0.0f, 2.0f, 0.0f});
+        box.shape.layer = 0x8u;
+        const BodyId falls = table.CreateBody(box);
+        JBro::UInt32 rows[32] = {};
+        rows[3] = 0x10u;
+        rows[4] = 0x8u;
+        table.SetIgnoredLayers(rows);
+        Run(table, 2.0f);
+        Check(table.GetPosition(falls).y < -5.0f, "the layer table lets layer 3 pass through layer 4");
+        const JBro::UInt32 none[32] = {};
+        table.SetIgnoredLayers(none);
+        table.SetTransform(falls, {0.0f, 2.0f, 0.0f}, {});
+        table.SetLinearVelocity(falls, {});
+        Run(table, 2.0f);
+        Check(RestsOnGround(table.GetPosition(falls).y), "and with the table cleared it rests again");
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -688,6 +743,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestMeshesAndHulls());
     JBRO_CASE(TestWorkersSpeedUpALargePile());
     JBRO_CASE(TestForcesAndImpulses());
+    JBRO_CASE(TestEachShapeHasItsOwnLayer());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }
