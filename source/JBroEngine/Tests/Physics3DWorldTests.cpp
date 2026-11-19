@@ -787,6 +787,45 @@ namespace
     }
 }
 
+namespace
+{
+    // **빠른 몸이 얇은 벽을 뚫지 않는다**(D-425). 반지름 0.05 의 공이 한 스텝에 3 을 가며 두께 0.1 의 벽으로 간다 - 벽 앞에서 멈춘다.
+    // 공끼리도: 빠른 공이 떠 있는 상자를 지나치지 않고 민다.
+    void TestFastBodiesDoNotTunnel()
+    {
+        World world;
+        world.SetGravity({0.0f, 0.0f, 0.0f});
+        BodyDef wall;
+        wall.type = BodyType::Static;
+        wall.shape.halfExtents = {0.05f, 2.0f, 2.0f};
+        world.CreateBody(wall);
+        BodyDef bullet;
+        bullet.shape.type = ShapeType::Sphere;
+        bullet.shape.radius = 0.05f;
+        bullet.position = {-4.0f, 0.0f, 0.0f};
+        bullet.linearVelocity = {180.0f, 0.0f, 0.0f};
+        const BodyId shot = world.CreateBody(bullet);
+        for (JBro::Int32 step = 0; step < 10; ++step)
+        {
+            world.Step(Frame);
+        }
+        Check(world.GetPosition(shot).x < 0.0f, "a fast small ball stops at a thin wall instead of tunnelling through it");
+
+        World moving;
+        moving.SetGravity({0.0f, 0.0f, 0.0f});
+        BodyDef target = BoxAt({0.0f, 0.0f, 0.0f});
+        target.shape.halfExtents = {0.05f, 0.5f, 0.5f};
+        const BodyId box = moving.CreateBody(target);
+        bullet.position = {-4.0f, 0.0f, 0.0f};
+        moving.CreateBody(bullet);
+        for (JBro::Int32 step = 0; step < 3; ++step)
+        {
+            moving.Step(Frame);
+        }
+        Check(moving.GetLinearVelocity(box).x > 0.1f, "a fast ball pushes a thin floating box instead of passing it");
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -804,6 +843,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestForcesAndImpulses());
     JBRO_CASE(TestEachShapeHasItsOwnLayer());
     JBRO_CASE(TestFastTriggersDoNotSkip());
+    JBRO_CASE(TestFastBodiesDoNotTunnel());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }

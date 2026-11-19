@@ -1060,6 +1060,10 @@ namespace JBro::Physics3D
         settings.mAngularDamping = def.angularDamping;
         settings.mAllowSleeping = def.canSleep;
         settings.mAllowedDOFs = dofs;
+        // **이어지는 판정(CCD)은 동적인 몸 모두에 저절로다**(D-425, 2D 의 D-234 와 같다 - 켜는 칸이 없다). Jolt 의 `LinearCast` 는 한 스텝에 제 안쪽 반지름의
+        // 일정 몫보다 멀리 가는 몸만 쓸어 보므로, 느린 몸에는 값이 거의 들지 않는다. 트리거·키네마틱은 받지 않는다(트리거는 D-423 의 쓸기가 맡는다).
+        settings.mMotionQuality = motion == JPH::EMotionType::Dynamic && false == def.isTrigger ? JPH::EMotionQuality::LinearCast
+                                                                                               : JPH::EMotionQuality::Discrete;
         settings.mUserData = def.userData;
         if (motion != JPH::EMotionType::Static)
         {

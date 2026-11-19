@@ -102,7 +102,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 | 3 | 접촉 사건과 스크립트 훅·`Physics3DService` 질의 | 3D 시험 DLL 의 스크립트가 `OnCollisionEnter`·`OnTriggerEnter` 를 받고 `Raycast` 가 맞는다 | `[완료]` 2026-11-19 · D-417 · §3.3 |
 | 4 | 에디터: 콜라이더 그리기·메시 콜라이더 | 캔버스 뷰 스크린숏에 콜라이더 선, 메시 바닥 위에 상자가 선다 | `[완료]` 2026-11-20 · D-418 · §3.4 |
 | 5 | 잡 시스템을 `JBroTask` 위로·`Build.PhysicsThreads` | 바디 1000 개에서 워커 수에 따라 스텝 시간이 준다 | `[완료]` 2026-11-20 · D-419 · §3.5 (`JBroTask` 대신 Jolt 풀 - §2.3) |
-| 6 | 뒤의 것: 조인트·캐릭터 컨트롤러(`CharacterVirtual`)·CCD(`EMotionQuality::LinearCast`) | 항목마다 따로 정한다 | |
+| 6 | 뒤의 것: 조인트·캐릭터 컨트롤러(`CharacterVirtual`)·CCD(`EMotionQuality::LinearCast`) | 항목마다 따로 정한다 | `[진행]` CCD D-425 · §3.6 |
 
 ### 3.1 1 단계에서 한 것과 실측 (D-415)
 
@@ -181,6 +181,14 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 - **설정:** 빌드 캔버스를 읽어 일감을 세는 길을 2D 코드에서 떼어 `JBroHost` 의 `SumBuildCanvasWork` 로 옮겼다 - 2D·3D 가 함께 쓰고 세는 것만 다르다. 3D 는 `PhysicsThreads3D.h`
   (`CountPhysicsWork3D` = 켜진 `Collider3D` 수, `RecommendProjectPhysicsWorkers3D`, `ResolvePhysicsWorkerCount3D`)와 `Framework3D::SetPhysicsWorkerCount`. 에디터(프로젝트 열기·설정 저장·"추천 값 사용"·게임 빌드의 고정 값)와
   게임 호스트(3D 구성)가 3D 에도 연결된다. 시험 `TestThePhysicsThreadsSettingReachesPlayIn3D`(Single 0·Auto 는 600 콜라이더의 3D 기준·Workers 3).
+
+### 3.6 6 단계 - 뒤의 것 (D-425~)
+
+항목마다 사용자 지시("권고안대로, 장기적으로 건강한 구조")에 따라 권고안으로 정했다. 고른 것과 까닭은 각 결정에 있다.
+
+- **CCD(D-425):** 동적인 몸은 모두 Jolt 의 `LinearCast` 다. 켜는 칸은 없다 - 2D 도 동적인 몸 모두에 저절로다(D-234). Jolt 는 한 스텝에 제 안쪽 반지름의 일정 몫보다 멀리 가는 몸만
+  쓸어 보아 느린 몸에는 값이 거의 들지 않는다. 2D 와 달리 **동적인 몸끼리도** 본다(Jolt 가 그렇게 한다 - 2D 의 `[열림]` 하나를 3D 는 처음부터 넘는다). 트리거·키네마틱은 받지 않는다(트리거는 D-423 의 쓸기).
+  시험 `TestFastBodiesDoNotTunnel`: 반지름 0.05 의 공이 한 스텝에 3 을 가며 두께 0.1 의 벽 앞에서 서고, 떠 있는 얇은 상자를 지나치지 않고 민다. `[열림]` 회전으로만 빠른 몸(도는 긴 막대의 끝)은 보지 않는다 - Jolt 의 `LinearCast` 가 이동만 쓴다.
 
 ## 4. `[열림]`
 

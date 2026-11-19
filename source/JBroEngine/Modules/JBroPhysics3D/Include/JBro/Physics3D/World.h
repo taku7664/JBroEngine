@@ -74,6 +74,7 @@ namespace JBro::Physics3D
         UInt32 mask = 0xFFFFFFFFu;
     };
 
+    // **동적인 몸은 이어지는 판정(CCD)을 저절로 쓴다**(D-425) - 한 스텝에 제 크기보다 멀리 가도 얇은 벽을 뚫지 않는다. 동적인 몸끼리도 본다.
     struct BodyDef
     {
         BodyType type = BodyType::Dynamic;
