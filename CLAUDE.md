@@ -62,7 +62,6 @@
 ### 관련 문서
 
 - [README.md](./README.md) — 에디터 스크린숏뿐이다(2026-11-20, 위키와 함께 줄였다)
-- [tasks/handoff-2026-11-20.md](./tasks/handoff-2026-11-20.md) — 2026-11-20 세션 인계: 한 것(D-419~D-430), 검증이 덜 된 것, 원래 실패하는 시험, 남은 일
 - [docs/ProjectRule.md](./docs/ProjectRule.md) — 확정 규칙
 - [docs/JBroEngine.drawio.xml](./docs/JBroEngine.drawio.xml) — 구조 다이어그램 6장(계층 개관·모듈 의존·런타임과 프레임 루프·
   스크립트 경계·렌더링 경로·에디터). 규칙의 원문이 아니므로 `ProjectRule.md`·Decisions 와 어긋나면 원문이 맞고, 계약이 바뀌면 도면도 같이 고친다
