@@ -143,6 +143,8 @@
   지금 상태가 §1, 사용자와 정한 여덟 항목이 §2, 단계가 §3, `[열림]` 이 §4
 - [tasks/main-merge-plan.md](./tasks/main-merge-plan.md) — 로컬 main 과 원격 main 의 통합(D-406, 2026-11-19). 겹침 표·결정 번호 대응표(원격 D-335~D-352 → D-388~D-405)·
   머티리얼 두 갈래(셰이더 머티리얼·표준 머티리얼)와 이름을 가른 것, 시험 결과가 있다
+- [tasks/lighting3d-plan.md](./tasks/lighting3d-plan.md) — 3D 조명(D-407). `Light3D` 하나에 `Ambient`·`Directional`·`Point`·`Spot`, glTF 의 거리·원뿔 감쇠, 라이트가 없으면 지금의 고정 빛,
+  뷰마다 라이트 64 의 포워드. 지금 상태와 상용 엔진·glTF 비교가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.
   새 Tier E 모듈 `JBroPackage`, 에셋 시스템의 바이트 출처 `IAssetSource`, 호스트의 `BuildGame` 과 패키지로 여는 프로젝트(`AssetPackage`), 에디터 파일 메뉴 "게임 빌드".
   기존 엔진 `.jbpack` 의 구조와 아팠던 것 K1~K6(쓰는 곳 둘·색인의 임포트 옵션·`ifstream`·고정 키)이 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4, 실측이 §5 에 있다

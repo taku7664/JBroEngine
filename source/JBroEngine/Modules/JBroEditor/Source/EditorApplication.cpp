@@ -47,6 +47,7 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
@@ -2603,6 +2604,32 @@ namespace JBro
             if (auto* mesh = canvas->AttachComponent<Component::MeshRenderer3D>(cube))
             {
                 mesh->meshId = MeshLibrary::BuiltinCubeId();
+            }
+            // **빛 하나**(D-407 (3)). 라이트가 없을 때의 기본 빛과 같은 방향광(빛 쪽 (0.4, 0.8, 0.45), 0.75)과 환경광(0.25)을 한 오브젝트에 둔다 -
+            // 새 프로젝트의 그림이 라이트 기능 전과 같고, 사용자는 처음부터 빛을 고칠 자리를 본다(Unity 의 새 씬에 방향광이 있는 것과 같다).
+            Object::GameObject* light = canvas->CreateObject("Light");
+            if (light == nullptr)
+            {
+                return;
+            }
+            if (auto* transform = canvas->AttachComponent<Component::Transform3D>(light))
+            {
+                // 로컬 -Z 를 빛이 나아가는 쪽으로 돌린다: -Z 에서 그 쪽으로 가는 가장 짧은 회전이다.
+                const Vector3 from{0.0f, 0.0f, -1.0f};
+                const Vector3 to = Normalize(Vector3{-0.4f, -0.8f, -0.45f});
+                const Vector3 axis = Cross(from, to);
+                transform->position = Vector3{2.0f, 4.0f, 2.0f};
+                transform->rotation = Normalize(Quaternion{axis.x, axis.y, axis.z, 1.0f + Dot(from, to)});
+            }
+            if (auto* sun = canvas->AttachComponent<Component::Light3D>(light))
+            {
+                sun->type = Component::Light3DType::Directional;
+                sun->intensity = 0.75f;
+            }
+            if (auto* ambient = canvas->AttachComponent<Component::Light3D>(light))
+            {
+                ambient->type = Component::Light3DType::Ambient;
+                ambient->intensity = 0.25f;
             }
             return;
         }

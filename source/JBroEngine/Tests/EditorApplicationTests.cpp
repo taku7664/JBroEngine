@@ -81,6 +81,8 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Types/Math3D.h>
@@ -19595,6 +19597,21 @@ namespace
         Check(mesh != nullptr && mesh->meshId == JBro::MeshLibrary::BuiltinCubeId() && mesh->visible,
             "the cube draws the builtin cube mesh");
         Check(canvas->FindComponentRaw<JBro::Component::Transform3D>(cube) != nullptr, "and has a 3D transform");
+        // 시작 라이트(D-407 (3)): 기본 빛과 같은 방향광과 환경광이 한 오브젝트에 있다.
+        JBro::Object::GameObject* lamp = FindRootNamed(*canvas, "Light");
+        Check(lamp != nullptr && canvas->FindComponentRaw<JBro::Component::Transform3D>(lamp) != nullptr, "the new 3D canvas starts with a light");
+        JBro::Int32 suns = 0;
+        JBro::Int32 ambients = 0;
+        canvas->ForEach<JBro::Component::Light3D>([&](JBro::Component::Light3D& light) {
+            if (JBro::Internal::CanvasAccess::GetOwner(light) == lamp)
+            {
+                suns += light.type == JBro::Component::Light3DType::Directional && light.intensity == 0.75f ? 1 : 0;
+                ambients += light.type == JBro::Component::Light3DType::Ambient && light.intensity == 0.25f ? 1 : 0;
+            }
+        });
+        Check(suns == 1 && ambients == 1, "the light is a sun of 0.75 and an ambient of 0.25 - the built-in light as components");
+        const JBro::Vector3 shines = JBro::Rotate(canvas->FindComponentRaw<JBro::Component::Transform3D>(lamp)->rotation, JBro::Vector3{0.0f, 0.0f, -1.0f});
+        Check(JBro::Dot(shines, JBro::Normalize(JBro::Vector3{-0.4f, -0.8f, -0.45f})) > 0.9999f, "and the sun shines the built-in light's way");
         Check(editor.GetCommands().CanUndo() == false, "the starter objects are not an edit to undo");
         ScenarioShot(editor, "d03_project_open");
 

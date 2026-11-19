@@ -22,6 +22,18 @@ namespace JBro::Component
 {
     // 후처리 볼륨의 모양이다(D-346). `Global` 은 캔버스 어디서나, `Box`·`Sphere` 는 오브젝트의 트랜스폼에 놓인 모양 안이다.
     enum class PostProcessVolumeShape3D : std::uint8_t { Global, Box, Sphere };
+    // 3D 라이트의 종류다(D-407). 값의 차례는 파일과 렌더러의 `Light3DKind` 가 함께 쓰므로 뒤에만 더한다.
+    enum class Light3DType : std::uint8_t
+    {
+        // 캔버스 전체에 같은 빛이다(환경광). 자리·방향을 보지 않는다. 여럿이면 더한다. 2D 의 `Global` 이다.
+        Ambient,
+        // 해처럼 끝없이 먼 빛이다. 오브젝트의 로컬 -Z 쪽으로 간다. 자리를 보지 않는다.
+        Directional,
+        // 둘레로 퍼지는 빛이다.
+        Point,
+        // 오브젝트의 로컬 -Z 를 향한 원뿔이다.
+        Spot,
+    };
 }
 
 namespace JBro
@@ -30,6 +42,11 @@ namespace JBro
         { Component::PostProcessVolumeShape3D::Global, "Global" },
         { Component::PostProcessVolumeShape3D::Box,    "Box" },
         { Component::PostProcessVolumeShape3D::Sphere, "Sphere" });
+    JBRO_DEFINE_ENUM_TYPE(Component::Light3DType, "Component::Light3DType",
+        { Component::Light3DType::Ambient,     "Ambient" },
+        { Component::Light3DType::Directional, "Directional" },
+        { Component::Light3DType::Point,       "Point" },
+        { Component::Light3DType::Spot,        "Spot" });
 }
 
 namespace JBro::Component

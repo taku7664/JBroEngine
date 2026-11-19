@@ -11,7 +11,7 @@ namespace JBro
         try
         {
             m_meshes.Reserve(capacity);
-            m_lights.Reserve(64);
+
             m_layerOrders.Reserve(m_meshes.Capacity() + m_texts.Capacity());
         }
         catch (const std::bad_alloc&)
@@ -44,6 +44,47 @@ namespace JBro
         m_lights.Clear();
         m_texts.Clear();
         m_droppedTextCount = 0;
+        m_lights.Clear();
+        m_droppedLightCount = 0;
+    }
+
+    Bool RenderWorld3D::ReserveLights(std::size_t capacity)
+    {
+        try
+        {
+            m_lights.Reserve(capacity);
+        }
+        catch (const std::bad_alloc&)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    Bool RenderWorld3D::SubmitLight(const Light3DRenderItem& item)
+    {
+        if (m_lights.Size() >= m_lights.Capacity())
+        {
+            ++m_droppedLightCount;
+            return false;
+        }
+        m_lights.Add(item);
+        return true;
+    }
+
+    std::size_t RenderWorld3D::GetLightCount() const
+    {
+        return m_lights.Size();
+    }
+
+    std::size_t RenderWorld3D::GetDroppedLightCount() const
+    {
+        return m_droppedLightCount;
+    }
+
+    const Light3DRenderItem& RenderWorld3D::GetLight(std::size_t index) const
+    {
+        return m_lights[index];
     }
 
     Bool RenderWorld3D::SubmitText(const WorldTextRenderItem& item)
@@ -108,27 +149,6 @@ namespace JBro
     const RenderCamera3D* RenderWorld3D::GetCamera() const
     {
         return m_hasCamera ? &m_camera : nullptr;
-    }
-
-    Bool RenderWorld3D::SubmitLight(const LightRenderItem3D& item)
-    {
-        // 상한 넘은 것은 렌더러가 세는 것과 같은 까닭이라 여기서는 잡아 둔 칸까지만 받는다(프레임 안에서 자라지 않는다).
-        if (m_lights.Size() >= m_lights.Capacity())
-        {
-            return false;
-        }
-        m_lights.Add(item);
-        return true;
-    }
-
-    std::size_t RenderWorld3D::GetLightCount() const
-    {
-        return m_lights.Size();
-    }
-
-    const LightRenderItem3D& RenderWorld3D::GetLight(std::size_t index) const
-    {
-        return m_lights[index];
     }
 
     std::size_t RenderWorld3D::GetMeshCount() const

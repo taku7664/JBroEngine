@@ -9,6 +9,26 @@ namespace JBro::Handle
         return static_cast<Component::Light3D*>(ResolveComponent(StaticTypeName(), operation));
     }
 
+    Component::Light3DType Light3D::GetType() const
+    {
+        const Component::Light3D* component = Resolve("GetType");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->type;
+    }
+
+    void Light3D::SetType(Component::Light3DType value)
+    {
+        Component::Light3D* component = Resolve("SetType");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->type = value;
+    }
+
     Color Light3D::GetColor() const
     {
         const Component::Light3D* component = Resolve("GetColor");
@@ -67,5 +87,45 @@ namespace JBro::Handle
             return;
         }
         component->range = value;
+    }
+
+    Degree Light3D::GetInnerAngle() const
+    {
+        const Component::Light3D* component = Resolve("GetInnerAngle");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->innerAngle;
+    }
+
+    void Light3D::SetInnerAngle(Degree value)
+    {
+        Component::Light3D* component = Resolve("SetInnerAngle");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->innerAngle = value;
+    }
+
+    Degree Light3D::GetOuterAngle() const
+    {
+        const Component::Light3D* component = Resolve("GetOuterAngle");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->outerAngle;
+    }
+
+    void Light3D::SetOuterAngle(Degree value)
+    {
+        Component::Light3D* component = Resolve("SetOuterAngle");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->outerAngle = value;
     }
 }

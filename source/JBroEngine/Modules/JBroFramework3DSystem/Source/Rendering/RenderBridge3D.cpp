@@ -73,30 +73,6 @@ namespace JBro::Internal
         // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 시뮬레이션 뷰는 보지 않는다.
         Bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, Bool editorView, std::uint16_t layerOrder)
         {
-            // 메시를 받는 뷰마다 라이트를 낸다(D-367). 넘친 라이트는 렌더러가 센다.
-            for (std::size_t at = 0; at < world.GetLightCount(); ++at)
-            {
-                const LightRenderItem3D& light = world.GetLight(at);
-                if (editorView && light.owner != nullptr && light.owner->IsEditorHidden())
-                {
-                    continue;
-                }
-                Light3DSubmit submit;
-                submit.kind = light.type == Component::Light3DType::Point ? Light3DKind::Point
-                    : light.type == Component::Light3DType::Ambient       ? Light3DKind::Ambient
-                                                                          : Light3DKind::Directional;
-                submit.position[0] = light.position.x;
-                submit.position[1] = light.position.y;
-                submit.position[2] = light.position.z;
-                submit.direction[0] = light.forward.x;
-                submit.direction[1] = light.forward.y;
-                submit.direction[2] = light.forward.z;
-                submit.color[0] = light.color.R * light.intensity;
-                submit.color[1] = light.color.G * light.intensity;
-                submit.color[2] = light.color.B * light.intensity;
-                submit.range = light.range;
-                renderer.SubmitLight3D(submit);
-            }
             constexpr std::size_t BatchSize = 64;
             MeshSubmit batch[BatchSize];
             Bool accepted = world.GetDroppedMeshCount() == 0;
@@ -317,6 +293,35 @@ namespace JBro::Internal
         // 블렌드나 불투명도가 걸린 레이어만 그 뷰를 제 텍스처에 그려 얹는다(`CameraParams::composite`). 대상을 지우는 것은 첫 뷰다.
         // 그릴 것이 없으면 뷰 하나로 지우기만 한다. 디버그 선은 맨 위 레이어의 뷰에 얹는다 - 그 뷰가 얹는 뷰면 따로 하나 더 연다.
         // `onlyLayer` 가 0 이상이면 그 레이어 차례 하나만 블렌드 없이 그린다(썸네일, D-288).
+        // **라이트는 뷰마다 다시 낸다**(D-407). 레이어마다 뷰가 열리고 라이트는 레이어를 가리지 않으므로 같은 목록을 모든 뷰에 낸다 - 렌더러는 앞 뷰와 같은 블록을
+        // 다시 올리지 않는다. 캔버스 뷰는 에디터에서 숨긴 오브젝트의 라이트를 빼고 낸다.
+        void PushLights(const RenderWorld3D& world, Renderer& renderer, Bool editorView)
+        {
+            for (std::size_t index = 0; index < world.GetLightCount(); ++index)
+            {
+                const Light3DRenderItem& light = world.GetLight(index);
+                if (editorView && light.owner != nullptr && light.owner->IsEditorHidden())
+                {
+                    continue;
+                }
+                Light3DSubmit submit;
+                submit.kind = static_cast<Light3DKind>(static_cast<std::uint8_t>(light.type));
+                submit.position[0] = light.position.x;
+                submit.position[1] = light.position.y;
+                submit.position[2] = light.position.z;
+                submit.direction[0] = light.direction.x;
+                submit.direction[1] = light.direction.y;
+                submit.direction[2] = light.direction.z;
+                submit.color[0] = light.color.R * light.intensity;
+                submit.color[1] = light.color.G * light.intensity;
+                submit.color[2] = light.color.B * light.intensity;
+                submit.range = light.range;
+                submit.innerAngle = light.innerAngle.ToRadian();
+                submit.outerAngle = light.outerAngle.ToRadian();
+                renderer.SubmitLight3D(submit);
+            }
+        }
+
         Bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, Bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
             const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1, Bool postProcess = false)
@@ -400,6 +405,7 @@ namespace JBro::Internal
                 {
                     return false;
                 }
+                PushLights(world, renderer, editorView);
                 accepted = PushMeshes(world, renderer, editorView, orders[at]) && accepted;
                 accepted = PushWorldTexts(world, renderer, cameraRotation, orders[at]) && accepted;
                 const Bool plain = onlyLayer >= 0

@@ -125,7 +125,7 @@
   적은 파라미터·텍스처만 들고, 적지 않은 파라미터는 HLSL 초기값이다. 머티리얼 텍스처는 t1..t6 이고 t7 은 엔진의 라이트맵이다(스프라이트의 입구가 곱한다, D-348).
   스크립트의 파라미터 덮어쓰기(`Service::MaterialService`)는 머티리얼 에셋 단위이거나(렌더러 핸들을 주면, D-368) 그 오브젝트만이고, 파일을 바꾸지 않는다.
   셰이더 그래프(`.jgraph`, 도메인 `Shader`, D-369)는 옆의 `.hlsl` 을 만드는 원본이다 - 머티리얼·패키지·렌더러는 `.hlsl` 만 본다. (MUST)
-- 3D 에셋은 모델(`.gltf`·`.glb`·`.obj`·`.fbx`)이고 메시·머티리얼·내장 그림은 그 하위 에셋이며, 게임 패키지에는 푼 메시만 싣는다(D-391·D-398, D-366 을 D-406 이 대신했다). 3D 라이트는 `Light3D`(`Directional`·`Point`·`Ambient`)이고 뷰마다 16 개까지다. 라이트가 없는 뷰는 고정 방향광이다(D-367). (MUST)
+- 3D 에셋은 모델(`.gltf`·`.glb`·`.obj`·`.fbx`)이고 메시·머티리얼·내장 그림은 그 하위 에셋이며, 게임 패키지에는 푼 메시만 싣는다(D-391·D-398, D-366 을 D-406 이 대신했다). 3D 라이트는 `Light3D`(`Ambient`·`Directional`·`Point`·`Spot`, glTF 감쇠)이고 뷰마다 64 개까지다. 라이트가 없는 뷰는 렌더러의 기본 빛(고정 방향광 0.75·주변광 0.25)이다(D-407~D-409, D-367 을 D-406 이 대신했다). (MUST)
 - **머티리얼은 두 갈래이고 둘 다 `.jmat`·`Material` 에셋이다**(D-406). 셰이더 머티리얼(위, D-347)과 표준 머티리얼(빌트인 `Standard` PBR·`Unlit` 의 고정 칸, D-399)이며
   글자로 가른다(`IsStandardMaterialText` - 맨 앞 칸의 `Material:` 키). 모델의 하위 Material 은 늘 표준 머티리얼이다. 렌더러의 API·라이브러리·제출 칸은 갈래마다 따로다 -
   셰이더 머티리얼은 `RegisterMaterial(ShaderMaterialDesc)`·그래픽 `MaterialLibrary`·`MeshSubmit::material`, 표준 머티리얼은 `RegisterMeshMaterial(MeshMaterialDesc)`·3D `MeshMaterialLibrary`·`MeshSubmit::meshMaterial`.

@@ -31,6 +31,8 @@ namespace JBro::Component
             all = RegisterComponentType<MeshRenderer3D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Light3D>(ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Text3D>(ComponentCategory::Rendering) && all;
+            // 2D 의 `Light2D` 와 같다 - 한 오브젝트에 여럿(방향광과 환경광을 함께) 붙일 수 있다.
+            all = RegisterComponentType<Light3D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody3D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider3D>(ComponentCategory::Physics) && all;

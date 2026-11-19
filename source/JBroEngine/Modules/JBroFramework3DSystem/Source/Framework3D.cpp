@@ -72,6 +72,7 @@ namespace JBro
             // 렌더러가 없으면(시스템 테스트) 용량 하나는 두어 제출이 곧장 버려지지 않게 한다.
             const std::size_t capacity = context.renderer != nullptr ? 16384 : 64;
             if (false == m_renderWorld.ReserveMeshes(capacity) || false == m_renderWorld.ReserveTexts(capacity)
+                || false == m_renderWorld.ReserveLights(256)
                 || false == m_meshes.Initialize(context.renderer, context.assets)
                 || false == m_meshMaterials.Initialize(context.renderer, context.assets))
             {
@@ -438,8 +439,8 @@ namespace JBro
         meshes.SetMeshLibrary(&m_meshes);
         meshes.SetMaterialLibrary(&m_materials);
         meshes.SetMeshMaterialLibrary(&m_meshMaterials);
-        systems.AddSystem<System::Light3DSystem>().SetRenderWorld(&m_renderWorld);
         // 3D 텍스트(D-222). 폰트는 에셋 시스템에서, 페이지는 렌더러로 간다 - 둘 중 하나가 없으면(시스템 테스트) 그리지 않는다.
+        systems.AddSystem<System::Light3DSystem>().SetRenderWorld(&m_renderWorld);
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);
         texts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);

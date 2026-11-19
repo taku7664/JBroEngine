@@ -110,40 +110,57 @@ struct JBroMeshInput
     float3 worldPosition : TEXCOORD1;
 };
 
-// The view's 3D lights (BuiltinMesh.hlsl MeshLights).
+// The view's 3D lights (BuiltinMesh.hlsl LightConstants, D-407). A view without Light3D components gets the renderer's
+// default block: one directional light (0.75) and ambient (0.25), the light that came before light components.
+struct JBroLight
+{
+    // xyz position, w range (0 = unbounded).
+    float4 positionRange;
+    // xyz the direction the light travels, w kind (0 directional, 1 point, 2 spot).
+    float4 directionKind;
+    // rgb colour times intensity.
+    float4 colour;
+    // x scale, y offset of the spot cone on cos(angle).
+    float4 cone;
+};
 cbuffer JBroLights : register(b2)
 {
-    float4 JBroLightCount;
-    float4 JBroLightAmbient;
-    float4 JBroLightPosition[16];
-    float4 JBroLightColor[16];
+    // rgb ambient, w light count.
+    float4 JBroAmbientCount;
+    JBroLight JBroLightList[64];
 };
 
-// The engine's light on a surface: the view's Light3D components, or one fixed directional light plus ambient when it has none.
-// Multiply a colour by it to light it.
+// The engine's light on a surface (Lambert, the same attenuation as the standard material): ambient plus every light of
+// the view. Multiply a colour by it to light it.
 float3 JBroMeshLight(float3 normal, float3 worldPosition)
 {
     const float3 n = normalize(normal);
-    const int count = (int)JBroLightCount.x;
-    if (JBroLightCount.y < 0.5f)
+    float3 light = JBroAmbientCount.rgb;
+    const uint count = (uint)JBroAmbientCount.w;
+    [loop]
+    for (uint index = 0; index < count; ++index)
     {
-        const float3 lightDirection = normalize(float3(0.4f, 0.8f, 0.45f));
-        return (0.25f + 0.75f * saturate(dot(n, lightDirection))).xxx;
-    }
-    float3 light = JBroLightAmbient.rgb;
-    for (int at = 0; at < count; ++at)
-    {
-        float3 towards = JBroLightPosition[at].xyz;
+        const JBroLight each = JBroLightList[index];
+        float3 towards = -each.directionKind.xyz;
         float attenuation = 1.0f;
-        if (JBroLightPosition[at].w > 0.5f)
+        if (each.directionKind.w > 0.5f)
         {
-            const float3 offset = JBroLightPosition[at].xyz - worldPosition;
-            const float distance = length(offset);
-            towards = offset / max(distance, 0.0001f);
-            const float fade = saturate(1.0f - distance / max(JBroLightColor[at].a, 0.0001f));
-            attenuation = fade * fade;
+            const float3 toLight = each.positionRange.xyz - worldPosition;
+            const float distanceSquared = max(dot(toLight, toLight), 0.0001f);
+            towards = toLight * rsqrt(distanceSquared);
+            attenuation = 1.0f / distanceSquared;
+            if (each.positionRange.w > 0.0f)
+            {
+                const float ratio = distanceSquared / (each.positionRange.w * each.positionRange.w);
+                attenuation *= saturate(1.0f - ratio * ratio);
+            }
+            if (each.directionKind.w > 1.5f)
+            {
+                const float cone = saturate(dot(each.directionKind.xyz, -towards) * each.cone.x + each.cone.y);
+                attenuation *= cone * cone;
+            }
         }
-        light += JBroLightColor[at].rgb * saturate(dot(n, towards)) * attenuation;
+        light += each.colour.rgb * saturate(dot(n, towards)) * attenuation;
     }
     return light;
 }

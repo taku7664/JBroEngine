@@ -5,6 +5,8 @@
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
@@ -76,35 +78,87 @@ namespace
         return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
     }
 
-    Pixel ExpectStandard(const float base[3], JBro::Vector3 normal, JBro::Vector3 position, JBro::Vector3 camera, float metallic, float roughnessFactor)
+    // **3D 라이트의 셈**(D-407, `BuiltinMesh.hlsl` 의 라이트 루프). 렌더러가 `Light3DSubmit` 을 옮기는 셈(방향의 정규화, 원뿔 반각의 cos 에서 scale·offset)과
+    // 셰이더의 감쇠(거리 제곱, glTF 창, 원뿔의 제곱)를 CPU 로 다시 쓴다. 환경광은 기본색 × 환경광이다.
+    Pixel ExpectLit(const float base[3], JBro::Vector3 normal, JBro::Vector3 position, JBro::Vector3 camera, float metallic, float roughnessFactor,
+        const float ambient[3], const JBro::Light3DSubmit* lights, int count)
     {
         constexpr float Pi = 3.14159265f;
-        const JBro::Vector3 light = JBro::Normalize(JBro::Vector3{0.4f, 0.8f, 0.45f});
         normal = JBro::Normalize(normal);
         const JBro::Vector3 view = JBro::Normalize(JBro::Subtract(camera, position));
-        const JBro::Vector3 halfway = JBro::Normalize(JBro::Add(light, view));
-        const float nl = std::max(0.0f, JBro::Dot(normal, light).Get());
         const float nv = std::max(JBro::Dot(normal, view).Get(), 0.0001f);
-        const float nh = std::max(0.0f, JBro::Dot(normal, halfway).Get());
-        const float vh = std::max(0.0f, JBro::Dot(view, halfway).Get());
         const float roughness = std::min(std::max(roughnessFactor, 0.045f), 1.0f);
         const float alpha = roughness * roughness;
         const float alpha2 = alpha * alpha;
-        const float denominator = nh * nh * (alpha2 - 1.0f) + 1.0f;
-        const float distribution = alpha2 / (Pi * denominator * denominator);
         const float k = (roughness + 1.0f) * (roughness + 1.0f) / 8.0f;
-        const float geometry = (nv / (nv * (1.0f - k) + k)) * (nl / (nl * (1.0f - k) + k));
-        float out[3] = {};
-        for (int channel = 0; channel < 3; ++channel)
+        float out[3] = {ambient[0] * base[0], ambient[1] * base[1], ambient[2] * base[2]};
+        for (int index = 0; index < count; ++index)
         {
-            const float reflectance = 0.04f + (base[channel] - 0.04f) * metallic;
-            const float fresnel = reflectance + (1.0f - reflectance) * std::pow(1.0f - vh, 5.0f);
-            const float specular = distribution * geometry * fresnel / std::max(4.0f * nv * nl, 0.0001f);
-            const float diffuse = (1.0f - fresnel) * (1.0f - metallic) * base[channel];
-            const float direct = (diffuse + Pi * specular) * 0.75f * nl;
-            out[channel] = EncodeSrgb(0.25f * base[channel] + direct);
+            const JBro::Light3DSubmit& light = lights[index];
+            const JBro::Vector3 direction = JBro::Normalize(JBro::Vector3{light.direction[0], light.direction[1], light.direction[2]});
+            JBro::Vector3 towards = JBro::Scale(direction, -1.0f);
+            float attenuation = 1.0f;
+            if (light.kind != JBro::Light3DKind::Directional)
+            {
+                const JBro::Vector3 toLight = JBro::Subtract(JBro::Vector3{light.position[0], light.position[1], light.position[2]}, position);
+                const float distanceSquared = std::max(JBro::Dot(toLight, toLight).Get(), 0.0001f);
+                towards = JBro::Scale(toLight, 1.0f / std::sqrt(distanceSquared));
+                attenuation = 1.0f / distanceSquared;
+                if (light.range > 0.0f)
+                {
+                    const float ratio = distanceSquared / (light.range.Get() * light.range.Get());
+                    attenuation *= std::min(std::max(1.0f - ratio * ratio, 0.0f), 1.0f);
+                }
+                if (light.kind == JBro::Light3DKind::Spot)
+                {
+                    const float halfOuter = std::min(std::max(light.outerAngle.Get() * 0.5f, 0.0f), Pi * 0.5f);
+                    const float halfInner = std::min(std::max(light.innerAngle.Get() * 0.5f, 0.0f), halfOuter);
+                    const float difference = std::cos(halfInner) - std::cos(halfOuter);
+                    const float scale = 1.0f / std::max(difference, 0.001f);
+                    const float offset = -std::cos(halfOuter) * scale;
+                    const float cone = std::min(std::max(JBro::Dot(direction, JBro::Scale(towards, -1.0f)).Get() * scale + offset, 0.0f), 1.0f);
+                    attenuation *= cone * cone;
+                }
+            }
+            const JBro::Vector3 halfway = JBro::Normalize(JBro::Add(towards, view));
+            const float nl = std::max(0.0f, JBro::Dot(normal, towards).Get());
+            const float nh = std::max(0.0f, JBro::Dot(normal, halfway).Get());
+            const float vh = std::max(0.0f, JBro::Dot(view, halfway).Get());
+            const float denominator = nh * nh * (alpha2 - 1.0f) + 1.0f;
+            const float distribution = alpha2 / (Pi * denominator * denominator);
+            const float geometry = (nv / (nv * (1.0f - k) + k)) * (nl / (nl * (1.0f - k) + k));
+            for (int channel = 0; channel < 3; ++channel)
+            {
+                const float reflectance = 0.04f + (base[channel] - 0.04f) * metallic;
+                const float fresnel = reflectance + (1.0f - reflectance) * std::pow(1.0f - vh, 5.0f);
+                const float specular = distribution * geometry * fresnel / std::max(4.0f * nv * nl, 0.0001f);
+                const float diffuse = (1.0f - fresnel) * (1.0f - metallic) * base[channel];
+                out[channel] += (diffuse + Pi * specular) * light.color[channel].Get() * attenuation * nl;
+            }
         }
-        return Pixel{out[0], out[1], out[2], 1.0f};
+        return Pixel{EncodeSrgb(out[0]), EncodeSrgb(out[1]), EncodeSrgb(out[2]), 1.0f};
+    }
+
+    // 라이트를 내지 않은 뷰의 **기본 빛**이다 - 라이트 기능 전의 고정 방향광(빛 쪽 (0.4, 0.8, 0.45), 0.75)과 주변광 0.25.
+    JBro::Light3DSubmit DefaultSun()
+    {
+        const JBro::Vector3 towards = JBro::Normalize(JBro::Vector3{0.4f, 0.8f, 0.45f});
+        JBro::Light3DSubmit sun;
+        sun.kind = JBro::Light3DKind::Directional;
+        sun.direction[0] = -towards.x;
+        sun.direction[1] = -towards.y;
+        sun.direction[2] = -towards.z;
+        sun.color[0] = 0.75f;
+        sun.color[1] = 0.75f;
+        sun.color[2] = 0.75f;
+        return sun;
+    }
+
+    Pixel ExpectStandard(const float base[3], JBro::Vector3 normal, JBro::Vector3 position, JBro::Vector3 camera, float metallic, float roughnessFactor)
+    {
+        const float ambient[3] = {0.25f, 0.25f, 0.25f};
+        const JBro::Light3DSubmit sun = DefaultSun();
+        return ExpectLit(base, normal, position, camera, metallic, roughnessFactor, ambient, &sun, 1);
     }
 
     Pixel ReadPixel(const JBro::Array<std::byte>& image, JBro::UInt32 rowPitch,
@@ -1338,11 +1392,393 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
+    // **3D 라이트가 메시를 비춘다**(D-407, lighting3d-plan 1 단계). 위에서 직교로 내려다본 바닥(흰 재질 × 회색 틴트)에 라이트를 내고, 다섯 자리의 픽셀을
+    // 셰이더 식의 CPU 판(`ExpectLit`)과 견준다. 라이트가 없는 뷰는 기본 빛이고, 하나라도(환경광만이라도) 내면 낸 라이트만이다. 점광은 `range` 밖이 검고,
+    // 스포트는 바깥 각 밖이 검다. 한 프레임의 두 뷰는 제 라이트를 따로 받고, 뷰 하나의 상한을 넘는 라이트는 버리고 센다.
+    template <typename TModule>
+    void TestLightsLightTheMeshes()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open(true))
+        {
+            std::cout << "  [skip] no device for this API; 3D lights not verified" << std::endl;
+            return;
+        }
+        JBro::Renderer& renderer = stage.renderer;
+        JBro::MeshVertex corners[4];
+        const float spots[4][2] = {{-8.0f, -8.0f}, {8.0f, -8.0f}, {8.0f, 8.0f}, {-8.0f, 8.0f}};
+        for (int at = 0; at < 4; ++at)
+        {
+            corners[at].position[0] = spots[at][0];
+            corners[at].position[1] = 0.0f;
+            corners[at].position[2] = spots[at][1];
+            corners[at].normal[0] = 0.0f;
+            corners[at].normal[1] = 1.0f;
+            corners[at].normal[2] = 0.0f;
+        }
+        const JBro::UInt32 indices[6] = {0, 1, 2, 0, 2, 3};
+        const JBro::AssetHandle floor = renderer.RegisterMesh({corners, 4}, {indices, 6});
+        Check(floor.generation != 0, "the floor registers");
+
+        // 카메라는 (0, 10, 0) 에서 아래를 본다. 화면 위가 월드 -Z 이고, 화면 전체가 x -6..6, z -4..4 다.
+        const JBro::Vector3 eye{0.0f, 10.0f, 0.0f};
+        const auto cameraFor = [&](JBro::Float left, JBro::Float width) {
+            JBro::CameraParams camera;
+            camera.view = JBro::MakeViewMatrix(eye, JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f)));
+            Check(JBro::MakeOrthographicMatrix(4.0f, width / 64.0f, 0.1f, 100.0f, camera.projection), "the projection is made");
+            camera.viewport.x = left;
+            camera.viewport.width = width;
+            camera.viewport.height = static_cast<float>(TargetHeight);
+            return camera;
+        };
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        struct ViewLights
+        {
+            JBro::Float left = 0.0f;
+            JBro::Float width = 96.0f;
+            const JBro::Light3DSubmit* lights = nullptr;
+            int count = 0;
+        };
+        const auto render = [&](const ViewLights* views, int viewCount) {
+            JBro::FrameTarget frameTarget;
+            frameTarget.texture = stage.target;
+            frameTarget.extent = {TargetWidth, TargetHeight};
+            Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame begins");
+            for (int at = 0; at < viewCount; ++at)
+            {
+                Check(renderer.BeginView(cameraFor(views[at].left, views[at].width)), "the view begins");
+                if (views[at].count != 0)
+                {
+                    renderer.SubmitLights3D({views[at].lights, static_cast<JBro::UInt32>(views[at].count)});
+                }
+                JBro::MeshSubmit item;
+                item.mesh = floor;
+                item.tint[0] = 0.5f;
+                item.tint[1] = 0.5f;
+                item.tint[2] = 0.5f;
+                Check(renderer.SubmitMesh(item), "the floor is submitted");
+                Check(renderer.EndView(), "the view ends");
+            }
+            Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame finishes");
+            image.Resize(TargetWidth * TargetHeight * 4);
+            Check(renderer.GetDevice()->ReadTexture(stage.target, image.Data(), image.Size(), readback), "the target reads back");
+        };
+        const float grey[3] = {0.5f, 0.5f, 0.5f};
+        const float none[3] = {0.0f, 0.0f, 0.0f};
+        // 픽셀 가운데의 월드 자리(뷰의 왼쪽 끝과 폭으로).
+        const auto worldAt = [](JBro::UInt32 x, JBro::UInt32 y, float left, float width) {
+            const float halfWidth = 4.0f * width / 64.0f;
+            return JBro::Vector3{((static_cast<float>(x.Get()) + 0.5f - left) / width * 2.0f - 1.0f) * halfWidth, 0.0f,
+                ((static_cast<float>(y.Get()) + 0.5f) / 64.0f * 2.0f - 1.0f) * 4.0f};
+        };
+        // (55, 32) 는 스포트의 안쪽 각과 바깥 각 사이(축에서 0.94 유닛)다 - 원뿔의 감쇠 곡선이 여기서 보인다.
+        const JBro::UInt32 samples[][2] = {{8, 8}, {48, 32}, {55, 32}, {63, 32}, {80, 20}, {30, 50}, {44, 30}, {52, 34}};
+        const auto matches = [&](const char* what, const float ambient[3], const JBro::Light3DSubmit* lights, int count) {
+            for (const auto& sample : samples)
+            {
+                const Pixel expected = ExpectLit(grey, {0.0f, 1.0f, 0.0f}, worldAt(sample[0], sample[1], 0.0f, 96.0f), eye, 0.0f, 1.0f, ambient, lights, count);
+                const Pixel actual = ReadPixel(image, readback.rowPitch, sample[0], sample[1]);
+                if (false == (Near(actual.r, expected.r, 0.02f) && Near(actual.g, expected.g, 0.02f) && Near(actual.b, expected.b, 0.02f)))
+                {
+                    std::cout << "  at (" << sample[0].Get() << ", " << sample[1].Get() << ") got " << actual.r.Get() << ' ' << actual.g.Get() << ' ' << actual.b.Get()
+                              << " expected " << expected.r.Get() << ' ' << expected.g.Get() << ' ' << expected.b.Get() << std::endl;
+                    Check(false, what);
+                }
+            }
+        };
+
+        // 라이트가 없으면 기본 빛이다.
+        const ViewLights unlit;
+        render(&unlit, 1);
+        const float defaultAmbient[3] = {0.25f, 0.25f, 0.25f};
+        const JBro::Light3DSubmit sun = DefaultSun();
+        matches("a view with no 3D light gets the built-in sun and ambient", defaultAmbient, &sun, 1);
+
+        // 환경광만 내면 해는 없다.
+        JBro::Light3DSubmit ambientLight;
+        ambientLight.kind = JBro::Light3DKind::Ambient;
+        ambientLight.color[0] = 0.6f;
+        ambientLight.color[1] = 0.4f;
+        ambientLight.color[2] = 0.2f;
+        const ViewLights onlyAmbient{0.0f, 96.0f, &ambientLight, 1};
+        render(&onlyAmbient, 1);
+        const float ambientColour[3] = {0.6f, 0.4f, 0.2f};
+        matches("an ambient light alone lights evenly and the built-in sun is gone", ambientColour, nullptr, 0);
+
+        // 방향광은 제 방향에서 온다 - 기울면 덜 밝다.
+        JBro::Light3DSubmit slanted;
+        slanted.kind = JBro::Light3DKind::Directional;
+        slanted.direction[0] = 0.6f;
+        slanted.direction[1] = -0.8f;
+        slanted.direction[2] = 0.0f;
+        const ViewLights directional{0.0f, 96.0f, &slanted, 1};
+        render(&directional, 1);
+        matches("a directional light shades by its own direction", none, &slanted, 1);
+
+        // 점광은 거리 제곱으로 줄고 range 에서 0 이다.
+        JBro::Light3DSubmit bulb;
+        bulb.kind = JBro::Light3DKind::Point;
+        bulb.position[0] = 2.0f;
+        bulb.position[1] = 1.0f;
+        bulb.color[0] = 2.0f;
+        bulb.color[1] = 2.0f;
+        bulb.color[2] = 2.0f;
+        bulb.range = 3.0f;
+        const ViewLights point{0.0f, 96.0f, &bulb, 1};
+        render(&point, 1);
+        matches("a point light falls off with distance and its range window", none, &bulb, 1);
+        Check(ReadPixel(image, readback.rowPitch, 64, 32).r > 0.5f && ReadPixel(image, readback.rowPitch, 8, 32).r == 0.0f,
+            "under the bulb is bright and past its range is black");
+
+        // 스포트는 원뿔 밖이 검다.
+        JBro::Light3DSubmit torch;
+        torch.kind = JBro::Light3DKind::Spot;
+        torch.position[1] = 2.0f;
+        torch.direction[0] = 0.0f;
+        torch.direction[1] = -1.0f;
+        torch.direction[2] = 0.0f;
+        torch.color[0] = 6.0f;
+        torch.color[1] = 6.0f;
+        torch.color[2] = 6.0f;
+        torch.innerAngle = JBro::Radian(0.6981317f);
+        torch.outerAngle = JBro::Radian(1.0471976f);
+        const ViewLights spot{0.0f, 96.0f, &torch, 1};
+        render(&spot, 1);
+        matches("a spot light is full inside its inner cone and fades to its outer cone", none, &torch, 1);
+        Check(ReadPixel(image, readback.rowPitch, 48, 32).r > 0.5f && ReadPixel(image, readback.rowPitch, 63, 32).r == 0.0f,
+            "the spot's centre is lit and past its outer cone is black");
+
+        // 모두 함께: 셋의 합과 환경광.
+        const JBro::Light3DSubmit all[4] = {ambientLight, slanted, bulb, torch};
+        const ViewLights together{0.0f, 96.0f, all, 4};
+        render(&together, 1);
+        matches("lights add up", ambientColour, all + 1, 3);
+
+        // 한 프레임의 두 뷰: 왼쪽은 환경광만, 오른쪽은 라이트 없음(기본 빛). 그다음 셋째 뷰가 왼쪽과 같은 라이트를 다시 낸다.
+        const ViewLights split[2] = {{0.0f, 48.0f, &ambientLight, 1}, {48.0f, 48.0f, nullptr, 0}};
+        render(split, 2);
+        const Pixel leftExpected = ExpectLit(grey, {0.0f, 1.0f, 0.0f}, worldAt(20, 20, 0.0f, 48.0f), eye, 0.0f, 1.0f, ambientColour, nullptr, 0);
+        const Pixel rightExpected = ExpectLit(grey, {0.0f, 1.0f, 0.0f}, worldAt(70, 20, 48.0f, 48.0f), eye, 0.0f, 1.0f, defaultAmbient, &sun, 1);
+        const Pixel leftActual = ReadPixel(image, readback.rowPitch, 20, 20);
+        const Pixel rightActual = ReadPixel(image, readback.rowPitch, 70, 20);
+        Check(Near(leftActual.r, leftExpected.r, 0.02f) && Near(leftActual.b, leftExpected.b, 0.02f)
+                && Near(rightActual.r, rightExpected.r, 0.02f) && Near(rightActual.b, rightExpected.b, 0.02f),
+            "each view of a frame has its own lights - one view's lights do not reach the next");
+        const ViewLights again[2] = {{0.0f, 48.0f, &ambientLight, 1}, {48.0f, 48.0f, &ambientLight, 1}};
+        render(again, 2);
+        Check(Near(ReadPixel(image, readback.rowPitch, 70, 20).r, leftExpected.r, 0.02f) && Near(ReadPixel(image, readback.rowPitch, 70, 20).b, leftExpected.b, 0.02f),
+            "a view with the same lights as the one before draws the same");
+
+        // 뷰 하나의 상한을 넘는 라이트는 버리고 센다.
+        JBro::Light3DSubmit many[70];
+        for (JBro::Light3DSubmit& one : many)
+        {
+            one.kind = JBro::Light3DKind::Point;
+            one.position[1] = 50.0f;
+            one.range = 0.1f;
+        }
+        const ViewLights crowded{0.0f, 96.0f, many, 70};
+        render(&crowded, 1);
+        const JBro::RendererFrameStats stats = renderer.GetLastFrameStats();
+        Check(stats.light3DCount == 70 && stats.droppedLight3DCount == 70 - JBro::Renderer::MaxLights3DPerView,
+            "lights past the per-view limit are dropped and counted");
+        Check(renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+        renderer.UnregisterMesh(floor);
+        stage.Close();
+    }
+    // **`Light3D` 컴포넌트가 캔버스를 비춘다**(D-407, lighting3d-plan 2 단계). 위에서 직교로 내려다본 바닥(빌트인 평면)을 프레임워크로 그린다.
+    // (1) 새 프로젝트의 시작 라이트와 같은 방향광(오브젝트 회전으로 돌린 -Z)·환경광은 라이트가 없을 때의 기본 빛과 같은 그림이다 - 회전이 방향이 된다.
+    // (2) 감춘 레이어의 라이트는 꺼진다. 점광과 스포트(회전으로 아래를 본다)가 셰이더 식의 CPU 판과 같다.
+    // (3) 캔버스 파일로 쓰고 다시 읽어도 라이트의 값과 그림이 같다.
+    template <typename TModule>
+    void TestLightComponentsLightTheCanvas()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open(true))
+        {
+            std::cout << "  [skip] no device for this API; light components not verified" << std::endl;
+            return;
+        }
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        Check(framework.Initialize(context), "the 3D framework initializes");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        const JBro::Vector3 eyeAt{0.0f, 10.0f, 0.0f};
+        const auto build = [&](JBro::Canvas& target) {
+            JBro::Object::GameObject* eye = target.CreateObject("eye");
+            auto* eyeTransform = target.AttachComponent<JBro::Component::Transform3D>(eye);
+            eyeTransform->position = eyeAt;
+            eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+            auto* camera = target.AttachComponent<JBro::Component::Camera3D>(eye);
+            camera->primary = true;
+            camera->projection = JBro::Component::CameraProjection3D::Orthographic;
+            camera->orthographicSize = 4.0f;
+            camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            JBro::Object::GameObject* floor = target.CreateObject("floor");
+            // 바닥은 원점보다 반 유닛 아래다 - 원점에 놓인 라이트(자리가 없어 원점으로 잘못 친 것)가 바닥을 스치지 않고 비추게 한다.
+            auto* floorTransform = target.AttachComponent<JBro::Component::Transform3D>(floor);
+            floorTransform->position = {0.0f, -0.5f, 0.0f};
+            floorTransform->scale = {2.0f, 1.0f, 2.0f};
+            auto* mesh = target.AttachComponent<JBro::Component::MeshRenderer3D>(floor);
+            for (JBro::UInt32 at = 0; at < JBro::MeshLibrary::GetBuiltinCount(); ++at)
+            {
+                if (std::string(JBro::MeshLibrary::GetBuiltin(at).name) == "Plane")
+                {
+                    mesh->meshId = JBro::MeshLibrary::GetBuiltin(at).id;
+                }
+            }
+            mesh->tint = {0.5f, 0.5f, 0.5f, 1.0f};
+        };
+        build(canvas);
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        const auto renderTwice = [&]() {
+            // 첫 프레임은 트랜스폼의 월드 값이 서는 프레임이다. 둘째를 본다.
+            stage.RenderOnce(framework, image, readback);
+            stage.RenderOnce(framework, image, readback);
+        };
+        renderTwice();
+        const JBro::Array<std::byte> builtIn = image;
+
+        // (1) 시작 라이트와 같은 한 쌍: 회전으로 돌린 방향광 0.75 와 환경광 0.25.
+        JBro::Object::GameObject* lamp = canvas.CreateObject("Light");
+        {
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform3D>(lamp);
+            const JBro::Vector3 from{0.0f, 0.0f, -1.0f};
+            const JBro::Vector3 to = JBro::Normalize(JBro::Vector3{-0.4f, -0.8f, -0.45f});
+            const JBro::Vector3 axis = JBro::Cross(from, to);
+            transform->position = {2.0f, 4.0f, 2.0f};
+            transform->rotation = JBro::Normalize(JBro::Quaternion{axis.x, axis.y, axis.z, 1.0f + JBro::Dot(from, to)});
+            auto* sun = canvas.AttachComponent<JBro::Component::Light3D>(lamp);
+            sun->type = JBro::Component::Light3DType::Directional;
+            sun->intensity = 0.75f;
+            auto* ambient = canvas.AttachComponent<JBro::Component::Light3D>(lamp);
+            ambient->type = JBro::Component::Light3DType::Ambient;
+            ambient->intensity = 0.25f;
+        }
+        renderTwice();
+        Check(stage.renderer.GetLastFrameStats().light3DCount == 2, "both lights of the lamp reach the renderer");
+        int largest = 0;
+        for (std::size_t at = 0; at < image.Size(); ++at)
+        {
+            largest = std::max(largest, std::abs(static_cast<int>(image[at]) - static_cast<int>(builtIn[at])));
+        }
+        Check(largest <= 2, "a sun turned by the object's rotation and an ambient light draw what the built-in light draws");
+
+        const float grey[3] = {0.5f, 0.5f, 0.5f};
+        const float none[3] = {0.0f, 0.0f, 0.0f};
+        const auto worldAt = [](JBro::UInt32 x, JBro::UInt32 y) {
+            return JBro::Vector3{((static_cast<float>(x.Get()) + 0.5f) / 96.0f * 2.0f - 1.0f) * 6.0f, -0.5f,
+                ((static_cast<float>(y.Get()) + 0.5f) / 64.0f * 2.0f - 1.0f) * 4.0f};
+        };
+        const auto matches = [&](const char* what, const JBro::Light3DSubmit& light) {
+            const JBro::UInt32 samples[][2] = {{8, 8}, {48, 32}, {55, 32}, {63, 32}, {80, 20}, {30, 50}};
+            for (const auto& sample : samples)
+            {
+                const Pixel expected = ExpectLit(grey, {0.0f, 1.0f, 0.0f}, worldAt(sample[0], sample[1]), eyeAt, 0.0f, 1.0f, none, &light, 1);
+                const Pixel actual = ReadPixel(image, readback.rowPitch, sample[0], sample[1]);
+                if (false == (Near(actual.r, expected.r, 0.02f) && Near(actual.g, expected.g, 0.02f) && Near(actual.b, expected.b, 0.02f)))
+                {
+                    std::cout << "  at (" << sample[0].Get() << ", " << sample[1].Get() << ") got " << actual.r.Get() << " expected " << expected.r.Get() << std::endl;
+                    Check(false, what);
+                }
+            }
+        };
+
+        // (2) 시작 라이트를 감춘 레이어로 옮기고 점광 하나를 둔다.
+        JBro::Layer& lamps = canvas.CreateLayer("Lamps");
+        Check(canvas.SetObjectLayer(lamp, lamps.GetId()), "the lamp goes on its own layer");
+        lamps.SetVisible(false);
+        JBro::Object::GameObject* bulbObject = canvas.CreateObject("bulb");
+        canvas.AttachComponent<JBro::Component::Transform3D>(bulbObject)->position = {2.0f, 1.0f, 0.0f};
+        auto* bulb = canvas.AttachComponent<JBro::Component::Light3D>(bulbObject);
+        bulb->type = JBro::Component::Light3DType::Point;
+        bulb->intensity = 2.0f;
+        bulb->range = 3.0f;
+        renderTwice();
+        JBro::Light3DSubmit expectedBulb;
+        expectedBulb.kind = JBro::Light3DKind::Point;
+        expectedBulb.position[0] = 2.0f;
+        expectedBulb.position[1] = 1.0f;
+        expectedBulb.color[0] = 2.0f;
+        expectedBulb.color[1] = 2.0f;
+        expectedBulb.color[2] = 2.0f;
+        expectedBulb.range = 3.0f;
+        matches("a point light component lights by its place and range, and a hidden layer's lights are off", expectedBulb);
+
+        // 스포트: 회전으로 아래를 본다. 점광도 감춘 레이어로.
+        Check(canvas.SetObjectLayer(bulbObject, lamps.GetId()), "the bulb goes on the hidden layer");
+        JBro::Object::GameObject* torchObject = canvas.CreateObject("torch");
+        auto* torchTransform = canvas.AttachComponent<JBro::Component::Transform3D>(torchObject);
+        torchTransform->position = {0.0f, 2.0f, 0.0f};
+        torchTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        auto* torch = canvas.AttachComponent<JBro::Component::Light3D>(torchObject);
+        torch->type = JBro::Component::Light3DType::Spot;
+        torch->intensity = 6.0f;
+        torch->range = 0.0f;
+        torch->innerAngle = 40.0f;
+        torch->outerAngle = 60.0f;
+        // 자리가 없는(트랜스폼 없는) 점광은 빛을 내지 않는다 - 원점에 있는 것으로 치지 않는다.
+        JBro::Object::GameObject* loose = canvas.CreateObject("loose");
+        auto* looseLight = canvas.AttachComponent<JBro::Component::Light3D>(loose);
+        looseLight->type = JBro::Component::Light3DType::Point;
+        looseLight->intensity = 50.0f;
+        looseLight->range = 0.0f;
+        renderTwice();
+        JBro::Light3DSubmit expectedTorch;
+        expectedTorch.kind = JBro::Light3DKind::Spot;
+        expectedTorch.position[1] = 2.0f;
+        expectedTorch.direction[0] = 0.0f;
+        expectedTorch.direction[1] = -1.0f;
+        expectedTorch.direction[2] = 0.0f;
+        expectedTorch.color[0] = 6.0f;
+        expectedTorch.color[1] = 6.0f;
+        expectedTorch.color[2] = 6.0f;
+        expectedTorch.innerAngle = JBro::Radian(0.6981317f);
+        expectedTorch.outerAngle = JBro::Radian(1.0471976f);
+        matches("a spot light component points along the object's -Z, and a light with no transform gives no light", expectedTorch);
+        const JBro::Array<std::byte> spotImage = image;
+
+        // (3) 캔버스 파일 왕복.
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(canvas, text, error), "the canvas writes");
+        // 파일은 빈 캔버스에만 읽힌다 - 프레임워크를 다시 세워 새 캔버스에 읽는다.
+        framework.Shutdown();
+        Check(framework.Initialize(context), "the 3D framework initializes again");
+        JBro::Canvas& reread = *framework.GetCanvas();
+        Check(JBro::ReadCanvasText(reread, text.c_str(), text.size(), error), "the canvas reads back");
+        JBro::Object::GameObject* readTorch = nullptr;
+        reread.ForEach<JBro::Component::Light3D>([&](JBro::Component::Light3D& light) {
+            if (light.type == JBro::Component::Light3DType::Spot)
+            {
+                readTorch = JBro::Internal::CanvasAccess::GetOwner(light);
+                Check(light.intensity == 6.0f && light.range == 0.0f && Near(light.innerAngle.Get(), 40.0f, 0.001f) && Near(light.outerAngle.Get(), 60.0f, 0.001f),
+                    "the spot's values survive the canvas file");
+            }
+        });
+        Check(readTorch != nullptr, "the spot light is read back");
+        renderTwice();
+        Check(image.Size() == spotImage.Size() && std::memcmp(image.Data(), spotImage.Data(), image.Size()) == 0,
+            "the canvas read back draws the very same lights");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+        framework.Shutdown();
+        stage.Close();
+    }
 }
 
 JBro::Int32 RunMeshPixelTests()
 {
     JBRO_CASE(TestScreenLayersDrawScreenUiOverThe3DView<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestLightComponentsLightTheCanvas<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestLightComponentsLightTheCanvas<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestLightComponentsLightTheCanvas<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestLightsLightTheMeshes<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestLightsLightTheMeshes<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestLightsLightTheMeshes<JBro::VulkanRHIModule>());
     JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::D3D12RHIModule>());
     JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::D3D11RHIModule>());
     JBRO_CASE(TestA3DGameBuildDrawsWhatTheEditorDraws<JBro::VulkanRHIModule>());

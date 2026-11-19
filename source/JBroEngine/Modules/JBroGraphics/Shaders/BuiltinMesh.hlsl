@@ -1,10 +1,9 @@
-// Standard mesh materials (material-plan stage 3, D-402): Standard is glTF metallic-roughness PBR, Unlit is base
-// colour plus emissive. Both share the vertex stage. Standard is lit by the view's 3D lights (D-367); a view
-// without lights gets one fixed directional light plus a flat ambient.
+// Mesh materials (material-plan stage 3, D-399): Standard is glTF metallic-roughness PBR lit by the view's light
+// block (D-407, lighting3d-plan); Unlit is base colour plus emissive. Both share the vertex stage.
 //
-// Colour space: material colours, the instance tint, the light colours and sRGB-viewed textures arrive linear.
-// Lighting is linear and the result is encoded to sRGB on the way out, because the frame targets are UNORM. On an
-// HDR scene target the encode still runs, so a standard mesh stays within 0..1 there (an open item of the merge).
+// Colour space: material colours, the instance tint and sRGB-viewed textures arrive linear. Lighting is linear
+// and the result is encoded to sRGB on the way out, because the frame targets are UNORM (no HDR target or tone map
+// yet - postprocess-plan stage 6 moves this encode into the tone map).
 //
 // See BuiltinSprite.hlsl for why the push-constant block has two spellings.
 #if defined(JBRO_SPIRV)
@@ -25,7 +24,7 @@ cbuffer ViewConstants : register(b0)
 };
 #endif
 
-// One block per material (Renderer::RegisterMeshMaterial). Layout mirrors GpuMaterialConstants in Renderer.h.
+// One block per standard material (Renderer::RegisterMeshMaterial). Layout mirrors GpuMaterialConstants in Renderer.h.
 cbuffer MaterialConstants : register(b1)
 {
     float4 gBaseColor;
@@ -35,17 +34,25 @@ cbuffer MaterialConstants : register(b1)
     float4 gParams;
 };
 
-// The view's 3D lights (D-367), the renderer's GpuMeshLights. A shader material (D-348) reads the same block at b2
-// through JBroMeshLight.
-cbuffer MeshLights : register(b2)
+// The view's lights (D-407). Layout mirrors GpuLightConstants in Renderer.h. A shader material (D-348) reads the
+// same block at b2 through the prelude's JBroLights. A view that submitted no 3D light gets
+// the renderer's default block: the fixed directional light and ambient that came before light components.
+struct Light
 {
-    // x: the light count. y: 1 when the view has lights at all (an ambient light counts); 0 means the fixed light below.
-    float4 gLightCount;
-    float4 gLightAmbient;
-    // xyz: the direction towards the light (w 0) or its position (w 1).
-    float4 gLightPosition[16];
-    // rgb: colour x intensity, a: the range of a point light.
-    float4 gLightColor[16];
+    // xyz position, w range (0 = unbounded).
+    float4 positionRange;
+    // xyz the direction the light travels, w kind (0 directional, 1 point, 2 spot).
+    float4 directionKind;
+    // rgb colour times intensity.
+    float4 colour;
+    // x scale, y offset of the spot cone on cos(angle) (glTF KHR_lights_punctual).
+    float4 cone;
+};
+cbuffer LightConstants : register(b2)
+{
+    // rgb ambient, w light count.
+    float4 gAmbientCount;
+    Light gLights[64];
 };
 
 // Base colour and emissive come first: Unlit reads only those two, and a program's slots are a range from t0.
@@ -75,7 +82,7 @@ struct VertexInput
 };
 
 // Shader materials (D-348) read the same output: the prelude's JBroMeshInput lists the first four in this order,
-// which is how Vulkan links the stages. The tangent comes last so that prefix stays the same.
+// which is how Vulkan links the stages. The tangent comes last so that prefix stays the same (D-406).
 struct VertexOutput
 {
     float4 position : SV_POSITION;
@@ -97,16 +104,12 @@ VertexOutput VSMain(VertexInput input)
     output.normal = normalize(mul((float3x3)world, input.normal));
     output.tint = input.tint;
     output.uv = input.uv;
-    output.worldPosition = worldPosition.xyz;
     output.tangent = float4(normalize(mul((float3x3)world, input.tangent.xyz)), input.tangent.w);
+    output.worldPosition = worldPosition.xyz;
     return output;
 }
 
 static const float Pi = 3.14159265f;
-// The fixed light of a view without lights (towards the light).
-static const float3 FixedLightDirection = normalize(float3(0.4f, 0.8f, 0.45f));
-static const float FixedLightIntensity = 0.75f;
-static const float FixedAmbientIntensity = 0.25f;
 
 float3 LinearToSrgb(float3 colour)
 {
@@ -149,28 +152,6 @@ float3 SurfaceNormal(VertexOutput input)
     return normalize(sampled.x * tangent + sampled.y * bitangent + sampled.z * normal);
 }
 
-// One light's contribution: GGX distribution, Schlick-Smith visibility (k from the remapped roughness) and Schlick
-// Fresnel. `radiance` is the light's colour x intensity; a white Lambert surface facing the light reaches it.
-float3 Shade(float3 normal, float3 view, float3 towards, float3 radiance, float3 base, float metallic, float roughness)
-{
-    const float3 halfway = normalize(towards + view);
-    const float normalDotLight = saturate(dot(normal, towards));
-    const float normalDotView = max(dot(normal, view), 0.0001f);
-    const float normalDotHalf = saturate(dot(normal, halfway));
-    const float viewDotHalf = saturate(dot(view, halfway));
-    const float alpha = roughness * roughness;
-    const float alphaSquared = alpha * alpha;
-    const float denominator = normalDotHalf * normalDotHalf * (alphaSquared - 1.0f) + 1.0f;
-    const float distribution = alphaSquared / (Pi * denominator * denominator);
-    const float k = (roughness + 1.0f) * (roughness + 1.0f) / 8.0f;
-    const float geometry = (normalDotView / (normalDotView * (1.0f - k) + k)) * (normalDotLight / (normalDotLight * (1.0f - k) + k));
-    const float3 reflectance = lerp(float3(0.04f, 0.04f, 0.04f), base, metallic);
-    const float3 fresnel = reflectance + (1.0f - reflectance) * pow(1.0f - viewDotHalf, 5.0f);
-    const float3 specular = distribution * geometry * fresnel / max(4.0f * normalDotView * normalDotLight, 0.0001f);
-    const float3 diffuse = (1.0f - fresnel) * (1.0f - metallic) * base;
-    return (diffuse + Pi * specular) * radiance * normalDotLight;
-}
-
 float4 PSMain(VertexOutput input) : SV_TARGET
 {
     const float4 base = BaseColour(input);
@@ -179,36 +160,59 @@ float4 PSMain(VertexOutput input) : SV_TARGET
     const float metallic = saturate(gParams.x * packed.b);
     const float roughness = clamp(gParams.y * packed.g, 0.045f, 1.0f);
     const float occlusion = gOcclusionTexture.Sample(gSampler, input.uv).r;
+
     const float3 normal = SurfaceNormal(input);
     const float3 view = normalize(gCameraAndFlags.xyz - input.worldPosition);
+    const float normalDotView = max(dot(normal, view), 0.0001f);
+    const float alpha = roughness * roughness;
+    const float alphaSquared = alpha * alpha;
+    const float k = (roughness + 1.0f) * (roughness + 1.0f) / 8.0f;
+    const float3 reflectance = lerp(float3(0.04f, 0.04f, 0.04f), base.rgb, metallic);
 
-    float3 lit;
-    if (gLightCount.y < 0.5f)
+    float3 direct = float3(0.0f, 0.0f, 0.0f);
+    const uint count = (uint)gAmbientCount.w;
+    [loop]
+    for (uint index = 0; index < count; ++index)
     {
-        lit = FixedAmbientIntensity * base.rgb * occlusion
-            + Shade(normal, view, FixedLightDirection, FixedLightIntensity.xxx, base.rgb, metallic, roughness);
-    }
-    else
-    {
-        lit = gLightAmbient.rgb * base.rgb * occlusion;
-        const int count = (int)gLightCount.x;
-        for (int at = 0; at < count; ++at)
+        const Light light = gLights[index];
+        float3 towards = -light.directionKind.xyz;
+        float attenuation = 1.0f;
+        if (light.directionKind.w > 0.5f)
         {
-            // A directional light's direction is normalised here: the halfway vector needs a unit vector.
-            float3 towards = gLightPosition[at].xyz / max(length(gLightPosition[at].xyz), 0.0001f);
-            float attenuation = 1.0f;
-            if (gLightPosition[at].w > 0.5f)
+            // Point and spot: inverse square with glTF's smooth window to zero at the range. The distance never
+            // drops under 0.01 so a surface touching the light does not blow up.
+            const float3 toLight = light.positionRange.xyz - input.worldPosition;
+            const float distanceSquared = max(dot(toLight, toLight), 0.0001f);
+            towards = toLight * rsqrt(distanceSquared);
+            attenuation = 1.0f / distanceSquared;
+            if (light.positionRange.w > 0.0f)
             {
-                const float3 offset = gLightPosition[at].xyz - input.worldPosition;
-                const float distance = length(offset);
-                towards = offset / max(distance, 0.0001f);
-                const float fade = saturate(1.0f - distance / max(gLightColor[at].a, 0.0001f));
-                attenuation = fade * fade;
+                const float ratio = distanceSquared / (light.positionRange.w * light.positionRange.w);
+                attenuation *= saturate(1.0f - ratio * ratio);
             }
-            lit += Shade(normal, view, towards, gLightColor[at].rgb * attenuation, base.rgb, metallic, roughness);
+            if (light.directionKind.w > 1.5f)
+            {
+                const float cone = saturate(dot(light.directionKind.xyz, -towards) * light.cone.x + light.cone.y);
+                attenuation *= cone * cone;
+            }
         }
+        const float normalDotLight = saturate(dot(normal, towards));
+        const float3 halfway = normalize(towards + view);
+        const float normalDotHalf = saturate(dot(normal, halfway));
+        const float viewDotHalf = saturate(dot(view, halfway));
+
+        // GGX distribution, Schlick-Smith visibility (k from the remapped roughness) and Schlick Fresnel.
+        const float denominator = normalDotHalf * normalDotHalf * (alphaSquared - 1.0f) + 1.0f;
+        const float distribution = alphaSquared / (Pi * denominator * denominator);
+        const float geometry = (normalDotView / (normalDotView * (1.0f - k) + k)) * (normalDotLight / (normalDotLight * (1.0f - k) + k));
+        const float3 fresnel = reflectance + (1.0f - reflectance) * pow(1.0f - viewDotHalf, 5.0f);
+        const float3 specular = distribution * geometry * fresnel / max(4.0f * normalDotView * normalDotLight, 0.0001f);
+        const float3 diffuse = (1.0f - fresnel) * (1.0f - metallic) * base.rgb;
+        // The light's radiance is colour * Pi, so a white Lambert surface facing it reaches the colour.
+        direct += (diffuse + Pi * specular) * light.colour.rgb * (attenuation * normalDotLight);
     }
-    return float4(LinearToSrgb(lit + Emissive(input)), base.a);
+    const float3 ambient = gAmbientCount.rgb * base.rgb * occlusion;
+    return float4(LinearToSrgb(ambient + direct + Emissive(input)), base.a);
 }
 
 float4 PSUnlitMain(VertexOutput input) : SV_TARGET

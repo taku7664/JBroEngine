@@ -135,7 +135,7 @@ namespace
                     lit += light.color[0].Get() * base;
                     continue;
                 }
-                if (used++ >= JBro::Renderer::MaxLights3D)
+                if (used++ >= JBro::Renderer::MaxLights3DPerView)
                 {
                     continue;
                 }
@@ -148,8 +148,14 @@ namespace
                         towards[axis] = light.position[axis].Get() - position[axis];
                     }
                     const float distance = std::sqrt(towards[0] * towards[0] + towards[1] * towards[1] + towards[2] * towards[2]);
-                    const float fade = std::fmax(0.0f, std::fmin(1.0f, 1.0f - distance / std::fmax(light.range.Get(), 0.0001f)));
-                    attenuation = fade * fade;
+                    // glTF 권장식(D-407): 거리 제곱의 역에 range 에서 0 이 되는 창을 곱한다.
+                    const float distanceSquared = std::fmax(distance * distance, 0.0001f);
+                    attenuation = 1.0f / distanceSquared;
+                    if (light.range.Get() > 0.0f)
+                    {
+                        const float ratio = distanceSquared / (light.range.Get() * light.range.Get());
+                        attenuation *= std::fmax(0.0f, std::fmin(1.0f, 1.0f - ratio * ratio));
+                    }
                 }
                 else
                 {
@@ -1637,6 +1643,8 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
 
         // 정면(-z 로 가는 빛)은 온전히, 60 도는 반이다.
         JBro::Light3DSubmit sun;
+        // 기본 종류는 점광이다(D-408) - 방향광을 적는다.
+        sun.kind = JBro::Light3DKind::Directional;
         sun.direction[0] = 0.0f;
         sun.direction[1] = 0.0f;
         sun.direction[2] = -1.0f;
@@ -1672,11 +1680,17 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
         point.range = 4.0f;
         lights.Clear();
         lights.Add(point);
-        expect(lights, 0.8f * 0.75f * 0.75f, "a point light fades with the square of the distance's remainder");
+        // 감쇠는 glTF 권장식이다(D-407): 1 / d^2 에 (1 - (d/range)^4) 의 창. 픽셀 (16, 32) 의 월드 자리에서 잰다.
+        const JBro::Float pointX = (16.5f / 32.0f - 1.0f) + 0.5f;
+        const JBro::Float pointY = 1.0f - 32.5f / 32.0f;
+        const JBro::Float pointDistanceSquared = pointX * pointX + pointY * pointY + 1.0f;
+        const JBro::Float pointWindow = 1.0f - (pointDistanceSquared / 16.0f) * (pointDistanceSquared / 16.0f);
+        const JBro::Float pointLambert = 1.0f / std::sqrt(pointDistanceSquared.Get());
+        expect(lights, 0.8f * pointWindow / pointDistanceSquared * pointLambert, "a point light fades with the inverse square inside its range");
 
         // 상한을 넘으면 버리고 센다.
         lights.Clear();
-        for (JBro::UInt32 at = 0; at < JBro::Renderer::MaxLights3D + 2; ++at)
+        for (JBro::UInt32 at = 0; at < JBro::Renderer::MaxLights3DPerView + 2; ++at)
         {
             JBro::Light3DSubmit weak = sun;
             weak.color[0] = 0.01f;
@@ -1684,7 +1698,7 @@ float4 PSMain(JBroMeshInput input) : SV_TARGET
             weak.color[2] = 0.01f;
             lights.Add(weak);
         }
-        expect(lights, 0.16f, "sixteen lights reach the surface");
+        expect(lights, 0.01f * static_cast<float>(JBro::Renderer::MaxLights3DPerView.Get()), "sixty-four lights reach the surface");
         Check(stage.renderer.GetLastFrameStats().droppedLight3DCount == 2, "the rest are dropped and counted");
         stage.Close(rhi);
     }

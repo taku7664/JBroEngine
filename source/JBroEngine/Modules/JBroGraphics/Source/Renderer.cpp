@@ -137,7 +137,6 @@ namespace JBro
             m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Reserve(config.maxMeshSubmissions);
             m_meshRuns.Reserve(config.maxMeshSubmissions);
-            m_viewLights3D.Resize(config.maxViews);
             // 묶음은 많아도 스프라이트 수를 넘지 않는다. 프레임 안에서 자라지 않게 여기서 잡는다.
             m_spriteRuns.Reserve(config.maxSpriteSubmissions);
             // 레이어 묶음도 프레임 안에서 자라지 않는다. 넘치면 묶지 않고 센다.
@@ -149,6 +148,7 @@ namespace JBro
             m_shadowEdges.Reserve(config.maxShadowEdges2D);
             m_gpuShadowEdges.Resize(config.maxShadowEdges2D);
             m_litRanges.Reserve(config.maxLayerGroups);
+            m_lights3D.Reserve(config.maxLights3D);
             m_textureResources.Reserve(64);
             // 후처리 효과와 블록도 프레임 안에서 자라지 않는다(D-342). 넘치는 효과는 버리고 센다.
             m_postEntries.Reserve(config.maxPostProcessEntries);
@@ -282,7 +282,6 @@ namespace JBro
         m_gpuSpriteCount = 0;
         m_gpuMeshCount = 0;
         m_meshRuns = {};
-        m_viewLights3D = {};
         m_layerGroups = {};
         m_openLayerGroup = NoLayerGroup;
         m_lights = {};
@@ -1332,6 +1331,7 @@ namespace JBro
         m_frameTarget = target;
         m_frameActive = true;
         ResetSubmissionStorage();
+        m_lightRing.BeginFrame(m_frame.slot);
         return FrameStatus::Ready;
     }
 
@@ -1363,9 +1363,9 @@ namespace JBro
         packet.camera.layerPostProcess = {};
         CopyPostEntries(camera.postProcess, packet.postOffset, packet.postCount);
         CopyPostEntries(camera.layerPostProcess, packet.layerPostOffset, packet.layerPostCount);
+        packet.light3DOffset = static_cast<JBro::UInt32>(m_lights3D.Size());
         m_views.Add(packet);
         m_activeView = static_cast<JBro::UInt32>(m_views.Size() - 1);
-        m_viewLights3D[m_activeView] = {};
         ++m_currentStats.viewCount;
         return true;
     }
@@ -1537,43 +1537,6 @@ namespace JBro
         return true;
     }
 
-    Bool Renderer::SubmitLight3D(const Light3DSubmit& light)
-    {
-        if (false == m_frameActive || m_activeView == InvalidViewIndex)
-        {
-            return false;
-        }
-        GpuMeshLights& block = m_viewLights3D[m_activeView];
-        ++m_currentStats.light3DCount;
-        // 환경광 하나여도 그 뷰는 고정 방향광을 쓰지 않는다.
-        block.count[1] = 1.0f;
-        if (light.kind == Light3DKind::Ambient)
-        {
-            for (Int32 channel = 0; channel < 3; ++channel)
-            {
-                block.ambient[channel.Get()] += light.color[channel.Get()];
-            }
-            return true;
-        }
-        const UInt32 at = static_cast<JBro::UInt32>(block.count[0].Get());
-        if (at >= MaxLights3D)
-        {
-            ++m_currentStats.droppedLight3DCount;
-            return false;
-        }
-        const Bool point = light.kind == Light3DKind::Point;
-        for (Int32 axis = 0; axis < 3; ++axis)
-        {
-            // 셰이더는 빛을 향하는 쪽을 읽는다.
-            block.position[at.Get()][axis.Get()] = point ? light.position[axis.Get()] : Float(-light.direction[axis.Get()]);
-            block.color[at.Get()][axis.Get()] = light.color[axis.Get()];
-        }
-        block.position[at.Get()][3] = point ? 1.0f : 0.0f;
-        block.color[at.Get()][3] = light.range;
-        block.count[0] = static_cast<float>(at.Get() + 1u);
-        return true;
-    }
-
     Bool Renderer::SubmitLight2D(const Light2DSubmit& light)
     {
         return SubmitLights2D({&light, 1});
@@ -1632,6 +1595,105 @@ namespace JBro
         m_shadowEdges.Append(edges.data, edges.size);
         m_views[m_activeView].shadowEdgeCount += edges.size;
         m_currentStats.shadowEdge2DCount += edges.size;
+        return true;
+    }
+
+    Bool Renderer::SubmitLight3D(const Light3DSubmit& light)
+    {
+        return SubmitLights3D({&light, 1});
+    }
+
+    Bool Renderer::SubmitLights3D(JArrayView<Light3DSubmit> lights)
+    {
+        if (false == m_frameActive || m_activeView == InvalidViewIndex || (lights.size != 0 && lights.data == nullptr))
+        {
+            return false;
+        }
+        ViewPacket& view = m_views[m_activeView];
+        Bool allTaken = true;
+        for (std::size_t at = 0; at < lights.size; ++at)
+        {
+            const Light3DSubmit& light = lights.data[at];
+            ++m_currentStats.light3DCount;
+            view.lighting3D = true;
+            if (light.kind == Light3DKind::Ambient)
+            {
+                for (Int32 channel = 0; channel < 3; ++channel)
+                {
+                    view.ambient3D[channel] += light.color[channel];
+                }
+                continue;
+            }
+            if (view.light3DCount >= MaxLights3DPerView || m_lights3D.Size() >= m_config.maxLights3D)
+            {
+                ++m_currentStats.droppedLight3DCount;
+                allTaken = false;
+                continue;
+            }
+            GpuLight3D gpu{};
+            gpu.positionRange[0] = light.position[0];
+            gpu.positionRange[1] = light.position[1];
+            gpu.positionRange[2] = light.position[2];
+            gpu.positionRange[3] = light.range > 0.0f ? light.range : Float(0.0f);
+            // 방향은 길이 1 로 맞춘다. 길이가 없으면 로컬 -Z 의 기본이다.
+            const Float length = std::sqrt(light.direction[0] * light.direction[0] + light.direction[1] * light.direction[1]
+                + light.direction[2] * light.direction[2]);
+            const Bool hasDirection = length > 0.00001f;
+            gpu.directionKind[0] = hasDirection ? light.direction[0] / length : Float(0.0f);
+            gpu.directionKind[1] = hasDirection ? light.direction[1] / length : Float(0.0f);
+            gpu.directionKind[2] = hasDirection ? light.direction[2] / length : Float(-1.0f);
+            gpu.directionKind[3] = light.kind == Light3DKind::Directional ? Float(0.0f) : (light.kind == Light3DKind::Point ? Float(1.0f) : Float(2.0f));
+            gpu.color[0] = light.color[0];
+            gpu.color[1] = light.color[1];
+            gpu.color[2] = light.color[2];
+            gpu.color[3] = 0.0f;
+            if (light.kind == Light3DKind::Spot)
+            {
+                // 각은 원뿔 전체다. 축에서 재는 반각의 cos 으로 glTF 의 scale·offset 을 셈한다. 안쪽이 바깥보다 넓으면 바깥과 같다고 본다.
+                constexpr Float Pi = 3.14159265f;
+                const Float halfOuter = Float::Clamp(light.outerAngle.Get() * 0.5f, 0.0f, Pi * 0.5f);
+                const Float halfInner = Float::Clamp(light.innerAngle.Get() * 0.5f, 0.0f, halfOuter);
+                const Float cosOuter = std::cos(halfOuter.Get());
+                const Float cosInner = std::cos(halfInner.Get());
+                const Float difference = cosInner - cosOuter;
+                const Float scale = 1.0f / (difference > 0.001f ? difference : Float(0.001f));
+                gpu.cone[0] = scale;
+                gpu.cone[1] = -cosOuter * scale;
+            }
+            m_lights3D.Add(gpu);
+            ++view.light3DCount;
+        }
+        return allTaken;
+    }
+
+    Bool Renderer::PushLightBlock(const ViewPacket& view)
+    {
+        // 라이트를 받지 않은 뷰는 기본 빛이다. 뷰마다 같은 라이트를 내는 것이 보통이라(레이어마다 뷰) 앞 블록과 같으면 그 구간을 다시 묶는다.
+        if (view.lighting3D)
+        {
+            m_lightBlock.ambientCount[0] = view.ambient3D[0];
+            m_lightBlock.ambientCount[1] = view.ambient3D[1];
+            m_lightBlock.ambientCount[2] = view.ambient3D[2];
+            m_lightBlock.ambientCount[3] = static_cast<float>(view.light3DCount.Get());
+            for (UInt32 at = 0; at < view.light3DCount; ++at)
+            {
+                m_lightBlock.lights[at.Get()] = m_lights3D[(view.light3DOffset + at).Get()];
+            }
+        }
+        const GpuLightConstants& block = view.lighting3D ? m_lightBlock : m_defaultLightBlock;
+        const UInt32 lightCount = view.lighting3D ? view.light3DCount : UInt32(1);
+        const std::size_t bytes = sizeof(block.ambientCount) + sizeof(GpuLight3D) * lightCount.Get();
+        if (false == m_lastLightRange.IsValid() || m_lastLightBlockBytes != bytes || std::memcmp(&m_lastLightBlock, &block, bytes) != 0)
+        {
+            // 셰이더는 라이트 수까지만 읽는다. 묶는 크기는 블록 전체다(셰이더가 선언한 크기).
+            m_lastLightRange = m_lightRing.Push(block);
+            if (false == m_lastLightRange.IsValid())
+            {
+                return false;
+            }
+            std::memcpy(&m_lastLightBlock, &block, bytes);
+            m_lastLightBlockBytes = bytes;
+        }
         return true;
     }
 
@@ -2981,14 +3043,12 @@ namespace JBro
             push.cameraAndFlags[0] = -(v[0] * v[3] + v[4] * v[7] + v[8] * v[11]);
             push.cameraAndFlags[1] = -(v[1] * v[3] + v[5] * v[7] + v[9] * v[11]);
             push.cameraAndFlags[2] = -(v[2] * v[3] + v[6] * v[7] + v[10] * v[11]);
-            // 이 뷰의 라이트 블록이다(D-367). 패스에 한 번 올린다. 빌트인 메시와 머티리얼 메시 모두 b2 에서 읽는다.
-            const GpuMeshLights& lights = renderer.m_viewLights3D[pass.view.Get()];
-            const ConstantRange lightRange = renderer.m_postConstants.Push(
-                JArrayView<std::byte>{reinterpret_cast<const std::byte*>(&lights), static_cast<JBro::UInt32>(sizeof(lights))});
-            if (false == lightRange.IsValid())
+            // 이 뷰의 라이트 블록이다(D-407). 패스에 한 번 링에 올리고, 파이프라인을 걸 때마다 그 구간을 묶는다. 표준 머티리얼과 셰이더 머티리얼 모두 b2 에서 읽는다.
+            if (false == renderer.PushLightBlock(view))
             {
                 return false;
             }
+            const ConstantRange lightRange = renderer.m_lastLightRange;
             const BufferHandle instances = renderer.m_meshInstanceBuffers[renderer.m_frame.slot];
             // 구간은 (머티리얼, 메시)마다 이어 놓였다. 셰이더 머티리얼이 바뀌거나 표준 머티리얼이 바뀔 때만 파이프라인과 자원을 다시 건다.
             const auto bindShaderMaterial = [&](UInt32 material) {
@@ -3354,6 +3414,28 @@ namespace JBro
         const std::byte flat[4] = {std::byte{128}, std::byte{128}, std::byte{255}, std::byte{255}};
         m_defaultMeshMaterial = {};
         m_defaultMeshMaterial.constants = CreateMeshMaterialConstants(m_defaultMeshMaterial.desc);
+        // 라이트 블록은 뷰마다 하나다(D-407). 링의 한 자리는 블록을 정렬로 올린 크기다.
+        const std::size_t alignment = m_device->GetCaps().constantBufferAlignment;
+        const std::size_t blockSlot = (sizeof(GpuLightConstants) + alignment - 1) / alignment * alignment;
+        if (false == m_lightRing.Create(*m_device, blockSlot * m_config.maxViews.Get()))
+        {
+            return false;
+        }
+        // 기본 빛: 라이트 기능 전의 고정 방향광(빛 쪽 (0.4, 0.8, 0.45), 세기 0.75)과 주변광 0.25 다.
+        m_defaultLightBlock = {};
+        m_defaultLightBlock.ambientCount[0] = 0.25f;
+        m_defaultLightBlock.ambientCount[1] = 0.25f;
+        m_defaultLightBlock.ambientCount[2] = 0.25f;
+        m_defaultLightBlock.ambientCount[3] = 1.0f;
+        const Float towards = std::sqrt(0.4f * 0.4f + 0.8f * 0.8f + 0.45f * 0.45f);
+        GpuLight3D& sun = m_defaultLightBlock.lights[0];
+        sun.directionKind[0] = -0.4f / towards;
+        sun.directionKind[1] = -0.8f / towards;
+        sun.directionKind[2] = -0.45f / towards;
+        sun.directionKind[3] = 0.0f;
+        sun.color[0] = 0.75f;
+        sun.color[1] = 0.75f;
+        sun.color[2] = 0.75f;
         return m_meshLinearSampler.IsValid() && m_meshNearestSampler.IsValid() && m_flatNormalTexture.IsValid()
             && m_device->WriteTexture(m_flatNormalTexture, 0, {flat, 4}) && m_defaultMeshMaterial.constants.IsValid();
     }
@@ -3364,6 +3446,7 @@ namespace JBro
         {
             return;
         }
+        m_lightRing.Destroy();
         for (MeshMaterialResource& material : m_meshMaterialResources)
         {
             if (material.occupied && material.constants.IsValid())
@@ -4960,6 +5043,8 @@ namespace JBro
         m_worldTextRuns.Clear();
         m_postEntries.Clear();
         m_postBlockUsed = 0;
+        m_lights3D.Clear();
+        m_lastLightRange = {};
         m_currentStats = {};
         m_activeView = InvalidViewIndex;
     }

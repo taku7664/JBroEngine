@@ -285,7 +285,8 @@ namespace
         Check(world.GetMesh(0).material.generation == 0, "without a material library the material asset handle does not reach the renderer");
         Check(hiddenMesh->mesh.generation == 0, "a hidden mesh is not even resolved");
 
-        // 켜진 `Light3D` 를 뜬다(D-367). 방향은 오브젝트의 앞(-Z)을 회전한 것이다.
+        // 켜진 `Light3D` 를 뜬다(D-367, 2026-11-19 통합에서 원격의 D-409 컴포넌트로). 방향은 오브젝트의 앞(-Z)을 회전한 것이다.
+        Check(world.ReserveLights(4), "the render world takes lights");
         auto* sunLight = canvas.AttachComponent<JBro::Component::Light3D>(shown);
         Check(sunLight != nullptr, "a light attaches");
         sunLight->intensity = 2.0f;
@@ -297,7 +298,7 @@ namespace
         lights.Update(canvas, 1.0f / 60.0f);
         Check(world.GetLightCount() == 1 && world.GetLight(0).owner == shown && Near(world.GetLight(0).intensity, 2.0f),
             "only the enabled light is extracted with its values");
-        Check(Near(world.GetLight(0).forward.z, -1.0f), "an unturned object's light goes along -Z");
+        Check(Near(world.GetLight(0).direction.z, -1.0f), "an unturned object's light goes along -Z");
 
         // 용량을 넘으면 세기만 한다.
         world.BeginFrame();
