@@ -63,6 +63,35 @@ namespace JBro::Physics3D
         UInt32 generation = 0;
     };
 
+    inline constexpr UInt32 InvalidCharacterIndex = 0xFFFFFFFFu;
+
+    // 캐릭터 번호(D-427). 자리와 세대다.
+    struct CharacterId
+    {
+        UInt32 index = InvalidCharacterIndex;
+        UInt32 generation = 0;
+    };
+
+    // **캐릭터**(D-427). Jolt 의 `CharacterVirtual` 이다 - 힘으로 움직이는 몸이 아니라, 스크립트가 준 이동을 막히면 미끄러지며 따르는 선 캡슐이다
+    // (유니티의 CharacterController 자리). 돌지 않는다. 비탈은 maxSlope 까지 오르고, stepHeight 까지의 턱은 걸어 오르며, 걷던 바닥에는 붙어 내려간다.
+    // 동적인 몸을 민다. 다른 몸과 질의가 캐릭터를 보도록 같은 캡슐의 키네마틱 몸 하나를 든다(`GetCharacterBody`) - 사건과 질의에서 캐릭터는 그 몸이고 userData 도 그 몸에 있다.
+    struct CharacterDef
+    {
+        // 캐릭터 원점(월드).
+        Vector3 position;
+        // 원점에서 캡슐 중심까지(월드 축).
+        Vector3 center;
+        Float radius = 0.5f;
+        // 원통 부분의 높이 절반. 0 이면 구다.
+        Float halfHeight = 0.5f;
+        // 라디안.
+        Float maxSlope = 0.785398f;
+        Float stepHeight = 0.3f;
+        UInt32 layer = 0x00000001u;
+        UInt32 mask = 0xFFFFFFFFu;
+        UInt64 userData = 0;
+    };
+
     struct ShapeDesc
     {
         ShapeType type = ShapeType::Box;
@@ -272,6 +301,25 @@ namespace JBro::Physics3D
         UInt32 GetJointCount() const;
         // 경첩의 지금 각(라디안, A 가 B 에 대해). 경첩이 아니면 0 이다.
         Float GetHingeAngle(JointId joint) const;
+
+        // ── 캐릭터(D-427) ────────────────────────────────────────────────
+        // 크기가 틀렸거나 표가 찼으면 빈 번호다.
+        CharacterId CreateCharacter(const CharacterDef& def);
+        void DestroyCharacter(CharacterId character);
+        Bool IsValid(CharacterId character) const;
+        UInt32 GetCharacterCount() const;
+        // 모양(중심·반지름·높이)·비탈·턱·레이어를 바꾼다. 자리(position)와 userData 는 두고 쓰지 않는다.
+        void SetCharacterShape(CharacterId character, const CharacterDef& def);
+        // 순간 이동이다. 쌓아 둔 이동은 그대로다.
+        void SetCharacterPosition(CharacterId character, const Vector3& position);
+        // **다음 Step 에 이만큼 옮긴다**(여러 번 부르면 더한다). 중력은 넣지 않는다 - 떨어지게 하려면 이동에 넣는다(유니티의 `Move` 와 같다).
+        void MoveCharacter(CharacterId character, const Vector3& displacement);
+        Vector3 GetCharacterPosition(CharacterId character) const;
+        // 마지막 Step 에 실제로 간 속도(막혀 덜 갔으면 덜 간 만큼).
+        Vector3 GetCharacterVelocity(CharacterId character) const;
+        // 마지막 Step 뒤 걸을 수 있는 바닥(maxSlope 이하)에 서 있는가.
+        Bool IsCharacterGrounded(CharacterId character) const;
+        BodyId GetCharacterBody(CharacterId character) const;
 
         // 시간을 deltaTime 만큼 진행한다. 0 이하면 아무것도 하지 않는다.
         void Step(Float deltaTime);

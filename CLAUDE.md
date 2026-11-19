@@ -148,6 +148,9 @@
 - [tasks/physics3d-plan.md](./tasks/physics3d-plan.md) — 3D 물리(D-414). 커널은 **Jolt Physics**(v5.7.0, `ThirdParty/Jolt`)이고 엔진이 보이는 모양(컴포넌트·훅·질의·에디터)은 2D 물리를 따른다.
   설계(§2: Jolt 를 보는 커널 모듈 하나·2D 와 같은 컴포넌트 필드·싱글 스레드로 시작·충돌 훅과 `Physics3DService`)는 확정됐다(D-415). 0 단계(Jolt)·1 단계(커널 `Modules/JBroPhysics3D`, 할당 훅 뒤의 재사용 풀로 스텝 중 OS 힙 0)·2 단계(컴포넌트 필드·`PhysicsLayerMask` 를 Core 로·어댑터 `Physics3DSystem`, 한 오브젝트의 콜라이더 여럿은 복합 도형과 센서, D-416)·
   3 단계(`GameScript3D` 의 충돌·트리거 훅과 `Physics3DService` 질의, 잠든 접촉은 끝이 아니다, D-417)·4 단계(캔버스 뷰의 3D 콜라이더 선, 메시 콜라이더 - `convex` 칸과 껍질, 빈 `meshId` 는 렌더러의 메시, 감기를 Jolt 쪽으로 뒤집는다, D-418)가 섰다.
+  5 단계(Jolt 의 스레드 풀을 `Build.PhysicsThreads` 로, 1000 바디에서 워커 넷이 4.4 배, D-419)와 6 단계(CCD 는 동적인 몸 모두에 저절로 D-425, 조인트 `DistanceJoint3D`·`HingeJoint3D` D-426,
+  캐릭터 컨트롤러 `CharacterController3D` - `Move` 는 다음 고정 스텝이 먹인다, D-427)도 섰다. 열려 있던 것도 닫았다: 스크립트의 힘·충격량(D-420), 콜라이더마다의 레이어와 레이어 충돌 표(D-421),
+  지금의 컴포넌트를 보는 질의(D-422), 빠른 트리거의 쓸기(D-423), 모델 메시 콜라이더 시험(D-424).
   지금 상태가 §1, 단계와 실측이 §3, `[열림]` 이 §4
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.
   새 Tier E 모듈 `JBroPackage`, 에셋 시스템의 바이트 출처 `IAssetSource`, 호스트의 `BuildGame` 과 패키지로 여는 프로젝트(`AssetPackage`), 에디터 파일 메뉴 "게임 빌드".

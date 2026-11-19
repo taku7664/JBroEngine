@@ -56,6 +56,7 @@ namespace JBro
             Collider3D,
             DistanceJoint3D,
             HingeJoint3D,
+            CharacterController3D,
             Text3D,
             AudioListener3D,
             Light3D,

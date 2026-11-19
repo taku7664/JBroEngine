@@ -81,6 +81,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Handle/Rigidbody3D.h>
+#include <JBro/Framework3D/Handle/CharacterController3D.h>
 #include <JBro/Framework3D/Handle/DistanceJoint3D.h>
 #include <JBro/Framework3D/Handle/HingeJoint3D.h>
 #include <JBro/Framework3D/Scripting/GameScript.h>
@@ -7472,6 +7473,73 @@ namespace
         rope->SetEnabled(false);
         Check(editor.Tick(Frame), "the editor must tick after the rope is turned off");
         Check(physics->GetJointCount() == 2, "a disabled joint lets go");
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
+    // **캐릭터 컨트롤러**(D-427). 스크립트 핸들의 `Move` 로 걷는 캐릭터가 바닥에 서서 벽 앞에서 멈추고, 지나친 트리거의 훅을 듣는다.
+    // 같은 오브젝트의 `Rigidbody3D`·고체 `Collider3D` 는 몸이 되지 않는다(컨트롤러가 그 오브젝트의 콜라이더다).
+    void TestCharacterControllerIn3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the 3D character controller not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "Character3DProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto solid = [&](const char* tag, JBro::Vector3 position, JBro::Vector3 size, JBro::Bool trigger) {
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
+            canvas->AttachComponent<JBro::Component::Transform3D>(object)->position = position;
+            auto* collider = canvas->AttachComponent<JBro::Component::Collider3D>(object);
+            collider->size = size;
+            collider->isTrigger = trigger;
+            return object;
+        };
+        solid("Ground", {0.0f, -0.5f, 0.0f}, {40.0f, 1.0f, 40.0f}, false);
+        solid("Wall", {6.0f, 1.0f, 0.0f}, {1.0f, 2.0f, 4.0f}, false);
+        solid("Gate", {2.0f, 1.0f, 0.0f}, {0.2f, 2.0f, 4.0f}, true);
+        JBro::Object::GameObject* player = canvas->CreateObject("Player");
+        canvas->AttachComponent<JBro::Component::Transform3D>(player)->position = {0.0f, 0.5f, 0.0f};
+        auto* controller = canvas->AttachComponent<JBro::Component::CharacterController3D>(player);
+        controller->center = {0.0f, 1.0f, 0.0f};
+        canvas->AttachComponent<JBro::Component::Collider3D>(player);
+        canvas->AttachComponent<JBro::Component::Rigidbody3D>(player);
+        TriggerCounter3D* counter = canvas->AttachScript<TriggerCounter3D>(player);
+        Check(counter != nullptr, "the player listens for triggers");
+        JBro::Handle::CharacterController3D handle = player->GetScriptHandle().GetComponent<JBro::Handle::CharacterController3D>();
+        Check(handle.IsValid() && std::fabs(handle.GetRadius() - 0.5f) < 1.0e-6f, "the controller handle reads its fields");
+        for (JBro::Int32 frame = 0; frame < 150; ++frame)
+        {
+            handle.Move({0.08f, -0.1f, 0.0f});
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        const JBro::Vector3 position = canvas->FindComponentRaw<JBro::Component::Transform3D>(player)->position;
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>();
+        Check(physics != nullptr && physics->GetCharacterCount() == 1, "the controller became a character");
+        // 고체 몸은 바닥·벽 둘이다(트리거는 센서, 캐릭터는 제 몸을 따로 센다) - 플레이어의 Rigidbody3D·Collider3D 는 몸이 되지 않았다.
+        Check(physics->GetBodyCount() == 2, "the player's own rigidbody and collider do not become a body");
+        Check(std::fabs(position.y) < 0.05f, "the player stands on the ground");
+        Check(position.x > 4.9f && position.x < 5.05f, "and stops a radius before the wall");
+        Check(handle.IsGrounded(), "the handle says it is grounded");
+        Check(std::fabs(handle.GetVelocity().x) < 0.5f, "blocked by the wall it reports no speed into it");
+        Check(counter->enters == 1 && counter->exits == 1, "walking through the gate enters and leaves it once");
+        // 컨트롤러를 끄면 캐릭터가 사라지고 고체 콜라이더가 몸이 된다.
+        controller->SetEnabled(false);
+        Check(editor.Tick(Frame), "the editor must tick after the controller is turned off");
+        Check(physics->GetCharacterCount() == 0 && physics->GetBodyCount() == 3, "the player becomes an ordinary body again");
         editor.StopSimulation();
         editor.Shutdown();
     }
@@ -21073,6 +21141,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestQueriesSeeTheCurrentComponentsIn3D());
     JBRO_CASE(TestAFastTriggerDoesNotSkipIn3D());
     JBRO_CASE(TestJointsIn3D());
+    JBRO_CASE(TestCharacterControllerIn3D());
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestModelMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());

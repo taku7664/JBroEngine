@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Rigidbody3D`·`Collider3D`·`DistanceJoint3D`·`HingeJoint3D`)로만 만진다(D-302).
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Rigidbody3D`·`Collider3D`·`DistanceJoint3D`·`HingeJoint3D`·`CharacterController3D`)로만 만진다(D-302).
 // 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
 #if defined(JBRO_SCRIPT_TARGET)
 #error "A script reaches the 3D physics components through its handle in <JBro/ScriptAPI.h>, not the component data header."
@@ -236,5 +236,69 @@ namespace JBro::Component
         JBRO_FIELD(Degree, motorSpeed) = 0.0f;
         JBRO_FIELD(Float, maxMotorTorque, Range(0.0f, 100000.0f)) = 1000.0f;
         JBRO_FIELD(Bool, collideConnected) = false;
+    };
+
+    // **캐릭터 컨트롤러**(D-427, 유니티의 CharacterController 와 같은 자리·같은 칸 이름). 힘으로 움직이는 몸이 아니라, 스크립트가 `Move` 로 준 이동을
+    // 다음 고정 스텝이 막히면 미끄러지며 따르는 선 캡슐이다. slopeLimit 까지의 비탈은 오르고, stepOffset 까지의 턱은 걸어 오르며, 걷던 바닥에 붙어 내려간다.
+    // 동적인 몸을 밀고, 트리거와 고체에 닿으면 양쪽 스크립트가 훅을 받는다(캐릭터 쪽 bodyType 은 Kinematic 이다).
+    // **이것이 그 오브젝트의 콜라이더다** - 같은 오브젝트의 고체 `Collider3D`·`Rigidbody3D` 는 몸이 되지 않는다(트리거 콜라이더는 그대로 센서다).
+    // 캡슐은 오브젝트가 돌아도 늘 선다. 크기는 월드 크기를 곱한다(반지름은 X·Z 중 큰 것, 높이는 Y).
+    class CharacterController3D final : public ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::CharacterController3D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(CharacterController3D)
+
+        // 오브젝트 원점에서 캡슐 중심까지(크기를 곱하고, 돌리지 않는다).
+        JBRO_FIELD(JBro::Vector3, center);
+        JBRO_FIELD(Float, radius, Range(0.01f, 100.0f)) = 0.5f;
+        // 캡슐의 전체 높이(양 끝의 반구를 넣어서). 반지름의 두 배보다 작으면 구다.
+        JBRO_FIELD(Float, height, Range(0.0f, 100.0f)) = 2.0f;
+        JBRO_FIELD(Degree, slopeLimit, Range(0.0f, 89.0f)) = 45.0f;
+        // 월드 단위다(크기를 곱하지 않는다).
+        JBRO_FIELD(Float, stepOffset, Range(0.0f, 10.0f)) = 0.3f;
+        JBRO_FIELD(PhysicsLayerMask, layer) = 0x00000001u;
+        JBRO_FIELD(PhysicsLayerMask, mask) = 0xFFFFFFFFu;
+
+        // 다음 고정 스텝에 이만큼(월드) 옮긴다. 여러 번 부르면 더한다. 중력은 넣지 않는다(유니티의 `Move` 와 같다).
+        void Move(const Vector3& motion)
+        {
+            m_pending = Add(m_pending, motion);
+        }
+
+        // 마지막 고정 스텝 뒤 걸을 수 있는 바닥에 서 있는가.
+        Bool IsGrounded() const
+        {
+            return m_grounded;
+        }
+
+        // 마지막 고정 스텝에 실제로 간 속도.
+        Vector3 GetVelocity() const
+        {
+            return m_velocity;
+        }
+
+        // 쌓인 이동을 꺼내고 비운다. 물리가 고정 스텝마다 부른다.
+        Vector3 TakePendingMotion()
+        {
+            const Vector3 motion = m_pending;
+            m_pending = {};
+            return motion;
+        }
+
+    private:
+        friend class System::Physics3DSystem;
+        Vector3 m_pending;
+        Vector3 m_velocity;
+        Bool m_grounded = false;
     };
 }

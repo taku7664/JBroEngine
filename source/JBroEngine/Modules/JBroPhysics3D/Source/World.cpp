@@ -8,6 +8,8 @@
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
+#include <Jolt/Physics/Body/BodyFilter.h>
+#include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
@@ -31,7 +33,10 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cfloat>
 #include <cstring>
+#include <memory>
+#include <utility>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
@@ -99,6 +104,15 @@ namespace JBro::Physics3D
                 return JPH::EMotionType::Dynamic;
             }
             return JPH::EMotionType::Static;
+        }
+
+        // Jolt 의 참조 계수 객체(`RefTarget`)를 만든다(D-427). 그 클래스의 할당 함수(Jolt 의 할당 훅)에서 자리를 받아 거기에 만들고 바로 `Ref` 에 맡긴다 -
+        // 마지막 `Ref` 가 놓을 때 Jolt 가 같은 클래스의 해제 함수로 돌려준다. `new` 식을 쓰지 않는 ProjectRule 의 길(받은 자리에 `std::construct_at`, D-88)이다.
+        template <class T, class... Args>
+        JPH::Ref<T> MakeJoltRef(Args&&... args)
+        {
+            void* place = T::operator new(sizeof(T));
+            return JPH::Ref<T>(std::construct_at(static_cast<T*>(place), std::forward<Args>(args)...));
         }
 
         // ── 잎 도형 표(D-421) ─────────────────────────────────────────────
@@ -486,12 +500,64 @@ namespace JBro::Physics3D
                 stays.Add(event);
             }
 
+            // **캐릭터의 접촉**(D-427). 캐릭터는 Jolt 의 스텝 밖에서 움직여 이 리스너를 지나지 않는다 - 캐릭터 리스너가 같은 표로 센다.
+            // 캐릭터 쪽은 그 키네마틱 몸이다. 그 몸이 Jolt 의 스텝에서 같은 상대와 닿아도 한 쌍으로 센다.
+            void CharacterTouch(JPH::BodyID self, UInt64 selfData, JPH::BodyID other, UInt64 otherData, Bool trigger, const Vector3& point,
+                const Vector3& normal)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                const UInt64 key = Key(self, other);
+                Pair* pair = pairs.Find(key);
+                if (pair == nullptr)
+                {
+                    Pair fresh;
+                    fresh.event.bodyA = BodyId{self.GetIndexAndSequenceNumber()};
+                    fresh.event.bodyB = BodyId{other.GetIndexAndSequenceNumber()};
+                    fresh.event.userDataA = selfData;
+                    fresh.event.userDataB = otherData;
+                    fresh.event.isTrigger = trigger;
+                    pairs.TryAdd(key, fresh);
+                    pair = pairs.Find(key);
+                }
+                pair->sleeping = false;
+                if (pair->touching++ == 0)
+                {
+                    ContactEvent event = pair->event;
+                    Orient(self, point, normal, event);
+                    begins.Add(event);
+                    pair->reported = true;
+                }
+            }
+
+            void CharacterStay(JPH::BodyID self, JPH::BodyID other, const Vector3& point, const Vector3& normal)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                Pair* pair = pairs.Find(Key(self, other));
+                if (pair == nullptr || pair->reported)
+                {
+                    return;
+                }
+                pair->reported = true;
+                ContactEvent event = pair->event;
+                Orient(self, point, normal, event);
+                stays.Add(event);
+            }
+
+            void CharacterLeave(JPH::BodyID self, JPH::BodyID other)
+            {
+                Untouch(Key(self, other));
+            }
+
             // **잠들어도 Jolt 는 접촉을 "제거" 로 알린다** - 잠든 바디의 접촉 캐시를 비우기 때문이다. 그래서 여기서는 세기만 줄이고,
             // 끝인지는 스텝 뒤(`Resolve`)에 바디가 잠들었는지 보고 정한다. 이 콜백 안에서는 바디를 볼 수 없다(Jolt 가 잠그고 있다).
             void OnContactRemoved(const JPH::SubShapeIDPair& removed) override
             {
+                Untouch(Key(removed.GetBody1ID(), removed.GetBody2ID()));
+            }
+
+            void Untouch(UInt64 key)
+            {
                 std::lock_guard<std::mutex> lock(mutex);
-                const UInt64 key = Key(removed.GetBody1ID(), removed.GetBody2ID());
                 Pair* pair = pairs.Find(key);
                 if (pair == nullptr || pair->touching == 0)
                 {
@@ -509,6 +575,7 @@ namespace JBro::Physics3D
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 // 정적 바디는 Jolt 에서 늘 활성이 아니다 - 잠듦은 움직이는 바디에만 따진다.
+                // 캐릭터의 키네마틱 몸은 Jolt 가 재우지 않는다(`CharacterVirtual` 이 잠듦을 끈다) - 서 있는 캐릭터의 끝도 미뤄지지 않는다.
                 const auto asleep = [&bodies](const BodyId& id) {
                     const JPH::BodyID body(id.value);
                     return bodies.IsAdded(body) && bodies.GetMotionType(body) != JPH::EMotionType::Static && false == bodies.IsActive(body);
@@ -635,6 +702,13 @@ namespace JBro::Physics3D
             }
 
         private:
+
+            // 캐릭터 쪽에서 본 접촉점과 법선(캐릭터→상대)을 사건의 A→B 로 싣는다.
+            static void Orient(JPH::BodyID self, const Vector3& point, const Vector3& normal, ContactEvent& event)
+            {
+                event.point = point;
+                event.normal = self.GetIndexAndSequenceNumber() == event.bodyA.value ? normal : Vector3{-normal.x, -normal.y, -normal.z};
+            }
 
             // 사건을 처음 만든 쪽(bodyA)에서 본 접촉점과 A→B 법선으로 채운다. Jolt 의 법선은 콜백의 첫 바디에서 둘째로 간다.
             static void Locate(const JPH::Body& first, const JPH::ContactManifold& manifold, ContactEvent& event)
@@ -836,6 +910,20 @@ namespace JBro::Physics3D
         Array<UInt32> freeJoints;
         UInt32 jointCount = 0;
         Table<UInt64, UInt32> unconnected;
+        // ── 캐릭터(D-427) ──
+        struct CharacterSlot
+        {
+            JPH::Ref<JPH::CharacterVirtual> character;
+            CharacterDef def;
+            // 다음 스텝에 갈 이동(쌓인다)과 마지막 스텝에 실제로 간 속도.
+            Vector3 pending;
+            Vector3 velocity;
+            UInt32 generation = 0;
+            Bool alive = false;
+        };
+        Array<CharacterSlot> characters;
+        Array<UInt32> freeCharacters;
+        UInt32 characterCount = 0;
         // 빠른 트리거의 쓸기(D-423). 스텝 앞의 질량 중심 자세다. 표는 미리 잡아 두어 흔한 경우 할당하지 않는다.
         struct Sweep
         {
@@ -1115,6 +1203,169 @@ namespace JBro::Physics3D
             return JointId{index, slot.generation};
         }
 
+        // ── 캐릭터(D-427) ───────────────────────────────────────────────
+        // 캐릭터의 캡슐 하나(잎 하나 - 잎마다의 레이어가 캐릭터에도 선다).
+        static ShapeDesc CharacterShape(const CharacterDef& def)
+        {
+            ShapeDesc desc;
+            desc.type = def.halfHeight > 0.0f ? ShapeType::Capsule : ShapeType::Sphere;
+            desc.radius = def.radius;
+            desc.halfHeight = def.halfHeight;
+            desc.offset = def.center;
+            desc.layer = def.layer;
+            desc.mask = def.mask;
+            desc.friction = 0.0f;
+            return desc;
+        }
+
+        // 캐릭터가 볼 바디 층: 서로의 레이어·마스크가 맞는 조합만(층 표의 거르기는 잎마다 아래에서 다시 본다).
+        class CharacterLayers final : public JPH::ObjectLayerFilter
+        {
+        public:
+            CharacterLayers(const Impl& owner, std::uint32_t layer, std::uint32_t mask) : m_owner(owner), m_layer(layer), m_mask(mask)
+            {
+            }
+
+            bool ShouldCollide(JPH::ObjectLayer layer) const override
+            {
+                const LayerCombo& other = m_owner.combos[layer];
+                return (other.layer & m_mask) != 0 && (m_layer & other.mask) != 0;
+            }
+
+        private:
+            const Impl& m_owner;
+            std::uint32_t m_layer;
+            std::uint32_t m_mask;
+        };
+
+        // 캐릭터의 잎과 닿을 상대 잎을 레이어 충돌 표까지 본다(D-421 과 같은 규칙).
+        class CharacterShapes final : public JPH::ShapeFilter
+        {
+        public:
+            CharacterShapes(const Impl& owner, const LeafInfo& self) : m_owner(owner), m_self(self)
+            {
+            }
+
+            bool ShouldCollide(const JPH::Shape* shape, const JPH::SubShapeID& subShape) const override
+            {
+                (void)subShape;
+                const LeafInfo* leaf = m_owner.leaves.Find(mBodyID2, shape->GetUserData());
+                return leaf == nullptr || m_owner.leaves.Meet(m_self, *leaf);
+            }
+
+            bool ShouldCollide(const JPH::Shape* first, const JPH::SubShapeID& firstSub, const JPH::Shape* second,
+                const JPH::SubShapeID& secondSub) const override
+            {
+                (void)first;
+                (void)firstSub;
+                return ShouldCollide(second, secondSub);
+            }
+
+        private:
+            const Impl& m_owner;
+            LeafInfo m_self;
+        };
+
+        // 캐릭터가 닿은 것을 접촉 표로 보낸다. 캐릭터 쪽은 그 키네마틱 몸이다. 조인트가 충돌을 끈 쌍(캐릭터에는 조인트가 없다)은 보지 않는다.
+        class CharacterListener final : public JPH::CharacterContactListener
+        {
+        public:
+            explicit CharacterListener(ContactTracker& contacts) : m_contacts(contacts)
+            {
+            }
+
+            void OnContactAdded(const JPH::CharacterVirtual* character, const JPH::CharacterContact& contact,
+                JPH::CharacterContactSettings& settings) override
+            {
+                (void)settings;
+                if (contact.mBodyB.IsInvalid())
+                {
+                    return;
+                }
+                m_contacts.CharacterTouch(character->GetInnerBodyID(), character->GetUserData(), contact.mBodyB, contact.mUserData,
+                    contact.mIsSensorB, PointOf(contact), NormalOf(contact));
+            }
+
+            void OnContactPersisted(const JPH::CharacterVirtual* character, const JPH::CharacterContact& contact,
+                JPH::CharacterContactSettings& settings) override
+            {
+                (void)settings;
+                if (contact.mBodyB.IsInvalid())
+                {
+                    return;
+                }
+                m_contacts.CharacterStay(character->GetInnerBodyID(), contact.mBodyB, PointOf(contact), NormalOf(contact));
+            }
+
+            void OnContactRemoved(const JPH::CharacterVirtual* character, const JPH::BodyID& body, const JPH::SubShapeID& subShape) override
+            {
+                (void)subShape;
+                m_contacts.CharacterLeave(character->GetInnerBodyID(), body);
+            }
+
+        private:
+            static Vector3 PointOf(const JPH::CharacterContact& contact)
+            {
+                return {static_cast<Float>(contact.mPosition.GetX()), static_cast<Float>(contact.mPosition.GetY()),
+                    static_cast<Float>(contact.mPosition.GetZ())};
+            }
+
+            // Jolt 의 법선은 캐릭터 쪽을 본다. 사건은 캐릭터→상대다.
+            static Vector3 NormalOf(const JPH::CharacterContact& contact)
+            {
+                const JPH::Vec3 normal = -contact.mContactNormal;
+                return FromJolt(normal);
+            }
+
+            ContactTracker& m_contacts;
+        };
+        CharacterListener characterListener{contacts};
+
+        CharacterSlot* FindCharacter(CharacterId id)
+        {
+            if (id.index >= characters.Size() || false == characters[id.index].alive || characters[id.index].generation != id.generation)
+            {
+                return nullptr;
+            }
+            return &characters[id.index];
+        }
+
+        void ApplyCharacterShape(JPH::CharacterVirtual& character, const CharacterDef& def, Bool fresh)
+        {
+            (void)fresh;
+            character.SetMaxSlopeAngle(def.maxSlope.Get());
+            // 아래 반구의 중심보다 낮은 접촉만 발을 받친다(Jolt 의 예와 같다).
+            character.SetSupportingVolume(JPH::Plane(JPH::Vec3::sAxisY(), -(def.center.y - def.halfHeight).Get()));
+        }
+
+        // 스텝 앞: 쌓인 이동대로 캐릭터를 옮긴다(미끄러지기·턱 오르기·바닥 붙기). 캐릭터의 접촉은 이 안에서 접촉 표로 간다.
+        void MoveCharacters(float deltaTime)
+        {
+            for (CharacterSlot& slot : characters)
+            {
+                if (false == slot.alive)
+                {
+                    continue;
+                }
+                JPH::CharacterVirtual& character = *slot.character;
+                const JPH::RVec3 before = character.GetPosition();
+                character.SetLinearVelocity(ToJolt(slot.pending) / deltaTime);
+                slot.pending = {};
+                JPH::CharacterVirtual::ExtendedUpdateSettings update;
+                update.mWalkStairsStepUp = JPH::Vec3(0.0f, slot.def.stepHeight.Get(), 0.0f);
+                update.mStickToFloorStepDown = JPH::Vec3(0.0f, -slot.def.stepHeight.Get(), 0.0f);
+                LeafInfo self;
+                self.layer = slot.def.layer;
+                self.mask = slot.def.mask;
+                const CharacterLayers layers(*this, slot.def.layer, slot.def.mask);
+                const CharacterShapes shapes(*this, self);
+                const JPH::IgnoreSingleBodyFilter bodies(character.GetInnerBodyID());
+                character.ExtendedUpdate(deltaTime, physics.GetGravity(), update, JPH::BroadPhaseLayerFilter{}, layers, bodies, shapes, temp);
+                const JPH::Vec3 moved = JPH::Vec3(character.GetPosition() - before);
+                slot.velocity = FromJolt(moved / deltaTime);
+            }
+        }
+
         // 스텝 앞: 깨어 있는 동적인 고체 몸의 질량 중심 자세를 떠 둔다. `MoveContinuously` 가 옮긴 트리거는 그때 이미 떠 두었다.
         void RecordMovingBodies()
         {
@@ -1254,6 +1505,11 @@ namespace JBro::Physics3D
 
     World::~World()
     {
+        // 캐릭터를 먼저 놓는다 - 제 키네마틱 몸을 함께 지운다.
+        for (Impl::CharacterSlot& slot : m_impl->characters)
+        {
+            slot.character = nullptr;
+        }
         // 조인트를 먼저 뺀다 - Jolt 의 제약은 바디를 가리킨다.
         for (Impl::JointSlot& slot : m_impl->joints)
         {
@@ -1631,6 +1887,7 @@ namespace JBro::Physics3D
             return;
         }
         m_impl->contacts.BeginStep();
+        m_impl->MoveCharacters(deltaTime);
         m_impl->RecordMovingBodies();
         m_impl->physics.Update(deltaTime, 1, &m_impl->temp, m_impl->Jobs());
         m_impl->contacts.Resolve(m_impl->physics.GetBodyInterfaceNoLock());
@@ -1728,6 +1985,165 @@ namespace JBro::Physics3D
             return 0.0f;
         }
         return static_cast<const JPH::HingeConstraint*>(slot->constraint.GetPtr())->GetCurrentAngle();
+    }
+
+    CharacterId World::CreateCharacter(const CharacterDef& def)
+    {
+        const ShapeDesc desc = Impl::CharacterShape(def);
+        const ArrayView<const ShapeDesc> shapes(&desc, 1);
+        JPH::ShapeRefC shape = MakeBodyShape(shapes);
+        if (shape == nullptr)
+        {
+            return {};
+        }
+        const JPH::ObjectLayer layer = m_impl->ComboFor(shapes, true);
+        if (layer == JPH::cObjectLayerInvalid)
+        {
+            return {};
+        }
+        JPH::CharacterVirtualSettings settings;
+        settings.mShape = shape;
+        settings.mInnerBodyShape = shape;
+        settings.mInnerBodyLayer = layer;
+        settings.mMaxSlopeAngle = def.maxSlope.Get();
+        settings.mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -(def.center.y - def.halfHeight).Get());
+        JPH::Ref<JPH::CharacterVirtual> character = MakeJoltRef<JPH::CharacterVirtual>(&settings,
+            JPH::RVec3(def.position.x, def.position.y, def.position.z), JPH::Quat::sIdentity(), JPH::uint64(def.userData), &m_impl->physics);
+        if (character->GetInnerBodyID().IsInvalid())
+        {
+            return {};
+        }
+        character->SetListener(&m_impl->characterListener);
+        m_impl->leaves.Set(character->GetInnerBodyID(), shapes);
+        UInt32 index = 0;
+        if (m_impl->freeCharacters.Size() > 0)
+        {
+            index = m_impl->freeCharacters[m_impl->freeCharacters.Size() - 1];
+            m_impl->freeCharacters.RemoveAt(m_impl->freeCharacters.Size() - 1);
+        }
+        else
+        {
+            index = static_cast<UInt32>(m_impl->characters.Size());
+            m_impl->characters.Add(Impl::CharacterSlot{});
+        }
+        Impl::CharacterSlot& slot = m_impl->characters[index];
+        slot.character = character;
+        slot.def = def;
+        slot.pending = {};
+        slot.velocity = {};
+        slot.alive = true;
+        m_impl->characterCount = m_impl->characterCount + 1u;
+        return CharacterId{index, slot.generation};
+    }
+
+    void World::DestroyCharacter(CharacterId character)
+    {
+        Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        if (slot == nullptr)
+        {
+            return;
+        }
+        const JPH::BodyID inner = slot->character->GetInnerBodyID();
+        m_impl->contacts.ForgetBody(inner);
+        m_impl->leaves.Remove(inner);
+        // 마지막 `Ref` 를 놓으면 Jolt 가 키네마틱 몸을 함께 지운다.
+        slot->character = nullptr;
+        slot->alive = false;
+        slot->generation = slot->generation + 1u;
+        m_impl->freeCharacters.Add(character.index);
+        m_impl->characterCount = m_impl->characterCount - 1u;
+    }
+
+    Bool World::IsValid(CharacterId character) const
+    {
+        return m_impl->FindCharacter(character) != nullptr;
+    }
+
+    UInt32 World::GetCharacterCount() const
+    {
+        return m_impl->characterCount;
+    }
+
+    void World::SetCharacterShape(CharacterId character, const CharacterDef& def)
+    {
+        Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        if (slot == nullptr)
+        {
+            return;
+        }
+        const ShapeDesc desc = Impl::CharacterShape(def);
+        const ArrayView<const ShapeDesc> shapes(&desc, 1);
+        JPH::ShapeRefC shape = MakeBodyShape(shapes);
+        const JPH::ObjectLayer layer = m_impl->ComboFor(shapes, true);
+        if (shape == nullptr || layer == JPH::cObjectLayerInvalid)
+        {
+            return;
+        }
+        JPH::CharacterVirtual& jolt = *slot->character;
+        LeafInfo self;
+        self.layer = def.layer;
+        self.mask = def.mask;
+        const Impl::CharacterLayers layers(*m_impl, def.layer, def.mask);
+        const Impl::CharacterShapes filter(*m_impl, self);
+        const JPH::IgnoreSingleBodyFilter bodies(jolt.GetInnerBodyID());
+        // 새 모양이 무엇에 끼어도 바꾼다(편집에서 온 값이다). 끼었으면 다음 이동이 밀어낸다.
+        jolt.SetShape(shape, FLT_MAX, JPH::BroadPhaseLayerFilter{}, layers, bodies, filter, m_impl->temp);
+        jolt.SetInnerBodyShape(shape);
+        m_impl->physics.GetBodyInterfaceNoLock().SetObjectLayer(jolt.GetInnerBodyID(), layer);
+        m_impl->leaves.Set(jolt.GetInnerBodyID(), shapes);
+        m_impl->ApplyCharacterShape(jolt, def, false);
+        const Vector3 position = slot->def.position;
+        const UInt64 userData = slot->def.userData;
+        slot->def = def;
+        slot->def.position = position;
+        slot->def.userData = userData;
+    }
+
+    void World::SetCharacterPosition(CharacterId character, const Vector3& position)
+    {
+        Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        if (slot != nullptr)
+        {
+            slot->character->SetPosition(JPH::RVec3(position.x, position.y, position.z));
+        }
+    }
+
+    void World::MoveCharacter(CharacterId character, const Vector3& displacement)
+    {
+        Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        if (slot != nullptr)
+        {
+            slot->pending = Add(slot->pending, displacement);
+        }
+    }
+
+    Vector3 World::GetCharacterPosition(CharacterId character) const
+    {
+        const Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        if (slot == nullptr)
+        {
+            return {};
+        }
+        const JPH::RVec3 position = slot->character->GetPosition();
+        return {static_cast<Float>(position.GetX()), static_cast<Float>(position.GetY()), static_cast<Float>(position.GetZ())};
+    }
+
+    Vector3 World::GetCharacterVelocity(CharacterId character) const
+    {
+        const Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        return slot != nullptr ? slot->velocity : Vector3{};
+    }
+
+    Bool World::IsCharacterGrounded(CharacterId character) const
+    {
+        const Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        return slot != nullptr && slot->character->GetGroundState() == JPH::CharacterBase::EGroundState::OnGround;
+    }
+
+    BodyId World::GetCharacterBody(CharacterId character) const
+    {
+        const Impl::CharacterSlot* slot = m_impl->FindCharacter(character);
+        return slot != nullptr ? BodyId{slot->character->GetInnerBodyID().GetIndexAndSequenceNumber()} : BodyId{};
     }
 
     void World::SetWorkerCount(UInt32 count)

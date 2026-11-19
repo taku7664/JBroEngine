@@ -1000,6 +1000,152 @@ namespace
     }
 }
 
+namespace
+{
+    // **캐릭터**(D-427). 서 있는 캡슐(반지름 0.5, 원통 높이 절반 0.5, 중심은 원점 위 1 - 발이 원점이다)을 이동으로만 움직인다.
+    void TestCharacters()
+    {
+        using JBro::Physics3D::CharacterDef;
+        using JBro::Physics3D::CharacterId;
+        CharacterDef def;
+        def.center = {0.0f, 1.0f, 0.0f};
+        def.userData = 77;
+        const auto box = [](World& world, Vector3 position, Vector3 half, BodyType type) {
+            BodyDef body;
+            body.type = type;
+            body.shape.halfExtents = half;
+            body.position = position;
+            return world.CreateBody(body);
+        };
+        const auto walk = [](World& world, CharacterId character, Vector3 step, JBro::Int32 steps) {
+            for (JBro::Int32 index = 0; index < steps; ++index)
+            {
+                world.MoveCharacter(character, step);
+                world.Step(Frame);
+            }
+        };
+        // 떨어져 바닥에 선다. 중력은 이동에 넣는다.
+        {
+            World world;
+            MakeGround(world);
+            def.position = {0.0f, 1.0f, 0.0f};
+            const CharacterId character = world.CreateCharacter(def);
+            Check(world.IsValid(character) && world.GetCharacterCount() == 1, "a character is made");
+            Check(false == world.IsCharacterGrounded(character), "it starts in the air");
+            walk(world, character, {0.0f, -0.1f, 0.0f}, 30);
+            Check(std::fabs(world.GetCharacterPosition(character).y) < 0.05f, "it falls until its feet are on the ground");
+            Check(world.IsCharacterGrounded(character), "and stands on it");
+            Check(std::fabs(world.GetCharacterVelocity(character).y) < 0.5f, "a blocked move reports the speed it really had");
+            // 질의는 캐릭터의 몸을 본다.
+            JBro::Physics3D::QueryHit hit;
+            Check(world.Raycast({0.0f, 5.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 10.0f, 0xFFFFFFFFu, hit) && hit.userData == 77u, "a ray from above hits the character first");
+            const BodyId body = world.GetCharacterBody(character);
+            world.DestroyCharacter(character);
+            Check(false == world.IsValid(character) && false == world.IsValid(body) && world.GetCharacterCount() == 0, "destroying a character takes its body away");
+        }
+        // 벽 앞에서 멈추고, 낮은 턱은 오르며, 높은 턱에는 막힌다.
+        {
+            World world;
+            MakeGround(world);
+            box(world, {3.0f, 1.0f, 0.0f}, {0.5f, 1.0f, 2.0f}, BodyType::Static);
+            box(world, {0.0f, 0.1f, 3.5f}, {2.0f, 0.1f, 1.5f}, BodyType::Static);
+            box(world, {-3.0f, 0.3f, 0.0f}, {0.5f, 0.3f, 2.0f}, BodyType::Static);
+            def.position = {0.0f, 0.0f, 0.0f};
+            const CharacterId wallward = world.CreateCharacter(def);
+            // 정적인 바닥·벽과의 접촉은 캐릭터 쪽에서만 온다(키네마틱 몸은 정적인 몸과 닿지 않는다) - 충돌 사건이 된다.
+            JBro::Int32 hits = 0;
+            for (JBro::Int32 index = 0; index < 60; ++index)
+            {
+                world.MoveCharacter(wallward, {0.1f, -0.05f, 0.0f});
+                world.Step(Frame);
+                for (const JBro::Physics3D::ContactEvent& event : world.GetBeginEvents())
+                {
+                    hits += false == event.isTrigger && (event.userDataA == 77u || event.userDataB == 77u) ? 1 : 0;
+                }
+            }
+            Check(hits >= 2, "touching the static ground and wall begins collisions for the character");
+            const JBro::Float x = world.GetCharacterPosition(wallward).x;
+            Check(x > 1.9f && x < 2.05f, "the character stops a radius before the wall");
+            world.SetCharacterPosition(wallward, {0.0f, 0.0f, 0.0f});
+            walk(world, wallward, {0.0f, -0.05f, 0.1f}, 40);
+            Check(world.GetCharacterPosition(wallward).z > 3.0f && std::fabs(world.GetCharacterPosition(wallward).y - 0.2f) < 0.05f,
+                "it walks up a step lower than its step height and stands on top");
+            world.SetCharacterPosition(wallward, {0.0f, 0.0f, 0.0f});
+            walk(world, wallward, {-0.1f, -0.05f, 0.0f}, 40);
+            Check(world.GetCharacterPosition(wallward).x > -2.05f, "a step higher than its step height blocks it");
+        }
+        // 레이어: 마스크가 벽의 레이어를 빼면 지나간다.
+        {
+            World world;
+            MakeGround(world);
+            BodyDef ghostWall;
+            ghostWall.type = BodyType::Static;
+            ghostWall.shape.halfExtents = {0.5f, 1.0f, 2.0f};
+            ghostWall.shape.layer = 0x2u;
+            ghostWall.position = {3.0f, 1.0f, 0.0f};
+            world.CreateBody(ghostWall);
+            CharacterDef ghost = def;
+            ghost.position = {0.0f, 0.0f, 0.0f};
+            ghost.mask = ~0x2u;
+            const CharacterId walker = world.CreateCharacter(ghost);
+            walk(world, walker, {0.1f, -0.05f, 0.0f}, 60);
+            Check(world.GetCharacterPosition(walker).x > 4.0f, "a character walks through a wall its mask leaves out");
+        }
+        // 동적인 몸을 민다. 지나치는 트리거는 들어감과 나감을 알린다.
+        {
+            World world;
+            MakeGround(world);
+            const BodyId crate = box(world, {2.0f, 0.5f, 0.0f}, {0.5f, 0.5f, 0.5f}, BodyType::Dynamic);
+            BodyDef gate;
+            gate.type = BodyType::Static;
+            gate.isTrigger = true;
+            gate.shape.halfExtents = {0.2f, 1.0f, 1.0f};
+            gate.position = {0.0f, 1.0f, -3.0f};
+            gate.userData = 5;
+            world.CreateBody(gate);
+            def.position = {0.0f, 0.0f, 0.0f};
+            const CharacterId pusher = world.CreateCharacter(def);
+            walk(world, pusher, {0.0f, -0.05f, 0.0f}, 5);
+            walk(world, pusher, {0.05f, -0.05f, 0.0f}, 60);
+            Check(world.GetPosition(crate).x > 2.5f, "the character pushes a dynamic box out of its way");
+            world.SetCharacterPosition(pusher, {-2.0f, 0.0f, -3.0f});
+            JBro::Int32 begins = 0;
+            JBro::Int32 ends = 0;
+            for (JBro::Int32 index = 0; index < 60; ++index)
+            {
+                world.MoveCharacter(pusher, {0.1f, -0.05f, 0.0f});
+                world.Step(Frame);
+                for (const JBro::Physics3D::ContactEvent& event : world.GetBeginEvents())
+                {
+                    begins += event.isTrigger && (event.userDataA == 5u || event.userDataB == 5u) && (event.userDataA == 77u || event.userDataB == 77u) ? 1 : 0;
+                }
+                for (const JBro::Physics3D::ContactEvent& event : world.GetEndEvents())
+                {
+                    ends += event.isTrigger && (event.userDataA == 5u || event.userDataB == 5u) ? 1 : 0;
+                }
+            }
+            Check(begins == 1 && ends == 1, "walking through a trigger enters and leaves it once");
+            // 트리거 안에 서 있다가 순간 이동으로 나가도 끝이 온다 - 서 있는 캐릭터의 몸을 잠든 것으로 보지 않는다.
+            world.SetCharacterPosition(pusher, {0.0f, 0.0f, -3.0f});
+            ends = 0;
+            for (JBro::Int32 index = 0; index < 70; ++index)
+            {
+                world.MoveCharacter(pusher, {0.0f, index < 60 ? -0.05f : 0.0f, 0.0f});
+                if (index == 60)
+                {
+                    world.SetCharacterPosition(pusher, {-5.0f, 0.0f, -3.0f});
+                }
+                world.Step(Frame);
+                for (const JBro::Physics3D::ContactEvent& event : world.GetEndEvents())
+                {
+                    ends += event.isTrigger && (event.userDataA == 5u || event.userDataB == 5u) ? 1 : 0;
+                }
+            }
+            Check(ends == 1, "a character that stood in a trigger and was moved out of it leaves it");
+        }
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -1018,6 +1164,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestEachShapeHasItsOwnLayer());
     JBRO_CASE(TestFastTriggersDoNotSkip());
     JBRO_CASE(TestJoints());
+    JBRO_CASE(TestCharacters());
     JBRO_CASE(TestFastBodiesDoNotTunnel());
     std::cout << "Physics3D world tests passed.\n";
     return 0;

@@ -47,6 +47,8 @@ namespace JBro::System
         std::size_t GetBodyCount() const;
         // 이어진 조인트 수(D-426). 시험이 본다.
         std::size_t GetJointCount() const;
+        // 커널의 캐릭터 수(D-427). 시험이 본다.
+        std::size_t GetCharacterCount() const;
         std::size_t GetSensorCount() const;
 
         Bool Raycast(Vector3 origin, Vector3 direction, Float distance, RaycastHit3D& hit, UInt32 layerMask) const override;

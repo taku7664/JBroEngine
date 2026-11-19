@@ -104,6 +104,17 @@ namespace JBro::System
             return a > b ? a : b;
         }
 
+        // 켜진 캐릭터 컨트롤러가 있는가(D-427). 있으면 그것이 그 오브젝트의 콜라이더다.
+        Bool HasActiveController(Canvas& canvas, Object::GameObject* object)
+        {
+            const Component::CharacterController3D* controller =
+                object != nullptr ? canvas.FindComponentRaw<Component::CharacterController3D>(object) : nullptr;
+            return controller != nullptr && controller->IsActiveComponent();
+        }
+
+        // 월드 자리를 부모의 로컬로 되돌린다: 회전을 풀고 크기로 나눈다. 부모가 없으면 그대로다.
+        Vector3 LocalPosition(Canvas& canvas, Object::GameObject* object, const Vector3& position);
+
         // 콜라이더를 커널의 도형으로 굽는다. 크기는 월드 크기를 곱한다(2D 와 같다).
         Physics3D::ShapeDesc BakeShape(const Component::Collider3D& collider, const Vector3& scale)
         {
@@ -311,6 +322,21 @@ namespace JBro::System
             Bool seen = false;
         };
 
+        // 캐릭터 컨트롤러 하나가 커널의 캐릭터 하나다(D-427).
+        struct CharacterLink
+        {
+            Physics3D::CharacterId id;
+            InstanceId object = InvalidInstanceId;
+            UInt64 shape = 0;
+            // 지난 스텝에 이쪽에서 쓴 로컬 자리. 그 사이 누가 옮겼으면 순간 이동으로 따른다.
+            Vector3 writtenPosition;
+            Bool seen = false;
+            // 이번 동기화 안에서만 유효하다.
+            Object::GameObject* gameObject = nullptr;
+            Component::Transform3D* transform = nullptr;
+            Component::CharacterController3D* controller = nullptr;
+        };
+
         // 사건과 질의가 커널의 userData(오브젝트 아이디)에서 오브젝트를 찾는 표다. 스텝마다 본 오브젝트의 표시를 새로 하고,
         // 사건을 보낸 뒤 이번에 보지 못한 것을 지운다 - 이번 스텝에 지운 오브젝트의 끝 훅까지는 남는다.
         struct Owner
@@ -332,6 +358,7 @@ namespace JBro::System
         Table<InstanceId, SensorLink> sensors;
         Table<InstanceId, MeshCache> meshes;
         Table<InstanceId, JointLink> joints;
+        Table<InstanceId, CharacterLink> characters;
         Array<InstanceId> removals;
     };
 
@@ -377,6 +404,11 @@ namespace JBro::System
     Vector3 Physics3DSystem::GetGravity() const
     {
         return m_gravity;
+    }
+
+    std::size_t Physics3DSystem::GetCharacterCount() const
+    {
+        return m_state->world.GetCharacterCount();
     }
 
     std::size_t Physics3DSystem::GetJointCount() const
@@ -582,6 +614,11 @@ namespace JBro::System
             }
             Object::GameObject* object = group.object;
             const InstanceId objectId = entry.KeyValue;
+            // 캐릭터 컨트롤러가 이 오브젝트의 콜라이더다(D-427) - 고체 콜라이더는 몸이 되지 않는다(보지 못한 몸은 아래에서 지운다).
+            if (HasActiveController(canvas, object))
+            {
+                continue;
+            }
             Component::Transform3D* transform = canvas.FindComponentRaw<Component::Transform3D>(object);
             Component::Rigidbody3D* rigidbody = canvas.FindComponentRaw<Component::Rigidbody3D>(object);
             if (rigidbody != nullptr && false == rigidbody->IsActiveComponent())
@@ -683,6 +720,80 @@ namespace JBro::System
             link->rigidbodyComponent = rigidbody;
         }
 
+        // ── 2b. 캐릭터(D-427) ─────────────────────────────────────────────────────
+        // 컨트롤러 하나가 캐릭터 하나다. 모양이 바뀌면 제자리에서, 누가 오브젝트를 옮겼으면 순간 이동으로 따른다. 이동은 고정 스텝(`ApplyPendingForces`)만 먹인다.
+        for (auto& entry : state.characters)
+        {
+            entry.MappedValue.seen = false;
+        }
+        canvas.ForEach<Component::CharacterController3D>([&](Component::CharacterController3D& controller) {
+            if (false == controller.IsActiveComponent())
+            {
+                return;
+            }
+            Object::GameObject* object = Internal::CanvasAccess::GetOwner(controller);
+            Component::Transform3D* transform = object != nullptr ? canvas.FindComponentRaw<Component::Transform3D>(object) : nullptr;
+            Pose pose;
+            if (transform == nullptr || false == WorldPose(canvas, object, pose))
+            {
+                return;
+            }
+            markOwner(object);
+            const Vector3 magnitude{std::fabs(pose.scale.x), std::fabs(pose.scale.y), std::fabs(pose.scale.z)};
+            Physics3D::CharacterDef def;
+            def.position = pose.position;
+            def.center = Multiply(controller.center, pose.scale);
+            def.radius = std::fmax(controller.radius * Largest(magnitude.x, magnitude.z), 0.01f);
+            def.halfHeight = std::fmax(controller.height * magnitude.y * 0.5f - def.radius, 0.0f);
+            def.maxSlope = Radian(controller.slopeLimit).Get();
+            def.stepHeight = std::fmax(controller.stepOffset, 0.0f);
+            def.layer = controller.layer;
+            def.mask = controller.mask;
+            def.userData = object->GetInstanceId();
+            Fingerprint print;
+            print.Mix(def.center);
+            print.Mix(def.radius);
+            print.Mix(def.halfHeight);
+            print.Mix(def.maxSlope);
+            print.Mix(def.stepHeight);
+            print.Mix(def.layer);
+            print.Mix(def.mask);
+            const InstanceId controllerId = controller.GetInstanceId();
+            State::CharacterLink* link = state.characters.Find(controllerId);
+            if (link != nullptr && (false == world.IsValid(link->id) || link->object != object->GetInstanceId()))
+            {
+                world.DestroyCharacter(link->id);
+                state.characters.Remove(controllerId);
+                link = nullptr;
+            }
+            if (link == nullptr)
+            {
+                State::CharacterLink fresh;
+                fresh.id = world.CreateCharacter(def);
+                fresh.object = object->GetInstanceId();
+                fresh.shape = print.value;
+                fresh.writtenPosition = transform->position;
+                state.characters.TryAdd(controllerId, fresh);
+                link = state.characters.Find(controllerId);
+            }
+            else
+            {
+                if (link->shape != print.value)
+                {
+                    world.SetCharacterShape(link->id, def);
+                    link->shape = print.value;
+                }
+                if (false == SameVector(transform->position, link->writtenPosition))
+                {
+                    world.SetCharacterPosition(link->id, pose.position);
+                }
+            }
+            link->seen = true;
+            link->gameObject = object;
+            link->transform = transform;
+            link->controller = &controller;
+        });
+
         // ── 3. 사라진 것을 지운다. ──────────────────────────────────────────────────
         state.removals.Clear();
         for (auto& entry : state.bodies)
@@ -709,6 +820,19 @@ namespace JBro::System
         {
             world.DestroyBody(state.sensors.Find(id)->body);
             state.sensors.Remove(id);
+        }
+        state.removals.Clear();
+        for (auto& entry : state.characters)
+        {
+            if (false == entry.MappedValue.seen)
+            {
+                state.removals.Add(entry.KeyValue);
+            }
+        }
+        for (const InstanceId id : state.removals)
+        {
+            world.DestroyCharacter(state.characters.Find(id)->id);
+            state.characters.Remove(id);
         }
         // 이번에 보지 못한 메시 콜라이더의 사본을 버린다.
         state.removals.Clear();
@@ -967,6 +1091,15 @@ namespace JBro::System
     void Physics3DSystem::ApplyPendingForces()
     {
         State& state = *m_state;
+        // 캐릭터의 이동(D-427). 쌓인 것을 이번 스텝에 먹이고 비운다.
+        for (auto& entry : state.characters)
+        {
+            State::CharacterLink& link = entry.MappedValue;
+            if (link.controller != nullptr)
+            {
+                state.world.MoveCharacter(link.id, link.controller->TakePendingMotion());
+            }
+        }
         Physics3D::World& world = state.world;
         for (auto& entry : state.bodies)
         {
@@ -1074,6 +1207,22 @@ namespace JBro::System
             }
         }
 
+        // 캐릭터: 자리만 되쓴다(돌지 않는다). 바닥에 섰는지와 실제로 간 속도를 컨트롤러에 둔다.
+        for (auto& entry : state.characters)
+        {
+            State::CharacterLink& link = entry.MappedValue;
+            if (link.transform == nullptr || link.gameObject == nullptr || link.controller == nullptr)
+            {
+                continue;
+            }
+            const Vector3 local = LocalPosition(canvas, link.gameObject, world.GetCharacterPosition(link.id));
+            link.transform->position = local;
+            link.transform->worldValid = false;
+            link.writtenPosition = local;
+            link.controller->m_grounded = world.IsCharacterGrounded(link.id);
+            link.controller->m_velocity = world.GetCharacterVelocity(link.id);
+        }
+
         // ── 6. 사건 ─────────────────────────────────────────────────────────────────
         DispatchEvents(canvas);
         state.removals.Clear();
@@ -1092,8 +1241,25 @@ namespace JBro::System
 
     namespace
     {
+        Vector3 LocalPosition(Canvas& canvas, Object::GameObject* object, const Vector3& position)
+        {
+            Pose parent;
+            if (object == nullptr || false == WorldPose(canvas, object->GetParent(), parent))
+            {
+                return position;
+            }
+            const Vector3 local = Rotate(Conjugate(parent.rotation), Subtract(position, parent.position));
+            return {parent.scale.x != 0.0f ? local.x / parent.scale.x : Float(0.0f), parent.scale.y != 0.0f ? local.y / parent.scale.y : Float(0.0f),
+                parent.scale.z != 0.0f ? local.z / parent.scale.z : Float(0.0f)};
+        }
+
         Component::BodyType3D BodyTypeOf(Canvas& canvas, Object::GameObject* object)
         {
+            // 캐릭터는 스크립트가 옮기는 몸이다(D-427).
+            if (HasActiveController(canvas, object))
+            {
+                return Component::BodyType3D::Kinematic;
+            }
             Component::Rigidbody3D* body = object != nullptr ? canvas.FindComponentRaw<Component::Rigidbody3D>(object) : nullptr;
             if (body == nullptr || false == body->IsActiveComponent())
             {

@@ -39,6 +39,8 @@ namespace JBro::Component
             // 2D 와 같다 - 한 오브젝트에 조인트 여럿을 붙일 수 있다.
             all = RegisterComponentType<DistanceJoint3D>(ComponentCategory::Physics) && all;
             all = RegisterComponentType<HingeJoint3D>(ComponentCategory::Physics) && all;
+            all = RegisterComponentType<CharacterController3D>(
+                      ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
             all = RegisterComponentType<AudioListener3D>(
                       ComponentCategory::Audio, ComponentMultiplicity::Single) && all;
