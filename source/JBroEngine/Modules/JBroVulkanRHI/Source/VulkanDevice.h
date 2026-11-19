@@ -353,6 +353,10 @@ namespace JBro::Internal
         static void TransitionImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect,
             VkImageLayout from, VkImageLayout to, UInt32 baseMip = 0, UInt32 mipCount = AllRemainingMips);
         static constexpr UInt32 AllRemainingMips = ~UInt32{0};
+        // 레이아웃을 바꾸지 않는 배리어다. 앞의 패스가 쓴 첨부를 다음 패스가 이어 쓸 때(`LoadOperation::Load`) 레이아웃이 같아 전이가
+        // 없으면 두 렌더 패스 사이의 쓰기 순서가 규약상 정해지지 않는다 - 그 순서를 이것이 잡는다(D-411).
+        static void OrderImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect, VkImageLayout layout,
+            UInt32 baseMip = 0, UInt32 mipCount = AllRemainingMips);
         // `TransitionImage` 의 배리어 하나를 채운다. 여럿을 한 번에 거는 `Barrier`(D-339)가 같은 스테이지·접근을 쓴다.
         static void FillTransition(VkImageMemoryBarrier2& barrier, VkImage image, VkImageAspectFlags aspect,
             VkImageLayout from, VkImageLayout to, UInt32 baseMip, UInt32 mipCount);

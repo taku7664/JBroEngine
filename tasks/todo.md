@@ -3058,6 +3058,20 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-411. 깊이 텍스처는 프레임 슬롯마다 두지 않는다 - 패스 사이 쓰기 순서는 Vulkan RHI 가 배리어로 잡는다.** (2026-11-19, todo-3d 우선순위 6)
+  Updates: D-106(깊이 텍스처, framework3d-plan §2.11 의 `[열림]`), D-288(크기마다 하나).
+  (1) 지금 코드를 다시 읽었다. 깊이는 렌더 그래프(D-339)의 중간 텍스처이고 모든 패스가 `LoadOperation::Clear` 로 단다. Vulkan `BeginRenderPass` 는 지우는 첨부를 `UNDEFINED` 에서 옮기므로
+  깊이를 다는 패스마다 출발 `ALL_COMMANDS`·`MEMORY_WRITE` 의 이미지 배리어가 나가고, 그 첫 동기화 범위는 큐에 먼저 제출된 모든 명령이다 - 같은 깊이를 쓰는 앞 뷰·앞 프레임의 쓰기를 이미 기다렸다.
+  프레임마다 깊이를 따로 두면 메모리만 늘고(크기마다 프레임 수만큼) 순서는 어차피 이 배리어가 잡으므로 하지 않는다.
+  (2) 규약상 남은 구멍은 `Load` 로 이어 그리는 첨부다. 이미 첨부 레이아웃이면 전이가 없어 두 렌더 패스 사이 쓰기 순서가 정해지지 않는다 - 깊이는 지금 `Load` 를 쓰는 곳이 없고, 색은 많다.
+  `VulkanDevice::OrderImage`(레이아웃을 바꾸지 않는 배리어, 스테이지·접근은 `FillTransition` 과 같다)를 두고, `BeginRenderPass` 가 색·깊이 첨부의 출발 레이아웃이 이미 첨부 레이아웃이면 그것을 건다.
+  D3D12·D3D11 은 렌더 타깃·깊이 쓰기가 제출 순서로 정렬되어 바꿀 것이 없다.
+  확인: Vulkan 검증 레이어의 동기화 검증(`VK_KHRONOS_VALIDATION_VALIDATE_SYNC`)을 켜고 MeshPixel·VulkanSmoke·SpritePixel·PostProcessPixel·Light2DPixel·RenderGraph·Material·Compute·Subresource·TextureBinding·ConstantBuffer·RenderTargetFormat 을 돌려 해저드 0, 검증 오류 0.
+  임시 시험(커밋하지 않음)으로 읽지 않고 12 프레임을 연달아 그리고 두 레이어 뷰가 한 깊이를 나눠 쓰게 해도(풀의 깊이는 크기마다 하나) 0 이었다.
+  **관측하지 못한 것**: 동기화 검증은 켜져 있었다(배리어의 출발 단계를 비우는 대조 변이에서 해저드 20 을 냈다). 그런데 깊이 전이를 빼는 변이나 깊이를 `Load` 로 바꾸는 변이처럼 렌더 패스 사이의 배리어를 없애도 해저드를 내지 않았다 -
+  이 SDK(1.4.363.1)의 동기화 검증이 동적 렌더링 인스턴스 사이의 첨부 접근을 보지 않는 것으로 보인다. 그래서 `OrderImage` 를 빼는 변이를 잡는 시험은 없다. 근거는 규약(렌더 패스 인스턴스 사이에 암묵 순서가 없다)이고, 같은 레이아웃 배리어가 유효 사용인 것은 검증 레이어가 조용한 것으로 봤다.
+  곁에서 본 것: `RenderGraph` 묶음의 `TestTimestampsArriveAfterTheFrame` 이 이 변경 전 main 에서도 "a finished frame's timestamps must be readable" 로 두 번 실패한다(이 일과 무관, 따로 본다). Light2DPixel 의 CRT 할당 시험은 동기화 검증 레이어를 켜면 레이어의 할당을 세어 실패한다 - 끄면 지난다.
+
 - **D-410. 캔버스 뷰가 3D 라이트를 표시하고 손잡이로 고친다 - 2D 의 라이트 기즈모와 같은 길이다.** (2026-11-19, lighting3d-plan 3 단계)
   Updates: D-298(라이트·카메라 표시를 3D 에도), D-304(인스펙터에서 고른 라이트의 손잡이를 3D 에도).
   (1) `LightGizmo3DModel`(Editor/Gizmo): 손잡이 셋(`range`·바깥 각·안쪽 각)의 월드 자리, 끌기를 화면 좌표로 재는 `DragRange`(점광은 화면 거리, 스포트는 축에 내린 거리를 1 유닛의 화면 길이로)·`DragAngle`(축과 마우스의 각 × 2, 0..179),

@@ -120,8 +120,16 @@ namespace JBro::Internal
             const VkImageLayout from = attachment.loadOperation == LoadOperation::Load ? *view.layout
                                                                                          : VK_IMAGE_LAYOUT_UNDEFINED;
             // 그리는 mip 하나만 옮긴다. 같은 텍스처의 다른 mip 은 이 패스가 읽는 것일 수 있다(블룸의 내림 사슬).
-            VulkanDevice::TransitionImage(m_commands, view.image, VK_IMAGE_ASPECT_COLOR_BIT, from,
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, view.mip, 1);
+            // 이어 그리는 첨부가 이미 첨부 레이아웃이면 전이가 없다. 그래도 앞 패스의 쓰기 뒤에 서도록 같은 레이아웃의 배리어를 건다(D-411).
+            if (from == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+            {
+                VulkanDevice::OrderImage(m_commands, view.image, VK_IMAGE_ASPECT_COLOR_BIT, from, view.mip, 1);
+            }
+            else
+            {
+                VulkanDevice::TransitionImage(m_commands, view.image, VK_IMAGE_ASPECT_COLOR_BIT, from,
+                    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, view.mip, 1);
+            }
             *view.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             VkRenderingAttachmentInfo& info = colorInfos[index];
             info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -142,8 +150,16 @@ namespace JBro::Internal
             const VkImageLayout from = desc.depthStencilAttachment->depthLoadOperation == LoadOperation::Load
                 ? *depth.layout
                 : VK_IMAGE_LAYOUT_UNDEFINED;
-            VulkanDevice::TransitionImage(m_commands, depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, from,
-                VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+            // 깊이도 같다. 지우는 깊이는 늘 `UNDEFINED` 에서 오는 전이라 앞의 모든 쓰기를 기다린다 - 프레임마다 따로 둘 까닭이 없다(D-411).
+            if (from == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+            {
+                VulkanDevice::OrderImage(m_commands, depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, from);
+            }
+            else
+            {
+                VulkanDevice::TransitionImage(m_commands, depth.image, VK_IMAGE_ASPECT_DEPTH_BIT, from,
+                    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+            }
             *depth.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
             depthInfo.imageView = depth.view;
             depthInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;

@@ -671,6 +671,17 @@ namespace JBro::Internal
         vk.vkCmdPipelineBarrier2(commands, &dependency);
     }
 
+    void VulkanDevice::OrderImage(VkCommandBuffer commands, VkImage image, VkImageAspectFlags aspect, VkImageLayout layout,
+        UInt32 baseMip, UInt32 mipCount)
+    {
+        VkImageMemoryBarrier2 barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2};
+        FillTransition(barrier, image, aspect, layout, layout, baseMip, mipCount);
+        VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+        dependency.imageMemoryBarrierCount = 1;
+        dependency.pImageMemoryBarriers = &barrier;
+        vk.vkCmdPipelineBarrier2(commands, &dependency);
+    }
+
     void VulkanDevice::FillTransition(VkImageMemoryBarrier2& barrier, VkImage image, VkImageAspectFlags aspect,
         VkImageLayout from, VkImageLayout to, UInt32 baseMip, UInt32 mipCount)
     {
