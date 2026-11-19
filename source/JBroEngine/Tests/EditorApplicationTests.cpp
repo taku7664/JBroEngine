@@ -7675,6 +7675,100 @@ namespace
 
     // **메시 콜라이더**(D-418). 빈 `meshId` 는 같은 오브젝트의 메시를 쓴다: 정적인 바닥은 그 삼각형 메시, 움직이는 공은 껍질이다.
     // 볼록 칸을 끈 채 움직이는 몸에 붙인 메시 콜라이더는 껍질로 바뀐다(사용자 결정).
+    // **모델의 메시도 콜라이더가 된다**(D-424). 빌트인이 아닌 glTF 의 메시 - 에셋 시스템의 CPU 자료를 지나는 길 - 를 정적 메시 콜라이더로 쓴다.
+    // 위를 보는 사각형(glTF 의 반시계 앞면)에 떨어뜨린 공은 반지름 위에 서고, 아래를 보는 같은 사각형은 뒷면이라 뚫고 떨어진다 -
+    // 물리가 보는 앞면이 렌더러가 그리는 앞면과 같다(임포트의 감기 뒤집기와 `GatherColliderMesh` 의 뒤집기가 함께 맞다).
+    void TestModelMeshCollidersIn3D()
+    {
+        namespace fs = std::filesystem;
+        JBro::String folder("JBroModelColliderProbe");
+        folder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(folder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        JBro::String projectName(folder);
+        projectName.append("\\Model.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath, "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\nAssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+        // 10x10 사각형 둘. 인덱스 없는 정점 여섯이다. Up 은 +Y 쪽에서 보아 반시계, Down 은 같은 삼각형을 거꾸로 감았다.
+        const auto writeQuad = [&](const char* file, const char* base64) {
+            JBro::String text("{\"asset\":{\"version\":\"2.0\"},\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+                              "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":6,\"type\":\"VEC3\"}],"
+                              "\"bufferViews\":[{\"buffer\":0,\"byteLength\":72}],"
+                              "\"buffers\":[{\"byteLength\":72,\"uri\":\"data:application/octet-stream;base64,");
+            text.append(base64);
+            text.append("\"}]}");
+            const JBro::String path = JBro::String(root.generic_string().c_str()) + "/Assets/" + file;
+            Check(WriteTextFile(path, text.c_str()), "the test writes its glTF");
+        };
+        writeQuad("Up.gltf", "AACgwAAAAAAAAKDAAACgwAAAAAAAAKBAAACgQAAAAAAAAKBAAACgwAAAAAAAAKDAAACgQAAAAAAAAKBAAACgQAAAAAAAAKDA");
+        writeQuad("Down.gltf", "AACgwAAAAAAAAKDAAACgQAAAAAAAAKBAAACgwAAAAAAAAKBAAACgwAAAAAAAAKDAAACgQAAAAAAAAKDAAACgQAAAAAAAAKBA");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; model mesh colliders not verified" << std::endl;
+            fs::remove_all(root, ignored);
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        const auto meshOf = [&](const char* path) {
+            const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath(path);
+            Check(model != nullptr && model->type == JBro::AssetType::Model, "the glTF is a model");
+            JBro::AssetId mesh;
+            for (std::size_t index = 0; model != nullptr && index < editor.GetAssetRegistry().GetCount(); ++index)
+            {
+                const JBro::AssetRecord& part = editor.GetAssetRegistry().GetRecord(index);
+                if (part.owner == model->id && part.type == JBro::AssetType::Mesh)
+                {
+                    mesh = part.id;
+                }
+            }
+            Check(false == mesh.IsNull(), "the model lists its mesh");
+            return mesh;
+        };
+        JBro::Canvas* canvas = editor.GetCanvas();
+        // 사각형 하나를 바닥으로 깔고 그 위 3 에서 공을 떨어뜨린다. 둘은 X 로 20 떨어져 서로 닿지 않는다.
+        const auto place = [&](JBro::Float x, JBro::AssetId mesh) {
+            JBro::Object::GameObject* floor = canvas->CreateObject("Floor");
+            canvas->AttachComponent<JBro::Component::Transform3D>(floor)->position = {x, 0.0f, 0.0f};
+            canvas->AttachComponent<JBro::Component::MeshRenderer3D>(floor)->meshId = mesh;
+            canvas->AttachComponent<JBro::Component::Collider3D>(floor)->shape = JBro::Component::ColliderShape3D::Mesh;
+            JBro::Object::GameObject* ball = canvas->CreateObject("Ball");
+            canvas->AttachComponent<JBro::Component::Transform3D>(ball)->position = {x, 3.0f, 0.0f};
+            canvas->AttachComponent<JBro::Component::Collider3D>(ball)->shape = JBro::Component::ColliderShape3D::Sphere;
+            Check(canvas->AttachComponent<JBro::Component::Rigidbody3D>(ball) != nullptr, "the ball has a body");
+            return ball;
+        };
+        JBro::Object::GameObject* resting = place(0.0f, meshOf("Up.gltf"));
+        JBro::Object::GameObject* falling = place(20.0f, meshOf("Down.gltf"));
+        Check(editor.RescanAssets(), "the mesh ids resolve");
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        for (JBro::Int32 frame = 0; frame < 120; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        const auto heightOf = [&](JBro::Object::GameObject* object) {
+            return canvas->FindComponentRaw<JBro::Component::Transform3D>(object)->position.y;
+        };
+        std::cout << "  on the model quads: up " << heightOf(resting) << ", down " << heightOf(falling) << std::endl;
+        Check(heightOf(resting) > 0.45f && heightOf(resting) < 0.505f, "the ball rests a radius above the front face of the model's quad");
+        Check(heightOf(falling) < -1.0f, "the quad wound the other way faces down, so the ball falls through it");
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>();
+        Check(physics != nullptr && physics->GetBodyCount() == 4, "both model quads became bodies");
+        editor.StopSimulation();
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestMeshCollidersIn3D()
     {
         JBro::EditorApplication editor;
@@ -20884,6 +20978,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestQueriesSeeTheCurrentComponentsIn3D());
     JBRO_CASE(TestAFastTriggerDoesNotSkipIn3D());
     JBRO_CASE(TestMeshCollidersIn3D());
+    JBRO_CASE(TestModelMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());
     JBRO_CASE(TestThePhysicsThreadsSettingReachesPlay());
