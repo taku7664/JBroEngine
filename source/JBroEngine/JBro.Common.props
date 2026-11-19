@@ -20,6 +20,12 @@
       Windows 는 WASAPI, 웹은 Web Audio, 장치 없는 자리(테스트)는 null.
     -->
     <JBroMiniaudioDefines>MA_NO_RESOURCE_MANAGER;MA_NO_ENCODING;MA_NO_GENERATION;MA_ENABLE_ONLY_SPECIFIC_BACKENDS;MA_ENABLE_WASAPI;MA_ENABLE_WEBAUDIO;MA_ENABLE_NULL</JBroMiniaudioDefines>
+    <!--
+      **Jolt 의 설정 매크로**(D-414, physics3d-plan). `JPH_DOUBLE_PRECISION`·`JPH_DEBUG_RENDERER`·`JPH_OBJECT_LAYER_BITS` 같은 매크로는 구조체의 모양을
+      바꾸므로 Jolt 라이브러리와 Jolt 헤더를 보는 모듈(3D 물리 어댑터)이 같은 값을 받아야 한다. 그래서 miniaudio 처럼 여기 한 곳이다.
+      지금은 비어 있다 - 기본값(단정밀도, 디버그 렌더러·프로파일러 없음, SSE2)으로 시작한다.
+    -->
+    <JBroJoltDefines></JBroJoltDefines>
   </PropertyGroup>
 
   <PropertyGroup Label="JBroScriptTarget">

@@ -121,6 +121,14 @@ https://raw.githubusercontent.com/ufbx/ufbx/v0.23.1/<file>
 SHA-256: `ufbx.c` `4A956C26A708E40D82ECB0AEAEE54DA709D5BA7C144C9642174970059BDA7E1D`, `ufbx.h` `F787BE529AF577EFC04F3E3E735844A08556718DBB613D1211C2B313D72895DC`.
 고친 것은 없다.
 
+### Jolt Physics — v5.7.0, MIT
+
+3D 물리 커널이다(D-414, `tasks/physics3d-plan.md`). 2026-11-19 에 `github.com/jrouwe/JoltPhysics` 의 `v5.7.0` 태그(커밋 `cf16769bb0ede9c45d57d06068ff0689e9702f5c`)에서
+`Jolt/` 폴더와 `LICENSE` 만 sparse clone 으로 받았다(파일 560 개, 약 5.8 MB). 폴더는 통째로 두었다 - 올릴 때 바꿔 끼우기만 하면 된다.
+**자기 빌드 단위가 있다**(`Jolt/Jolt.vcxproj`, 정적 라이브러리). 컴파일 목록은 `Jolt/Jolt.cmake` 의 기본 목록(130 개 `.cpp`) 그대로이고 ObjectStream·GPU 컴퓨트 백엔드(DX12·VK·MTL)는 넣지 않았다 -
+올릴 때 새 `Jolt.cmake` 에서 목록을 다시 뽑는다. `JPH_*` 설정 매크로는 구조체 모양을 바꾸므로 `JBro.Common.props` 의 `JBroJoltDefines` 한 곳에 두고 Jolt 를 보는 모듈이 같은 값을 받는다(지금은 비어 있다).
+include 는 라이브러리가 정한 이름(`<Jolt/Jolt.h>`)이고 include 경로를 선언하는 엔진 모듈은 3D 물리 커널 하나뿐이다. 고친 것은 없다.
+
 ### cgltf — v1.15, MIT
 
 3D 모델 임포트의 glTF 2.0(`.gltf`·`.glb`) 디코더다(D-391). 헤더 하나라 빌드 단위는 따로 없다(stb 와 같다) - 모델 디코더 소스 한 곳에서만
