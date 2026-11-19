@@ -207,7 +207,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
   - `collideConnected` 가 거짓이면 두 바디의 접촉을 접촉 확인 콜백이 버린다(쌍마다 조인트 수를 센 표). 질의는 그대로 맞는다.
   - 시험: `Physics3DWorld` 의 `TestJoints`(단단한 거리 3·밧줄·경첩의 핀과 각의 부호·한계·모터·충돌 끄기와 켜기·바디와 함께 지워짐·도형을 바꿔도 핀), 에디터 `TestJointsIn3D`(월드에 박은 문과 기둥에 매단 추,
     자동 상대 앵커·자동 거리, 핸들, 끈 조인트가 풀림).
-  - `[열림]` 캔버스 뷰에 조인트를 그리지 않는다(2D 는 경첩 핀을 그린다). 조인트를 끊는 힘(break force)은 2D 에도 없다.
+  - ~~`[열림]` 캔버스 뷰에 조인트를 그리지 않는다.~~ → D-430: 거리는 두 앵커를 잇는 선, 경첩은 핀의 고리와 축 선(2D 와 같은 색). 조인트를 끊는 힘(break force)은 2D 에도 없다.
 - **캐릭터 컨트롤러(D-427):** 새 컴포넌트 `CharacterController3D`(유니티의 CharacterController 와 같은 자리·같은 칸 이름 - `center`·`radius`·`height`·`slopeLimit`·`stepOffset`, 그리고 2D 처럼 `layer`·`mask`).
   2D 에는 짝이 없다 - 2D 의 캐릭터는 지금처럼 키네마틱 몸으로 한다. 커널은 Jolt 의 `CharacterVirtual`.
   - **이동은 쌓아 두고 다음 고정 스텝이 먹인다**(`Move(motion)`, 힘·충격량 D-420 과 같은 길). 유니티의 `Move` 는 그 자리에서 옮기지만, 그러면 핸들이 물리에 닿아야 하고 고정 스텝의 차례(캐릭터 → 몸 → 사건)가 깨진다.
@@ -219,7 +219,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
   - Jolt 의 참조 계수 객체를 `new` 식 없이 만드는 `MakeJoltRef` 를 커널에 두었다(그 클래스의 할당 함수로 자리를 받고 `std::construct_at`, ProjectRule 의 D-88 길).
   - 시험: `Physics3DWorld` 의 `TestCharacters`(떨어져 섬·질의가 맞음·지우면 몸도 사라짐·정적인 바닥과 벽에 닿으면 충돌 사건·벽 앞에서 멈춤·낮은 턱 오르기·높은 턱에 막힘·마스크가 뺀 벽은 지나감·동적인 상자 밀기·트리거 한 번 들어갔다 나옴·트리거 안에 서 있다가 옮겨져도 나옴),
     에디터 `TestCharacterControllerIn3D`(핸들의 `Move` 로 걸어 서고 벽 앞에서 멈추며 트리거 훅을 들음, 같은 오브젝트의 몸은 생기지 않고 끄면 보통 몸이 됨).
-  - `[열림]` 캐릭터끼리 부딪히기(Jolt 의 `CharacterVsCharacterCollision`)는 걸지 않았다 - 서로의 키네마틱 몸은 지나간다. 캔버스 뷰에 캡슐을 그리지 않는다. 아주 빠른 캐릭터가 얇은 트리거를 건너뛰는 것은 D-423 의 쓸기를 받지 않는다.
+  - `[열림]` 캐릭터끼리 부딪히기(Jolt 의 `CharacterVsCharacterCollision`)는 걸지 않았다 - 서로의 키네마틱 몸은 지나간다. ~~캔버스 뷰에 캡슐을 그리지 않는다.~~ → D-430: 콜라이더 단추로 선 캡슐을 그린다(물리와 같은 크기 규칙, 늘 선다). 아주 빠른 캐릭터가 얇은 트리거를 건너뛰는 것은 D-423 의 쓸기를 받지 않는다.
 
 ## 4. `[열림]`
 

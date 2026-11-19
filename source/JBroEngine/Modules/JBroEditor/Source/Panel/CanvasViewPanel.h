@@ -127,6 +127,8 @@ namespace JBro
         void DrawGrid3D(const ViewRect& rect);
         // 3D 콜라이더의 선이다(D-418, physics3d-plan 4 단계). 2D 의 `DrawColliders` 와 같은 단추·같은 색이다.
         void DrawColliders3D(const ViewRect& rect);
+        // 3D 조인트(D-430): 거리는 두 앵커를 잇는 선, 경첩은 핀과 축. 콜라이더 단추를 따른다.
+        void DrawJoints3D(const ViewRect& rect);
         void DrawSelectionOutlines(const ViewRect& rect);
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
@@ -339,6 +341,8 @@ namespace JBro
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
         Array<Component::Collider3D*> m_collider3DScratch;
+        Array<Component::DistanceJoint3D*> m_distanceJoint3DScratch;
+        Array<Component::HingeJoint3D*> m_hingeJoint3DScratch;
         // 메시 콜라이더를 그릴 점의 사본(D-418). 메시가 바뀔 때만 다시 읽는다.
         struct ColliderMeshDrawing
         {

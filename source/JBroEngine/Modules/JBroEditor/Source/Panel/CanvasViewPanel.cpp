@@ -757,6 +757,7 @@ namespace JBro
             if (m_showColliders)
             {
                 DrawColliders3D(rect);
+                DrawJoints3D(rect);
             }
             DrawSelectionMarkers3D(rect);
             DrawObjectMarkers3D(rect);
@@ -2825,7 +2826,7 @@ namespace JBro
                 return;
             }
             canvas->FindComponentsRaw<Component::Collider3D>(&object, m_collider3DScratch);
-            if (m_collider3DScratch.IsEmpty())
+            if (m_collider3DScratch.IsEmpty() && canvas->FindComponentRaw<Component::CharacterController3D>(&object) == nullptr)
             {
                 return;
             }
@@ -2843,6 +2844,55 @@ namespace JBro
             };
             const Bool isSelected = m_editor->IsSelected(&object);
             const Float thickness = isSelected ? 2.0f : 1.0f;
+            // 선 캡슐(half 가 0 이면 구)을 그린다: 위·아래 끝의 원(XZ)과, 옆에서 본 두 윤곽(XY·ZY)과 네 줄.
+            const auto drawCapsule = [&](const Vector3& middle, const Quaternion& turn, Float radius, Float half, ImU32 color) {
+                const auto at = [&](const Vector3& offset) {
+                    return Add(middle, Rotate(turn, offset));
+                };
+                constexpr Int32 Steps = 32;
+                const Float tau = 6.28318530718f;
+                for (Int32 index = 0; index < Steps; ++index)
+                {
+                    const Float a0 = tau * static_cast<JBro::Float>(index) / static_cast<JBro::Float>(Steps);
+                    const Float a1 = tau * static_cast<JBro::Float>(index + 1) / static_cast<JBro::Float>(Steps);
+                    const Float c0 = std::cos(a0.Get()) * radius;
+                    const Float s0 = std::sin(a0.Get()) * radius;
+                    const Float c1 = std::cos(a1.Get()) * radius;
+                    const Float s1 = std::sin(a1.Get()) * radius;
+                    const Float below = -half.Get();
+                    line(at({c0, half, s0}), at({c1, half, s1}), color, thickness, 1);
+                    line(at({c0, below, s0}), at({c1, below, s1}), color, thickness, 1);
+                    // 옆 윤곽: 위쪽 반원은 +half 에, 아래쪽은 -half 에 앉는다.
+                    const Float lift0 = s0 >= 0.0f ? half : below;
+                    const Float lift1 = s1 >= 0.0f ? half : below;
+                    if (lift0 == lift1)
+                    {
+                        line(at({c0, s0 + lift0, 0.0f}), at({c1, s1 + lift1, 0.0f}), color, thickness, 1);
+                        line(at({0.0f, s0 + lift0, c0}), at({0.0f, s1 + lift1, c1}), color, thickness, 1);
+                    }
+                }
+                if (half > 0.0f)
+                {
+                    line(at({radius, half, 0.0f}), at({radius, -half, 0.0f}), color, thickness, 4);
+                    line(at({-radius, half, 0.0f}), at({-radius, -half, 0.0f}), color, thickness, 4);
+                    line(at({0.0f, half, radius}), at({0.0f, -half, radius}), color, thickness, 4);
+                    line(at({0.0f, half, -radius}), at({0.0f, -half, -radius}), color, thickness, 4);
+                }
+            };
+
+            // **캐릭터 컨트롤러의 캡슐**(D-430). 물리와 같은 규칙(D-427): 늘 선다(회전을 받지 않는다), 중심은 크기를 곱하고 돌리지 않으며,
+            // 반지름은 X·Z 중 큰 크기, 높이는 Y. 고체 색이다.
+            const Component::CharacterController3D* controller = canvas->FindComponentRaw<Component::CharacterController3D>(&object);
+            if (controller != nullptr && controller->IsEnabled())
+            {
+                const Float radius = controller->radius * (magnitude.x > magnitude.z ? magnitude.x : magnitude.z);
+                Float half = controller->height * magnitude.y * 0.5f - radius;
+                if (half < 0.0f)
+                {
+                    half = 0.0f;
+                }
+                drawCapsule(Add(position, Multiply(controller->center, scale)), Quaternion{}, radius, half, isSelected ? selected : normal);
+            }
 
             for (Component::Collider3D* collider : m_collider3DScratch)
             {
@@ -2892,36 +2942,8 @@ namespace JBro
                     {
                         half = 0.0f;
                     }
-                    constexpr Int32 Steps = 32;
-                    const Float tau = 6.28318530718f;
-                    // 위·아래 끝의 원(XZ)과, 옆에서 본 두 윤곽(XY·ZY). 캡슐이 아니면 half 가 0 이라 구의 세 원이 된다.
-                    for (Int32 index = 0; index < Steps; ++index)
-                    {
-                        const Float a0 = tau * static_cast<JBro::Float>(index) / static_cast<JBro::Float>(Steps);
-                        const Float a1 = tau * static_cast<JBro::Float>(index + 1) / static_cast<JBro::Float>(Steps);
-                        const Float c0 = std::cos(a0.Get()) * radius;
-                        const Float s0 = std::sin(a0.Get()) * radius;
-                        const Float c1 = std::cos(a1.Get()) * radius;
-                        const Float s1 = std::sin(a1.Get()) * radius;
-                        const Float below = -half.Get();
-                        line(fromCenter(center, {c0, half, s0}), fromCenter(center, {c1, half, s1}), color, thickness, 1);
-                        line(fromCenter(center, {c0, below, s0}), fromCenter(center, {c1, below, s1}), color, thickness, 1);
-                        // 옆 윤곽: 위쪽 반원은 +half 에, 아래쪽은 -half 에 앉는다.
-                        const Float lift0 = s0 >= 0.0f ? half : below;
-                        const Float lift1 = s1 >= 0.0f ? half : below;
-                        if (lift0 == lift1)
-                        {
-                            line(fromCenter(center, {c0, s0 + lift0, 0.0f}), fromCenter(center, {c1, s1 + lift1, 0.0f}), color, thickness, 1);
-                            line(fromCenter(center, {0.0f, s0 + lift0, c0}), fromCenter(center, {0.0f, s1 + lift1, c1}), color, thickness, 1);
-                        }
-                    }
-                    if (half > 0.0f)
-                    {
-                        line(fromCenter(center, {radius, half, 0.0f}), fromCenter(center, {radius, -half, 0.0f}), color, thickness, 4);
-                        line(fromCenter(center, {-radius, half, 0.0f}), fromCenter(center, {-radius, -half, 0.0f}), color, thickness, 4);
-                        line(fromCenter(center, {0.0f, half, radius}), fromCenter(center, {0.0f, -half, radius}), color, thickness, 4);
-                        line(fromCenter(center, {0.0f, half, -radius}), fromCenter(center, {0.0f, -half, -radius}), color, thickness, 4);
-                    }
+                    // 캡슐이 아니면 half 가 0 이라 구의 세 원이 된다.
+                    drawCapsule(center, rotation, radius, half, color);
                     break;
                 }
                 case Component::ColliderShape3D::Mesh:
@@ -2958,6 +2980,120 @@ namespace JBro
                     }
                     break;
                 }
+                }
+            }
+        });
+    }
+
+    void CanvasViewPanel::DrawJoints3D(const ViewRect& rect)
+    {
+        // **3D 조인트**(D-430, 2D 의 `DrawJoints` 와 같은 뜻·같은 색). 거리 조인트는 두 앵커를 선으로 잇고 끝에 점을 찍는다. 경첩은 핀에 고리를 그리고
+        // 축을 짧은 선으로 보인다. 상대가 없으면 상대 앵커는 월드의 점이다. 자동 상대 앵커가 아니면 상대 쪽 핀과 그 사이 선도 그린다.
+        Canvas* canvas = m_editor->GetCanvas();
+        GizmoCamera camera;
+        if (canvas == nullptr || false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 color = IM_COL32(255, 140, 220, 210);
+        struct Pose
+        {
+            Vector3 position;
+            Quaternion rotation;
+            Vector3 scale{1.0f, 1.0f, 1.0f};
+        };
+        const auto poseOf = [&](Object::GameObject* object, Pose& pose) {
+            const Component::Transform3D* transform = object != nullptr ? canvas->FindComponentRaw<Component::Transform3D>(object) : nullptr;
+            if (transform == nullptr)
+            {
+                return false;
+            }
+            pose.position = transform->worldValid ? transform->worldPosition : transform->position;
+            pose.rotation = Normalize(transform->worldValid ? transform->worldRotation : transform->rotation);
+            pose.scale = transform->worldValid ? transform->worldScale : transform->scale;
+            return true;
+        };
+        const auto toWorld = [](const Pose& pose, const Vector3& local) {
+            return Add(pose.position, Rotate(pose.rotation, Multiply(local, pose.scale)));
+        };
+        const auto connectedPoint = [&](const Handle::GameObject& connected, const Vector3& anchor) {
+            Pose other;
+            if (poseOf(Internal::GameObjectHandleAccess::Resolve(connected), other))
+            {
+                return toWorld(other, anchor);
+            }
+            return anchor;
+        };
+        const auto project = [&](const Vector3& point, ImVec2& screen) {
+            Float x = 0.0f;
+            Float y = 0.0f;
+            if (false == GizmoModel::Project(camera, point, x, y))
+            {
+                return false;
+            }
+            screen = ImVec2(x, y);
+            return true;
+        };
+        canvas->ForEachObject([&](Object::GameObject& object) {
+            if (object.IsEditorHidden() || false == InViewSpace(object))
+            {
+                return;
+            }
+            Pose pose;
+            if (false == poseOf(&object, pose))
+            {
+                return;
+            }
+            const Float thickness = m_editor->IsSelected(&object) ? 2.0f : 1.0f;
+            canvas->FindComponentsRaw<Component::DistanceJoint3D>(&object, m_distanceJoint3DScratch);
+            for (Component::DistanceJoint3D* joint : m_distanceJoint3DScratch)
+            {
+                if (joint == nullptr || false == joint->IsEnabled())
+                {
+                    continue;
+                }
+                ImVec2 a;
+                ImVec2 b;
+                if (project(toWorld(pose, joint->anchor), a) && project(connectedPoint(joint->connectedObject, joint->connectedAnchor), b))
+                {
+                    draw->AddLine(a, b, color, thickness);
+                    draw->AddCircleFilled(a, 3.0f, color);
+                    draw->AddCircleFilled(b, 3.0f, color);
+                }
+            }
+            canvas->FindComponentsRaw<Component::HingeJoint3D>(&object, m_hingeJoint3DScratch);
+            for (Component::HingeJoint3D* joint : m_hingeJoint3DScratch)
+            {
+                if (joint == nullptr || false == joint->IsEnabled())
+                {
+                    continue;
+                }
+                const Vector3 pinWorld = toWorld(pose, joint->anchor);
+                ImVec2 pin;
+                if (false == project(pinWorld, pin))
+                {
+                    continue;
+                }
+                draw->AddCircle(pin, 6.0f, color, 16, thickness);
+                // 축: 핀을 지나는 길이 1 의 선(오브젝트의 회전을 받는다). 축이 0 이면 물리처럼 X 다.
+                const Vector3 axisLocal = Length(joint->axis) > 1.0e-6f ? Normalize(joint->axis) : Vector3{1.0f, 0.0f, 0.0f};
+                const Vector3 axis = Rotate(pose.rotation, axisLocal);
+                ImVec2 front;
+                ImVec2 back;
+                const Vector3 halfAxis{axis.x * 0.5f, axis.y * 0.5f, axis.z * 0.5f};
+                if (project(Add(pinWorld, halfAxis), front) && project(Subtract(pinWorld, halfAxis), back))
+                {
+                    draw->AddLine(back, front, color, thickness);
+                }
+                if (false == joint->autoConnectedAnchor)
+                {
+                    ImVec2 other;
+                    if (project(connectedPoint(joint->connectedObject, joint->connectedAnchor), other))
+                    {
+                        draw->AddLine(pin, other, color, thickness);
+                        draw->AddCircle(other, 3.0f, color, 12, thickness);
+                    }
                 }
             }
         });

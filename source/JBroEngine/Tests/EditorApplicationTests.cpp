@@ -8070,6 +8070,81 @@ namespace
         editor.Shutdown();
     }
 
+    // **캔버스 뷰가 캐릭터 캡슐과 3D 조인트를 그린다**(D-430). 콜라이더 단추를 껐다 켜면 그림이 바뀐다 - 처음은 콜라이더가 없는 캐릭터 하나만,
+    // 다음은 캐릭터를 끄고 콜라이더 없는 조인트 둘(월드에 박은 경첩, 두 점을 잇는 거리)만 둔다. 각각 따로 바뀌어야 그것이 그린 것이다.
+    void TestTheCanvasViewDrawsCharactersAndJoints3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D character and joint lines not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "JointLinesProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        if (JBro::EditorPanel* simulationView = editor.FindPanel("Simulation"))
+        {
+            simulationView->SetOpen(false);
+        }
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* player = canvas->CreateObject("Player");
+        canvas->AttachComponent<JBro::Component::Transform3D>(player)->position = {0.0f, -1.0f, 0.0f};
+        auto* controller = canvas->AttachComponent<JBro::Component::CharacterController3D>(player);
+        controller->center = {0.0f, 1.0f, 0.0f};
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        Spot button;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_colliders"), button), "the tool bar must offer the collider lines");
+        JBro::Renderer* renderer = editor.GetRenderer();
+        JBro::TextureReadback readback;
+        // 단추를 두 번 눌러(끄고 켜고) 바뀐 픽셀을 센다.
+        const auto toggled = [&]() {
+            JBro::Array<std::byte> before;
+            JBro::Array<std::byte> after;
+            ReadBackBufferInto(*renderer, 640, 480, before, readback);
+            ClickAt(editor, hwnd, button);
+            Check(editor.Tick(Frame), "the editor must settle after the toggle");
+            ReadBackBufferInto(*renderer, 640, 480, after, readback);
+            ClickAt(editor, hwnd, button);
+            Check(editor.Tick(Frame), "the editor must settle after toggling back");
+            return CountDifferingPixels(before, after, readback, 640, 480);
+        };
+        const std::size_t capsule = toggled();
+        std::cout << "  the character capsule changed " << capsule << " pixels" << std::endl;
+        Check(capsule > 300, "a character controller's capsule is drawn with the collider lines");
+        controller->SetEnabled(false);
+        JBro::Object::GameObject* door = canvas->CreateObject("Door");
+        canvas->AttachComponent<JBro::Component::Transform3D>(door)->position = {-1.0f, 0.0f, 0.0f};
+        auto* hinge = canvas->AttachComponent<JBro::Component::HingeJoint3D>(door);
+        hinge->axis = {0.0f, 1.0f, 0.0f};
+        JBro::Object::GameObject* weight = canvas->CreateObject("Weight");
+        canvas->AttachComponent<JBro::Component::Transform3D>(weight)->position = {1.0f, -1.0f, 0.0f};
+        canvas->AttachComponent<JBro::Component::DistanceJoint3D>(weight)->connectedAnchor = {1.0f, 1.5f, 0.0f};
+        Check(editor.Tick(Frame), "the editor must settle with the joints");
+        const std::size_t joints = toggled();
+        std::cout << "  the joint lines changed " << joints << " pixels" << std::endl;
+        Check(joints > 100, "3D joints are drawn with the collider lines");
+        hinge->SetEnabled(false);
+        Check(editor.Tick(Frame), "the editor must settle with only the rope");
+        Check(toggled() > 30, "a distance joint alone draws its line");
+        SaveScreenshot(*renderer, 640, 480, "joints3d");
+        editor.Shutdown();
+    }
+
     // **멈춘 게임을 한 프레임씩 본다**(D-242, 기존 엔진에 없던 것). 한 프레임 진행은 멈춘 동안만 되고, 떨어지는 상자를 고정 스텝
     // 한 번만큼만 움직인다. 디버그 선의 두 토글(시뮬레이션 뷰·캔버스 뷰)은 처음에 켜져 있고 시뮬레이션 뷰의 것은 엔진에 닿는다(D-243).
     void TestSteppingAPausedGameAndTheDebugLineToggles()
@@ -21145,6 +21220,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestModelMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
+    JBRO_CASE(TestTheCanvasViewDrawsCharactersAndJoints3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());
     JBRO_CASE(TestThePhysicsThreadsSettingReachesPlay());
     JBRO_CASE(TestBoxSelectInTheCanvasViewPicksWhatItTouches());
