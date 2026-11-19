@@ -70,8 +70,8 @@ namespace JBro::Component
 {
     // 3D 물리 몸의 종류다(D-416). 2D 의 `BodyType2D` 와 같은 값·같은 차례다.
     enum class BodyType3D : std::uint8_t { Static, Kinematic, Dynamic };
-    // 3D 콜라이더의 모양이다(D-416). 값의 차례는 파일이 쓰므로 뒤에만 더한다 - 메시 콜라이더는 physics3d-plan 4 단계에서 뒤에 붙는다.
-    enum class ColliderShape3D : std::uint8_t { Box, Sphere, Capsule };
+    // 3D 콜라이더의 모양이다(D-416). 값의 차례는 파일이 쓰므로 뒤에만 더한다. `Mesh` 는 D-418 이다.
+    enum class ColliderShape3D : std::uint8_t { Box, Sphere, Capsule, Mesh };
 }
 
 namespace JBro
@@ -83,7 +83,8 @@ namespace JBro
     JBRO_DEFINE_ENUM_TYPE(Component::ColliderShape3D, "Component::ColliderShape3D",
         { Component::ColliderShape3D::Box,     "Box" },
         { Component::ColliderShape3D::Sphere,  "Sphere" },
-        { Component::ColliderShape3D::Capsule, "Capsule" });
+        { Component::ColliderShape3D::Capsule, "Capsule" },
+        { Component::ColliderShape3D::Mesh,    "Mesh" });
 }
 
 namespace JBro

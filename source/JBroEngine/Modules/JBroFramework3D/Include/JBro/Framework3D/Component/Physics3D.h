@@ -6,6 +6,7 @@
 #error "A script reaches the 3D physics components through its handle in <JBro/ScriptAPI.h>, not the component data header."
 #endif
 
+#include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Reflection/PhysicsLayerMaskReflection.h>
@@ -78,6 +79,13 @@ namespace JBro::Component
         JBRO_FIELD(Float, radius) = 0.5f;
         // 캡슐의 전체 높이(로컬 Y, 양 끝의 반구를 넣어서). 반지름의 두 배보다 작으면 구다.
         JBRO_FIELD(Float, height) = 2.0f;
+        // **메시 콜라이더**(D-418, 모양이 `Mesh` 일 때). 비면 같은 오브젝트의 `MeshRenderer3D` 가 그리는 메시를 쓴다(빈 `materialId` 가 메시의 재질을 쓰는 것과 같은 규칙).
+        // `mesh` 는 해석 패스가 `meshId` 로 채우는 에셋 핸들이다(D-395).
+        JBRO_FIELD(AssetId, meshId);
+        JBRO_FIELD(AssetHandle, mesh, NoSerialize() | ReadOnly() | Tooltip("meshId 에서 해석된 값") | Hidden());
+        // 참이면 메시를 감싼 볼록 껍질이다 - 어떤 몸에도 쓴다. 거짓이면 삼각형 메시이고 움직이지 않는 몸만 받는다. 움직이는 몸(켜진 동적·키네마틱
+        // `Rigidbody3D`)이나 트리거에 거짓으로 붙이면 껍질로 바꾸고 경고를 한 번 남긴다(사용자 결정, 유니티의 MeshCollider 와 같은 칸).
+        JBRO_FIELD(Bool, convex) = false;
         JBRO_FIELD(Bool, isTrigger) = false;
         JBRO_FIELD(Float, friction, Range(0.0f, 2.0f)) = 0.6f;
         JBRO_FIELD(Float, restitution, Range(0.0f, 1.0f)) = 0.0f;

@@ -9,6 +9,8 @@
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
+#include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
@@ -158,6 +160,64 @@ namespace JBro::Physics3D
                 inner = result.Get();
                 break;
             }
+            case ShapeType::ConvexHull:
+            {
+                if (desc.points.Size() < 4)
+                {
+                    return {};
+                }
+                JPH::Array<JPH::Vec3> points;
+                points.reserve(desc.points.Size());
+                for (const Vector3& point : desc.points)
+                {
+                    points.push_back(ToJolt(point));
+                }
+                JPH::ConvexHullShapeSettings settings(points);
+                settings.mUserData = surface;
+                JPH::ShapeSettings::ShapeResult result = settings.Create();
+                if (result.HasError())
+                {
+                    return {};
+                }
+                inner = result.Get();
+                break;
+            }
+            case ShapeType::Mesh:
+            {
+                const std::size_t triangles = desc.indices.Size() / 3;
+                if (triangles == 0 || desc.points.Size() < 3)
+                {
+                    return {};
+                }
+                JPH::VertexList vertices;
+                vertices.reserve(desc.points.Size());
+                for (const Vector3& point : desc.points)
+                {
+                    vertices.push_back(JPH::Float3(point.x, point.y, point.z));
+                }
+                JPH::IndexedTriangleList list;
+                list.reserve(triangles);
+                for (std::size_t index = 0; index < triangles; ++index)
+                {
+                    const std::uint32_t a = desc.indices[index * 3];
+                    const std::uint32_t b = desc.indices[index * 3 + 1];
+                    const std::uint32_t c = desc.indices[index * 3 + 2];
+                    if (a >= vertices.size() || b >= vertices.size() || c >= vertices.size())
+                    {
+                        return {};
+                    }
+                    list.push_back(JPH::IndexedTriangle(a, b, c, 0));
+                }
+                JPH::MeshShapeSettings settings(std::move(vertices), std::move(list));
+                settings.mUserData = surface;
+                JPH::ShapeSettings::ShapeResult result = settings.Create();
+                if (result.HasError())
+                {
+                    return {};
+                }
+                inner = result.Get();
+                break;
+            }
             case ShapeType::Capsule:
             {
                 if (false == (desc.radius > 0.0f && desc.halfHeight > 0.0f))
@@ -176,6 +236,18 @@ namespace JBro::Physics3D
             }
             }
             return inner;
+        }
+
+        Bool HasMesh(ArrayView<const ShapeDesc> shapes)
+        {
+            for (const ShapeDesc& desc : shapes)
+            {
+                if (desc.type == ShapeType::Mesh)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         Bool IsZero(const Vector3& value)
@@ -651,6 +723,11 @@ namespace JBro::Physics3D
     BodyId World::CreateBody(const BodyDef& def)
     {
         const ArrayView<const ShapeDesc> shapes = def.shapes.Size() != 0 ? def.shapes : ArrayView<const ShapeDesc>(&def.shape, 1);
+        // 메시 도형은 움직이지 않는 바디만 받는다(Jolt 의 메시는 부피가 없다). 어댑터가 움직이는 바디에서는 껍질로 바꿔 넘긴다.
+        if (def.type != BodyType::Static && HasMesh(shapes))
+        {
+            return {};
+        }
         JPH::ShapeRefC shape = MakeBodyShape(shapes);
         if (shape == nullptr)
         {
@@ -821,6 +898,10 @@ namespace JBro::Physics3D
         {
             return false;
         }
+        if (HasMesh(shapes) && m_impl->physics.GetBodyInterfaceNoLock().GetMotionType(ToJolt(body)) != JPH::EMotionType::Static)
+        {
+            return false;
+        }
         JPH::ShapeRefC shape = MakeBodyShape(shapes);
         if (shape == nullptr)
         {
@@ -957,12 +1038,19 @@ namespace JBro::Physics3D
             return false;
         }
         const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), sweep);
-        JPH::RayCastResult result;
+        // 설정을 받는 길로 쏜다: 볼록 도형은 속이 찬 것(안에서 쏘면 그 자리에서 맞는다), 삼각형 메시는 겉면뿐이라 뒷면을 맞지 않는다(D-418).
+        // 설정 없는 길은 삼각형의 뒷면도 맞아, 메시 상자 안에서 쏜 반직선이 윗면 안쪽에 걸렸다 - `RaycastAll` 과도 달랐다.
+        JPH::RayCastSettings settings;
+        settings.mBackFaceModeTriangles = JPH::EBackFaceMode::IgnoreBackFaces;
+        settings.mTreatConvexAsSolid = true;
+        JPH::ClosestHitCollisionCollector<JPH::CastRayCollector> collector;
         const Impl::QueryLayers layers(*m_impl, layerMask);
-        if (false == m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, result, {}, layers))
+        m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, settings, collector, {}, layers);
+        if (false == collector.HadHit())
         {
             return false;
         }
+        const JPH::RayCastResult& result = collector.mHit;
         m_impl->FillHit(result.mBodyID, result.mSubShapeID2, ray.GetPointOnRay(result.mFraction), hit);
         hit.distance = result.mFraction * distance;
         return true;

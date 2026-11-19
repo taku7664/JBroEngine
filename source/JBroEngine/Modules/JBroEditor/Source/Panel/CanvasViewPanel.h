@@ -9,6 +9,7 @@
 #include <JBro/Editor/Gizmo/LightGizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
+#include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Physics2D/Geometry.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Table.h>
@@ -124,6 +125,8 @@ namespace JBro
         // 3D 의 바닥 격자다(y=0 평면). 선을 토막 내어 투영한다 - 한 선이 카메라 평면을
         // 가로지르면 양 끝만으로는 그릴 수 없기 때문이다.
         void DrawGrid3D(const ViewRect& rect);
+        // 3D 콜라이더의 선이다(D-418, physics3d-plan 4 단계). 2D 의 `DrawColliders` 와 같은 단추·같은 색이다.
+        void DrawColliders3D(const ViewRect& rect);
         void DrawSelectionOutlines(const ViewRect& rect);
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
@@ -335,6 +338,18 @@ namespace JBro
         Vector2 m_buttonGrabLocal;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
+        Array<Component::Collider3D*> m_collider3DScratch;
+        // 메시 콜라이더를 그릴 점의 사본(D-418). 메시가 바뀔 때만 다시 읽는다.
+        struct ColliderMeshDrawing
+        {
+            AssetId id;
+            AssetHandle handle;
+            UInt32 dataGeneration = 0;
+            Bool loaded = false;
+            Array<Vector3> points;
+            Array<UInt32> indices;
+        };
+        Table<InstanceId, ColliderMeshDrawing> m_colliderMeshes;
         Array<Component::DistanceJoint2D*> m_distanceJointScratch;
         Array<Component::HingeJoint2D*> m_hingeJointScratch;
         Array<Vector2> m_screenScratch;

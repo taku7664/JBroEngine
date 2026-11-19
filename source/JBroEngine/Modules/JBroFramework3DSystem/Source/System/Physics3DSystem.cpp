@@ -5,6 +5,8 @@
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Scripting/GameScript.h>
+#include <JBro/Framework3DSystem/Physics/ColliderMesh.h>
+#include <JBro/Core/Log.h>
 #include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Physics3D/World.h>
 #include <JBro/Runtime/GameObject.h>
@@ -121,6 +123,10 @@ namespace JBro::System
                 desc.type = Physics3D::ShapeType::Sphere;
                 desc.radius = collider.radius * Largest(magnitude.x, Largest(magnitude.y, magnitude.z));
                 break;
+            case Component::ColliderShape3D::Mesh:
+                // 점과 삼각형은 어댑터의 메시 사본이 채운다(`State::MeshCache`).
+                desc.type = Physics3D::ShapeType::Mesh;
+                break;
             case Component::ColliderShape3D::Capsule:
             {
                 // 둥근 쪽은 X·Z 의 큰 크기를, 길이는 Y 크기를 따른다. 반지름 두 배보다 짧으면 원통이 없는 구다.
@@ -153,6 +159,10 @@ namespace JBro::System
             print.Mix(desc.offset);
             print.Mix(desc.friction);
             print.Mix(desc.restitution);
+            const UInt64 points = desc.points.Size();
+            const UInt64 indices = desc.indices.Size();
+            print.Mix(&points, sizeof(points));
+            print.Mix(&indices, sizeof(indices));
         }
 
         Physics3D::BodyType ToKernel(Component::BodyType3D type)
@@ -224,9 +234,29 @@ namespace JBro::System
     struct Physics3DSystem::State
     {
         // 한 오브젝트의 고체 콜라이더를 모으는 자리다. 오브젝트마다 하나를 두고 스텝마다 비워 다시 쓴다 - 배열이 자리를 지켜 할당하지 않는다.
+        // 메시 콜라이더 하나의 점 사본이다(D-418). 메시·세대·크기가 바뀔 때만 다시 읽고 다시 곱한다 - 프레임마다 메시를 읽지 않는다.
+        struct MeshCache
+        {
+            AssetId id;
+            AssetHandle handle;
+            UInt32 dataGeneration = 0;
+            Vector3 scale{1.0f, 1.0f, 1.0f};
+            Bool loaded = false;
+            Bool scaled = false;
+            Bool warned = false;
+            Bool seen = false;
+            // 다시 읽거나 곱할 때마다 오른다. 바디의 도형 지문에 섞는다 - 점의 수가 같아도 바뀐 것을 안다.
+            UInt64 version = 0;
+            Array<Vector3> local;
+            Array<Vector3> points;
+            Array<UInt32> indices;
+        };
+
         struct Group
         {
             Array<Physics3D::ShapeDesc> shapes;
+            // 메시 사본의 판을 섞은 값. 도형 지문에 더한다.
+            UInt64 meshVersions = 0;
             UInt32 layer = 0x00000001u;
             UInt32 mask = 0xFFFFFFFFu;
             Object::GameObject* object = nullptr;
@@ -283,6 +313,7 @@ namespace JBro::System
         Table<InstanceId, Group> groups;
         Table<InstanceId, BodyLink> bodies;
         Table<InstanceId, SensorLink> sensors;
+        Table<InstanceId, MeshCache> meshes;
         Array<InstanceId> removals;
     };
 
@@ -300,6 +331,11 @@ namespace JBro::System
     void Physics3DSystem::SetGravity(const Vector3& gravity)
     {
         m_gravity = gravity;
+    }
+
+    void Physics3DSystem::SetAssets(const AssetSystem* assets)
+    {
+        m_assets = assets;
     }
 
     Vector3 Physics3DSystem::GetGravity() const
@@ -356,7 +392,12 @@ namespace JBro::System
         for (auto& entry : state.groups)
         {
             entry.MappedValue.shapes.Clear();
+            entry.MappedValue.meshVersions = 0;
             entry.MappedValue.object = nullptr;
+        }
+        for (auto& entry : state.meshes)
+        {
+            entry.MappedValue.seen = false;
         }
         for (auto& entry : state.bodies)
         {
@@ -382,8 +423,62 @@ namespace JBro::System
             {
                 return;
             }
-            const Physics3D::ShapeDesc desc = BakeShape(collider, pose.scale);
+            Physics3D::ShapeDesc desc = BakeShape(collider, pose.scale);
             markOwner(object);
+            UInt64 meshVersion = 0;
+            if (collider.shape == Component::ColliderShape3D::Mesh)
+            {
+                // **메시 콜라이더**(D-418). 움직이는 몸(켜진 동적·키네마틱)과 트리거(키네마틱 센서)는 삼각형 메시를 받지 못하므로 볼록 껍질이다.
+                const Component::Rigidbody3D* body = canvas.FindComponentRaw<Component::Rigidbody3D>(object);
+                const Bool movingBody = body != nullptr && body->IsActiveComponent() && body->bodyType != Component::BodyType3D::Static;
+                const Bool hull = collider.convex || movingBody || collider.isTrigger;
+                const InstanceId colliderId = collider.GetInstanceId();
+                State::MeshCache* cache = state.meshes.Find(colliderId);
+                if (cache == nullptr)
+                {
+                    state.meshes.TryAdd(colliderId, State::MeshCache{});
+                    cache = state.meshes.Find(colliderId);
+                }
+                cache->seen = true;
+                const ColliderMeshSource source = FindColliderMeshSource(canvas, *object, collider, m_assets);
+                if (false == cache->loaded || cache->id != source.id || cache->handle.index != source.handle.index
+                    || cache->handle.generation != source.handle.generation || cache->dataGeneration != source.dataGeneration)
+                {
+                    cache->id = source.id;
+                    cache->handle = source.handle;
+                    cache->dataGeneration = source.dataGeneration;
+                    cache->loaded = GatherColliderMesh(m_assets, source, cache->local, cache->indices);
+                    cache->scaled = false;
+                    ++cache->version;
+                }
+                if (false == cache->loaded)
+                {
+                    // 아직 쓸 메시가 없다(실리는 중이거나 비었다). 다음 스텝에 다시 본다.
+                    return;
+                }
+                if (false == cache->scaled || false == SameVector(cache->scale, pose.scale))
+                {
+                    cache->points.Clear();
+                    for (const Vector3& point : cache->local)
+                    {
+                        cache->points.Add(Multiply(point, pose.scale));
+                    }
+                    cache->scale = pose.scale;
+                    cache->scaled = true;
+                    ++cache->version;
+                }
+                if (hull && false == collider.convex && false == cache->warned)
+                {
+                    cache->warned = true;
+                    Log::Write(LogLevel::Warning, "physics3d",
+                        "%s: a mesh collider that is not convex is used as its convex hull on a moving body or as a trigger",
+                        object->GetName());
+                }
+                desc.type = hull ? Physics3D::ShapeType::ConvexHull : Physics3D::ShapeType::Mesh;
+                desc.points = cache->points.View();
+                desc.indices = cache->indices.View();
+                meshVersion = cache->version;
+            }
             if (collider.isTrigger)
             {
                 // 움직이는 오브젝트(켜진 동적·키네마틱 몸)의 트리거만 정적인 것과의 겹침을 본다(2D 와 같다).
@@ -391,6 +486,7 @@ namespace JBro::System
                 const Bool moving = carrier != nullptr && carrier->IsActiveComponent() && carrier->bodyType != Component::BodyType3D::Static;
                 Fingerprint print;
                 MixShape(print, desc);
+                print.Mix(&meshVersion, sizeof(meshVersion));
                 print.Mix(moving);
                 print.Mix(UInt32(collider.layer));
                 print.Mix(UInt32(collider.mask));
@@ -444,6 +540,7 @@ namespace JBro::System
                 group->mask = collider.mask;
             }
             group->shapes.Add(desc);
+            group->meshVersions = group->meshVersions * 1099511628211ull + meshVersion;
             group->object = object;
             group->pose = pose;
         });
@@ -474,6 +571,7 @@ namespace JBro::System
             {
                 MixShape(shapesPrint, desc);
             }
+            shapesPrint.Mix(&group.meshVersions, sizeof(group.meshVersions));
 
             State::BodyLink* link = state.bodies.Find(objectId);
             // 종류가 바뀌면 다시 만든다. 도형·성질은 제자리에서 바꾼다 - 다시 만들면 닿아 있던 쌍이 끝나고 다시 시작한다.
@@ -584,6 +682,19 @@ namespace JBro::System
         {
             world.DestroyBody(state.sensors.Find(id)->body);
             state.sensors.Remove(id);
+        }
+        // 이번에 보지 못한 메시 콜라이더의 사본을 버린다.
+        state.removals.Clear();
+        for (auto& entry : state.meshes)
+        {
+            if (false == entry.MappedValue.seen)
+            {
+                state.removals.Add(entry.KeyValue);
+            }
+        }
+        for (const InstanceId id : state.removals)
+        {
+            state.meshes.Remove(id);
         }
         // 콜라이더가 모두 사라진 오브젝트의 모으는 자리도 버린다 - 지운 오브젝트의 자리가 쌓이지 않게.
         state.removals.Clear();

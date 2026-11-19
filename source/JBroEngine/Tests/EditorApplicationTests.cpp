@@ -7301,6 +7301,146 @@ namespace
         editor.Shutdown();
     }
 
+    // **메시 콜라이더**(D-418). 빈 `meshId` 는 같은 오브젝트의 메시를 쓴다: 정적인 바닥은 그 삼각형 메시, 움직이는 공은 껍질이다.
+    // 볼록 칸을 끈 채 움직이는 몸에 붙인 메시 콜라이더는 껍질로 바뀐다(사용자 결정).
+    void TestMeshCollidersIn3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D mesh colliders not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "MeshColliderProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto place = [&](const char* tag, JBro::Vector3 position, JBro::Vector3 scale, const char* builtin, JBro::Bool dynamic) {
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(object);
+            transform->position = position;
+            transform->scale = scale;
+            auto* mesh = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(object);
+            Check(mesh != nullptr, "each object draws a builtin mesh");
+            mesh->meshId = JBro::Uuid::FromName(builtin);
+            auto* collider = canvas->AttachComponent<JBro::Component::Collider3D>(object);
+            Check(collider != nullptr, "and has a collider");
+            collider->shape = JBro::Component::ColliderShape3D::Mesh;
+            if (dynamic)
+            {
+                Check(canvas->AttachComponent<JBro::Component::Rigidbody3D>(object) != nullptr, "and a body");
+            }
+            return object;
+        };
+        // 바닥: 빌트인 정육면체를 넓게 편 것. 윗면이 y=0 이다. 메시 칸이 비어 있어 그 정육면체의 삼각형이 콜라이더다.
+        place("Floor", {0.0f, -0.5f, 0.0f}, {20.0f, 1.0f, 20.0f}, "builtin/cube", false);
+        // 공: 빌트인 구(반지름 0.5)를 떨어뜨린다. 움직이는 몸이라 그 구 메시의 볼록 껍질이 콜라이더다.
+        JBro::Object::GameObject* ball = place("Ball", {0.0f, 3.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, "builtin/sphere", true);
+        // 상자: 정육면체 메시에 볼록 칸을 켰다. 크기 2 다.
+        JBro::Object::GameObject* crate = place("Crate", {3.0f, 3.0f, 0.0f}, {2.0f, 2.0f, 2.0f}, "builtin/cube", true);
+        canvas->FindComponentRaw<JBro::Component::Collider3D>(crate)->convex = true;
+        // 공중에 뜬 정적인 정육면체 둘: 하나는 볼록 칸을 켰다(껍질 - 속이 찬 몸), 하나는 껐다(삼각형 - 겉면뿐). 안에서 위로 쏜 반직선이 가른다.
+        JBro::Object::GameObject* solidCage = place("SolidCage", {-6.0f, 10.0f, 0.0f}, {2.0f, 2.0f, 2.0f}, "builtin/cube", false);
+        canvas->FindComponentRaw<JBro::Component::Collider3D>(solidCage)->convex = true;
+        place("HollowCage", {-10.0f, 10.0f, 0.0f}, {2.0f, 2.0f, 2.0f}, "builtin/cube", false);
+        const auto positionOf = [&](JBro::Object::GameObject* object) {
+            return canvas->FindComponentRaw<JBro::Component::Transform3D>(object)->position;
+        };
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        for (JBro::Int32 frame = 0; frame < 180; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        std::cout << "  on the mesh floor: ball " << positionOf(ball).y << ", crate " << positionOf(crate).y << std::endl;
+        Check(positionOf(ball).y > 0.44f && positionOf(ball).y < 0.505f, "the hull of the ball rests on the triangles of the floor, a radius up");
+        Check(positionOf(crate).y > 0.96f && positionOf(crate).y < 1.005f, "the convex crate of size two rests one unit up");
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>();
+        Check(physics != nullptr && physics->GetBodyCount() == 5, "all five mesh colliders became bodies");
+        JBro::RaycastHit3D hit;
+        Check(physics->Raycast({-6.0f, 10.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 5.0f, hit, JBro::AllPhysicsLayers) && hit.distance < 1.0e-3f,
+            "a ray from inside the convex cage hits at once - its hull is solid");
+        Check(false == physics->Raycast({-10.0f, 10.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, 5.0f, hit, JBro::AllPhysicsLayers),
+            "a ray from inside the triangle mesh cage leaves through the back of its top face - it is only a surface");
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
+    // **캔버스 뷰가 3D 콜라이더를 그린다**(D-418). 2D 와 같은 단추로 켜고 끄며, 켠 화면과 끈 화면의 픽셀이 다르다 - 그리는 함수를 불렀는지가 아니라
+    // 그림이 바뀌었는지를 본다. 상자·구·캡슐·메시가 한 화면에 있다.
+    void TestTheCanvasViewDrawsColliders3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D collider lines not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ColliderLinesProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        if (JBro::EditorPanel* simulationView = editor.FindPanel("Simulation"))
+        {
+            simulationView->SetOpen(false);
+        }
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto place = [&](const char* tag, JBro::Vector3 position, JBro::Component::ColliderShape3D shape) {
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
+            canvas->AttachComponent<JBro::Component::Transform3D>(object)->position = position;
+            auto* collider = canvas->AttachComponent<JBro::Component::Collider3D>(object);
+            collider->shape = shape;
+            return collider;
+        };
+        place("Box", {-1.5f, 0.0f, 0.0f}, JBro::Component::ColliderShape3D::Box);
+        place("Ball", {0.0f, 0.0f, 0.0f}, JBro::Component::ColliderShape3D::Sphere);
+        place("Pill", {1.5f, 0.0f, 0.0f}, JBro::Component::ColliderShape3D::Capsule)->isTrigger = true;
+        place("Rock", {0.0f, 0.0f, 1.5f}, JBro::Component::ColliderShape3D::Mesh)->meshId = JBro::Uuid::FromName("builtin/sphere");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        Spot button;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_colliders"), button),
+            "a 3D canvas view's tool bar must offer the collider lines");
+        JBro::Renderer* renderer = editor.GetRenderer();
+        JBro::Array<std::byte> first;
+        JBro::Array<std::byte> second;
+        JBro::TextureReadback readback;
+        ReadBackBufferInto(*renderer, 640, 480, first, readback);
+        ClickAt(editor, hwnd, button);
+        Check(editor.Tick(Frame), "the editor must settle after the toggle");
+        ReadBackBufferInto(*renderer, 640, 480, second, readback);
+        const std::size_t changed = CountDifferingPixels(first, second, readback, 640, 480);
+        std::cout << "  the 3D collider lines changed " << changed << " pixels" << std::endl;
+        Check(changed > 800, "toggling the collider lines changes what a 3D canvas view shows");
+        // 처음엔 켜져 있다(2D 와 같다). 한 번 더 누르면 다시 그려진다 - 그 화면을 남긴다.
+        ClickAt(editor, hwnd, button);
+        Check(editor.Tick(Frame), "the editor must settle after toggling back");
+        JBro::Array<std::byte> third;
+        ReadBackBufferInto(*renderer, 640, 480, third, readback);
+        Check(CountDifferingPixels(second, third, readback, 640, 480) > 800, "toggling again brings the collider lines back");
+        SaveScreenshot(*renderer, 640, 480, "colliders3d");
+        editor.Shutdown();
+    }
+
     // **멈춘 게임을 한 프레임씩 본다**(D-242, 기존 엔진에 없던 것). 한 프레임 진행은 멈춘 동안만 되고, 떨어지는 상자를 고정 스텝
     // 한 번만큼만 움직인다. 디버그 선의 두 토글(시뮬레이션 뷰·캔버스 뷰)은 처음에 켜져 있고 시뮬레이션 뷰의 것은 엔진에 닿는다(D-243).
     void TestSteppingAPausedGameAndTheDebugLineToggles()
@@ -20366,6 +20506,8 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestAScriptFaultStopsPlayAndTellsTheUser());
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBack());
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D());
+    JBRO_CASE(TestMeshCollidersIn3D());
+    JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());
     JBRO_CASE(TestThePhysicsThreadsSettingReachesPlay());
     JBRO_CASE(TestBoxSelectInTheCanvasViewPicksWhatItTouches());

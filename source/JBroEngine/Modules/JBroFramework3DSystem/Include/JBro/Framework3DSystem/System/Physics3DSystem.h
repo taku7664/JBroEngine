@@ -10,6 +10,11 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 
+namespace JBro
+{
+    class AssetSystem;
+}
+
 namespace JBro::System
 {
     // 3D 물리 커널(`JBroPhysics3D`, 안은 Jolt)과 캔버스를 잇는 어댑터다(D-416, physics3d-plan §2.1). 2D 의 `Physics2DSystem` 자리다.
@@ -27,6 +32,8 @@ namespace JBro::System
 
         Int32 GetExecutionOrder() const override;
         void SetGravity(const Vector3& gravity);
+        // 메시 콜라이더가 모델의 메시 자료를 읽는 곳이다(D-418). 없으면 빌트인 도형만 메시 콜라이더가 된다.
+        void SetAssets(const AssetSystem* assets);
         Vector3 GetGravity() const;
 
         // 커널에 올라간 바디와 센서의 수. 동기화가 만들고 지우는 것을 시험이 붙잡는 손잡이다.
@@ -55,6 +62,7 @@ namespace JBro::System
         void DispatchEvents(Canvas& canvas);
 
         Canvas* m_canvas = nullptr;
+        const AssetSystem* m_assets = nullptr;
         Vector3 m_gravity{0.0f, -9.81f, 0.0f};
         OwnerPtr<State> m_state;
     };

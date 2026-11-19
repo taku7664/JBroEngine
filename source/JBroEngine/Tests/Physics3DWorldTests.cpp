@@ -533,6 +533,48 @@ namespace
     }
 }
 
+namespace
+{
+    // 메시와 볼록 껍질(D-418): 두 삼각형짜리 바닥 메시 위에 껍질 상자가 선다. 메시는 움직이는 바디가 받지 않는다.
+    void TestMeshesAndHulls()
+    {
+        World world;
+        const Vector3 corners[4] = {{-10.0f, 0.0f, -10.0f}, {10.0f, 0.0f, -10.0f}, {10.0f, 0.0f, 10.0f}, {-10.0f, 0.0f, 10.0f}};
+        // 위(+y)를 보는 면이 되게 감는다.
+        const JBro::UInt32 triangles[6] = {0, 2, 1, 0, 3, 2};
+        BodyDef floor;
+        floor.type = BodyType::Static;
+        floor.shape.type = ShapeType::Mesh;
+        floor.shape.points = JBro::ArrayView<const Vector3>(corners);
+        floor.shape.indices = JBro::ArrayView<const JBro::UInt32>(triangles);
+        Check(world.IsValid(world.CreateBody(floor)), "a static body takes a triangle mesh");
+
+        Vector3 cube[8];
+        for (JBro::Int32 index = 0; index < 8; ++index)
+        {
+            cube[index] = {(index & 1) != 0 ? 0.5f : -0.5f, (index & 2) != 0 ? 0.5f : -0.5f, (index & 4) != 0 ? 0.5f : -0.5f};
+        }
+        BodyDef hull = BoxAt({0.0f, 2.0f, 0.0f});
+        hull.shape.type = ShapeType::ConvexHull;
+        hull.shape.points = JBro::ArrayView<const Vector3>(cube);
+        const BodyId box = world.CreateBody(hull);
+        Check(world.IsValid(box), "a moving body takes a convex hull");
+        Run(world, 3.0f);
+        std::cout << "  hull box on the mesh floor rests at y=" << world.GetPosition(box).y << '\n';
+        Check(RestsOnGround(world.GetPosition(box).y), "the hull of a unit cube rests on the mesh floor like a box");
+
+        BodyDef movingMesh = BoxAt({0.0f, 5.0f, 0.0f});
+        movingMesh.shape = floor.shape;
+        Check(false == world.IsValid(world.CreateBody(movingMesh)), "a moving body does not take a triangle mesh");
+        JBro::Physics3D::ShapeDesc meshDesc = floor.shape;
+        Check(false == world.SetShapes(box, JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(&meshDesc, 1)), "nor can a moving body be given one later");
+        JBro::Physics3D::ShapeDesc few;
+        few.type = ShapeType::ConvexHull;
+        few.points = JBro::ArrayView<const Vector3>(corners, 3);
+        Check(false == world.SetShapes(box, JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(&few, 1)), "a hull of fewer than four points is refused");
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -545,6 +587,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestShapesAndPropertiesChangeInPlace());
     JBRO_CASE(TestContactEventsFollowTouchingPairs());
     JBRO_CASE(TestQueriesFindBodies());
+    JBRO_CASE(TestMeshesAndHulls());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }

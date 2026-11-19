@@ -147,7 +147,7 @@
   뷰마다 라이트 64 의 포워드. **세 단계가 모두 섰다**(렌더러·컴포넌트와 시작 라이트·에디터 표시와 기즈모, D-408~D-410). 지금 상태와 상용 엔진·glTF 비교가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4
 - [tasks/physics3d-plan.md](./tasks/physics3d-plan.md) — 3D 물리(D-414). 커널은 **Jolt Physics**(v5.7.0, `ThirdParty/Jolt`)이고 엔진이 보이는 모양(컴포넌트·훅·질의·에디터)은 2D 물리를 따른다.
   설계(§2: Jolt 를 보는 커널 모듈 하나·2D 와 같은 컴포넌트 필드·싱글 스레드로 시작·충돌 훅과 `Physics3DService`)는 확정됐다(D-415). 0 단계(Jolt)·1 단계(커널 `Modules/JBroPhysics3D`, 할당 훅 뒤의 재사용 풀로 스텝 중 OS 힙 0)·2 단계(컴포넌트 필드·`PhysicsLayerMask` 를 Core 로·어댑터 `Physics3DSystem`, 한 오브젝트의 콜라이더 여럿은 복합 도형과 센서, D-416)·
-  3 단계(`GameScript3D` 의 충돌·트리거 훅과 `Physics3DService` 질의, 잠든 접촉은 끝이 아니다, D-417)가 섰다.
+  3 단계(`GameScript3D` 의 충돌·트리거 훅과 `Physics3DService` 질의, 잠든 접촉은 끝이 아니다, D-417)·4 단계(캔버스 뷰의 3D 콜라이더 선, 메시 콜라이더 - `convex` 칸과 껍질, 빈 `meshId` 는 렌더러의 메시, 감기를 Jolt 쪽으로 뒤집는다, D-418)가 섰다.
   지금 상태가 §1, 단계와 실측이 §3, `[열림]` 이 §4
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.
   새 Tier E 모듈 `JBroPackage`, 에셋 시스템의 바이트 출처 `IAssetSource`, 호스트의 `BuildGame` 과 패키지로 여는 프로젝트(`AssetPackage`), 에디터 파일 메뉴 "게임 빌드".

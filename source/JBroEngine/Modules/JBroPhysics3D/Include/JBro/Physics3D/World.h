@@ -32,6 +32,10 @@ namespace JBro::Physics3D
         Sphere,
         // 로컬 Y 축으로 선 캡슐이다. `radius` 와 원통 부분의 높이 절반 `halfHeight`.
         Capsule,
+        // `points` 를 감싼 볼록 껍질이다(D-418). 어떤 바디에도 쓴다. 점이 넷보다 적으면 만들지 않는다. 한 평면의 점이면 Jolt 가 납작한 껍질을 만든다.
+        ConvexHull,
+        // `points` 와 `indices`(삼각형마다 셋, 바깥에서 볼 때 반시계)의 삼각형 메시다(D-418). 앞면 쪽에서 오는 것만 막는다. **움직이지 않는 바디만** 받는다 - Jolt 의 메시 도형은 부피가 없다.
+        Mesh,
     };
 
     inline constexpr UInt32 InvalidBodyValue = 0xFFFFFFFFu;
@@ -51,6 +55,9 @@ namespace JBro::Physics3D
         Float halfHeight = 0.5f;
         // 바디 원점에서 도형 중심까지(바디 로컬).
         Vector3 offset;
+        // 껍질·메시의 점(바디 로컬, 크기를 곱한 값)과 메시의 삼각형. 만드는 동안만 읽는다 - 커널이 사본을 만든다.
+        ArrayView<const Vector3> points;
+        ArrayView<const UInt32> indices;
         // 표면 성질은 도형마다다(2D 의 콜라이더마다와 같다). 두 도형이 닿으면 마찰은 둘의 기하 평균, 반발은 큰 쪽이다(Jolt 의 기본 섞기).
         Float friction = 0.6f;
         Float restitution = 0.0f;

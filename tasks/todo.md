@@ -3058,6 +3058,18 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-418. 캔버스 뷰가 3D 콜라이더를 그리고, 메시 콜라이더가 선다 - `convex` 칸과 껍질, 빈 `meshId` 는 렌더러의 메시.** (2026-11-20, physics3d-plan §3 의 4 단계·§3.4)
+  사용자 결정 둘: (1) `Collider3D.convex` - 켜면 볼록 껍질로 어떤 몸에도, 끈 채 움직이는 몸·트리거에 붙으면 껍질로 바꾸고 경고 한 번. (2) 빈 `meshId` 는 같은 오브젝트의 `MeshRenderer3D` 메시.
+  Updates: D-416(콜라이더 모양에 `Mesh`), D-395(해석 패스의 `meshId`/`mesh` 짝).
+  (1) 커널: 볼록 껍질·삼각형 메시 도형(메시는 정적 몸만). (2) 엔진 메시는 바깥에서 시계가 앞면(D-108)이고 Jolt 는 반시계만 막는다 - 처음에 그대로 넘겨 공이 정육면체 바닥을 뚫었다.
+  공용 `GatherColliderMesh` 가 감기를 뒤집는다. (3) 물리 어댑터와 캔버스 뷰가 같은 `FindColliderMeshSource`·`GatherColliderMesh` 로 메시를 찾고, 어댑터는 메시·세대·크기가 바뀔 때만 다시 읽는다.
+  (4) 캔버스 뷰의 콜라이더 단추가 3D 에도 서서 상자·구·캡슐·메시를 2D 와 같은 색의 선으로 그린다.
+  확인: `Physics3DWorld` 열하나, 에디터 `TestMeshCollidersIn3D`·`TestTheCanvasViewDrawsColliders3D`(physics3d-plan §3.4).
+  (5) 단일 `Raycast` 가 삼각형의 뒷면도 맞았다(설정 없는 Jolt 길) - 메시 상자 안에서 쏜 반직선이 윗면 안쪽에 걸리고 `RaycastAll` 과도 달랐다. 이제 볼록은 속이 찬 것, 삼각형은 뒷면을 맞지 않는다.
+  뮤테이션 아홉 중 여덟이 잡혔다. 처음에 `convex` 무시가 살아(시험의 볼록 상자가 움직이는 몸이라 어차피 껍질이었다) 공중의 정적 정육면체 둘(볼록 켬·끔) 안에서 위로 쏘는 반직선을 더해 잡았다.
+  살아남은 하나는 모델 메시의 감기 뒤집기다 - 시험이 빌트인 메시만 쓴다(빌트인 쪽 뒤집기는 잡힌다, 둘은 같은 함수). 넓은 묶음(Physics3DWorld·BuiltinComponentProperty·CanvasFile·Framework3DSystem·
+  ScriptHotReload·EditorApplication 전체·UserScenario)이 지난다 - UserScenario 의 클립보드 시험도 이번에는 지났다.
+
 - **D-417. 3D 스크립트가 충돌·트리거 훅과 물리 질의를 받는다 - 2D 와 같은 이름이고, 잠든 접촉은 끝이 아니다.** (2026-11-19, physics3d-plan §3 의 3 단계·§3.3)
   Updates: D-363(`GameScript3D` 의 훅), D-224(3D 서비스·시스템 컨텍스트), D-416.
   (1) `GameScript3D::OnCollisionEnter/Stay/Exit`·`OnTriggerEnter/Stay/Exit(const Collision3D&)`, `Service::Physics3DService`(`Raycast`·`RaycastAll`·`OverlapSphere`·`OverlapBox`·`SphereCast`·`BoxCast`, 마스크 기본 전부),

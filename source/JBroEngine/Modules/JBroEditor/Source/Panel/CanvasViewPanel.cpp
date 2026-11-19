@@ -42,6 +42,7 @@
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
+#include <JBro/Framework3DSystem/Physics/ColliderMesh.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -753,6 +754,10 @@ namespace JBro
             {
                 DrawGrid3D(rect);
             }
+            if (m_showColliders)
+            {
+                DrawColliders3D(rect);
+            }
             DrawSelectionMarkers3D(rect);
             DrawObjectMarkers3D(rect);
         }
@@ -858,9 +863,8 @@ namespace JBro
                 m_gridSnap = false == m_gridSnap;
             }
         }
-        if (false == Is3D())
         {
-            // 3D 에는 그릴 콜라이더가 없다. 누를 수 없는 단추를 두면 무엇이 되는 것인지 흐려진다.
+            // 3D 도 같은 단추다(D-418) - `Collider3D` 를 선으로 그린다.
             ImGui::SameLine(0.0f, 6.0f);
             if (Widget::IconButton("##canvas_colliders", Icons::Colliders)
                     .Selected(m_showColliders)
@@ -2753,6 +2757,210 @@ namespace JBro
             draw->AddCircleFilled(ImVec2(screen[index].x + 1.0f, screen[index].y + 1.0f), HandleRadius, shadow);
             draw->AddCircleFilled(ImVec2(screen[index].x, screen[index].y), HandleRadius, hot ? hotColor : strong);
         }
+    }
+
+    void CanvasViewPanel::DrawColliders3D(const ViewRect& rect)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        GizmoCamera camera;
+        if (canvas == nullptr || false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+        // 색은 2D 와 같다: 고체는 초록, 고른 것은 파랑, 트리거는 노랑.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 normal = IM_COL32(80, 255, 140, 179);
+        const ImU32 selected = IM_COL32(80, 180, 255, 220);
+        const ImU32 trigger = IM_COL32(255, 210, 90, 179);
+        const Object::GameObject* focus = GetFocus();
+        // 메시는 삼각형이 많으면 다 그리지 않는다 - 콜라이더를 보려는 것이지 메시를 다시 그리려는 것이 아니다.
+        constexpr std::size_t MaxMeshTriangles = 4096;
+
+        // 한 선을 토막 내어 잇는다. 카메라 평면을 가로지르는 선도 앞에 있는 토막은 남는다(바닥 격자와 같다).
+        const auto line = [&](const Vector3& from, const Vector3& to, ImU32 color, Float thickness, Int32 segments) {
+            Float previousX = 0.0f;
+            Float previousY = 0.0f;
+            Bool hasPrevious = false;
+            for (Int32 index = 0; index <= segments; ++index)
+            {
+                const Float t = static_cast<JBro::Float>(index) / static_cast<JBro::Float>(segments);
+                const Vector3 point{from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, from.z + (to.z - from.z) * t};
+                Float x = 0.0f;
+                Float y = 0.0f;
+                if (false == GizmoModel::Project(camera, point, x, y))
+                {
+                    hasPrevious = false;
+                    continue;
+                }
+                if (hasPrevious)
+                {
+                    draw->AddLine(ImVec2(previousX, previousY), ImVec2(x, y), color, thickness);
+                }
+                previousX = x;
+                previousY = y;
+                hasPrevious = true;
+            }
+        };
+
+        canvas->ForEachObject([&](Object::GameObject& object) {
+            if (object.IsEditorHidden() || false == InViewSpace(object))
+            {
+                return;
+            }
+            if (focus != nullptr)
+            {
+                const Object::GameObject* at = &object;
+                while (at != nullptr && at != focus)
+                {
+                    at = at->GetParent();
+                }
+                if (at == nullptr)
+                {
+                    return;
+                }
+            }
+            const Component::Transform3D* transform = canvas->FindComponentRaw<Component::Transform3D>(&object);
+            if (transform == nullptr)
+            {
+                return;
+            }
+            canvas->FindComponentsRaw<Component::Collider3D>(&object, m_collider3DScratch);
+            if (m_collider3DScratch.IsEmpty())
+            {
+                return;
+            }
+            const Vector3 position = transform->worldValid ? transform->worldPosition : transform->position;
+            const Quaternion rotation = Normalize(transform->worldValid ? transform->worldRotation : transform->rotation);
+            const Vector3 scale = transform->worldValid ? transform->worldScale : transform->scale;
+            const Vector3 magnitude{std::fabs(scale.x), std::fabs(scale.y), std::fabs(scale.z)};
+            // 오브젝트의 로컬 점(크기를 곱하기 전)을 월드로.
+            const auto toWorld = [&](const Vector3& local) {
+                return Add(position, Rotate(rotation, Multiply(local, scale)));
+            };
+            // 크기를 곱한 뒤의 축 방향 길이(월드 단위)로 월드 점을 낸다 - 구·캡슐의 둥근 쪽은 크기에 늘어나지 않는다(물리와 같다).
+            const auto fromCenter = [&](const Vector3& center, const Vector3& offset) {
+                return Add(center, Rotate(rotation, offset));
+            };
+            const Bool isSelected = m_editor->IsSelected(&object);
+            const Float thickness = isSelected ? 2.0f : 1.0f;
+
+            for (Component::Collider3D* collider : m_collider3DScratch)
+            {
+                if (collider == nullptr || false == collider->IsEnabled())
+                {
+                    continue;
+                }
+                const ImU32 color = collider->isTrigger ? trigger : (isSelected ? selected : normal);
+                const Vector3 center = toWorld(collider->offset);
+                switch (collider->shape)
+                {
+                case Component::ColliderShape3D::Box:
+                {
+                    Vector3 corners[8];
+                    for (Int32 index = 0; index < 8; ++index)
+                    {
+                        const Vector3 local{collider->offset.x + collider->size.x * ((index & 1) != 0 ? 0.5f : -0.5f),
+                            collider->offset.y + collider->size.y * ((index & 2) != 0 ? 0.5f : -0.5f),
+                            collider->offset.z + collider->size.z * ((index & 4) != 0 ? 0.5f : -0.5f)};
+                        corners[index] = toWorld(local);
+                    }
+                    // 열둘의 모서리: 한 비트만 다른 꼭짓점끼리 잇는다.
+                    for (Int32 a = 0; a < 8; ++a)
+                    {
+                        for (Int32 bit = 1; bit < 8; bit <<= 1)
+                        {
+                            const Int32 b = a | bit;
+                            if (b != a)
+                            {
+                                line(corners[a], corners[b], color, thickness, 8);
+                            }
+                        }
+                    }
+                    break;
+                }
+                case Component::ColliderShape3D::Sphere:
+                case Component::ColliderShape3D::Capsule:
+                {
+                    // 물리와 같은 크기 규칙(physics3d-plan §3.2): 구는 세 축 중 큰 크기, 캡슐 반지름은 X·Z 중 큰 것, 높이는 Y.
+                    const Bool capsule = collider->shape == Component::ColliderShape3D::Capsule;
+                    const Float largest = magnitude.x > magnitude.y ? (magnitude.x > magnitude.z ? magnitude.x : magnitude.z)
+                                                                    : (magnitude.y > magnitude.z ? magnitude.y : magnitude.z);
+                    const Float radius = capsule ? collider->radius * (magnitude.x > magnitude.z ? magnitude.x : magnitude.z)
+                                                 : collider->radius * largest;
+                    Float half = capsule ? collider->height * magnitude.y * 0.5f - radius : Float(0.0f);
+                    if (half < 0.0f)
+                    {
+                        half = 0.0f;
+                    }
+                    constexpr Int32 Steps = 32;
+                    const Float tau = 6.28318530718f;
+                    // 위·아래 끝의 원(XZ)과, 옆에서 본 두 윤곽(XY·ZY). 캡슐이 아니면 half 가 0 이라 구의 세 원이 된다.
+                    for (Int32 index = 0; index < Steps; ++index)
+                    {
+                        const Float a0 = tau * static_cast<JBro::Float>(index) / static_cast<JBro::Float>(Steps);
+                        const Float a1 = tau * static_cast<JBro::Float>(index + 1) / static_cast<JBro::Float>(Steps);
+                        const Float c0 = std::cos(a0.Get()) * radius;
+                        const Float s0 = std::sin(a0.Get()) * radius;
+                        const Float c1 = std::cos(a1.Get()) * radius;
+                        const Float s1 = std::sin(a1.Get()) * radius;
+                        const Float below = -half.Get();
+                        line(fromCenter(center, {c0, half, s0}), fromCenter(center, {c1, half, s1}), color, thickness, 1);
+                        line(fromCenter(center, {c0, below, s0}), fromCenter(center, {c1, below, s1}), color, thickness, 1);
+                        // 옆 윤곽: 위쪽 반원은 +half 에, 아래쪽은 -half 에 앉는다.
+                        const Float lift0 = s0 >= 0.0f ? half : below;
+                        const Float lift1 = s1 >= 0.0f ? half : below;
+                        if (lift0 == lift1)
+                        {
+                            line(fromCenter(center, {c0, s0 + lift0, 0.0f}), fromCenter(center, {c1, s1 + lift1, 0.0f}), color, thickness, 1);
+                            line(fromCenter(center, {0.0f, s0 + lift0, c0}), fromCenter(center, {0.0f, s1 + lift1, c1}), color, thickness, 1);
+                        }
+                    }
+                    if (half > 0.0f)
+                    {
+                        line(fromCenter(center, {radius, half, 0.0f}), fromCenter(center, {radius, -half, 0.0f}), color, thickness, 4);
+                        line(fromCenter(center, {-radius, half, 0.0f}), fromCenter(center, {-radius, -half, 0.0f}), color, thickness, 4);
+                        line(fromCenter(center, {0.0f, half, radius}), fromCenter(center, {0.0f, -half, radius}), color, thickness, 4);
+                        line(fromCenter(center, {0.0f, half, -radius}), fromCenter(center, {0.0f, -half, -radius}), color, thickness, 4);
+                    }
+                    break;
+                }
+                case Component::ColliderShape3D::Mesh:
+                {
+                    // 물리가 쓰는 메시를 같은 길로 찾는다. 메시·세대가 바뀔 때만 다시 읽는다.
+                    const ColliderMeshSource source = FindColliderMeshSource(*canvas, object, *collider, m_editor->GetAssetSystem());
+                    ColliderMeshDrawing* mesh = m_colliderMeshes.Find(collider->GetInstanceId());
+                    if (mesh == nullptr)
+                    {
+                        m_colliderMeshes.TryAdd(collider->GetInstanceId(), ColliderMeshDrawing{});
+                        mesh = m_colliderMeshes.Find(collider->GetInstanceId());
+                    }
+                    if (mesh->id != source.id || mesh->handle.index != source.handle.index || mesh->handle.generation != source.handle.generation
+                        || mesh->dataGeneration != source.dataGeneration)
+                    {
+                        mesh->id = source.id;
+                        mesh->handle = source.handle;
+                        mesh->dataGeneration = source.dataGeneration;
+                        mesh->loaded = GatherColliderMesh(m_editor->GetAssetSystem(), source, mesh->points, mesh->indices);
+                    }
+                    if (false == mesh->loaded)
+                    {
+                        break;
+                    }
+                    const std::size_t triangles = mesh->indices.Size() / 3 < MaxMeshTriangles ? mesh->indices.Size() / 3 : MaxMeshTriangles;
+                    for (std::size_t index = 0; index < triangles; ++index)
+                    {
+                        const Vector3 a = toWorld(Add(collider->offset, mesh->points[mesh->indices[index * 3]]));
+                        const Vector3 b = toWorld(Add(collider->offset, mesh->points[mesh->indices[index * 3 + 1]]));
+                        const Vector3 c = toWorld(Add(collider->offset, mesh->points[mesh->indices[index * 3 + 2]]));
+                        line(a, b, color, thickness, 1);
+                        line(b, c, color, thickness, 1);
+                        line(c, a, color, thickness, 1);
+                    }
+                    break;
+                }
+                }
+            }
+        });
     }
 
     void CanvasViewPanel::DrawObjectMarkers3D(const ViewRect& rect)

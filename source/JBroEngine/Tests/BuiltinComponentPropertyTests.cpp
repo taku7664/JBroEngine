@@ -106,7 +106,7 @@ namespace
         Check(Table("Component::Text3D").count == 19, "Text3D declares nineteen fields");
         // 3D 물리는 2D 와 같은 이름의 필드다(D-416): 종류·속도 둘·질량·중력 배율·감쇠 둘·축 고정 여섯·잠듦, 모양·offset·크기·반지름·높이·트리거·마찰·반발·레이어·마스크.
         Check(Table("Component::Rigidbody3D").count == 14, "Rigidbody3D declares fourteen fields");
-        Check(Table("Component::Collider3D").count == 10, "Collider3D declares ten fields");
+        Check(Table("Component::Collider3D").count == 13, "Collider3D declares thirteen fields - with the mesh pair and convex of D-418");
 
         Check(JBro::Component::RegisterBuiltinComponentProperties3D(),
             "registering twice must not turn into a failure");
