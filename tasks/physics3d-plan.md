@@ -4,7 +4,8 @@
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
 > `[제안]` 은 **사용자 확인 전**이다. 2026-11-19 사용자 결정("Jolt 로 가자")으로 시작했다(D-414, todo-3d 우선순위 9).
 > 같은 날 Jolt v5.7.0 을 `ThirdParty/Jolt` 에 넣고 혼자 빌드되는 것까지 했다. 같은 날 §2 의 제안이 모두 그대로 확정됐다("제안대로 진행", D-415)
-> - 아래 §2 의 표시는 확정이다. 1 단계(커널 `JBroPhysics3D`)가 섰다. 다음은 2 단계(컴포넌트와 어댑터)다.
+> - 아래 §2 의 표시는 확정이다. 1 단계(커널 `JBroPhysics3D`)와 2 단계(컴포넌트와 어댑터, D-416)가 섰다 - 에디터에서 재생하면 3D 오브젝트가 떨어져 선다.
+> 다음은 3 단계(충돌 훅과 질의)다.
 
 ## 0. 한 줄 요약
 
@@ -15,13 +16,13 @@ Jolt 타입은 새 커널 모듈 하나 밖으로 나가지 않는다 - 컴포�
 
 | 자리 | 있는 것 |
 |---|---|
-| 컴포넌트 | `Component::Rigidbody3D`(`velocity`·`mass` 뿐), `Component::Collider3D`(`size` 뿐). D-53 의 골격이다 |
-| 핸들 | `Handle::Rigidbody3D`(`Get/SetVelocity`·`Get/SetMass`), `Handle::Collider3D` |
-| 시스템 | 없다. 재생해도 3D 오브젝트는 떨어지지 않는다 |
+| 컴포넌트 | (시작할 때) `Component::Rigidbody3D`(`velocity`·`mass` 뿐), `Component::Collider3D`(`size` 뿐). D-53 의 골격이었다 → 2 단계에서 §2.2 의 필드가 됐다 |
+| 핸들 | (시작할 때) `Handle::Rigidbody3D`(`Get/SetVelocity`·`Get/SetMass`), `Handle::Collider3D` → 2 단계에서 `Get/SetLinearVelocity`·`Get/SetAngularVelocity` |
+| 시스템 | (시작할 때) 없었다 → 2 단계의 `Physics3DSystem` |
 | 스크립트 훅 | `GameScript3D` 에 충돌·트리거 훅이 없다(UI 훅만). 2D 는 `OnCollisionEnter/Stay/Exit`·`OnTriggerEnter/Stay/Exit` |
 | 질의 | 없다. 2D 는 `Physics2DService` 의 `Raycast`·`OverlapBox`·`OverlapPoint`·`OverlapCircle`·`CircleCast`·`BoxCast` |
 | 에디터 | 콜라이더 표시가 없다. 2D 는 콜라이더를 그리고 폴리곤 포인트를 편집한다 |
-| 레이어 | 프로젝트의 `physicsLayers` 이름 표(호스트)와 `PhysicsLayerMask`(Framework2D 의 값 타입) |
+| 레이어 | 프로젝트의 `physicsLayers` 이름 표(호스트)와 `PhysicsLayerMask`(시작할 때 Framework2D, 2 단계에서 Core 로) |
 | Jolt | `ThirdParty/Jolt`(v5.7.0, 커밋 `cf16769bb0ede9c45d57d06068ff0689e9702f5c`, MIT). `Jolt.vcxproj` 가 `Jolt.cmake` 의 기본 목록(130 개 `.cpp`)을 정적 라이브러리로 빌드한다. 아직 아무 모듈도 링크하지 않는다 |
 
 2D 쪽 구조(physics-plan §3): 캔버스를 모르는 커널 `JBroPhysics2D`(월드·바디·도형·질의) → 어댑터 `Physics2DSystem`(Framework2DSystem, 컴포넌트를 바디로 옮기고 결과를
@@ -94,7 +95,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 |---|---|---|---|
 | 0 | Jolt 를 소스째 넣고 자기 빌드 단위 | `Jolt.lib` 가 경고 없이 빌드 | `[완료]` 2026-11-19 · D-414 |
 | 1 | 커널 `JBroPhysics3D`: 월드·바디(상자·구·캡슐)·스텝·할당 훅·싱글 스레드 잡 | 캔버스 없는 시험: 바닥 위에 떨어진 상자가 멈춘다, 구가 경사를 굴러간다, 할당 훅을 거치고 스텝 중 힙 할당 0 | `[완료]` 2026-11-19 · D-415 · §3.1 |
-| 2 | 컴포넌트 필드(§2.2)·`PhysicsLayerMask` 를 Core 로·어댑터 `Physics3DSystem` | 에디터에서 재생하면 상자가 떨어져 바닥에 서고, 멈추면 제자리. 레이어·마스크가 거른다 | |
+| 2 | 컴포넌트 필드(§2.2)·`PhysicsLayerMask` 를 Core 로·어댑터 `Physics3DSystem` | 에디터에서 재생하면 상자가 떨어져 바닥에 서고, 멈추면 제자리. 레이어·마스크가 거른다 | `[완료]` 2026-11-19 · D-416 · §3.2 |
 | 3 | 접촉 사건과 스크립트 훅·`Physics3DService` 질의 | 3D 시험 DLL 의 스크립트가 `OnCollisionEnter`·`OnTriggerEnter` 를 받고 `Raycast` 가 맞는다 | |
 | 4 | 에디터: 콜라이더 그리기·메시 콜라이더 | 캔버스 뷰 스크린숏에 콜라이더 선, 메시 바닥 위에 상자가 선다 | |
 | 5 | 잡 시스템을 `JBroTask` 위로·`Build.PhysicsThreads` | 바디 1000 개에서 워커 수에 따라 스텝 시간이 준다 | |
@@ -114,9 +115,29 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 - 시험 묶음 `Physics3DWorld`(여섯): 떨어져 서고 잠드는 상자, 20 도 경사를 미끄러지지 않고 구르는 구, 마스크·트리거로 지나가는 바디, 중력 배율·축 고정·질량(무거운 상자가 가벼운 것을 밀고 간다)·모든 축 고정,
   도형 거절·번호 수명(지운 번호가 같은 자리의 새 바디로 살아나지 않는다)·offset·두 번째 월드, 스텝 중 OS 힙 0.
 
+### 3.2 2 단계에서 한 것과 실측 (D-416)
+
+- **한 오브젝트의 콜라이더 여럿**(사용자 결정 "2D 처럼 여럿"): 고체 콜라이더는 그 오브젝트의 바디 하나에 복합 도형(Jolt `StaticCompoundShape`)으로 든다.
+  마찰·반발은 콜라이더마다다 - 커널이 잎 도형의 userData 에 둘을 싣고, 접촉 콜백(`SurfaceMixer`)이 닿은 두 잎의 값을 섞는다(마찰은 기하 평균, 반발은 큰 쪽 - Jolt 의 기본 섞기).
+  트리거 콜라이더는 저마다 키네마틱 센서 바디이고 스텝마다 오브젝트의 자세로 옮긴다. 레이어·마스크는 Jolt 가 바디마다 하나라 고체 콜라이더 여럿은 **첫 콜라이더의 값**을 쓴다(§4).
+- **커널 확장:** `BodyDef.shapes`(도형 여럿), `ShapeDesc.friction/restitution`, `SetShapes`(질량은 지금 질량으로 새 도형의 관성 모양에 다시 나눈다 - Jolt 가 밀도로 다시 셈하지 않게),
+  `SetBodyProperties`(질량·중력 배율·감쇠·축 고정·잠듦·레이어, 바꾸면 깨운다 - 처음에는 깨우지 않아 중력을 0 으로 둔 동안 잠든 몸이 중력을 되돌려도 떨어지지 않았다).
+- **컴포넌트:** `Rigidbody3D` 는 `bodyType`·`linearVelocity`·`angularVelocity`·`mass`·`gravityScale`·감쇠 둘·축 고정 여섯·`canSleep`(열넷), `Collider3D` 는 `shape`(Box·Sphere·Capsule)·`offset`·`size`·`radius`·`height`(캡슐 전체 높이, 반지름 두 배보다 짧으면 구)·`isTrigger`·`friction`·`restitution`·`layer`·`mask`(열).
+  크기는 트랜스폼의 월드 크기를 곱한다 - 구는 세 축 중 큰 것, 캡슐 반지름은 X·Z 중 큰 것, 높이는 Y. 핸들은 `Get/SetVelocity` 를 2D 와 같은 `Get/SetLinearVelocity` 로 바꾸고 각속도를 더했다.
+- **`PhysicsLayerMask`·`PhysicsLayerCount`·`AllPhysicsLayers` 를 Core 로**(`Types/PhysicsLayerMask.h`, 리플렉션은 `Reflection/PhysicsLayerMaskReflection.h`). 타입 이름(`JBro.PhysicsLayerMask`)은 그대로라 파일·에디터가 바뀌지 않는다.
+  `jbroc` 의 API 목록(`JBroScriptApiCatalog2D` 의 정의 자리)이 옛 헤더를 가리켜 스크립트 시험 빌드가 멈췄다 - 새 자리로 고쳤다.
+- **어댑터 `Physics3DSystem`**(Framework3DSystem, 고정 스텝, 실행 순서 200): 2D 어댑터의 구조 그대로 - 바뀐 것만 지문으로 알아 다시 먹이고, 정적인 몸은 에디터가 옮긴 자리를 따르고,
+  움직이는 몸은 커널이 주인이되 지난번에 쓴 값과 다르면 누가 옮긴 것으로 보고 따른다. 월드 자세는 `Transform3DSystem` 과 같은 식으로 부모를 거슬러 직접 잰다(고정 스텝이 그 시스템보다 먼저 돈다).
+  되쓰기는 부모의 역으로 로컬에 돌려 쓴다. 에디터·게임 호스트가 `JBroPhysics3D`·`Jolt` 를 링크한다(게임 호스트는 3D 빌드만).
+- 시험: `Physics3DWorld` 여덟(복합 도형 아령, 경사 위 마찰 0·1 상자, 제자리 도형·성질 바꾸기 더함), 에디터 `TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D` -
+  상자 0.48·세운 캡슐 0.98·마스크로 빠진 상자는 떨어짐·구 위에 선 두 콜라이더 토템 1.48·트리거를 지나 바닥에 선 상자·크기 2 상자 0.98, 떨어지는 동안 속도 되쓰기, X 회전만 막은 채 세 축으로 돌린 상자, 재생 중 콜라이더 키우기, 정지하면 제자리. 뮤테이션 열셋이 모두 잡혔다.
+
 ## 4. `[열림]`
 
 - 메시 콜라이더를 Dynamic 바디에 붙였을 때(볼록 껍질로 바꿀지, 거절할지).
+- 한 오브젝트의 고체 콜라이더 여럿이 서로 다른 `layer`·`mask` 를 가지면 첫 콜라이더의 값만 쓴다(D-416). 콜라이더마다 거르려면 접촉 확인 콜백에서 잎 도형마다 걸러야 한다.
+- 트리거 센서는 스텝마다 오브젝트 자세로 순간 이동한다(키네마틱 이동이 아니다). 빠르게 움직이는 트리거는 사이를 건너뛸 수 있다 - 훅을 세우는 3 단계에서 다시 본다.
+- 스크립트의 힘·충격량(2D 의 `AddForce` 류)은 아직 없다.
 - SSE4·AVX2 같은 CPU 기능 매크로를 켤지 - 켜면 그 기능이 없는 CPU 에서 게임이 뜨지 않는다. 지금은 기본(SSE2)이다.
 - 웹(Emscripten)·안드로이드 빌드에 Jolt 를 넣는 것은 그 플랫폼 빌드를 세울 때 확인한다.
 - Jolt 를 올릴 때: `Jolt/` 를 통째로 바꾸고 `Jolt.vcxproj` 의 목록을 새 `Jolt.cmake` 에서 다시 뽑는다(ThirdParty/README).

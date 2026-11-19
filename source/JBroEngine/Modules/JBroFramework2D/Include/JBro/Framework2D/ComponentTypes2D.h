@@ -5,6 +5,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Reflection/PhysicsLayerMaskReflection.h>
 #include <JBro/Reflection/ScalarCodec.h>
 #include <JBro/Reflection/TypeDescriptorOf.h>
 #include <JBro/Runtime/GameObjectHandle.h>
@@ -152,54 +153,7 @@ namespace JBro
         { Component::ColliderShape2D::Chain,   "Chain" });
 }
 
-namespace JBro
-{
-    // 물리 레이어 비트 묶음이다(D-233). 메모리와 파일은 부호 없는 32 비트 정수 그대로이고(옛 파일과 같은 글자), 이름은
-    // 프로젝트 설정의 `PhysicsLayers` 가 준다 - 비트 i 가 그 목록의 i 번째 이름이다. 에디터는 이 타입 이름을 보고 이름을
-    // 고르는 칸을 그린다. 정수와 저절로 오가므로 스크립트는 `collider->layer = JBro::UInt32(1u << 3);` 처럼 쓴다.
-    struct PhysicsLayerMask
-    {
-        UInt32 bits = 0;
-
-        constexpr PhysicsLayerMask() = default;
-        constexpr PhysicsLayerMask(UInt32 value)
-            : bits(value)
-        {
-        }
-
-        constexpr operator UInt32() const
-        {
-            return bits;
-        }
-
-        friend constexpr bool operator==(PhysicsLayerMask left, PhysicsLayerMask right)
-        {
-            return left.bits == right.bits;
-        }
-    };
-
-    // 잎사귀다. 정수 코덱을 그대로 쓴다(구조체의 첫 멤버가 그 정수다).
-    template <>
-    struct TypeDescriptorOf<PhysicsLayerMask>
-    {
-        static const TypeDescriptor& Get()
-        {
-            static const TypeDescriptor descriptor = [] {
-                TypeDescriptor made;
-                made.typeName = NameTable::Get().Intern("JBro.PhysicsLayerMask");
-                made.size = static_cast<JBro::UInt32>(sizeof(PhysicsLayerMask));
-                made.alignment = static_cast<JBro::UInt32>(alignof(PhysicsLayerMask));
-                made.triviallyCopyable = true;
-                made.codec = &GetScalarCodec<std::uint32_t>();
-                return made;
-            }();
-            return descriptor;
-        }
-    };
-
-    // 프로젝트가 담는 물리 레이어 수다. 비트 하나가 레이어 하나다.
-    inline constexpr UInt32 PhysicsLayerCount = 32;
-}
+// 물리 레이어 비트 묶음 `PhysicsLayerMask` 와 `PhysicsLayerCount` 는 Core 로 옮겼다(D-416) - 3D 도 쓴다. 맨 위의 `PhysicsLayerMaskReflection.h` 가 그것과 리플렉션을 함께 준다.
 
 namespace JBro::Component
 {
@@ -252,9 +206,6 @@ namespace JBro
         Vector2 point;
         Vector2 normal;
     };
-
-    // 질의가 모든 레이어를 본다(콜라이더의 `layer` 비트와 AND 해서 0 이 아니면 대상이다).
-    inline constexpr UInt32 AllPhysicsLayers = 0xFFFFFFFFu;
 
     // 반직선·스윕 질의의 결과다(physics-plan §4 의 6, 기존 엔진 `RaycastHit2D`). 스윕에서 "어디까지 갈 수 있는가" 가
     // 거리라서 접촉과 따로 둔다. normal 은 맞은 표면의 바깥(쏜 쪽을 향한다)이다. 출발부터 겹쳐 있으면 distance 0,

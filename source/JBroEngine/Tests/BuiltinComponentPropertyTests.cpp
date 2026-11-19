@@ -104,8 +104,9 @@ namespace
         Check(Table("Component::Camera3D").count == 9, "Camera3D declares nine fields - with the post-process profile pair of D-344");
         Check(Table("Component::MeshRenderer3D").count == 6, "MeshRenderer3D declares six fields");
         Check(Table("Component::Text3D").count == 19, "Text3D declares nineteen fields");
-        Check(Table("Component::Rigidbody3D").count == 2, "Rigidbody3D declares two fields");
-        Check(Table("Component::Collider3D").count == 1, "Collider3D declares one field");
+        // 3D 물리는 2D 와 같은 이름의 필드다(D-416): 종류·속도 둘·질량·중력 배율·감쇠 둘·축 고정 여섯·잠듦, 모양·offset·크기·반지름·높이·트리거·마찰·반발·레이어·마스크.
+        Check(Table("Component::Rigidbody3D").count == 14, "Rigidbody3D declares fourteen fields");
+        Check(Table("Component::Collider3D").count == 10, "Collider3D declares ten fields");
 
         Check(JBro::Component::RegisterBuiltinComponentProperties3D(),
             "registering twice must not turn into a failure");
@@ -183,7 +184,7 @@ namespace
 
         // 시뮬레이션이 다시 쓰는 값도 2D 와 같은 규칙이다.
         const JBro::PropertyTable& body = Table("Component::Rigidbody3D");
-        Check(Field(body, "velocity").serialize == false,
+        Check(Field(body, "linearVelocity").serialize == false && Field(body, "angularVelocity").serialize == false,
             "a simulated value must not be restored from a file");
         Check(Field(body, "mass").serialize, "an authored value must still be saved");
     }

@@ -3058,6 +3058,20 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-416. 3D 물리 컴포넌트와 어댑터 - 에디터에서 재생하면 3D 오브젝트가 떨어져 선다. 한 오브젝트의 콜라이더 여럿은 2D 처럼 받는다.** (2026-11-19, physics3d-plan §3 의 2 단계·§3.2)
+  Updates: D-53(3D 물리 컴포넌트의 골격), D-233(`PhysicsLayerMask` 를 Core 로), D-415.
+  (1) 사용자 결정("2D 처럼 여럿"): 한 오브젝트의 고체 `Collider3D` 는 그 바디 하나의 복합 도형, 마찰·반발은 콜라이더마다(커널이 잎 도형 userData 에 싣고 접촉 콜백이 섞는다),
+  트리거는 저마다 키네마틱 센서 바디. 레이어·마스크는 Jolt 가 바디마다 하나라 첫 고체 콜라이더의 값이다(physics3d-plan §4 의 열림).
+  (2) 컴포넌트를 2D 이름으로: `Rigidbody3D`(열넷)·`Collider3D`(열, 모양 Box·Sphere·Capsule). 핸들 `Get/SetVelocity` → `Get/SetLinearVelocity`, 각속도를 더했다. 크기는 월드 크기를 곱한다.
+  (3) `PhysicsLayerMask`·`PhysicsLayerCount`·`AllPhysicsLayers` 를 Core(`Types/PhysicsLayerMask.h`·`Reflection/PhysicsLayerMaskReflection.h`)로 옮겼다. 타입 이름은 그대로다.
+  `jbroc` API 목록의 정의 자리를 새 헤더로 고쳤다(옛 자리를 가리켜 스크립트 시험 빌드가 멈췄다).
+  (4) 커널: 도형 여럿·도형마다의 표면·`SetShapes`·`SetBodyProperties`(바꾸면 깨운다). (5) 어댑터 `System::Physics3DSystem`(Framework3DSystem, 고정 스텝, 2D 어댑터와 같은 동기화 규칙)을 `Framework3D` 가 세운다.
+  에디터·게임 호스트(3D)가 `JBroPhysics3D`·`Jolt` 를 링크한다.
+  확인: `Physics3DWorld` 여덟, 에디터 `TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D`(physics3d-plan §3.2).
+  뮤테이션 열셋이 모두 잡혔다(처음 돌림에서 둘이 살아 시험을 보강했다 - 회전 고정 X 는 중력 없이 도는 상자를, 도형마다의 마찰은 닿지 않는 첫 도형이 마찰 0 인 복합 바디를 더했다.
+  마찰 섞기 변이는 처음에 접촉 시작 콜백만 비워 이어지는 접촉 콜백이 같은 값을 다시 섞었다 - 섞는 줄 자체를 비워 잡았다). EditorApplication 전체·UserScenario·Physics2D 둘·CanvasFile·
+  BuiltinComponentProperty·Framework3DSystem·ScriptHotReload 가 지난다(UserScenario 의 Ctrl+C 클립보드 시험이 한 번 실패했고 다시 돌리니 지났다 - 다른 프로세스가 클립보드를 쥐고 있던 것으로 본다).
+
 - **D-415. 3D 물리 설계를 제안대로 확정하고, 커널 모듈 `JBroPhysics3D` 를 세운다.** (2026-11-19, physics3d-plan §2·§3 의 1 단계)
   사용자 확인("제안대로 진행"): physics3d-plan §2 의 층(Jolt 를 보는 커널 모듈 하나)·컴포넌트 필드(2D 이름)·`PhysicsLayerMask` 를 Core 로·싱글 스레드로 시작해 `JBroTask` 잡 시스템으로·
   충돌 훅과 `Physics3DService`·에디터의 콜라이더 그리기가 모두 확정이다. Updates: D-414.

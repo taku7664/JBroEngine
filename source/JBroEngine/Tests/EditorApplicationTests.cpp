@@ -79,6 +79,8 @@
 #include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/Component/Physics3D.h>
+#include <JBro/Framework3DSystem/System/Physics3DSystem.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
@@ -7144,6 +7146,154 @@ namespace
             if (std::strcmp(root->GetName(), "Box") == 0)
             {
                 auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(root);
+                boxBack = restored != nullptr && std::fabs(restored->position.y - 3.0f) < 1.0e-4f;
+            }
+        }
+        Check(boxBack, "stopping puts the box back where it was before play");
+        editor.Shutdown();
+    }
+
+    // **3D 도 에디터에서 재생하면 물리가 돈다**(D-416, physics3d-plan 2 단계). 2D 의 위 시험과 같은 장면을 3D 로 놓는다: 바닥 위로 상자와
+    // 캡슐을 떨어뜨리고, 마스크에서 바닥을 뺀 상자는 지나가 떨어지고, 콜라이더 둘을 붙인 오브젝트는 한 몸으로 서며, 트리거 바닥은 아무것도
+    // 받치지 않는다. 정지하면 떨어뜨리기 전 자리로 돌아온다.
+    void TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D physics in play not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "Physics3DPlayProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>() != nullptr, "the 3D framework has a physics system");
+        const auto place = [&](const char* tag, JBro::Vector3 position, JBro::Bool dynamic) {
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(object);
+            Check(transform != nullptr, "each object needs a transform");
+            transform->position = position;
+            if (dynamic)
+            {
+                Check(canvas->AttachComponent<JBro::Component::Rigidbody3D>(object) != nullptr, "and a body");
+            }
+            return object;
+        };
+        const auto collide = [&](JBro::Object::GameObject* object) {
+            auto* collider = canvas->AttachComponent<JBro::Component::Collider3D>(object);
+            Check(collider != nullptr, "the object takes a collider");
+            return collider;
+        };
+        // 바닥: 윗면이 y=0 인 넓은 판. 레이어는 비트 1 이다.
+        JBro::Object::GameObject* ground = place("Ground", {0.0f, -0.5f, 0.0f}, false);
+        auto* floor = collide(ground);
+        floor->size = {40.0f, 1.0f, 40.0f};
+        floor->layer = JBro::UInt32(0x2u);
+        JBro::Object::GameObject* box = place("Box", {0.0f, 3.0f, 0.0f}, true);
+        collide(box);
+        JBro::Object::GameObject* pill = place("Pill", {3.0f, 3.0f, 0.0f}, true);
+        auto* capsule = collide(pill);
+        capsule->shape = JBro::Component::ColliderShape3D::Capsule;
+        capsule->radius = 0.5f;
+        capsule->height = 2.0f;
+        canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(pill)->freezeRotationX = true;
+        canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(pill)->freezeRotationZ = true;
+        JBro::Object::GameObject* ghost = place("Ghost", {-3.0f, 3.0f, 0.0f}, true);
+        collide(ghost)->mask = JBro::UInt32(0xFFFFFFFDu);
+        // 콜라이더 둘: 원점의 상자 하나와 그 아래로 비켜 앉은 구 하나. 한 몸이라 바닥에 닿는 것은 아래의 구다 - 원점은 구 반지름 + 1 높이에 선다.
+        // 넘어지지 않게 회전을 막는다.
+        JBro::Object::GameObject* totem = place("Totem", {0.0f, 3.0f, 3.0f}, true);
+        collide(totem);
+        auto* foot = collide(totem);
+        foot->shape = JBro::Component::ColliderShape3D::Sphere;
+        foot->offset = {0.0f, -1.0f, 0.0f};
+        auto* totemBody = canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(totem);
+        totemBody->freezeRotationX = totemBody->freezeRotationY = totemBody->freezeRotationZ = true;
+        // 트랜스폼 크기 2 의 상자는 한 변이 2 인 상자로 선다.
+        JBro::Object::GameObject* big = place("Big", {6.0f, 3.0f, 0.0f}, true);
+        collide(big);
+        canvas->FindComponentRaw<JBro::Component::Transform3D>(big)->scale = {2.0f, 2.0f, 2.0f};
+        // 트리거 바닥 위의 상자는 받쳐지지 않는다. 트리거 바닥은 넓은 바닥보다 위(y=1.5)에 떠 있다.
+        JBro::Object::GameObject* net = place("Net", {0.0f, 1.5f, -3.0f}, false);
+        auto* netCollider = collide(net);
+        netCollider->size = {2.0f, 0.2f, 2.0f};
+        netCollider->isTrigger = true;
+        JBro::Object::GameObject* diver = place("Diver", {0.0f, 3.0f, -3.0f}, true);
+        collide(diver);
+
+        // 축 고정이 몸까지 간다: 중력 없이 떠 있는 상자의 X 회전만 막고 세 축으로 돌려 본다.
+        JBro::Object::GameObject* spinner = place("Spinner", {-6.0f, 3.0f, 0.0f}, true);
+        collide(spinner);
+        auto* spinnerBody = canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(spinner);
+        spinnerBody->gravityScale = 0.0f;
+        spinnerBody->freezeRotationX = true;
+
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        const auto positionOf = [&](JBro::Object::GameObject* object) {
+            return canvas->FindComponentRaw<JBro::Component::Transform3D>(object)->position;
+        };
+        Check(positionOf(box).y == 3.0f, "nothing falls while the editor is stopped");
+
+        Check(editor.StartSimulation(), "play must start");
+        for (JBro::Int32 frame = 0; frame < 15; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        Check(canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(box)->linearVelocity.y < -1.0f,
+            "while it falls the body's velocity is written back every step");
+        // 스크립트처럼 재생 중에 각속도를 준다. X 는 막혀 있다.
+        canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(spinner)->angularVelocity = {5.0f, 5.0f, 5.0f};
+        for (JBro::Int32 frame = 15; frame < 180; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        // Jolt 는 쌓인 것을 겹침 여유(0.02)만큼 겹친 채 세운다(D-415).
+        const auto rests = [](JBro::Float y, JBro::Float expected) {
+            return y > expected - 0.035f && y < expected + 0.005f;
+        };
+        std::cout << "  in play: box " << positionOf(box).y << ", pill " << positionOf(pill).y << ", ghost " << positionOf(ghost).y
+                  << ", totem " << positionOf(totem).y << ", diver " << positionOf(diver).y << ", big " << positionOf(big).y << std::endl;
+        Check(rests(positionOf(box).y, 0.5f), "in play the box falls and rests on the ground");
+        Check(rests(positionOf(pill).y, 1.0f), "the upright capsule stands on its end, half its height up");
+        Check(positionOf(ghost).y < -3.0f, "a box whose mask leaves the ground's layer out falls through it");
+        Check(rests(positionOf(totem).y, 1.5f) && std::fabs(positionOf(totem).x) < 0.05f,
+            "two colliders on one object are one body - it stands on the sphere set one unit below its origin");
+        Check(rests(positionOf(big).y, 1.0f), "a box scaled by two stands on its doubled half size");
+        Check(rests(positionOf(diver).y, 0.5f), "a trigger in the way holds nothing up - the box falls past it to the ground");
+        const JBro::Vector3 spin = canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(spinner)->angularVelocity;
+        Check(std::fabs(spin.x) < 1.0e-3f && std::fabs(spin.y) > 1.0f, "a body frozen about x keeps turning about y but never about x");
+        auto* body = canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(box);
+        Check(std::fabs(body->linearVelocity.y) < 0.05f, "and the body's velocity is written back - at rest it is still");
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>();
+        Check(physics->GetBodyCount() == 8 && physics->GetSensorCount() == 1,
+            "eight objects with solid colliders are eight bodies; the trigger is one sensor");
+
+        // 재생 중에 콜라이더를 키우면 같은 몸이 큰 상자로 선다.
+        canvas->FindComponentRaw<JBro::Component::Collider3D>(box)->size = {2.0f, 2.0f, 2.0f};
+        for (JBro::Int32 frame = 0; frame < 90; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after the resize");
+        }
+        Check(rests(positionOf(box).y, 1.0f) && physics->GetBodyCount() == 8, "a collider resized in play reshapes the same body");
+
+        editor.StopSimulation();
+        JBro::Array<JBro::Object::GameObject*> roots;
+        canvas->GetRootObjects(roots);
+        JBro::Bool boxBack = false;
+        for (JBro::Object::GameObject* root : roots)
+        {
+            if (std::strcmp(root->GetName(), "Box") == 0)
+            {
+                auto* restored = canvas->FindComponentRaw<JBro::Component::Transform3D>(root);
                 boxBack = restored != nullptr && std::fabs(restored->position.y - 3.0f) < 1.0e-4f;
             }
         }
@@ -20215,6 +20365,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestPlayingAndStoppingRestoresTheCanvas());
     JBRO_CASE(TestAScriptFaultStopsPlayAndTellsTheUser());
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBack());
+    JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());
     JBRO_CASE(TestThePhysicsThreadsSettingReachesPlay());
     JBRO_CASE(TestBoxSelectInTheCanvasViewPicksWhatItTouches());

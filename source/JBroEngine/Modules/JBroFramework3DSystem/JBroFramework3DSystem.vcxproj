@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroScriptRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroTextRendering\Include;$(JBroModulesDir)JBroTask\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroPhysics3D\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroScriptRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroTextRendering\Include;$(JBroModulesDir)JBroTask\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -35,6 +35,10 @@
     <ClCompile Include="Source\**\*.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroPhysics3D\JBroPhysics3D.vcxproj">
+      <Project>{1a00005a-0000-4000-8000-0000000f3d30}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroScriptRuntime\JBroScriptRuntime.vcxproj">
       <Project>{1a000058-0000-4000-8000-0000000a5c11}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>

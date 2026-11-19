@@ -6,6 +6,7 @@
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 #include <JBro/Framework3D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework3DSystem/System/Audio3DSystem.h>
+#include <JBro/Framework3DSystem/System/Physics3DSystem.h>
 #include <JBro/Framework3DSystem/System/Light3DSystem.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
@@ -441,6 +442,8 @@ namespace JBro
         meshes.SetMeshMaterialLibrary(&m_meshMaterials);
         // 3D 텍스트(D-222). 폰트는 에셋 시스템에서, 페이지는 렌더러로 간다 - 둘 중 하나가 없으면(시스템 테스트) 그리지 않는다.
         systems.AddSystem<System::Light3DSystem>().SetRenderWorld(&m_renderWorld);
+        // **3D 물리**(D-416). 고정 스텝에서 돈다 - 재생 중에만 시간이 흐른다.
+        systems.AddSystem<System::Physics3DSystem>();
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);
         texts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);

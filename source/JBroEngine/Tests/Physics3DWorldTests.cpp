@@ -272,6 +272,117 @@ namespace
         Check(after.allocations > before.allocations, "a pile of awake boxes still makes Jolt ask for memory every step");
         Check(after.systemAllocations == before.systemAllocations, "but the pool hands back what it freed, so stepping takes nothing from the heap");
     }
+
+    // 한 바디에 도형 여럿(한 오브젝트의 콜라이더 여럿)과 도형마다의 마찰(D-416).
+    void TestCompoundShapesAndSurfaces()
+    {
+        // 아령: 반지름 0.5 의 구 둘을 x 로 ±1 에 둔 바디 하나. 바닥에 누우면 원점이 구의 반지름 높이에 선다.
+        World world;
+        MakeGround(world);
+        JBro::Physics3D::ShapeDesc balls[2];
+        balls[0].type = ShapeType::Sphere;
+        balls[0].offset = {-1.0f, 0.0f, 0.0f};
+        balls[1].type = ShapeType::Sphere;
+        balls[1].offset = {1.0f, 0.0f, 0.0f};
+        BodyDef dumbbell;
+        dumbbell.position = {0.0f, 2.0f, 0.0f};
+        dumbbell.shapes = JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(balls);
+        const BodyId bell = world.CreateBody(dumbbell);
+        Check(world.IsValid(bell), "a body made of two shapes is made");
+        Run(world, 3.0f);
+        const Vector3 at = world.GetPosition(bell);
+        std::cout << "  the dumbbell rests at y=" << at.y << '\n';
+        Check(at.y > 0.45f && at.y < 0.51f, "both balls hold it up - its origin rests one radius above the ground");
+
+        // 25 도 경사 위의 두 상자: 마찰 0 인 쪽은 미끄러지고 마찰 1 인 쪽은 선다. 바디의 마찰이 아니라 도형의 마찰이 접촉에 간다.
+        World slope;
+        BodyDef plane;
+        plane.type = BodyType::Static;
+        plane.shape.halfExtents = {10.0f, 0.25f, 4.0f};
+        plane.shape.friction = 1.0f;
+        plane.rotation = AboutZ(-0.436332f);
+        slope.CreateBody(plane);
+        BodyDef icy = BoxAt({-2.0f, 1.5f, -2.0f});
+        icy.rotation = AboutZ(-0.436332f);
+        icy.shape.friction = 0.0f;
+        BodyDef grippy = BoxAt({-2.0f, 1.5f, 2.0f});
+        grippy.rotation = AboutZ(-0.436332f);
+        grippy.shape.friction = 1.0f;
+        const BodyId slides = slope.CreateBody(icy);
+        const BodyId holds = slope.CreateBody(grippy);
+        Run(slope, 1.5f);
+        std::cout << "  on the slope: icy x=" << slope.GetPosition(slides).x << " grippy x=" << slope.GetPosition(holds).x << '\n';
+        Check(slope.GetPosition(slides).x > 0.5f, "a box with no friction slides down");
+        Check(slope.GetPosition(holds).x < -1.5f, "a box with full friction stays where it landed");
+
+        // 바디의 마찰은 첫 도형의 것이지만 접촉은 **닿은 도형**의 마찰로 섞는다. 첫 도형(마찰 0)은 위로 떨어져 닿지 않는 작은 구이고,
+        // 경사에 닿는 것은 둘째 도형(마찰 1)인 상자다 - 바디의 값으로 섞으면 미끄러진다.
+        JBro::Physics3D::ShapeDesc parts[2];
+        parts[0].type = ShapeType::Sphere;
+        parts[0].radius = 0.1f;
+        parts[0].offset = {0.0f, 2.0f, 0.0f};
+        parts[0].friction = 0.0f;
+        parts[1].halfExtents = {0.5f, 0.5f, 0.5f};
+        parts[1].friction = 1.0f;
+        BodyDef mixed = BoxAt({-2.0f, 1.5f, 0.0f});
+        mixed.rotation = AboutZ(-0.436332f);
+        mixed.shapes = JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(parts);
+        mixed.freezeRotationX = mixed.freezeRotationY = mixed.freezeRotationZ = true;
+        const BodyId grips = slope.CreateBody(mixed);
+        Run(slope, 1.5f);
+        Check(slope.GetPosition(grips).x < -1.5f, "the touching shape's friction holds, not the body's first shape");
+    }
+
+    void TestShapesAndPropertiesChangeInPlace()
+    {
+        World world;
+        MakeGround(world);
+        const BodyId box = world.CreateBody(BoxAt({0.0f, 1.0f, 0.0f}));
+        Run(world, 2.0f);
+        Check(RestsOnGround(world.GetPosition(box).y), "the box rests first");
+        // 크기를 키운다: 같은 바디가 큰 상자로 선다.
+        JBro::Physics3D::ShapeDesc bigger;
+        bigger.halfExtents = {1.0f, 1.0f, 1.0f};
+        Check(world.SetShapes(box, JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(&bigger, 1)), "the box takes a new shape");
+        Run(world, 2.0f);
+        Check(world.IsValid(box) && RestsOnGround(world.GetPosition(box).y - 0.5f), "and stands on it - its origin rises to the new half size");
+        JBro::Physics3D::ShapeDesc nothing;
+        nothing.halfExtents = {0.0f, 1.0f, 1.0f};
+        Check(false == world.SetShapes(box, JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(&nothing, 1)), "a bad shape is refused and the old one stays");
+
+        // 성질을 제자리에서: 중력 배율 0 이면 떠 있는 채로, 마스크에서 바닥을 빼면 떨어진다.
+        World props;
+        MakeGround(props);
+        BodyDef def = BoxAt({0.0f, 3.0f, 0.0f});
+        const BodyId body = props.CreateBody(def);
+        def.gravityScale = 0.0f;
+        props.SetBodyProperties(body, def);
+        Run(props, 1.0f);
+        Check(Near(props.GetPosition(body).y, 3.0f, 1.0e-3f), "a body whose gravity scale became 0 stays up");
+        def.gravityScale = 1.0f;
+        props.SetBodyProperties(body, def);
+        Run(props, 2.0f);
+        Check(RestsOnGround(props.GetPosition(body).y), "gravity back on, it falls and rests");
+        def.mask = 0xFFFFFFFEu;
+        props.SetBodyProperties(body, def);
+        props.SetTransform(body, {0.0f, 1.0f, 0.0f}, {});
+        Run(props, 2.0f);
+        Check(props.GetPosition(body).y < -5.0f, "leaving the ground's layer out of its mask lets it fall through");
+
+        // 질량을 바꾸면 미는 힘이 달라진다: 가벼워진 상자는 같은 속도의 상자에 더 밀린다.
+        World mass;
+        mass.SetGravity({0.0f, 0.0f, 0.0f});
+        BodyDef mover = BoxAt({-2.0f, 0.0f, 0.0f});
+        mover.linearVelocity = {3.0f, 0.0f, 0.0f};
+        BodyDef target = BoxAt({0.0f, 0.0f, 0.0f});
+        const BodyId moving = mass.CreateBody(mover);
+        const BodyId hit = mass.CreateBody(target);
+        target.mass = 100.0f;
+        mass.SetBodyProperties(hit, target);
+        Run(mass, 1.0f);
+        Check(mass.GetLinearVelocity(hit).x < 0.2f && mass.GetLinearVelocity(moving).x < 0.5f,
+            "a target made a hundred times heavier in place barely moves and stops the mover");
+    }
 }
 
 JBro::Int32 RunPhysics3DWorldTests()
@@ -282,6 +393,8 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestMassGravityAndFrozenAxes());
     JBRO_CASE(TestShapesIdsAndLifetime());
     JBRO_CASE(TestSteppingDoesNotAllocate());
+    JBRO_CASE(TestCompoundShapesAndSurfaces());
+    JBRO_CASE(TestShapesAndPropertiesChangeInPlace());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }

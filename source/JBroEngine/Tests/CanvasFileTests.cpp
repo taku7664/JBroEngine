@@ -1761,7 +1761,7 @@ namespace
             mesh->mesh = { 4, 4 };
 
             auto* body = canvas.AttachComponent<JBro::Component::Rigidbody3D>(object);
-            body->velocity = { 9.0f, 9.0f, 9.0f };
+            body->linearVelocity = { 9.0f, 9.0f, 9.0f };
             body->mass = 3.5f;
 
             text = Save(canvas);
@@ -1795,7 +1795,7 @@ namespace
 
         auto* body = reopened.FindComponentRaw<JBro::Component::Rigidbody3D>(object);
         Check(body != nullptr && body->mass == 3.5f, "an authored value must come back");
-        Check(body->velocity.x == 0.0f && body->velocity.y == 0.0f && body->velocity.z == 0.0f,
+        Check(body->linearVelocity.x == 0.0f && body->linearVelocity.y == 0.0f && body->linearVelocity.z == 0.0f,
             "a simulated value must not be restored from a file");
 
         const JBro::String again = Save(reopened);

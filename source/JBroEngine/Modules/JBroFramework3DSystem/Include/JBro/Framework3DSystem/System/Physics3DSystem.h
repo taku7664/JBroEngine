@@ -1,0 +1,45 @@
+﻿#pragma once
+
+#include <JBro/Canvas/GameSystem.h>
+#include <JBro/Types/Math3D.h>
+#include <JBro/Types/SafePtr.h>
+
+#include <cstddef>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+
+namespace JBro::System
+{
+    // 3D 물리 커널(`JBroPhysics3D`, 안은 Jolt)과 캔버스를 잇는 어댑터다(D-416, physics3d-plan §2.1). 2D 의 `Physics2DSystem` 자리다.
+    //
+    // 고정 스텝마다 (1) 켜진 `Collider3D` 를 오브젝트마다 모아 그 오브젝트의 바디 하나에 맞추고(고체는 복합 도형, 트리거는 저마다 센서),
+    // `Rigidbody3D` 가 있으면 그 종류·성질을, 없으면 정적으로 둔다. (2) 커널을 한 스텝 돌리고, (3) 움직이는 몸의 자세와 속도를
+    // `Transform3D`·`Rigidbody3D` 에 되쓴다. 커널 타입은 이 헤더에 나오지 않는다 - 에디터·호스트가 커널의 include 경로를 갖지 않아도 된다.
+    // 충돌 훅과 질의는 physics3d-plan 3 단계다.
+    class Physics3DSystem final : public GameSystem
+    {
+    public:
+        Physics3DSystem();
+        ~Physics3DSystem() override;
+
+        Int32 GetExecutionOrder() const override;
+        void SetGravity(const Vector3& gravity);
+        Vector3 GetGravity() const;
+
+        // 커널에 올라간 바디와 센서의 수. 동기화가 만들고 지우는 것을 시험이 붙잡는 손잡이다.
+        std::size_t GetBodyCount() const;
+        std::size_t GetSensorCount() const;
+
+    protected:
+        void OnInitialize(Canvas& canvas) override;
+        void OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime) override;
+        void OnShutdown(Canvas& canvas) override;
+
+    private:
+        struct State;
+
+        Vector3 m_gravity{0.0f, -9.81f, 0.0f};
+        OwnerPtr<State> m_state;
+    };
+}

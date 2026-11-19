@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -96,6 +96,12 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
       <Project>{1a000009-0000-4000-8000-000000000f3d}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPhysics3D\JBroPhysics3D.vcxproj">
+      <Project>{1a00005a-0000-4000-8000-0000000f3d30}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)Jolt\Jolt.vcxproj">
+      <Project>{1b000004-0000-4000-8000-0000000301e7}</Project>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3DSystem\JBroFramework3DSystem.vcxproj">
       <Project>{1a000013-0000-4000-8000-0000000f3d5e}</Project>

@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Types/ArrayView.h>
 #include <JBro/Types/Math3D.h>
 #include <JBro/Types/SafePtr.h>
 
@@ -49,12 +50,17 @@ namespace JBro::Physics3D
         Float halfHeight = 0.5f;
         // 바디 원점에서 도형 중심까지(바디 로컬).
         Vector3 offset;
+        // 표면 성질은 도형마다다(2D 의 콜라이더마다와 같다). 두 도형이 닿으면 마찰은 둘의 기하 평균, 반발은 큰 쪽이다(Jolt 의 기본 섞기).
+        Float friction = 0.6f;
+        Float restitution = 0.0f;
     };
 
     struct BodyDef
     {
         BodyType type = BodyType::Dynamic;
+        // 도형 하나. `shapes` 가 비어 있지 않으면 이것 대신 그 모두를 한 복합 도형으로 든다(한 오브젝트의 콜라이더 여럿).
         ShapeDesc shape;
+        ArrayView<const ShapeDesc> shapes;
         // 바디 원점과 회전(월드).
         Vector3 position;
         Quaternion rotation;
@@ -66,8 +72,6 @@ namespace JBro::Physics3D
         Float gravityScale = 1.0f;
         Float linearDamping = 0.0f;
         Float angularDamping = 0.0f;
-        Float friction = 0.6f;
-        Float restitution = 0.0f;
         // 참이면 부딪히지 않고 겹침만 알린다.
         Bool isTrigger = false;
         // 축 고정. 고정한 축으로는 움직이거나 돌지 않는다.
@@ -129,6 +133,13 @@ namespace JBro::Physics3D
         void SetAngularVelocity(BodyId body, const Vector3& velocity);
         Bool IsAwake(BodyId body) const;
         UInt64 GetUserData(BodyId body) const;
+
+        // 도형을 제자리에서 바꾼다(콜라이더를 더하거나 크기를 바꿨다). 번호·자세·속도는 그대로이고 질량은 지금의 질량으로 다시 나눈다.
+        // 비어 있거나 틀린 도형이면 거짓이고 도형은 그대로다.
+        Bool SetShapes(BodyId body, ArrayView<const ShapeDesc> shapes);
+        // 성질을 제자리에서 바꾼다: 질량·중력 배율·감쇠·축 고정·잠듦·`layer`/`mask`. 종류·도형·자세·속도·userData·트리거는 두고,
+        // 번호가 그대로라 닿아 있던 쌍이 이어진다(2D 의 `SetBodyProperties` 와 같다).
+        void SetBodyProperties(BodyId body, const BodyDef& def);
 
         void SetGravity(const Vector3& gravity);
         Vector3 GetGravity() const;

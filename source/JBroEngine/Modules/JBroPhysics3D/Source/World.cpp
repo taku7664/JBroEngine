@@ -11,10 +11,15 @@
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
+#include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
@@ -84,10 +89,32 @@ namespace JBro::Physics3D
             return JPH::EMotionType::Static;
         }
 
-        // 도형을 만든다. 크기가 0 이하면 만들지 않는다 - Jolt 는 그런 도형을 오류로 돌려주거나 단언으로 멈춘다.
-        JPH::ShapeRefC MakeShape(const ShapeDesc& desc)
+        // 도형마다의 마찰·반발을 Jolt 의 도형 userData 64 비트에 싣는다(위 32 비트 마찰, 아래 32 비트 반발). 접촉 때 닿은 잎 도형에서
+        // 꺼내 섞는다 - 복합 도형 안에서도 `GetSubShapeUserData` 가 잎 도형의 것을 준다.
+        JPH::uint64 PackSurface(Float friction, Float restitution)
+        {
+            const float f = friction;
+            const float r = restitution;
+            std::uint32_t fb = 0;
+            std::uint32_t rb = 0;
+            std::memcpy(&fb, &f, sizeof(fb));
+            std::memcpy(&rb, &r, sizeof(rb));
+            return (static_cast<JPH::uint64>(fb) << 32) | rb;
+        }
+
+        void UnpackSurface(JPH::uint64 packed, float& friction, float& restitution)
+        {
+            const std::uint32_t fb = static_cast<std::uint32_t>(packed >> 32);
+            const std::uint32_t rb = static_cast<std::uint32_t>(packed & 0xFFFFFFFFu);
+            std::memcpy(&friction, &fb, sizeof(friction));
+            std::memcpy(&restitution, &rb, sizeof(restitution));
+        }
+
+        // 잎 도형 하나(원점 기준, offset 없이). 크기가 0 이하면 만들지 않는다 - Jolt 는 그런 도형을 오류로 돌려주거나 단언으로 멈춘다.
+        JPH::ShapeRefC MakeLeaf(const ShapeDesc& desc)
         {
             JPH::ShapeRefC inner;
+            const JPH::uint64 surface = PackSurface(desc.friction, desc.restitution);
             switch (desc.type)
             {
             case ShapeType::Box:
@@ -99,6 +126,7 @@ namespace JBro::Physics3D
                 }
                 // 둥근 모서리(볼록 반지름)는 Jolt 가 가장 짧은 반 크기 안으로 스스로 줄인다(`BoxShape` 의 생성자) - 얇은 판도 받는다.
                 JPH::BoxShapeSettings settings(ToJolt(half));
+                settings.mUserData = surface;
                 JPH::ShapeSettings::ShapeResult result = settings.Create();
                 if (result.HasError())
                 {
@@ -114,6 +142,7 @@ namespace JBro::Physics3D
                     return {};
                 }
                 JPH::SphereShapeSettings settings(desc.radius);
+                settings.mUserData = surface;
                 JPH::ShapeSettings::ShapeResult result = settings.Create();
                 if (result.HasError())
                 {
@@ -129,6 +158,7 @@ namespace JBro::Physics3D
                     return {};
                 }
                 JPH::CapsuleShapeSettings settings(desc.halfHeight, desc.radius);
+                settings.mUserData = surface;
                 JPH::ShapeSettings::ShapeResult result = settings.Create();
                 if (result.HasError())
                 {
@@ -138,12 +168,48 @@ namespace JBro::Physics3D
                 break;
             }
             }
+            return inner;
+        }
+
+        Bool IsZero(const Vector3& value)
+        {
+            return value.x == 0.0f && value.y == 0.0f && value.z == 0.0f;
+        }
+
+        // 바디의 도형. 하나면 잎(비켜 앉았으면 옮긴 도형), 여럿이면 각자 offset 에 앉힌 정적 복합 도형이다.
+        JPH::ShapeRefC MakeBodyShape(ArrayView<const ShapeDesc> shapes)
+        {
+            if (shapes.Size() == 0)
+            {
+                return {};
+            }
+            if (shapes.Size() > 1)
+            {
+                JPH::StaticCompoundShapeSettings compound;
+                for (std::size_t index = 0; index < shapes.Size(); ++index)
+                {
+                    JPH::ShapeRefC leaf = MakeLeaf(shapes[index]);
+                    if (leaf == nullptr)
+                    {
+                        return {};
+                    }
+                    compound.AddShape(ToJolt(shapes[index].offset), JPH::Quat::sIdentity(), leaf.GetPtr());
+                }
+                JPH::ShapeSettings::ShapeResult result = compound.Create();
+                if (result.HasError())
+                {
+                    return {};
+                }
+                return result.Get();
+            }
+            const ShapeDesc& desc = shapes[0];
+            JPH::ShapeRefC inner = MakeLeaf(desc);
             if (inner == nullptr)
             {
                 return {};
             }
             const Vector3& offset = desc.offset;
-            if (offset.x == 0.0f && offset.y == 0.0f && offset.z == 0.0f)
+            if (IsZero(offset))
             {
                 return inner;
             }
@@ -178,6 +244,37 @@ namespace JBro::Physics3D
 
     struct World::Impl
     {
+        // 접촉의 마찰과 반발을 닿은 두 잎 도형의 값으로 섞는다. Jolt 의 워커에서 불리고 읽기만 한다.
+        class SurfaceMixer final : public JPH::ContactListener
+        {
+        public:
+            void OnContactAdded(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
+                JPH::ContactSettings& settings) override
+            {
+                Mix(first, second, manifold, settings);
+            }
+
+            void OnContactPersisted(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
+                JPH::ContactSettings& settings) override
+            {
+                Mix(first, second, manifold, settings);
+            }
+
+        private:
+            static void Mix(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
+                JPH::ContactSettings& settings)
+            {
+                float frictionA = 0.0f;
+                float restitutionA = 0.0f;
+                float frictionB = 0.0f;
+                float restitutionB = 0.0f;
+                UnpackSurface(first.GetShape()->GetSubShapeUserData(manifold.mSubShapeID1), frictionA, restitutionA);
+                UnpackSurface(second.GetShape()->GetSubShapeUserData(manifold.mSubShapeID2), frictionB, restitutionB);
+                settings.mCombinedFriction = std::sqrt(frictionA * frictionB);
+                settings.mCombinedRestitution = restitutionA > restitutionB ? restitutionA : restitutionB;
+            }
+        };
+
         class BroadPhaseLayers final : public JPH::BroadPhaseLayerInterface
         {
         public:
@@ -256,6 +353,19 @@ namespace JBro::Physics3D
             physics.Init(settings.maxBodies, 0, settings.maxBodyPairs, settings.maxContactConstraints, broadPhaseLayers,
                 objectVsBroadPhase, objectPairs);
             physics.SetGravity(ToJolt(settings.gravity));
+            physics.SetContactListener(&surfaces);
+        }
+
+        // 동적 바디의 질량을 도형의 관성 모양 그대로 `mass` 로 맞춘다. 축 고정도 여기서 먹는다(Jolt 는 둘을 함께 받는다).
+        static void ApplyMass(JPH::Body& body, Float mass, JPH::EAllowedDOFs dofs)
+        {
+            if (false == body.IsDynamic())
+            {
+                return;
+            }
+            JPH::MassProperties properties = body.GetShape()->GetMassProperties();
+            properties.ScaleToMass(mass > 0.0f ? mass.Get() : 1.0f);
+            body.GetMotionProperties()->SetMassProperties(dofs, properties);
         }
 
         // 조합의 번호. 처음 보는 조합이면 표에 더한다. 표가 찼으면 무효 층이다.
@@ -286,6 +396,7 @@ namespace JBro::Physics3D
         BroadPhaseLayers broadPhaseLayers;
         ObjectVsBroadPhase objectVsBroadPhase;
         ObjectPairs objectPairs;
+        SurfaceMixer surfaces;
         JPH::PhysicsSystem physics;
     };
 
@@ -311,7 +422,8 @@ namespace JBro::Physics3D
 
     BodyId World::CreateBody(const BodyDef& def)
     {
-        JPH::ShapeRefC shape = MakeShape(def.shape);
+        const ArrayView<const ShapeDesc> shapes = def.shapes.Size() != 0 ? def.shapes : ArrayView<const ShapeDesc>(&def.shape, 1);
+        JPH::ShapeRefC shape = MakeBodyShape(shapes);
         if (shape == nullptr)
         {
             return {};
@@ -334,8 +446,9 @@ namespace JBro::Physics3D
         JPH::BodyCreationSettings settings(shape.GetPtr(), JPH::RVec3(def.position.x, def.position.y, def.position.z),
             ToJolt(def.rotation), motion, layer);
         settings.mIsSensor = def.isTrigger;
-        settings.mFriction = def.friction;
-        settings.mRestitution = def.restitution;
+        // 바디의 마찰·반발은 첫 도형의 것이다. 실제 접촉은 `SurfaceMixer` 가 닿은 도형마다 다시 섞는다.
+        settings.mFriction = shapes[0].friction;
+        settings.mRestitution = shapes[0].restitution;
         settings.mGravityFactor = def.gravityScale;
         settings.mLinearDamping = def.linearDamping;
         settings.mAngularDamping = def.angularDamping;
@@ -469,6 +582,72 @@ namespace JBro::Physics3D
             return 0;
         }
         return m_impl->physics.GetBodyInterfaceNoLock().GetUserData(ToJolt(body));
+    }
+
+    Bool World::SetShapes(BodyId body, ArrayView<const ShapeDesc> shapes)
+    {
+        if (false == IsValid(body))
+        {
+            return false;
+        }
+        JPH::ShapeRefC shape = MakeBodyShape(shapes);
+        if (shape == nullptr)
+        {
+            return false;
+        }
+        // 질량은 Jolt 가 밀도로 다시 셈하지 않게 하고(false), 지금의 질량을 새 도형의 관성 모양으로 다시 나눈다.
+        m_impl->physics.GetBodyInterfaceNoLock().SetShape(ToJolt(body), shape.GetPtr(), false, JPH::EActivation::Activate);
+        JPH::BodyLockWrite lock(m_impl->physics.GetBodyLockInterfaceNoLock(), ToJolt(body));
+        if (lock.Succeeded() && lock.GetBody().IsDynamic())
+        {
+            JPH::Body& locked = lock.GetBody();
+            const float mass = locked.GetMotionProperties()->GetInverseMass() > 0.0f ? 1.0f / locked.GetMotionProperties()->GetInverseMass() : 1.0f;
+            Impl::ApplyMass(locked, mass, locked.GetMotionProperties()->GetAllowedDOFs());
+        }
+        return true;
+    }
+
+    void World::SetBodyProperties(BodyId body, const BodyDef& def)
+    {
+        if (false == IsValid(body))
+        {
+            return;
+        }
+        JPH::BodyInterface& bodyInterface = m_impl->physics.GetBodyInterfaceNoLock();
+        {
+            JPH::BodyLockWrite lock(m_impl->physics.GetBodyLockInterfaceNoLock(), ToJolt(body));
+            if (false == lock.Succeeded())
+            {
+                return;
+            }
+            JPH::Body& locked = lock.GetBody();
+            locked.SetAllowSleeping(def.canSleep);
+            if (false == locked.IsStatic())
+            {
+                JPH::MotionProperties* motion = locked.GetMotionProperties();
+                motion->SetGravityFactor(def.gravityScale);
+                motion->SetLinearDamping(def.linearDamping);
+                motion->SetAngularDamping(def.angularDamping);
+                JPH::EAllowedDOFs dofs = AllowedDOFs(def);
+                if (dofs == JPH::EAllowedDOFs::None)
+                {
+                    // 만들 때는 키네마틱으로 받았다. 제자리에서는 종류를 바꾸지 않으므로 모두 막힌 것을 받을 수 없다 - 어댑터가 다시 만든다.
+                    dofs = JPH::EAllowedDOFs::All;
+                }
+                Impl::ApplyMass(locked, def.mass, dofs);
+            }
+        }
+        const Bool moving = bodyInterface.GetMotionType(ToJolt(body)) != JPH::EMotionType::Static;
+        const JPH::ObjectLayer layer = m_impl->FindOrAddCombo(def.layer, def.mask, moving);
+        if (layer != JPH::cObjectLayerInvalid)
+        {
+            bodyInterface.SetObjectLayer(ToJolt(body), layer);
+        }
+        // 성질을 바꾸면 깨운다(2D 와 같다) - 중력을 다시 켜도 잠든 채면 떨어지지 않는다.
+        if (moving)
+        {
+            bodyInterface.ActivateBody(ToJolt(body));
+        }
     }
 
     void World::SetGravity(const Vector3& gravity)

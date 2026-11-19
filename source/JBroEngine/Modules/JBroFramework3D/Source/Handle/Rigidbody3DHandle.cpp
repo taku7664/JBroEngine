@@ -9,24 +9,44 @@ namespace JBro::Handle
         return static_cast<Component::Rigidbody3D*>(ResolveComponent(StaticTypeName(), operation));
     }
 
-    Vector3 Rigidbody3D::GetVelocity() const
+    Vector3 Rigidbody3D::GetLinearVelocity() const
     {
-        const Component::Rigidbody3D* component = Resolve("GetVelocity");
+        const Component::Rigidbody3D* component = Resolve("GetLinearVelocity");
         if (component == nullptr)
         {
             return {};
         }
-        return component->velocity;
+        return component->linearVelocity;
     }
 
-    void Rigidbody3D::SetVelocity(Vector3 value)
+    void Rigidbody3D::SetLinearVelocity(Vector3 value)
     {
-        Component::Rigidbody3D* component = Resolve("SetVelocity");
+        Component::Rigidbody3D* component = Resolve("SetLinearVelocity");
         if (component == nullptr)
         {
             return;
         }
-        component->velocity = value;
+        component->linearVelocity = value;
+    }
+
+    Vector3 Rigidbody3D::GetAngularVelocity() const
+    {
+        const Component::Rigidbody3D* component = Resolve("GetAngularVelocity");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->angularVelocity;
+    }
+
+    void Rigidbody3D::SetAngularVelocity(Vector3 value)
+    {
+        Component::Rigidbody3D* component = Resolve("SetAngularVelocity");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->angularVelocity = value;
     }
 
     Float Rigidbody3D::GetMass() const
