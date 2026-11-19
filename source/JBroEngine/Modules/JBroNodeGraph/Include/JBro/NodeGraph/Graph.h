@@ -32,6 +32,8 @@ namespace JBro::NodeGraph
         Vector2 position;
         // 입력마다 이어지지 않았을 때의 값이다. 종류의 입력 수와 같다.
         Array<PinValue> inputs;
+        // 사용자가 붙인 이름이다(셰이더 그래프의 파라미터 이름, D-369). 비어 있어도 된다.
+        String label;
     };
 
     struct PinRef
@@ -110,6 +112,7 @@ namespace JBro::NodeGraph
 
         Bool SetPosition(NodeId id, Vector2 position);
         Bool SetInput(NodeId id, std::size_t pin, const PinValue& value);
+        Bool SetLabel(NodeId id, String label);
 
         // ── 경유점(D-321) ──
         // `index` 자리에 끼운다(0 이면 출력 바로 뒤, 개수면 입력 바로 앞). 범위 밖이면 거짓이다.

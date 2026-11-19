@@ -45,4 +45,32 @@ namespace JBro
     void GameScript2D::OnClick()
     {
     }
+
+    void GameScript2D::OnValueChanged()
+    {
+    }
+
+    void GameScript2D::OnSubmit()
+    {
+    }
+
+    void GameScript2D::OnDragBegin()
+    {
+    }
+
+    void GameScript2D::OnDragEnd()
+    {
+    }
+
+    void GameScript2D::OnDrop()
+    {
+    }
+
+    void GameScript2D::OnListItem()
+    {
+    }
+
+    void GameScript2D::OnListMeasure()
+    {
+    }
 }

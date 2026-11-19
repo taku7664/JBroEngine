@@ -201,3 +201,12 @@
 ## 5. 대체한 계획
 
 D-320(시뮬레이션 프로세스)은 이 계획으로 대체했다. 남긴 생각: 같은 프로세스로는 `__fastfail`·`abort`·메모리 덮어쓰기를 막지 못한다. 이것까지 막아야 하면 프로세스 분리밖에 없다.
+
+
+### 2026-10-19 메인 통합 회귀에서 발견한 심볼 수명 문제 (관련 회귀 통과)
+
+UserScenario의 A→B 스크립트 DLL 교체 후 Hero.cpp의 null 쓰기가 Table.h로 표시됐다. 전체 회귀와 UserScenario 단독 실행에서 재현했다. WindowsPlatform이 DLL 해제 시 DbgHelp의 해당 모듈 심볼도 SymUnloadModule64로 제거하도록 고친다. 동일 주소의 다음 DLL에 이전 PDB가 남지 않도록 하는 수정이며, 기존 스크립트 줄 위치 단언을 유지한다. 최종 증거는 ai-agent-plan.md의 메인 통합 절과 Build/Validation/ai-agent-main-merge-20261019에 기록한다.
+
+수정 후 Release 빌드와 ScriptCallGuard/ScriptFault/ScriptBreak/UserScenario 네 묶음이 통과했다. UserScenario의 원래 Hero.cpp/줄 위치 단언을 그대로 통과해 이전 모듈 심볼 잔존이 원인이었음을 확인했다. 증거는 release-symbol-regressions.log이며 전체 회귀와 최종 메인 실행은 ai-agent-plan.md에서 별도로 기록한다.
+
+최종 Release 전체 회귀117묶음 러너가 all tests passed로 끝났으며 UserScenario는43.3초였다. 해당 심볼 수명 수정은 main에 반영했고 메인 Release 에디터 빌드·실행도 확인했다. 전체 결과와 건너뛴 환경 검증은 ai-agent-plan.md의 2026-10-19 메인 통합 최종 결과에 둔다.

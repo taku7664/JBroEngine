@@ -162,6 +162,68 @@ namespace JBro
         return descriptor;
     }
 
+    // 멤버가 없는 enum 의 설명서다(D-377). C++ 처럼 선언은 받지만 이름 붙은 값이 하나도 없으므로 저장하거나 고를 값도 없다 -
+    // 글자로 바꾸기는 언제나 실패하고(이름 없는 값을 숫자로 지어내지 않는다, 위와 같은 까닭) 인스펙터의 목록은 비어 있다.
+    // 멤버가 있는 enum 은 위의 `DefineEnumTypeDescriptor` 를 쓴다 - 실수로 빈 목록을 넘기는 것은 그쪽의 `static_assert` 가 막는다.
+    template <typename E>
+    const TypeDescriptor& DefineEmptyEnumTypeDescriptor(const char* typeName)
+    {
+        static_assert(std::is_enum_v<E>, "an enum descriptor needs an enum type");
+
+        static const TypeDescriptor descriptor = [&]() -> TypeDescriptor
+        {
+            static const char* const noNames[1] = { nullptr };
+            static const EnumNames names = []
+            {
+                EnumNames result;
+                result.names = noNames;
+                result.count = 0;
+                result.ToIndex = [](const void*) noexcept -> Int32
+                {
+                    return -1;
+                };
+                result.FromIndex = [](void*, Int32) noexcept
+                {
+                };
+                return result;
+            }();
+
+            static const ValueCodec codec = []
+            {
+                ValueCodec result;
+                result.ToText = [](const void*, char*, std::size_t, std::size_t& required) noexcept -> Bool
+                {
+                    required = 0;
+                    return false;
+                };
+                result.FromText = [](void*, const char*, std::size_t) noexcept -> Bool
+                {
+                    return false;
+                };
+                result.Equals = [](const void* left, const void* right) noexcept -> Bool
+                {
+                    return *static_cast<const E*>(left) == *static_cast<const E*>(right);
+                };
+                result.Assign = [](void* destination, const void* source) noexcept
+                {
+                    *static_cast<E*>(destination) = *static_cast<const E*>(source);
+                };
+                return result;
+            }();
+
+            TypeDescriptor built;
+            built.typeName = NameTable::Get().Intern(typeName);
+            built.size = static_cast<JBro::UInt32>(sizeof(E));
+            built.alignment = static_cast<JBro::UInt32>(alignof(E));
+            built.triviallyCopyable = true;
+            built.enumNames = &names;
+            built.codec = &codec;
+            return built;
+        }();
+
+        return descriptor;
+    }
+
     // enum 하나를 `TypeDescriptorOf` 에 잇는다. 값 목록은 그 enum 이 사는 모듈이 준다 —
     // Core 가 Framework 의 enum 을 알 필요가 없다.
     //

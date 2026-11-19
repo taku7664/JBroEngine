@@ -4,12 +4,20 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Platform/Platform.h>
+#include <JBro/Runtime/TextStore.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
+#include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Toggle2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
-#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Input/InputSystem.h>
 #include <JBro/Runtime/GameObject.h>
@@ -503,6 +511,11 @@ namespace
         JBro::Int32 clicks = 0;
     };
 
+    JBro::Bool closeToValue(JBro::Float a, JBro::Float b)
+    {
+        return std::fabs(a - b) < 0.001f;
+    }
+
     InputEvent MouseAt(JBro::Float x, JBro::Float y)
     {
         InputEvent event;
@@ -679,6 +692,579 @@ namespace
             "a world point goes back to its pixel");
         Check(false == screen.ScreenToLayer({1.0f, 1.0f}, Handle::GameObject{}, point), "an empty handle has no layer");
 
+        // **전이 대상**(D-351): 다른 오브젝트의 그림을 가리키면 그쪽 색이 바뀌고 같은 오브젝트의 스프라이트는 그대로다.
+        Object::GameObject* face = canvas->CreateObject("face");
+        canvas->AttachComponent<Component::Transform2D>(face);
+        auto* faceSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(face);
+        playButton->targetGraphic = face->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
+        playSprite->tint = { 1.0f, 1.0f, 1.0f, 1.0f };
+        frameWith({MouseAt(180.0f, 10.0f)});
+        Check(playButton->hovered && faceSprite->tint.R == playButton->hoverTint.R && playSprite->tint.R == 1.0f,
+            "a target graphic takes the state tint instead of the button's own sprite");
+
+        // `SpriteSwap` 은 상태 스프라이트로 바꾸고 보통 상태에서 떠 둔 원래 스프라이트를 되돌린다. 비운 칸은 보통 그림 그대로다.
+        const auto sameAsset = [](AssetHandle a, AssetHandle b) { return a.index == b.index && a.generation == b.generation; };
+        playButton->transition = Component::ButtonTransition::SpriteSwap;
+        faceSprite->sprite = AssetHandle{ 3, 1 };
+        playButton->hoverSprite = AssetHandle{ 7, 1 };
+        playButton->disabledSprite = AssetHandle{ 9, 1 };
+        faceSprite->tint = { 0.25f, 0.25f, 0.25f, 1.0f };
+        frameWith({});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 7, 1 }) && playButton->swapped, "hovering swaps in the hover sprite");
+        Check(faceSprite->tint.R == 0.25f, "and a swap transition leaves the tint alone");
+        frameWith({HeldButton(MouseButton::Left)});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }) && false == playButton->swapped,
+            "an empty pressed slot shows the normal sprite again");
+        frameWith({Released(MouseButton::Left)});
+        frameWith({MouseAt(10.0f, 90.0f)});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }) && false == playButton->hovered, "leaving the button restores the normal sprite");
+        playButton->interactable = false;
+        frameWith({});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 9, 1 }), "a disabled button shows the disabled sprite even without the pointer");
+        playButton->interactable = true;
+        frameWith({});
+        Check(sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }), "enabling it again restores the normal sprite");
+
+        // `None` 은 그림을 건드리지 않는다.
+        playButton->transition = Component::ButtonTransition::None;
+        frameWith({MouseAt(180.0f, 10.0f)});
+        Check(playButton->hovered && faceSprite->tint.R == 0.25f && sameAsset(faceSprite->sprite, AssetHandle{ 3, 1 }),
+            "a button without a transition changes neither tint nor sprite");
+
+        framework.UnbindScriptContexts();
+        framework.Shutdown();
+        BindInputSystemContext({});
+        BindInputServiceContext({});
+    }
+
+    // 값이 바뀐 횟수를 센다(D-351).
+    class ValueProbe final : public GameScript2D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "InputChainTests::ValueProbe";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnValueChanged() override
+        {
+            ++values;
+        }
+
+        JBro::Int32 values = 0;
+    };
+
+    // **토글과 슬라이더도 같은 `"UI"` 핸들러가 본다**(D-351 2 단계). 화면 200 x 100 = 기준. 토글은 (-60, 0) 의 20 x 20(픽셀 (40, 50)),
+    // 슬라이더는 (0, -30) 의 100 x 10(픽셀 가운데 (100, 80), 왼쪽 끝 x 50)이다.
+    void TestTogglesAndSlidersTakeThePointer()
+    {
+        System::InputSystem input;
+        BindInputSystemContext(input.GetSystemContext());
+        BindInputServiceContext(input.GetServiceContext());
+        Framework2D framework;
+        FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.input = &input;
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Check(framework.BindScriptContexts(), "the script contexts bind");
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = 200.0f;
+        frame.referenceHeight = 100.0f;
+        frame.targetWidth = 200.0f;
+        frame.targetHeight = 100.0f;
+        framework.SetScreenSpace(frame);
+        Canvas* canvas = framework.GetCanvas();
+        Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(LayerSpace::Screen);
+
+        Object::GameObject* mute = canvas->CreateObject("mute");
+        canvas->SetObjectLayer(mute, hud.GetId());
+        canvas->AttachComponent<Component::Transform2D>(mute)->position = {-60.0f, 0.0f};
+        auto* toggle = canvas->AttachComponent<Component::Toggle2D>(mute);
+        toggle->size = {20.0f, 20.0f};
+        Object::GameObject* mark = canvas->CreateObject("mark");
+        canvas->SetObjectLayer(mark, hud.GetId());
+        canvas->AttachComponent<Component::Transform2D>(mark);
+        auto* markSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(mark);
+        toggle->checkmark = mark->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
+        auto* muteProbe = canvas->AttachScript<ValueProbe>(mute);
+
+        Object::GameObject* volume = canvas->CreateObject("volume");
+        canvas->SetObjectLayer(volume, hud.GetId());
+        canvas->AttachComponent<Component::Transform2D>(volume)->position = {0.0f, -30.0f};
+        auto* slider = canvas->AttachComponent<Component::Slider2D>(volume);
+        slider->size = {100.0f, 10.0f};
+        Object::GameObject* knob = canvas->CreateObject("knob");
+        canvas->SetObjectLayer(knob, hud.GetId());
+        knob->SetParent(volume);
+        auto* knobPlace = canvas->AttachComponent<Component::Transform2D>(knob);
+        slider->handle = knob->GetScriptHandle();
+        Object::GameObject* bar = canvas->CreateObject("bar");
+        canvas->SetObjectLayer(bar, hud.GetId());
+        canvas->AttachComponent<Component::Transform2D>(bar);
+        auto* barSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(bar);
+        barSprite->drawMode = Component::SpriteDrawMode::Filled;
+        slider->fill = bar->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
+        auto* volumeProbe = canvas->AttachScript<ValueProbe>(volume);
+        auto* poller = canvas->AttachScript<PollingProbe>(canvas->CreateObject("poller"));
+        const Service::Screen2DService& screen = GetFramework2DServices().Screen2D;
+
+        const auto frameWith = [&](std::initializer_list<InputEvent> events) {
+            Array<InputEvent> list;
+            for (const InputEvent& event : events)
+            {
+                list.Add(event);
+            }
+            input.BeginFrame({list.Data(), static_cast<JBro::UInt32>(list.Size())});
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
+        };
+        const auto closeTo = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.001f; };
+        frameWith({});
+        frameWith({});
+        Check(false == markSprite->visible && closeTo(knobPlace->position.x, -50.0f) && closeTo(knobPlace->position.y, 0.0f) && barSprite->fillAmount == 0.0f,
+            "before any input the checkmark is hidden, the knob sits at the left end and the fill is empty");
+
+        // 토글: 위에서 누르고 떼면 뒤집힌다. 표시는 켜졌을 때만 보인다.
+        frameWith({MouseAt(40.0f, 50.0f), HeldButton(MouseButton::Left)});
+        Check(toggle->pressed && toggle->hovered && false == toggle->isOn && false == poller->sawMouse, "pressing a toggle holds it and hides the mouse from the game");
+        frameWith({Released(MouseButton::Left)});
+        Check(toggle->isOn && toggle->changed && muteProbe->values == 1, "releasing on it turns it on and tells the script once");
+        frameWith({});
+        Check(false == toggle->changed && markSprite->visible, "the change lasts one frame and the checkmark shows");
+        frameWith({HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(false == toggle->isOn && muteProbe->values == 2 && false == markSprite->visible, "a second click turns it off again");
+        // 눌렀다가 벗어나 떼면 뒤집히지 않는다.
+        frameWith({HeldButton(MouseButton::Left)});
+        frameWith({MouseAt(190.0f, 10.0f)});
+        frameWith({Released(MouseButton::Left)});
+        Check(false == toggle->isOn && muteProbe->values == 2, "releasing away from the toggle leaves it alone");
+        // 꺼진 토글은 뒤집히지 않지만 포인터는 가져간다.
+        toggle->interactable = false;
+        frameWith({MouseAt(40.0f, 50.0f), HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(false == toggle->isOn && muteProbe->values == 2 && false == poller->sawMouse, "a disabled toggle neither flips nor leaks the pointer");
+        toggle->interactable = true;
+
+        // 슬라이더: 누른 자리가 값이고, 쥔 채 끌면 따라오며, 축 밖으로 벗어나도 그 축의 끝에 붙는다.
+        frameWith({MouseAt(75.0f, 80.0f), HeldButton(MouseButton::Left)});
+        Check(slider->pressed && closeTo(slider->value, 0.25f) && slider->changed && volumeProbe->values == 1 && screen.IsPointerOverButton(),
+            "pressing a quarter along the track sets the value to 0.25");
+        frameWith({MouseAt(100.0f, 80.0f)});
+        Check(closeTo(slider->value, 0.5f) && volumeProbe->values == 2 && closeTo(knobPlace->position.x, 0.0f) && closeTo(barSprite->fillAmount, 0.5f),
+            "dragging to the middle moves the value, the knob and the fill");
+        frameWith({MouseAt(100.0f, 95.0f)});
+        Check(closeTo(slider->value, 0.5f) && false == slider->changed && volumeProbe->values == 2, "moving across the track does not change the value");
+        frameWith({MouseAt(170.0f, 95.0f)});
+        Check(closeTo(slider->value, 1.0f) && volumeProbe->values == 3 && closeTo(knobPlace->position.x, 50.0f), "dragging past the end clamps to one");
+        frameWith({Released(MouseButton::Left)});
+        Check(false == slider->pressed && closeTo(slider->value, 1.0f), "releasing lets go without changing the value");
+        // 스크립트가 쓴 값은 손잡이·채우기를 옮기지만 알리지는 않는다.
+        slider->value = 0.3f;
+        frameWith({});
+        Check(closeTo(knobPlace->position.x, -20.0f) && closeTo(barSprite->fillAmount, 0.3f) && volumeProbe->values == 3,
+            "a value written by a script moves the knob and the fill silently");
+        // 방향을 뒤집으면 같은 자리가 반대 값이다.
+        slider->direction = Component::SliderDirection::RightToLeft;
+        frameWith({MouseAt(75.0f, 80.0f), HeldButton(MouseButton::Left)});
+        Check(closeTo(slider->value, 0.75f) && closeTo(knobPlace->position.x, -25.0f), "right-to-left reads the same spot as 0.75");
+        frameWith({Released(MouseButton::Left)});
+        // 슬라이더 밖의 누름은 게임이 받는다.
+        frameWith({MouseAt(190.0f, 10.0f), HeldButton(MouseButton::Left)});
+        Check(poller->sawMouse && false == screen.IsPointerOverButton(), "a press away from every widget reaches the game");
+        frameWith({Released(MouseButton::Left)});
+
+        framework.UnbindScriptContexts();
+        framework.Shutdown();
+        BindInputSystemContext({});
+        BindInputServiceContext({});
+    }
+
+    InputEvent Wheel(JBro::Float notches)
+    {
+        InputEvent event;
+        event.kind = InputEventKind::MouseWheel;
+        event.y = notches;
+        return event;
+    }
+
+    // **마스크 밖의 위젯은 없는 것이고, 스크롤 뷰는 끌기·관성·휠로 내용을 옮긴다**(D-351 3 단계). 화면 200 x 100 = 기준.
+    // 창(마스크 100 x 60)이 가운데, 내용(100 x 200)은 처음에 위가 맞춰져(-70) 있고, 안의 버튼 `item` 은 창 안(픽셀 y 30), `hidden` 은 창 밖(픽셀 y 90)이다.
+    void TestMasksAndScrollViewsTakeThePointer()
+    {
+        System::InputSystem input;
+        BindInputSystemContext(input.GetSystemContext());
+        BindInputServiceContext(input.GetServiceContext());
+        Framework2D framework;
+        FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.input = &input;
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Check(framework.BindScriptContexts(), "the script contexts bind");
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = 200.0f;
+        frame.referenceHeight = 100.0f;
+        frame.targetWidth = 200.0f;
+        frame.targetHeight = 100.0f;
+        framework.SetScreenSpace(frame);
+        Canvas* canvas = framework.GetCanvas();
+        Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(LayerSpace::Screen);
+
+        Object::GameObject* window = canvas->CreateObject("window");
+        canvas->SetObjectLayer(window, hud.GetId());
+        canvas->AttachComponent<Component::Transform2D>(window);
+        auto* mask = canvas->AttachComponent<Component::Mask2D>(window);
+        mask->size = {100.0f, 60.0f};
+        auto* scroll = canvas->AttachComponent<Component::ScrollView2D>(window);
+        scroll->contentSize = {100.0f, 200.0f};
+        Object::GameObject* list = canvas->CreateObject("list");
+        canvas->SetObjectLayer(list, hud.GetId());
+        list->SetParent(window);
+        auto* listPlace = canvas->AttachComponent<Component::Transform2D>(list);
+        listPlace->position = {0.0f, -70.0f};
+        scroll->content = list->GetScriptHandle();
+        const auto makeItem = [&](const char* name, JBro::Float localY) {
+            Object::GameObject* object = canvas->CreateObject(name);
+            canvas->SetObjectLayer(object, hud.GetId());
+            object->SetParent(list);
+            canvas->AttachComponent<Component::Transform2D>(object)->position = {0.0f, localY};
+            canvas->AttachComponent<Component::Button2D>(object)->size = {40.0f, 20.0f};
+            return object;
+        };
+        Object::GameObject* item = makeItem("item", 90.0f);
+        Object::GameObject* hidden = makeItem("hidden", 30.0f);
+        auto* itemProbe = canvas->AttachScript<ButtonProbe>(item);
+        auto* hiddenProbe = canvas->AttachScript<ButtonProbe>(hidden);
+        auto* poller = canvas->AttachScript<PollingProbe>(canvas->CreateObject("poller"));
+
+        const auto frameWith = [&](std::initializer_list<InputEvent> events) {
+            Array<InputEvent> list;
+            for (const InputEvent& event : events)
+            {
+                list.Add(event);
+            }
+            input.BeginFrame({list.Data(), static_cast<JBro::UInt32>(list.Size())});
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
+        };
+        const auto closeTo = [](JBro::Float a, JBro::Float b) { return std::fabs(a - b) < 0.01f; };
+        frameWith({});
+        frameWith({});
+        Check(mask->clipValid && closeTo(mask->clipMinY, -30.0f) && closeTo(mask->clipMaxY, 30.0f) && closeTo(mask->clipMinX, -50.0f),
+            "the mask system measures the window's rectangle in layer units");
+
+        // 마스크 밖의 버튼은 없는 것이다 - 포인터가 게임까지 내려간다.
+        frameWith({MouseAt(100.0f, 90.0f), HeldButton(MouseButton::Left)});
+        Check(false == canvas->FindComponentRaw<Component::Button2D>(hidden)->hovered && hiddenProbe->downs == 0 && poller->sawMouse,
+            "a button outside its mask is not there and the press reaches the game");
+        frameWith({Released(MouseButton::Left)});
+        Check(hiddenProbe->clicks == 0, "and it does not click");
+
+        // 마스크 안의 버튼은 보통대로 눌린다.
+        frameWith({MouseAt(100.0f, 30.0f), HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(itemProbe->clicks == 1, "a button inside the mask clicks");
+
+        // 창의 빈 곳을 누르고 문턱(8 px)을 넘게 끌면 내용이 따라온다. 떼는 자리가 버튼 위여도 누름이 아니다.
+        frameWith({MouseAt(100.0f, 55.0f), HeldButton(MouseButton::Left)});
+        Check(false == scroll->dragging, "a press alone is not a drag");
+        frameWith({MouseAt(100.0f, 45.0f)});
+        Check(scroll->dragging && closeTo(listPlace->position.y, -60.0f), "ten pixels up starts the drag and moves the content up by ten");
+        frameWith({MouseAt(100.0f, 25.0f)});
+        Check(closeTo(listPlace->position.y, -40.0f) && closeTo(scroll->velocity.y, 1200.0f), "the content follows the pointer and the velocity is the frame's move");
+        frameWith({Released(MouseButton::Left)});
+        Check(itemProbe->clicks == 1 && false == scroll->dragging, "releasing a drag over a button is not a click");
+        // 놓으면 미끄러지다 끝에서 멈춘다. 내용의 아래 끝이 창의 아래에 닿는 자리는 70 이다.
+        Check(listPlace->position.y > -40.0f, "the content keeps sliding after the release");
+        for (JBro::Int32 index = 0; index < 120; ++index)
+        {
+            frameWith({});
+        }
+        Check(closeTo(listPlace->position.y, 70.0f) && scroll->velocity.y == 0.0f, "it slides to the end and stops there");
+
+        // 휠: 위로 한 칸이면 위의 내용이 보인다 - 내용은 `scrollSensitivity` 만큼 아래로 간다.
+        frameWith({MouseAt(100.0f, 50.0f), Wheel(1.0f)});
+        Check(closeTo(listPlace->position.y, 30.0f), "one wheel notch up moves the content down by the sensitivity");
+        frameWith({Wheel(-10.0f)});
+        Check(closeTo(listPlace->position.y, 70.0f), "wheeling past the end stops at the end");
+
+        // 버튼 위에서 누른 뒤 끌면 버튼은 떼기만 받고 스크롤이 쥔다.
+        listPlace->position = {0.0f, -70.0f};
+        frameWith({});
+        frameWith({MouseAt(100.0f, 30.0f), HeldButton(MouseButton::Left)});
+        Check(itemProbe->downs == 2 && canvas->FindComponentRaw<Component::Button2D>(item)->pressed, "pressing the button inside holds it");
+        frameWith({MouseAt(100.0f, 10.0f)});
+        Check(itemProbe->ups == 2 && false == canvas->FindComponentRaw<Component::Button2D>(item)->pressed && scroll->dragging
+                && closeTo(listPlace->position.y, -50.0f),
+            "dragging past the threshold cancels the button and scrolls instead");
+        frameWith({Released(MouseButton::Left)});
+        Check(itemProbe->clicks == 1, "and releasing is still not a click");
+        // 가로가 꺼진 창은 가로로 끌어도 움직이지 않는다.
+        for (JBro::Int32 index = 0; index < 120; ++index)
+        {
+            frameWith({});
+        }
+        const JBro::Float settledX = listPlace->position.x;
+        frameWith({MouseAt(100.0f, 55.0f), HeldButton(MouseButton::Left)});
+        frameWith({MouseAt(130.0f, 55.0f)});
+        frameWith({Released(MouseButton::Left)});
+        Check(closeTo(listPlace->position.x, settledX), "a vertical-only scroll view ignores sideways drags");
+
+        framework.UnbindScriptContexts();
+        framework.Shutdown();
+        BindInputSystemContext({});
+        BindInputServiceContext({});
+    }
+
+    // 게임패드를 주는 플랫폼 스텁이다(`InputGamepadTests` 의 것과 같다).
+    class PadPlatform final : public IPlatform
+    {
+    public:
+        JBro::Bool Initialize(const JMemoryContext&) override { return true; }
+        void Shutdown() override {}
+        WindowHandle OpenPlatformWindow(const WindowDesc&) override { return {}; }
+        void ClosePlatformWindow(WindowHandle) override {}
+        SurfaceHandle CreateSurface(WindowHandle) override { return {}; }
+        void PumpEvents() override {}
+        JArrayView<InputEvent> GetInputEvents() const override { return {}; }
+        void WaitForEvents(JBro::UInt32) override {}
+        JBro::Bool ShouldClose(WindowHandle) const override { return false; }
+        JBro::Bool GetWindowState(WindowHandle, WindowState&) const override { return false; }
+        DynamicLibrary LoadDynamicLibrary(const char*) override { return {}; }
+        void* GetSymbol(DynamicLibrary, const char*) override { return nullptr; }
+        void UnloadDynamicLibrary(DynamicLibrary) override {}
+        JBro::Bool PollGamepad(JBro::UInt32 slot, GamepadRawState& state) override
+        {
+            state = pads[slot];
+            return state.connected;
+        }
+        void SetGamepadVibration(JBro::UInt32, JBro::Float, JBro::Float) override {}
+
+        GamepadRawState pads[MaxGamepads] = {};
+    };
+
+    std::uint16_t PadBit(GamepadButton button)
+    {
+        return static_cast<std::uint16_t>(1u << static_cast<JBro::UInt32>(button));
+    }
+
+    InputEvent Typed(JBro::UInt32 codePoint)
+    {
+        InputEvent event;
+        event.kind = InputEventKind::Text;
+        event.codePoint = codePoint;
+        return event;
+    }
+
+    InputEvent Pressed(Key key)
+    {
+        InputEvent event;
+        event.kind = InputEventKind::KeyDown;
+        event.key = key;
+        return event;
+    }
+
+    InputEvent ReleasedKey(Key key)
+    {
+        InputEvent event;
+        event.kind = InputEventKind::KeyUp;
+        event.key = key;
+        return event;
+    }
+
+    // 글자 칸의 값·제출과 버튼의 누름을 센다(D-352).
+    class FieldProbe final : public GameScript2D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "InputChainTests::FieldProbe";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnValueChanged() override
+        {
+            ++values;
+        }
+
+        void OnSubmit() override
+        {
+            ++submits;
+        }
+
+        void OnClick() override
+        {
+            ++clicks;
+        }
+
+        JBro::Int32 values = 0;
+        JBro::Int32 submits = 0;
+        JBro::Int32 clicks = 0;
+    };
+
+    // **글자 칸은 포커스가 있을 때 키보드를 받고, 게임패드가 포커스를 옮긴다**(D-352). 화면 200 x 100 = 기준.
+    // 글자 칸 (-40, 20) 80 x 20 → 픽셀 (60, 30), 확인 버튼 (40, 20) → (140, 30), 취소 버튼 (40, -20) → (140, 70), 슬라이더 (-40, -20) 80 x 10 → (60, 70).
+    void TestFieldsTakeTheKeyboardAndGamepadsMoveTheFocus()
+    {
+        System::InputSystem input;
+        PadPlatform platform;
+        // 빈 자리는 2 초에 한 번만 다시 묻는다 - 처음부터 꽂혀 있어야 시험이 기다리지 않는다.
+        platform.pads[0].connected = true;
+        BindInputSystemContext(input.GetSystemContext());
+        BindInputServiceContext(input.GetServiceContext());
+        Framework2D framework;
+        FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.input = &input;
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Check(framework.BindScriptContexts(), "the script contexts bind");
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = 200.0f;
+        frame.referenceHeight = 100.0f;
+        frame.targetWidth = 200.0f;
+        frame.targetHeight = 100.0f;
+        framework.SetScreenSpace(frame);
+        Canvas* canvas = framework.GetCanvas();
+        Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(LayerSpace::Screen);
+        const auto makeObject = [&](const char* name, Vector2 position) {
+            Object::GameObject* object = canvas->CreateObject(name);
+            canvas->SetObjectLayer(object, hud.GetId());
+            canvas->AttachComponent<Component::Transform2D>(object)->position = position;
+            return object;
+        };
+        Object::GameObject* name = makeObject("name", {-40.0f, 20.0f});
+        auto* field = canvas->AttachComponent<Component::InputField2D>(name);
+        field->size = {80.0f, 20.0f};
+        Object::GameObject* label = makeObject("label", {0.0f, 0.0f});
+        label->SetParent(name);
+        auto* labelText = canvas->AttachComponent<Component::Text2D>(label);
+        field->display = label->GetScriptHandle().GetComponent<Handle::Text2D>();
+        Object::GameObject* caret = makeObject("caret", {0.0f, 0.0f});
+        caret->SetParent(label);
+        auto* caretSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(caret);
+        field->caret = caret->GetScriptHandle().GetComponent<Handle::SpriteRenderer2D>();
+        auto* fieldProbe = canvas->AttachScript<FieldProbe>(name);
+        Object::GameObject* ok = makeObject("ok", {40.0f, 20.0f});
+        auto* okButton = canvas->AttachComponent<Component::Button2D>(ok);
+        okButton->size = {40.0f, 20.0f};
+        auto* okSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(ok);
+        auto* okProbe = canvas->AttachScript<FieldProbe>(ok);
+        Object::GameObject* cancel = makeObject("cancel", {40.0f, -20.0f});
+        auto* cancelButton = canvas->AttachComponent<Component::Button2D>(cancel);
+        cancelButton->size = {40.0f, 20.0f};
+        Object::GameObject* volume = makeObject("volume", {-40.0f, -20.0f});
+        auto* slider = canvas->AttachComponent<Component::Slider2D>(volume);
+        slider->size = {80.0f, 10.0f};
+        auto* volumeProbe = canvas->AttachScript<FieldProbe>(volume);
+        auto* poller = canvas->AttachScript<PollingProbe>(canvas->CreateObject("poller"));
+
+        const auto frameWith = [&](std::initializer_list<InputEvent> events) {
+            Array<InputEvent> list;
+            for (const InputEvent& event : events)
+            {
+                list.Add(event);
+            }
+            input.BeginFrame({list.Data(), static_cast<JBro::UInt32>(list.Size())});
+            input.PollGamepads(platform, 1.0f / 60.0f);
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
+        };
+        const auto textIs = [&](const char* expected) {
+            const ArrayView<const char> text = TextStore::Get().GetText(field->text);
+            const std::size_t length = std::strlen(expected);
+            return text.Size() == length && (length == 0 || std::memcmp(text.Data(), expected, length) == 0);
+        };
+        const auto labelIs = [&](const char* expected) {
+            const ArrayView<const char> text = TextStore::Get().GetText(labelText->text);
+            const std::size_t length = std::strlen(expected);
+            return text.Size() == length && (length == 0 || std::memcmp(text.Data(), expected, length) == 0);
+        };
+        frameWith({});
+        frameWith({});
+        Check(false == field->focused && false == caretSprite->visible, "before any input the field has no focus and no caret");
+
+        // 누르면 포커스. 글자가 붙고, 보이는 텍스트에 옮겨지고, 키보드는 게임까지 내려가지 않는다.
+        frameWith({MouseAt(60.0f, 30.0f), HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(field->focused && caretSprite->visible, "clicking the field focuses it and shows the caret");
+        frameWith({Typed('a'), Typed(0xD55C), Held(Key::W)});
+        Check(textIs("a\xED\x95\x9C") && field->changed && fieldProbe->values == 1 && labelIs("a\xED\x95\x9C"),
+            "typed characters append as UTF-8, tell the script once and reach the display text");
+        Check(false == poller->sawW, "the keyboard is consumed while a field has focus");
+        frameWith({ReleasedKey(Key::W), Pressed(Key::Backspace)});
+        Check(textIs("a") && fieldProbe->values == 2, "backspace removes the last code point");
+        frameWith({ReleasedKey(Key::Backspace), Pressed(Key::Enter)});
+        Check(field->submitted && fieldProbe->submits == 1 && textIs("a"), "enter submits without changing the text");
+        frameWith({ReleasedKey(Key::Enter)});
+        Check(false == field->submitted, "the submit lasts one frame");
+        field->maxLength = 2;
+        frameWith({Typed('b'), Typed('c')});
+        Check(textIs("ab"), "the length limit stops further characters");
+        frameWith({Pressed(Key::Escape)});
+        Check(false == field->focused && false == caretSprite->visible, "escape drops the focus and hides the caret");
+        frameWith({ReleasedKey(Key::Escape), Typed('z'), Held(Key::W)});
+        Check(textIs("ab") && poller->sawW, "without focus typing changes nothing and the keyboard reaches the game");
+        frameWith({ReleasedKey(Key::W)});
+        // 스크립트가 포커스를 주면 다음 프레임부터 받는다.
+        field->maxLength = 0;
+        field->focused = true;
+        frameWith({});
+        frameWith({Typed('q')});
+        Check(textIs("abq"), "a script can give the field focus");
+        frameWith({MouseAt(10.0f, 90.0f), HeldButton(MouseButton::Left)});
+        Check(false == field->focused, "pressing empty space drops the focus");
+        frameWith({Released(MouseButton::Left)});
+
+        // 게임패드: 포커스가 없으면 왼쪽 위(글자 칸)부터, 십자키가 그 방향의 가장 가까운 위젯으로 옮긴다.
+        platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        frameWith({});
+        Check(field->focused, "the first navigation picks the top-left widget");
+        platform.pads[0].buttons = 0;
+        frameWith({});
+        platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        frameWith({});
+        Check(okButton->focused && false == field->focused && okSprite->tint.R == okButton->hoverTint.R,
+            "right moves the focus to the button beside it, which shows its hover tint");
+        platform.pads[0].buttons = PadBit(GamepadButton::South);
+        frameWith({});
+        Check(okButton->pressed, "south holds the focused button");
+        platform.pads[0].buttons = 0;
+        frameWith({});
+        Check(okButton->clicked && okProbe->clicks == 1, "letting go clicks it");
+        platform.pads[0].buttons = PadBit(GamepadButton::DPadDown);
+        frameWith({});
+        Check(cancelButton->focused, "down moves to the button below");
+        platform.pads[0].buttons = PadBit(GamepadButton::DPadLeft);
+        frameWith({});
+        Check(slider->focused, "left moves to the slider");
+        platform.pads[0].buttons = PadBit(GamepadButton::DPadRight);
+        frameWith({});
+        Check(slider->focused && closeToValue(slider->value, 0.1f) && volumeProbe->values == 1, "right on a focused slider moves its value instead of the focus");
+        platform.pads[0].buttons = 0;
+        platform.pads[0].axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = -1.0f;
+        frameWith({});
+        Check(closeToValue(slider->value, 0.0f) && volumeProbe->values == 2, "the stick does the same once per push");
+        frameWith({});
+        Check(closeToValue(slider->value, 0.0f) && volumeProbe->values == 2, "holding the stick does not repeat before the delay (D-354)");
+        platform.pads[0].axes[static_cast<std::size_t>(GamepadAxis::LeftX)] = 0.0f;
+        platform.pads[0].buttons = PadBit(GamepadButton::DPadUp);
+        frameWith({});
+        Check(field->focused && false == slider->focused, "up moves back to the field");
+        platform.pads[0].buttons = 0;
+        // 포인터로 누른 위젯이 포커스를 받는다.
+        frameWith({MouseAt(140.0f, 70.0f), HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(cancelButton->focused && false == field->focused, "a pointer press moves the focus to that widget");
+
         framework.UnbindScriptContexts();
         framework.Shutdown();
         BindInputSystemContext({});
@@ -701,6 +1287,9 @@ JBro::Int32 RunInputChainTests()
     JBRO_CASE(TestDispatchDoesNotAllocate());
     JBRO_CASE(TestTheFrameworkDispatchesBeforeTheFixedSteps());
     JBRO_CASE(TestButtonsTakeThePointerOnTheUiLayer());
+    JBRO_CASE(TestTogglesAndSlidersTakeThePointer());
+    JBRO_CASE(TestMasksAndScrollViewsTakeThePointer());
+    JBRO_CASE(TestFieldsTakeTheKeyboardAndGamepadsMoveTheFocus());
     Log::SetEchoToConsole(echo);
     g_dispatchLog.Clear();
     std::cout << "Input chain tests passed.\n";

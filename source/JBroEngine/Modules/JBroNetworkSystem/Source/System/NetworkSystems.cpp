@@ -40,5 +40,6 @@ namespace JBro::System
         (void)canvas;
         (void)fixedDeltaTime;
         m_host.StepServer();
+        m_host.StepClient();
     }
 }

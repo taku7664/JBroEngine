@@ -105,6 +105,11 @@ namespace JBro
         const Uuid& GetSourceAsset() const;
         void SetSourceAsset(const Uuid& asset);
 
+        // **이 레이어의 후처리 프로필**(D-345, `.jpost` 에셋). 비어 있지 않으면 레이어를 제 텍스처에 그린 뒤 프로필의 레이어 효과(블러·외곽선·그림자·
+        // 색 효과)를 걸고 아래에 얹는다. 아이디만 든다 - 싣고 푸는 것은 프레임워크다. 캔버스 파일과 레이어 에셋에 `PostProcessProfile` 로 적는다.
+        const Uuid& GetPostProcessProfile() const;
+        void SetPostProcessProfile(const Uuid& profile);
+
     private:
         friend class Canvas;
 
@@ -121,5 +126,6 @@ namespace JBro
         Float      m_parallax = 1.0f;
         Bool       m_lit = true;
         Uuid       m_sourceAsset;
+        Uuid       m_postProcessProfile;
     };
 }

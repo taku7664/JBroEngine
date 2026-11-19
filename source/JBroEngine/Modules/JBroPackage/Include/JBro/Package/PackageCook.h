@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/MaterialShader.h>
 #include <JBro/Package/PackageWriter.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/Types/Array.h>
@@ -26,6 +27,8 @@ namespace JBro::Package
         UInt32 cookedMaterials = 0;
         // 미리 뜨기가 켜진 폰트마다 하나(D-232 4 단계)다.
         UInt32 bakedAtlases = 0;
+        // 구운 머티리얼 셰이더마다 하나(D-347)다.
+        UInt32 compiledShaders = 0;
         UInt64 blobBytes = 0;
         // 굽지 못한 에셋마다 한 줄(영어, 로그용)이다. 하나라도 있으면 쿡은 거짓이다.
         Array<String> failures;
@@ -35,10 +38,13 @@ namespace JBro::Package
     // (`CookedTexture`), Sprite 는 레코드만(메타·픽셀은 주인 Texture 의 것), 나머지는 원본(`Source`)이다. 미리 뜨기가 켜진 Font 는
     // 원본과 함께 미리 뜬 아틀라스(`FontAtlas`)를 둔다 - 게임이 폰트를 열 때 래스터화하지 않는다. `ids` 에 없는 주인·소유 레코드는
     // 따라 넣지 않는다 - 무엇을 넣을지는 부르는 쪽(참조 따라가기)이 정한다. 파일은 플랫폼이 연다(D-112).
+    //
+    // Shader(`.hlsl`, D-347)는 원본을 싣지 않고 `compiler` 로 두 자리(PostProcess·Sprite)를 모두 구워 본 묶음(`CompiledShader`)만 싣는다 - 게임은 굽지
+    // 않는다. 한 자리도 굽지 못했거나 컴파일러가 없거나 Vulkan 의 SPIR-V 를 굽지 못하면 그 셰이더는 실패다.
     // **모델**은 메타만 두고 원본은 넣지 않는다(model-import-plan 6 단계). 모델을 한 번 읽어 하위 Mesh 마다 엔진이 바로 읽는 메시(`CookedMesh`)를,
     // 내장 그림마다 디코드한 RGBA8(`CookedTexture`)을 그 하위 아이디로 둔다 - 게임은 모델 디코더를 돌리지 않고 곁 파일(`.bin`·`.mtl`)도 찾지 않는다.
     // 재질은 그림 칸의 아이디까지 풀어 `.jmat` 글자(`CookedMaterial`)로 둔다(material-plan 2 단계).
     // 같은 그림 열쇠(`AssetRecord::sharedImageKey`)의 내장 그림은 처음 것만 픽셀을 굽고 나머지는 레코드만이다(material-plan 5 단계).
     Bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
-        PackageWriter& writer, CookReport& report);
+        PackageWriter& writer, CookReport& report, IShaderCompiler* compiler = nullptr);
 }

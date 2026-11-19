@@ -94,6 +94,7 @@ MSVC 가 무엇이든 말하면 그것은 `jbroc` 의 결함이다. 사용자는
 - **번역 표는 `Localization/jbroc/<로케일>.yaml` 이다**(2026-09-17, D-104). 파일 모양과 로케일 이름(`ko-KR`·`en-US`)은
   에디터의 `Localization/<로케일>.yaml` 과 같고, `jbroc` 이 JBroCore 의 `Yaml.h` 로 직접 읽는다.
   에디터의 `LocalizationTable` 은 `JBroEditor` 안에 있어 쓸 수 없다.
+- **스크립트 빌드도 에디터 언어로 낸다**(2026-11-17, D-373). 에디터가 빌드 명령에 `-p:JBroCompilerLocale=<ko-KR|en-US>` 를 넘기고 `JBro.GameScript.targets` 가 `jbroc --locale` 로 전한다. 에디터 밖 빌드는 속성이 비어 `jbroc` 의 기본 언어(`ko-KR`)다.
 
 ## 4. 참조를 무엇으로 바꾸는가 [확정] (D-262)
 
@@ -434,9 +435,12 @@ JBRO_SCRIPT_API(Service::Physics2DService, Raycast, "origin", "direction", "dist
 JBroc [--locale ko-KR|en-US] [--dump-tree] <파일.jscript>...
 ```
 
+> 2026-11-17 덧붙임(Script QA): 이 파일 모드는 지금도 **렉서·파서 진단만** 낸다. 의미 분석 진단은 `--emit-cpp`·`--emit-project`(스크립트 빌드)와 `--lsp` 에서 나온다(language-server-plan §2). 그래서 타입 오류만 있는 파일은 이 모드에서 0 으로 끝난다.
+
 | 항목 | 정한 것 | 이유 |
 |---|---|---|
 | 진단 한 줄 | `<절대 경로>(<줄>,<열>): error JBC<번호>: <메시지>` 를 표준 출력에 | MSVC 모양이라 VS Code 의 `$msCompile` 매처가 그대로 읽는다. **그 매처는 `fileLocation: Absolute` 라** 상대 경로를 받지 못해서, 사용자가 상대 경로를 줘도 절대 경로로 바꿔 낸다 |
+| 열의 단위 | **글자(코드 포인트)** 다. 줄 시작부터 그 자리까지의 글자 수 + 1, BOM 은 세지 않는다(D-379, 2026-11-17) | `$msCompile` 매처와 에디터 `빌드 결과` 는 열을 글자로 읽는다. 전에는 UTF-8 바이트라 한글 뒤에서 어긋났다(한글 셋 뒤 이름이 글자 24 열인데 30). 언어 서버는 LSP 대로 UTF-16 이다 - BMP 글자에서는 같다 |
 | 번호 | 렉서 `JBC1001`~, 파서 `JBC2001`~. 코드마다 **고정해서 적는다** | 한 번 내보낸 번호는 사용자가 검색하는 대상이다. 열거형 순서에서 뽑으면 코드 하나를 끼워 넣는 순간 번호가 밀린다 |
 | 종료 코드 | 0 에러 없음, 1 소스에 에러, 2 명령줄·파일 문제(1 보다 우선), 3 `JBroc` 자신의 결함 | 편집기 태스크와 빌드 스크립트가 종료 코드로 성패를 가른다 |
 | 언어 | 기본 `ko-KR`, 폴백 `en-US`. 번역 표는 **실행 파일 옆** `Localization\jbroc` 에서 읽고 빌드가 그 자리로 복사한다 | 기본 한국어(ide-plan §5.5). 작업 폴더가 어디든 같은 표를 읽어야 한다 |
@@ -502,3 +506,66 @@ Updates: D-263의 타입체커·LSP 중단과 §11.4, D-262의 null 좁히기·�
   nullable 값의 런타임 저장 형식과 `!`의 콜백 중단은 이미터 작업에 남긴다.
 
 사용법·지원 요청·검증·클라이언트 책임·배포의 미확인 범위는 [jbroscript-language-server-plan.md](./jbroscript-language-server-plan.md)에 둔다.
+
+## 13. 중첩 타입과 소스 요약·편집 (2026-10-15, D-336)
+
+Updates: §11.2의 타입 선언/이름 문법과 §12의 분석·LSP 범위. §12의 당시 이미터 중단 기록은 결정 이력으로 보존한다.
+후속 2D C++ 이미터 구현은 [두 단계 기록](./jbroscript-ref-log-plan.md), 이번 중첩 타입 의미는 [문법 §21](./jbroscript-syntax.md#21-중첩-타입-선언과-이름-해석-2026-10-15-d-336)을 따른다.
+
+- 파서·분석·이미터는 중첩 타입의 소유 관계와 정규화된 `Outer.Inner` 이름을 공유해야 한다. 점 주변 공백·주석이나 서로 다른 바깥 타입의 동명 선언 때문에 타입을 합치지 않는다. 중첩 `script`는 구문 오류다. (MUST)
+- 이름 해석은 기존 접근 제한자를 경로 전체에서 확인하며 바깥 인스턴스를 암묵적으로 전달하지 않는다. 분석이 허용한 중첩 타입·생성자·상속/인터페이스·바깥 비공개 멤버 접근은 실제 생성 C++에서도 같은 의미를 가져야 한다. (MUST)
+- 현재 C++ 백엔드는 중첩 타입의 구현을 충돌하지 않는 내부 전역 이름으로 내고, 소유 타입의 접근 제어가 있는 alias로 소스의 관계를 연결한다. 이는 생성기의 구현 방법이며 사용자에게 별도 문법을 요구하지 않는다. 리플렉션은 `Outer.Inner`를 기록한다.
+- `ScriptCompiler::Summary`는 같은 AST·분석 결과에서 재귀 선언 목록·필드 속성·유효 설정을 만든다. `EditFieldSettings`는 분석한 소스를 쓰지 않고 검증한 범위 편집만 반환한다. 서버는 정확한 문서 버전을 검사하고 `jbro/scriptSummary`·`jbro/editFieldSettings`를 통해 UTF-16 위치로 변환한다. JSON은 프로토콜 경계 안에 둔다. (MUST)
+- 알 수 없는 기존 속성·관련 없는 선언·주석은 보존한다. 잘못된 표현식·구문 삽입·오래된 버전·안전하게 확정할 수 없는 범위는 변경으로 반환하지 않는다. 소스 편집기를 위한 별도 선언 파서나 런타임 리플렉션 해석기는 추가하지 않는다. (MUST)
+- 속성을 지울 때는 그 속성과 함께 쉼표와 그 사이 공백을 지운다 - 앞에 남는 속성이 있으면 앞 속성 끝부터, 없으면 다음 속성 시작까지. 틈에 주석이 있으면 주석을 지키려고 토큰만 지운다(2026-11-17, Script QA 결함 9). 전에는 `[range(1, 50) , x]` 처럼 공백이 남았다. 알려진 속성을 모두 지울 때 괄호 묶음이 줄에 홀로 있으면 그 줄을 줄바꿈까지 지운다 - 전에는 들여쓰기만 남은 빈 줄이 남았다(REVIEW R9-1).
+- 에디터가 디버깅용 Debug 스크립트를 빌드하더라도 CRT·`_DEBUG`/`NDEBUG`·엔진 정적 라이브러리는 실행 호스트 구성에 맞춰야 한다. `ScriptBuild`는 `JBroScriptHostConfiguration`과 실행 폴더의 `JBroCompilerPath`를 전달한다. 호스트 구성을 생략한 외부 빌드는 기존 스크립트 `Configuration`을 따른다. Debug 스크립트의 출력 위치·PDB·최적화 끔은 호스트 구성 때문에 바꾸지 않는다. (MUST)
+
+실제 `NestedScriptType` suite는 여러 파일의 중첩 타입을 생성 C++로 빌드·게임 DLL로 로드하고 공개 결과 값 30을 확인했다. 생성기 내부 이름·접근 alias를 정규식 문자열 검사만으로 통과시키지 않는다.
+요약·최소 범위 편집·버전/UTF-16·주석 보존과 중첩 문법을 포함한 관련 21개 suite와 전체 빌드를 Debug/Release에서 통과했다. 마지막 UI 수정 뒤 양 구성 전체 빌드·5개 추가 회귀와 실제 화면/엔진의 유한 확인 범위는 [작업 기록](./script-summary-debugger.md)에 둔다.
+
+## 14. 생성 C++ 이 MSVC 에서 멈추던 세 모양 (2026-11-17, Script QA 결함 2)
+
+`jbroc` 이 진단 없이 통과시킨 코드가 생성 C++ 에서 멈추면 §3.1 위반이다. Script QA 가 문법 §14 예시 안에서 세 모양을 찾았고 이미터(`CppEmitter.cpp`)를 고쳤다.
+
+- `[range(a, b)]`·`[clamp(a, b)]` 의 인자를 `JBro::Float(…)` 로 감싸 넘긴다. `Attribute::Range`·`Clamp` 는 `Float` 둘을 받고 정수는 저절로 바뀌지 않는다(D-290). 전에는 `Int` 필드의 `[range(1, 100)]` 가 생성 파일에서 C2664 였다.
+- `a?.b.c` 의 `?.` 를 분석(`Analysis.cpp` 의 `receiver.NullSafe`)과 같게 사슬 끝까지 넘긴다. 전에는 `.c` 가 `Require` 로 내려가 `a` 가 없으면 건너뛰지 않고 콜백을 멈췄고, 결과가 값이라 이어지는 `??` 가 `IsPresent(Float)` 를 불러 C2039 였다.
+- 출력 인자로 투영한 엔진 함수(언어 서버 계획 §5)를 원래 C++ 호출로 되돌린다. 출력 하나를 성공 여부(`NullableReturn` + `SuccessFromNativeReturn`)나 모음(`CollectionReturn`)으로 받는 모양과, 찾은 값의 포인터를 돌려주는 `Table.Find` 를 내린다.
+  전에는 투영 정보를 아무도 쓰지 않아 `Physics.Raycast(o, d, dist)` 가 인자 셋으로 호출되어 C2660 이었다.
+  **내리지 못하는 꼴은 분석이 먼저 막는다(D-382, 2026-11-17)**: 버퍼와 길이(`Count`)를 받는 `Text.CopyText`·`Network.TakeMessages`·`Session.TakeEvents`·`Uuid.Parse`·`Uuid.ToText`, 원소 타입이 다른 `Save.ReadBytes` 는 호출 자리의 `JBC3050` 이다. 판정은 `CanEmitOutputProjection`(분석·생성기 공용). 반환값의 필드를 섞는 `CaptureBinding` 둘은 사용자 결정 대기다.
+  카탈로그의 자유 함수(`FindKeyByName`·`GetKeyName` 등)와 엔진 enum 멤버(`Key.A`)는 이제 이미터가 푼다. 엔진 함수의 `String`·`Int` 인자는 `ScriptGuard::Argument` 로 감싼다(D-383).
+- 시험: 생성 시험 프로젝트(`Tests/JBroScriptGeneratedProbe`, `/W4 /WX`)에 `Section14Enemy.jscript`(§14 예시)와 `EmitterShapes.jscript`(세 모양)를 더했다. 고치기 전 이미터로는 그 프로젝트가 C2664·C2660·C2440 으로 멈춘다.
+
+- (2026-11-17, D-386) 문자열 리터럴끼리의 `+`·`==` 도 같은 꼴이었다 - 왼쪽 리터럴을 `JBro::String` 으로 만든다. 시험은 생성 시험 DLL 의 `StringLiterals.jscript`.
+
+## 15. 깊은 식에서 죽던 `jbroc` (2026-11-17, Script QA 결함 3)
+
+분석과 C++ 생성은 식의 깊이만큼 재귀한다. 기본 1 MB 주 스레드 스택은 Debug 에서 깊이 24(생성)·40(분석)에 넘쳐 `jbroc` 이 아무 말 없이 0xC00000FD 로 죽었다.
+스크립트 빌드에는 `MSB3073 … 코드: -1073741571` 한 줄만 남았고, 언어 서버(같은 1 MB 주 스레드에서 분석)도 깊이 64 에서 연결이 끊겼다.
+
+- `JBroc` 의 진입점은 일을 스택을 256 MB 예약한 스레드에서 하고, 그래도 넘치면 SEH 로 받아 §11.3 의 결함 종료 코드 3 과 표준 에러 `jbroc: internal error: the source nests too deeply to compile (stack overflow)` 로 끝낸다. 명령줄과 `--lsp` 가 같은 진입점이다.
+- Debug 실측(큰 스택만 있을 때): `--emit-project` 와 언어 서버 모두 깊이 2,000(덧셈·괄호·`and`·문자열·곱셈)까지 정상, 괄호 20,000·60,000 은 종료 3.
+- **식은 이제 언어 규칙으로 막는다(D-374, 2026-11-17).** 식 하나는 100 겹까지이고 넘으면 파서가 `JBC2015` 를 낸다(문법 §22). 숫자는 생성 C++ 이 MSVC 에서 빌드되는 한도(`??` 사슬 121 겹, C1061)의 아래로 골랐다.
+  큰 스택과 종료 3 은 상한이 없는 문장 블록의 겹 때문에 남는다: Debug `--emit-project` 는 if 5,000 겹, 언어 서버는 30,000 겹(서버 전체가 끝나 열린 문서를 모두 잃는다), Release `--emit-project` 는 200,000 겹(215 s)에서 넘친다.
+  넘침을 받는 코드는 `Modules/JBroc/Source/StackGuard.h` 의 `RunOnLargeStack` 이다(스택 크기를 인자로 받는다).
+- **블록도 막는다(D-376, 2026-11-17).** 함수 하나의 블록은 32 겹까지이고 넘으면 `JBC2016`(문법 §23). 넘는 블록은 재귀 없이 짝 맞는 `}` 까지 건너뛴다. 그래서 위의 블록 넘침은 이제 `else if` 사슬 수만 개(Debug 16,000 개, 사용자 결정 대기 - DECISIONS-NEEDED Q7)에서만 난다. 명령줄 끝까지 넘치게 하던 Debug 시험 단계는 빼고, 넘침 처리는 `RunOnLargeStack` 직접 시험으로 지킨다.
+- 시험: `ScriptCompilerCommandLine` 의 `TestDeepExpressionsAreRejectedWithAPosition`(아홉 모양의 100 겹은 종료 0, 101·60,000 겹은 `JBC2015` 하나)과 `TestTheStackGuardCatchesOverflow`(`RunOnLargeStack` 을 1 MB 로 불러 Debug·Release 모두 넘침을 받는다. 명령줄 끝까지 Debug 블록으로 넘치게 하던 단계는 D-376 뒤 뺐다). 언어 서버는 `lsp_process_tests.py` 의 `test_expression_depth_limit_matches_command_line`.
+
+## 16. 생성기 오류의 분류 (2026-11-17, Script QA 결함 4, D-372)
+
+`CppEmitter.cpp`·`CppProjectEmitter.cpp` 의 생성 단계 오류를 둘로 나눈다. (가) §3.2 [확정] 의 타입체커 검사라 분석으로 옮겨야 하는 것, (나) 분석이 허용한 뒤의 지원하지 않는 모양·내부 상태라 생성기에 남아도 되는 것.
+(나) 는 모두 `jbroc: C++ emit error: <경로>(<줄>,<열>): <글>` 로 자리를 붙인다(줄·열은 마지막으로 들어간 선언·필드·함수·문장·식).
+**줄 모양은 진단과 같다(D-384, 2026-11-17)**: 표준 출력에 `<경로>(<줄>,<열>): error JBC4001: <번역된 머리> <영어 글>`, 자리가 없으면 `jbroc : error JBC4001: …`. 전의 모양은 MSBuild·에디터 `빌드 결과`·`$msCompile` 어느 것도 진단으로 읽지 못해 `MSB3073` 만 남았다. 열은 글자 단위(D-379).
+
+| 생성기 오류 | 분류 | 지금 |
+|---|---|---|
+| `unknown reflected field attribute` | (가) §3.2 "모르는 이름" | 분석 `JBC3045` 가 먼저 막는다 |
+| `reflected field attribute argument count`, `prop attribute takes no arguments` | (가) §3.2 "인자 개수" | 분석 `JBC3046` |
+| `C++ emitter cannot reflect an enum without members` | 사용자 결정(D-377): 빈 enum 은 허용 | 오류가 없어졌다 - 이름 없는 설명서를 낸다 |
+| `owned field cycle cannot be represented in C++` | 사용자 결정(D-377): 언어 규칙 | 분석 `JBC3048` 이 먼저 막는다. 생성기 검사는 방어선 |
+| `does not support this declaration/member/expression/statement yet`, `methods without a body yet`, `the output projection of …` | (나) 지원하지 않는 모양. 투영은 `CaptureBinding` 둘(결정 대기)만 여기에 닿는다 - 나머지는 분석 `JBC3050`(D-382) | 자리 붙임 |
+| `encountered an invalid switch clause`, `for requires an Array<T> iterable`, `two-variable … requires a Table<K, V>`, `switch requires a comparable scalar`, `a range loop variable cannot borrow`, `compound property assignment has no getter` | (나) 분석이 이미 막는 것과 같은 조건의 방어선 | 자리 붙임 |
+| `unresolved name/generic name/member/enum member in C++ emitter` | (나) 내부 상태(분석과 생성기의 어긋남). 카탈로그 자유 함수 이름·엔진 enum 멤버가 여기에 걸렸으나 D-382 로 푼다 | 자리 붙임 |
+| `duplicate C++ declaration across files`, `generated file name collision`, `duplicate project type` | (나) 생성 파일 단위 | 자리 붙임(가능한 곳) |
+| `no source files`, `empty syntax tree`, `a game DLL needs at least one script declaration` | (나) 입력 전체의 상태 | 자리 없음(파일이 없거나 프로젝트 단위) |
+
+어트리뷰트 인자의 **타입**(§3.2 "인자 개수·타입")도 분석이 본다(D-385, 2026-11-17): `range`·`clamp` 는 숫자 리터럴(앞의 `-` 포함), `name`·`tooltip`·`category`·`visiblewhen` 은 문자열 리터럴이고, 아니면 그 인자 자리에 `JBC3051`. 인자가 C++ `constexpr` 어트리뷰트로 바로 들어가기 때문이다.

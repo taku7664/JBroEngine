@@ -39,6 +39,9 @@ namespace JBro::Widget
     void ReportGuideTarget(const GuideFocusTarget& target, const ImVec2& min, const ImVec2& max,
         Bool opened, Bool activated, Bool round = false);
 
+    // 가려진 패널은 실제 도킹 탭을 가리키며 사용자 클릭을 기다린다.
+    void ReportPanelGuideTarget(const GuideFocusTarget& target, Bool shown, Bool manual);
+
     // 말풍선에 적을 것이다. 글자는 이미 번역된 것이다(§11.2).
     struct GuideFocusBalloon
     {
@@ -53,6 +56,7 @@ namespace JBro::Widget
         const char* skipLabel = nullptr;
         const char* backLabel = nullptr;
         const char* nextLabel = nullptr;
+        const char* chatLabel = nullptr;
         // 이전 단추를 두었지만 지금은 못 누를 때(첫 단계) 회색으로 두고 까닭을 띄운다(§11.1).
         Bool backEnabled = true;
         const char* backDisabledReason = nullptr;

@@ -50,7 +50,14 @@ namespace JBro
         AudioEffect,
         // 노드 그래프 하나다(D-323). 본문이 그래프 YAML 이고 첫 키 `Domain` 이 어느 도메인의 그래프인지 정한다. 에디터의 노드 그래프 창이 연다.
         NodeGraph,
-        // 3D 모델 파일 하나다(D-338, `.fbx .gltf .glb .obj`). 파일 안의 메시·재질은 `owner` 가 이 모델인 하위 `Mesh`·`Material` 레코드다.
+        // 컬러 그레이딩의 3D LUT 다(D-343). 본문이 `.cube` 글자이고 후처리 효과 `ColorLookup` 의 `colorLutId` 가 가리킨다.
+        ColorLut,
+        // 후처리 프로필이다(D-344). 본문(`.jpost`)이 효과 목록 YAML 이고 카메라의 `postProcessProfileId` 가 가리킨다. 효과의 뜻은 그래픽 모듈의
+        // 효과 종류 표가 알므로 에셋은 글자만 든다.
+        PostProcessProfile,
+        // 렌더 텍스처다(D-362). 본문(`.jrt`)이 폭·높이·필터 YAML 이고, 카메라의 `renderTextureId` 가 그리는 곳으로, 스프라이트의 `renderTextureId` 가 보이는 것으로 가리킨다.
+        RenderTexture,
+        // 3D 모델 파일 하나다(D-391, `.fbx .gltf .glb .obj`). 파일 안의 메시·재질은 `owner` 가 이 모델인 하위 `Mesh`·`Material` 레코드다.
         // 하위 목록은 `.jmeta` 의 `Model.SubAssets` 에 있고 아이디가 키(`Mesh/Body`)로 고정된다.
         Model
     };
@@ -91,6 +98,12 @@ namespace JBro
         // 한 유닛에 드는 픽셀 수다(D-117). 프로젝트 기본값은 없다 - 에셋이 전부 말한다. 0 이하나 비유한으로 적힌 값은
         // 로드 때 `DefaultPixelsPerUnit` 으로 바로잡는다.
         Float pixelsPerUnit = DefaultPixelsPerUnit;
+        // 9-슬라이스의 테두리다(픽셀, D-351). 시트의 모든 칸이 같은 테두리다. 0 이면 테두리가 없다 - 옛 `.jmeta` 는 키가 없어 0 으로 읽힌다.
+        // 칸보다 크면 풀 때 칸 크기로 줄인다.
+        UInt32 borderLeft = 0;
+        UInt32 borderTop = 0;
+        UInt32 borderRight = 0;
+        UInt32 borderBottom = 0;
     };
 
     // 텍스처를 어떻게 샘플링하는가(D-117). `Nearest` 는 텍셀 그대로(픽셀 아트), `Linear` 는 이웃과 섞는다.
@@ -102,7 +115,7 @@ namespace JBro
         Linear
     };
 
-    // 텍스처를 어느 색 공간으로 읽는가(D-339). `Auto` 는 쓰임새가 정한다 - 일반 그림과 재질의 기본색·발광 칸은 sRGB, 노멀·거칠기 따위 칸은 선형이다.
+    // 텍스처를 어느 색 공간으로 읽는가(D-392). `Auto` 는 쓰임새가 정한다 - 일반 그림과 재질의 기본색·발광 칸은 sRGB, 노멀·거칠기 따위 칸은 선형이다.
     enum class TextureColorSpace : std::uint8_t
     {
         Auto,
@@ -114,20 +127,20 @@ namespace JBro
     struct TextureImportOptions
     {
         TextureFilter filter = TextureFilter::Default;
-        // **값만 저장한다**(D-339 (a)) - 효과(sRGB 뷰·밉 체인)는 3D 가 텍스처를 처음 그리는 재질 단계에서 켠다. 지금 2D 그림에는 변화가 없다.
+        // **값만 저장한다**(D-392 (a)) - 효과(sRGB 뷰·밉 체인)는 3D 가 텍스처를 처음 그리는 재질 단계에서 켠다. 지금 2D 그림에는 변화가 없다.
         TextureColorSpace colorSpace = TextureColorSpace::Auto;
         // 일반 그림은 끈다(2D 픽셀 아트는 밉이 없어야 한다). 모델의 내장 그림은 켠 채로 만든다(model-import-plan 5 단계).
         Bool mipmaps = false;
     };
 
-    // 모델의 법선을 어디서 얻는가(D-339). `Import` 는 파일의 것이고 파일에 없으면 계산한다. `Calculate` 는 파일의 것을 버리고 늘 계산한다.
+    // 모델의 법선을 어디서 얻는가(D-392). `Import` 는 파일의 것이고 파일에 없으면 계산한다. `Calculate` 는 파일의 것을 버리고 늘 계산한다.
     enum class ModelNormals : std::uint8_t
     {
         Import,
         Calculate
     };
 
-    // `.jmeta` 의 `Model.ImportOptions` 블록이다(D-338·D-339, model-import-plan §2.7). 모델 파일 하나(`.fbx .gltf .glb .obj`)의 옵션이고
+    // `.jmeta` 의 `Model.ImportOptions` 블록이다(D-391·D-392, model-import-plan §2.7). 모델 파일 하나(`.fbx .gltf .glb .obj`)의 옵션이고
     // 하위 메시·재질은 따로 옵션이 없다.
     struct ModelImportOptions
     {

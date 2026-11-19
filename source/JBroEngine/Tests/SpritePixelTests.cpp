@@ -1037,6 +1037,8 @@ namespace
         config.surfaceExtent = {64, 64};
         config.maxSpriteSubmissions = 8;
         config.presentMode = JBro::PresentMode::Immediate;
+        // 아래 그림의 사본을 복사한 뒤 읽는다. D3D12 가 사본을 복사 상태로 남겨 읽기가 `COPY_DEST` 를 읽던 것을 검증 레이어가 잰다(D-339).
+        config.validation = true;
         Check(renderer.Initialize(rhi, config), "the backdrop blend renderer must initialize");
 
         JBro::CameraParams camera;
@@ -1102,6 +1104,7 @@ namespace
                 Check(Near(left[channel], back[channel]), "and leaves what is below untouched where the layer is empty");
             }
         }
+        Check(renderer.GetDevice()->GetValidationErrorCount() == 0, "the debug layer accepted every backdrop blend");
 
         renderer.Shutdown();
         rhi.Shutdown();

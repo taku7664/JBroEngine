@@ -32,7 +32,12 @@ namespace JBro
         TouchMoved,
         TouchEnded,
         // 시스템이 가져갔다(제스처·붙잡음 잃음). 뗀 것과 같이 다루되 "탭" 으로 치면 안 된다.
-        TouchCancelled
+        TouchCancelled,
+        // IME 조합(D-355). `CompositionBegin` 은 조합 글자를 비우고, `Composition` 은 조합 글자 하나(`codePoint`)를 차례로 더하며,
+        // `CompositionEnd` 는 조합이 끝났다(결과 글자는 전처럼 `Text` 로 따로 온다). 조합 글자가 바뀔 때마다 `CompositionBegin` 부터 다시 온다.
+        CompositionBegin,
+        Composition,
+        CompositionEnd
     };
 
     struct InputEvent

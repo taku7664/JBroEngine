@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Core/Yaml.h>
@@ -424,6 +425,152 @@ namespace
         canvas.ReleaseModuleScripts();
     }
 
+    // **에디터를 끈 채 필드를 지우고 빌드해도 캔버스가 열린다**(D-349). 파일을 읽을 때도 핫 리로드와 같이 맞는 것만 잇고 나머지는 알린다.
+    // 빌트인 컴포넌트는 그대로 엄격하다(`CanvasFileTests` 의 `TestReadingRefusesRatherThanGuessing`).
+    void TestACanvasOpensAfterItsScriptLostAField()
+    {
+        ScopedScriptTables tables;
+        Check(RegisterScriptType<First::HotProbe>(), "the first version registers");
+        String text;
+        {
+            Canvas canvas(CreateDefaultAllocator());
+            Object::GameObject* target = canvas.CreateObject("Target");
+            Object::GameObject* holder = canvas.CreateObject("Holder");
+            auto* script = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
+            script->Speed = 4.5f;
+            script->Lives = 7.5f;
+            script->Gone = 2.0f;
+            script->Target = Internal::GameObjectHandleAccess::FromId(target->GetInstanceId());
+            script->SetEnabled(false);
+            CanvasFileError error;
+            Check(WriteCanvasText(canvas, text, error), "the canvas saves");
+            canvas.ReleaseModuleScripts();
+        }
+        tables.Clear();
+
+        // 다음에 에디터를 켜면 고친 판이 먼저 실린다.
+        Check(RegisterScriptType<Second::HotProbe>(), "the edited version registers");
+        Canvas canvas(CreateDefaultAllocator());
+        CanvasFileError error;
+        Array<ScriptResolveNote> notes;
+        Check(ReadCanvasText(canvas, text.c_str(), text.size(), error, &notes), "the canvas opens although a field is gone");
+        Check(canvas.GetUnresolvedScriptCount() == 0, "the script is attached, not set aside");
+        auto* script = FindScript<Second::HotProbe>(canvas);
+        Check(script != nullptr, "the edited script is on the object");
+        Check(script->Speed == 4.5f, "a field that still reads keeps its value");
+        Check(script->Lives == 0, "a field whose value no longer reads goes back to its default");
+        Check(script->Jump == 9.0f, "a new field starts at its default");
+        Check(false == script->IsEnabled(), "switched off as it was saved");
+        const Object::GameObject* found = Internal::GameObjectHandleAccess::Resolve(script->Target);
+        Check(found != nullptr && std::strcmp(found->GetName(), "Target") == 0, "an object reference points where it did");
+
+        std::size_t dropped = 0;
+        std::size_t unreadable = 0;
+        for (const ScriptResolveNote& note : notes)
+        {
+            Check(note.objectName == "Holder" && note.typeName == "Test::HotProbe", "each note names the object and the script");
+            dropped += note.kind == ScriptResolveNote::Kind::FieldDropped && note.fieldName == "Gone" ? 1 : 0;
+            unreadable += note.kind == ScriptResolveNote::Kind::FieldUnreadable && note.fieldName == "Lives" ? 1 : 0;
+        }
+        Check(notes.Size() == 2 && dropped == 1 && unreadable == 1, "the removed field and the changed one are each reported once");
+
+        // 다시 저장하면 버린 필드는 빠지고, 그 글자는 알림 없이 읽힌다.
+        String again;
+        Check(WriteCanvasText(canvas, again, error), "the canvas saves again");
+        Check(false == Contains(again, "Gone"), "the dropped field is not written back");
+        canvas.ReleaseModuleScripts();
+        Canvas reopened(CreateDefaultAllocator());
+        Check(ReadCanvasText(reopened, again.c_str(), again.size(), error, &notes) && notes.IsEmpty(),
+            "the saved canvas reads with nothing to report");
+
+        // 목록을 넘기지 않는 쪽(물리 워커 세기 등)도 연다.
+        Canvas quiet(CreateDefaultAllocator());
+        Check(ReadCanvasText(quiet, text.c_str(), text.size(), error), "a caller that asks for no notes opens it too");
+        tables.Clear();
+        reopened.ReleaseModuleScripts();
+        quiet.ReleaseModuleScripts();
+    }
+
+    // **레이어 에셋과 오브젝트 클립보드도 캔버스 파일과 같이 읽는다**(D-364). 필드를 지웠다고 넣지 못하면 그 에셋은 영영 쓸 수 없다.
+    void TestALayerAndTheClipboardReadAScriptThatLostAField()
+    {
+        ScopedScriptTables tables;
+        Check(RegisterScriptType<First::HotProbe>(), "the first version registers");
+        String layerText;
+        String objectsText;
+        {
+            Canvas canvas(CreateDefaultAllocator());
+            const LayerId layer = canvas.CreateLayer("Props").GetId();
+            Object::GameObject* target = canvas.CreateObject("Target");
+            Object::GameObject* holder = canvas.CreateObject("Holder");
+            canvas.SetObjectLayer(target, layer);
+            canvas.SetObjectLayer(holder, layer);
+            auto* script = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
+            script->Speed = 4.5f;
+            script->Lives = 7.5f;
+            script->Gone = 2.0f;
+            script->Target = Internal::GameObjectHandleAccess::FromId(target->GetInstanceId());
+            script->SetEnabled(false);
+            CanvasFileError error;
+            Check(WriteLayerText(canvas, layer, layerText, error), "the layer writes");
+            Array<Object::GameObject*> roots;
+            roots.Add(target);
+            roots.Add(holder);
+            Check(WriteObjectsText(canvas, roots, "session", objectsText, error), "the objects write");
+            canvas.ReleaseModuleScripts();
+        }
+        tables.Clear();
+        Check(RegisterScriptType<Second::HotProbe>(), "the edited version registers");
+
+        const auto checkRead = [](Canvas& canvas, const Array<ScriptResolveNote>& notes) {
+            auto* script = FindScript<Second::HotProbe>(canvas);
+            Check(script != nullptr, "the edited script is on the object");
+            Check(script->Speed == 4.5f, "a field that still reads keeps its value");
+            Check(script->Lives == 0, "a field whose value no longer reads goes back to its default");
+            Check(script->Jump == 9.0f, "a new field starts at its default");
+            Check(false == script->IsEnabled(), "switched off as it was saved");
+            const Object::GameObject* found = Internal::GameObjectHandleAccess::Resolve(script->Target);
+            Check(found != nullptr && std::strcmp(found->GetName(), "Target") == 0, "an object reference points where it did");
+            std::size_t dropped = 0;
+            std::size_t unreadable = 0;
+            for (const ScriptResolveNote& note : notes)
+            {
+                Check(note.objectName == "Holder" && note.typeName == "Test::HotProbe", "each note names the object and the script");
+                dropped += note.kind == ScriptResolveNote::Kind::FieldDropped && note.fieldName == "Gone" ? 1 : 0;
+                unreadable += note.kind == ScriptResolveNote::Kind::FieldUnreadable && note.fieldName == "Lives" ? 1 : 0;
+            }
+            Check(notes.Size() == 2 && dropped == 1 && unreadable == 1, "the removed field and the changed one are each reported once");
+        };
+
+        CanvasFileError error;
+        {
+            Canvas canvas(CreateDefaultAllocator());
+            LayerId created = InvalidLayerId;
+            Array<ScriptResolveNote> notes;
+            Check(ReadLayerText(canvas, layerText.c_str(), layerText.size(), created, error, &notes), "the layer asset reads although a field is gone");
+            checkRead(canvas, notes);
+            canvas.ReleaseModuleScripts();
+        }
+        {
+            Canvas canvas(CreateDefaultAllocator());
+            ObjectsTextTarget target;
+            target.session = "session";
+            Array<Object::GameObject*> roots;
+            Array<ScriptResolveNote> notes;
+            Check(ReadObjectsText(canvas, objectsText.c_str(), objectsText.size(), target, roots, error, &notes), "the clipboard reads although a field is gone");
+            checkRead(canvas, notes);
+            canvas.ReleaseModuleScripts();
+        }
+        // 목록을 넘기지 않는 쪽도 넣는다.
+        {
+            Canvas canvas(CreateDefaultAllocator());
+            LayerId created = InvalidLayerId;
+            Check(ReadLayerText(canvas, layerText.c_str(), layerText.size(), created, error), "a caller that asks for no notes reads the layer too");
+            canvas.ReleaseModuleScripts();
+        }
+        tables.Clear();
+    }
+
     // ── 에디터와 실제 시험 DLL ──────────────────────────────────────────────
 
     // 되돌리기 기록에 한 칸을 남기는 것뿐인 커맨드다. 기록이 남는지 비는지를 본다.
@@ -480,9 +627,9 @@ namespace
         return get != nullptr ? get() : UInt32(0);
     }
 
-    void TestTheEditorReloadsTheLibraryUnderItsScripts()
+    // 시험 DLL 을 든 프로젝트를 쓴다. 프로젝트 파일의 경로다.
+    fs::path WriteProbeProject(const fs::path& root)
     {
-        const fs::path root = FreshFolder(u8"에디터");
         fs::create_directories(root / "Contents" / "Assets");
         const fs::path library = root / "x64" / "Debug" / "GameScript.dll";
         fs::create_directories(library.parent_path());
@@ -500,6 +647,102 @@ namespace
             "ScriptOutputLibraryPath: x64/Debug/GameScript.dll\n"
             "Build:\n"
             "  ProductName: Reloaded\n";
+        return projectPath;
+    }
+
+    // `Speed` 필드 앞에 코드에 없는 필드를 한 줄 넣는다 - 필드를 지운 뒤의 글자와 같다.
+    String WithGoneField(String text)
+    {
+        const std::size_t speed = text.find("Speed:");
+        Check(speed != String::npos, "the text holds the speed field");
+        const std::size_t lineStart = text.rfind('\n', speed) + 1;
+        String line(text.substr(lineStart, speed - lineStart));
+        line.append("GoneField: 3\n");
+        text.insert(lineStart, line);
+        return text;
+    }
+
+    // **넣다가 잇지 못한 필드는 알림으로 보인다**(D-364). 글자를 고쳐 코드에서 지운 필드를 흉내 낸다 - 세 길(붙여넣기·레이어 붙여넣기·레이어 에셋)이 각자 알려야 한다.
+    void TestTheEditorWarnsWhenWhatItInsertsLostAField()
+    {
+        const fs::path root = FreshFolder(u8"넣기");
+        const fs::path projectPath = WriteProbeProject(root);
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; inserting scripts in the editor not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the project opens");
+        Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the editor has a canvas");
+        const LayerId layer = canvas->CreateLayer("Props").GetId();
+        Object::GameObject* object = canvas->CreateObject("Scripted");
+        canvas->SetObjectLayer(object, layer);
+        Check(canvas->AttachScript(object, "ProbeRegisteredScript") != nullptr, "the probe script attaches");
+
+        EditorNotifications& notifications = editor.GetNotifications();
+        const auto warned = [&]() {
+            return notifications.GetLastLevel() == NotificationLevel::Warning && Contains(String(notifications.GetLastTitle()), "1");
+        };
+        const auto mark = [&]() {
+            notifications.Notify(NotificationLevel::Info, "marker");
+        };
+
+        // 붙여넣기: 그대로면 알리지 않고, 지운 필드가 있으면 알린다. 넣은 것은 되돌릴 수 있다.
+        editor.SetSelectedObject(object);
+        Check(editor.CopySelection(), "the object copies");
+        const String copied(editor.GetClipboardText());
+        mark();
+        Check(editor.PasteClipboard(), "the object pastes");
+        Check(std::strcmp(notifications.GetLastTitle(), "marker") == 0, "nothing is announced when every field reads");
+        Check(editor.GetCommands().Undo(), "the paste undoes");
+        editor.SetClipboardText(WithGoneField(copied));
+        const std::size_t objects = canvas->GetObjectCount();
+        mark();
+        Check(editor.PasteClipboard(), "a copy with a field the code lost still pastes");
+        Check(canvas->GetObjectCount() == objects + 1, "adding the object");
+        Check(warned(), "and the lost field is announced");
+        Check(editor.GetCommands().Undo() && canvas->GetObjectCount() == objects, "it undoes");
+        mark();
+        Check(editor.GetCommands().Redo() && canvas->GetObjectCount() == objects + 1, "and redoes");
+        Check(std::strcmp(notifications.GetLastTitle(), "marker") == 0, "without announcing it again");
+        Check(editor.GetCommands().Undo(), "and undoes for the next step");
+
+        // 레이어 붙여넣기.
+        Check(editor.CopyLayer(layer), "the layer copies");
+        editor.SetClipboardText(WithGoneField(String(editor.GetClipboardText())));
+        mark();
+        Check(editor.PasteLayer() != InvalidLayerId, "a layer with a field the code lost still pastes");
+        Check(warned(), "and the lost field is announced");
+        Check(editor.GetCommands().Undo(), "the layer paste undoes");
+
+        // 레이어 에셋.
+        const String saved = editor.SaveLayerAsAsset(layer, "Layers");
+        Check(false == saved.empty(), "the layer saves as an asset");
+        const AssetRecord* record = editor.GetAssetRegistry().FindByPath(saved.c_str());
+        Check(record != nullptr, "and is registered");
+        const AssetId asset = record->id;
+        const fs::path assetPath = root / "Contents" / "Assets" / fs::path(std::u8string(reinterpret_cast<const char8_t*>(saved.c_str())));
+        std::ostringstream body;
+        body << std::ifstream(assetPath, std::ios::binary).rdbuf();
+        const String edited = WithGoneField(String(body.str().c_str()));
+        std::ofstream(assetPath, std::ios::binary) << edited.c_str();
+        mark();
+        Check(editor.AddLayerFromAsset(asset), "a layer asset with a field the code lost still goes in");
+        Check(warned(), "and the lost field is announced");
+    }
+
+    void TestTheEditorReloadsTheLibraryUnderItsScripts()
+    {
+        const fs::path root = FreshFolder(u8"에디터");
+        const fs::path library = root / "x64" / "Debug" / "GameScript.dll";
+        const fs::path projectPath = WriteProbeProject(root);
 
         EditorApplication editor;
         EditorApplicationConfig config;
@@ -599,6 +842,9 @@ Int32 RunScriptHotReloadTests()
     TestAScriptSurvivesANewVersionOfItself();
     TestAScriptTheNewVersionLacksKeepsItsValues();
     TestAScriptReadBeforeItsLibraryPointsAtTheRightObject();
+    TestACanvasOpensAfterItsScriptLostAField();
+    TestALayerAndTheClipboardReadAScriptThatLostAField();
+    TestTheEditorWarnsWhenWhatItInsertsLostAField();
     TestTheEditorReloadsTheLibraryUnderItsScripts();
     std::cout << "Script hot reload tests passed.\n";
     return 0;

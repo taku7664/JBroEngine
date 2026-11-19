@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/EditorControlPort.h>
+﻿#include <JBro/Types/ValueMath.h>
+#include <JBro/Editor/EditorControlPort.h>
 
 #include <JBro/Core/Log.h>
 #include <JBro/Core/Yaml.h>
@@ -183,7 +184,7 @@ namespace JBro
             WriteUInt(writer, "Session", Log::GetSessionId());
             WriteUInt(writer, "Clear", Log::GetClearEpoch());
             WriteUInt(writer, "Revision", Log::GetRevision());
-            WriteUInt(writer, "GroupCount", static_cast<std::uint64_t>(Log::GetGroupCount()));
+            WriteUInt(writer, "GroupCount", UInt64(Log::GetGroupCount()));
             const LogEntry* oldest = Log::GetAt(0);
             const LogEntry* latest = Log::GetAt(Log::GetCount() == 0 ? 0 : Log::GetCount() - 1);
             WriteUInt(writer, "FirstRetained", oldest != nullptr ? oldest->serial : UInt64(0));
@@ -290,8 +291,8 @@ namespace JBro
             YamlWriter writer;
             WriteLogIdentity(writer);
             writer.BeginSequence("Groups");
-            const std::size_t start = static_cast<std::size_t>(std::min<std::uint64_t>(afterId.Get(), Log::GetGroupCount()));
-            const std::size_t end = std::min(start + LogPageSize, Log::GetGroupCount());
+            const std::size_t start = static_cast<std::size_t>(Min(afterId, UInt64(Log::GetGroupCount())));
+            const std::size_t end = Min(start + LogPageSize, Log::GetGroupCount());
             for (std::size_t index = start; index < end; ++index)
             {
                 const LogGroup* group = Log::GetGroupAt(index);

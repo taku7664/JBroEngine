@@ -1,4 +1,5 @@
 ﻿#include <JBro/Runtime/ComponentHandle.h>
+#include <JBro/Runtime/ScriptLogContext.h>
 
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObjectHandle.h>
@@ -58,14 +59,14 @@ namespace JBro::Internal
         ComponentBase* component = ResolveSilently();
         if (component == nullptr)
         {
-            // `Handle::GameObject` 의 무효 접근과 같은 줄이다. 무효한 경우에만 글자를 만든다.
-            std::fprintf(
-                stderr,
-                "JBro warning: %s::%s on invalid handle (object=%llu, component=%llu)\n",
-                typeName,
-                operation,
+            // `Handle::GameObject` 의 무효 접근과 같은 길이다(D-380). 무효한 경우에만 글자를 만든다.
+            char key[96];
+            char message[224];
+            std::snprintf(key, sizeof(key), "handle.%s.%s", typeName, operation);
+            std::snprintf(message, sizeof(message), "%s::%s on invalid handle (object=%llu, component=%llu)", typeName, operation,
                 static_cast<unsigned long long>(m_reference.ObjectId),
                 static_cast<unsigned long long>(m_reference.ComponentId));
+            WriteEngineLog(LogLevel::Warning, "script", key, message);
         }
         return component;
     }

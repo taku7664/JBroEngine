@@ -31,6 +31,28 @@ namespace
         return String(std::string(reinterpret_cast<const char*>(text.data()), text.size()));
     }
 
+    // C++ 좁은 문자열 리터럴로 옮긴다. ASCII 밖의 바이트와 `\`·`"` 는 8 진 탈출이다 - 16 진은 뒤의 글자까지 먹는다.
+    String CppLiteral(const String& text)
+    {
+        String out;
+        for (const char character : text)
+        {
+            const unsigned char value = static_cast<unsigned char>(character);
+            if (value >= 0x80 || value == '\\' || value == '"')
+            {
+                out.push_back('\\');
+                out.push_back(static_cast<char>('0' + (value >> 6)));
+                out.push_back(static_cast<char>('0' + ((value >> 3) & 7)));
+                out.push_back(static_cast<char>('0' + (value & 7)));
+            }
+            else
+            {
+                out.push_back(character);
+            }
+        }
+        return out;
+    }
+
     String ReadFile(const fs::path& path)
     {
         std::ifstream input(path, std::ios::binary);
@@ -285,6 +307,12 @@ namespace
         roots.Add({engine / ".." / "JBroNetwork" / "JBroNetwork" / "Include", String("JBroNetwork/JBroNetwork/Include/")});
         const String framework = String("JBroFramework") + dimension;
         roots.Add({engine / "Modules" / framework.Std() / "Include", String("JBroEngine/Modules/") + framework + "/Include/"});
+        // 3D 캔버스의 화면 레이어는 2D 의 화면 UI 다(D-363). 3D 프렐류드가 그 핸들을 include 하므로 2D 모듈도 뿌리에 두지만, 사본에는 입구에서 닿는
+        // 헤더만 들어간다 - 2D 의 월드 컴포넌트 핸들·서비스는 3D 사본에 없다.
+        if (String(dimension) == "3D")
+        {
+            roots.Add({engine / "Modules" / "JBroFramework2D" / "Include", String("JBroEngine/Modules/JBroFramework2D/Include/")});
+        }
         return roots;
     }
 
@@ -411,7 +439,7 @@ namespace
         }
     }
 
-    // **사본 줄의 닻**(D-340). 줄마다 코드 글자(주석은 이미 지웠다)의 앞뒤 공백을 뗀 64 비트 FNV-1a 와 앞 공백의 바이트 수다.
+    // **사본 줄의 닻**(D-393). 줄마다 코드 글자(주석은 이미 지웠다)의 앞뒤 공백을 뗀 64 비트 FNV-1a 와 앞 공백의 바이트 수다.
     // API 목록은 정의 자리를 줄 번호가 아니라 그 선언의 글자로 적고 이 해시로 줄을 찾는다 - 헤더에 줄을 끼워도 자리가 밀리지 않는다.
     // 같은 셈이 `Catalog.cpp` 의 `AnchorHash` 에 있다. 둘을 함께 고친다.
     void LineAnchors(const Stripped& stripped, Array<UInt64>& hashes, Array<UInt32>& indents)
@@ -492,7 +520,6 @@ namespace
             "JBro/Runtime/ScriptInitialization.h",
             "JBro/Runtime/ScriptStatics.h",
             "JBro/Reflection/EnumDescriptor.h",
-            "JBro/Reflection/Math3DReflection.h",
         };
         for (const auto& entry : fs::directory_iterator(engine / "Modules" / "JBroCore" / "Include" / "JBro" / "Types"))
         {
@@ -592,8 +619,15 @@ namespace
         if (writeLineMap)
         {
             String out = "// JBroScriptSdk 가 만든 파일이다. 고치지 않는다.\r\n"
-                "// 스크립트 SDK 사본의 줄마다 시작 바이트, 코드 글자의 해시(닻), 앞 공백의 바이트 수(D-340).\r\n"
+                "// 스크립트 SDK 사본의 줄마다 시작 바이트, 코드 글자의 해시(닻), 앞 공백의 바이트 수(D-393).\r\n"
                 "namespace JBro::ScriptApiCatalog2D::Internal::ScriptSdk\r\n{\r\n";
+            // 사본이 놓인 자리다. 산출물 자리는 빌드가 정하므로(D-370) 카탈로그는 경로를 짐작하지 않고 이것을 쓴다.
+            String root = PathText(fs::absolute(output).lexically_normal());
+            while (root.IsNotEmpty() && root.back() == '/')
+            {
+                root.pop_back();
+            }
+            out.Append("inline constexpr const char* Root = \"").Append(CppLiteral(root).View()).Append("\";\r\n");
             lineMap.ReplaceAll("\n", "\r\n");
             table.ReplaceAll("\n", "\r\n");
             out.Append(lineMap.View());

@@ -224,6 +224,11 @@ namespace JBro::Network
         {
             return false;
         }
+        if (view.messageId == ReplicationOwnedStateMessage)
+        {
+            HandleOwnedState(view);
+            return true;
+        }
         if (view.messageId == ReplicationAckMessage && view.size == AckMessageBytes)
         {
             const ReplicationTick acked = UdpProto::ReadU32(view.data);
@@ -255,18 +260,6 @@ namespace JBro::Network
             return nullptr;
         }
         return &m_objects[*index];
-    }
-
-    ReplicationServer::ObjectRecord* ReplicationServer::FindRecordByNetworkId(NetworkObjectId id)
-    {
-        for (ObjectRecord& record : m_objects)
-        {
-            if (record.id == id)
-            {
-                return &record;
-            }
-        }
-        return nullptr;
     }
 
     ReplicationServer::ObjectRecord* ReplicationServer::AddRecord(InstanceId instance, const SpawnDesc& desc)
@@ -306,6 +299,90 @@ namespace JBro::Network
         UdpProto::WriteU32(message, record.id);
         std::memcpy(message + 4, &record.desc, sizeof(SpawnDesc));
         m_transport.Send(connection, ReplicationSpawnMessage, message, SpawnMessageBytes, NetChannel::ReliableOrdered);
+    }
+
+    // **소유자가 올린 값을 받는다.** 보낸 연결이 그 오브젝트의 소유자일 때만이다 - 아니면 버리고 센다.
+    // 받아들인 값은 서버의 풀에 그대로 들어가고, 다음 스냅숏이 그것을 다른 클라이언트에게 퍼뜨린다.
+    void ReplicationServer::HandleOwnedState(const MessageView& view)
+    {
+        UInt32 offset = 0;
+        while (view.size - offset >= 5)
+        {
+            const NetworkObjectId id = UdpProto::ReadU32(view.data + offset);
+            const std::uint8_t type = view.data[offset + 4];
+            if (type >= m_pools.Size())
+            {
+                // 모르는 타입이다. 뒤를 믿을 수 없으니 거기서 끊는다.
+                ++m_diagnostics.ownedStateRefused;
+                return;
+            }
+            const UInt32 elementBytes = m_typeSizes[type];
+            if (view.size - offset - 5 < elementBytes)
+            {
+                ++m_diagnostics.ownedStateRefused;
+                return;
+            }
+            const std::uint8_t* bytes = view.data + offset + 5;
+            offset += 5 + elementBytes;
+
+            ObjectRecord* record = FindRecordByNetworkId(id);
+            if (nullptr == record || record->desc.owner != view.connection)
+            {
+                // 제 것이 아닌 오브젝트에 쓰려 했거나, 방금 소유권을 되찾은 뒤에 온 값이다.
+                ++m_diagnostics.ownedStateRefused;
+                continue;
+            }
+            if (m_pools[type]->Apply(record->instance, nullptr, bytes, 1.0f))
+            {
+                ++m_diagnostics.ownedStateApplied;
+            }
+        }
+    }
+
+    ReplicationServer::ObjectRecord* ReplicationServer::FindRecordByNetworkId(NetworkObjectId id)
+    {
+        for (ObjectRecord& record : m_objects)
+        {
+            if (record.id == id)
+            {
+                return &record;
+            }
+        }
+        return nullptr;
+    }
+
+    Bool ReplicationServer::SetOwner(InstanceId object, ConnectionId owner)
+    {
+        ObjectRecord* record = FindRecord(object);
+        if (nullptr == record)
+        {
+            return false;
+        }
+        if (record->desc.owner == owner)
+        {
+            return true;
+        }
+        record->desc.owner = owner;
+        // 이미 스폰을 받은 클라이언트들에게는 바뀐 사실만 보낸다. 앞으로 붙는 클라이언트는 스폰에 실려 받는다.
+        for (const ClientState& client : m_clients)
+        {
+            SendOwner(client.connection, *record);
+        }
+        return true;
+    }
+
+    ConnectionId ReplicationServer::GetOwner(InstanceId object) const
+    {
+        const ObjectRecord* record = const_cast<ReplicationServer*>(this)->FindRecord(object);
+        return nullptr != record ? record->desc.owner : InvalidConnectionId;
+    }
+
+    void ReplicationServer::SendOwner(ConnectionId connection, const ObjectRecord& record)
+    {
+        std::uint8_t message[12];
+        UdpProto::WriteU32(message, record.id);
+        UdpProto::WriteU64(message + 4, record.desc.owner);
+        m_transport.Send(connection, ReplicationOwnerMessage, message, 12, NetChannel::ReliableOrdered);
     }
 
     void ReplicationServer::SendDespawn(ConnectionId connection, NetworkObjectId id)

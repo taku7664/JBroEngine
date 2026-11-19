@@ -9,7 +9,7 @@
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 
-// 캔버스 뷰의 3D 라이트 기즈모(D-353, lighting3d-plan 3 단계)에서 화면을 모르는 부분이다. 2D 의 `LightGizmoModel` 과 같은 자리다.
+// 캔버스 뷰의 3D 라이트 기즈모(D-407, lighting3d-plan 3 단계)에서 화면을 모르는 부분이다. 2D 의 `LightGizmoModel` 과 같은 자리다.
 // 손잡이는 셋이다 - `range`(점광은 구 위, 스포트는 축 끝), `Spot` 의 바깥 각과 안쪽 각(원뿔 끝 원 위, 서로 맞은편). 손잡이 하나는 필드 하나를 고친다.
 // 끌기는 화면 좌표로 잰다 - 손잡이가 놓인 자리와 축을 화면으로 투영한 것과 마우스만 받는다(3D 의 깊이를 마우스 하나로 정할 수 없다).
 namespace JBro::LightGizmo3DModel

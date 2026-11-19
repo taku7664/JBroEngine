@@ -12,6 +12,13 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Input/InputSystem.h>
+#include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Framework3D/Scripting/GameScript.h>
+#include <JBro/InputTypes/InputHandler.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
@@ -71,7 +78,7 @@ namespace
         return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
     }
 
-    // **3D 라이트의 셈**(D-353, `BuiltinMesh.hlsl` 의 라이트 루프). 렌더러가 `Light3DSubmit` 을 옮기는 셈(방향의 정규화, 원뿔 반각의 cos 에서 scale·offset)과
+    // **3D 라이트의 셈**(D-407, `BuiltinMesh.hlsl` 의 라이트 루프). 렌더러가 `Light3DSubmit` 을 옮기는 셈(방향의 정규화, 원뿔 반각의 cos 에서 scale·offset)과
     // 셰이더의 감쇠(거리 제곱, glTF 창, 원뿔의 제곱)를 CPU 로 다시 쓴다. 환경광은 기본색 × 환경광이다.
     Pixel ExpectLit(const float base[3], JBro::Vector3 normal, JBro::Vector3 position, JBro::Vector3 camera, float metallic, float roughnessFactor,
         const float ambient[3], const JBro::Light3DSubmit* lights, int count)
@@ -229,7 +236,7 @@ namespace
             frameTarget.texture = target;
             frameTarget.extent = {TargetWidth, TargetHeight};
             // **호스트와 같은 차례다** - 갱신(Update)이 먼저, 렌더 프레임이 나중이다(`EngineInstance::Tick`). 렌더러는 프레임 안의 등록을 거절하므로
-            // 갱신에서 처음 만난 모델 메시를 올리는 길(D-342)은 이 차례에서만 선다. 전에는 거꾸로 불러도 빌트인만 있어 드러나지 않았다.
+            // 갱신에서 처음 만난 모델 메시를 올리는 길(D-395)은 이 차례에서만 선다. 전에는 거꾸로 불러도 빌트인만 있어 드러나지 않았다.
             JBro::Testing::Tick(framework, 1.0f / 60.0f);
             Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
             Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit its view");
@@ -710,7 +717,188 @@ namespace
 
 namespace
 {
-    // **빌트인 도형마다 카메라를 향한 면이 빛을 받는다**(D-335 우선순위 2). 흰 도형 하나를 가운데 두고 가운데 픽셀이 고정 광원의
+    // 3D 스크립트 런타임(D-363)의 손잡이다. 수명 훅과 화면 레이어 버튼의 UI 훅을 센다.
+    class UiProbe3D final : public JBro::GameScript3D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::UiProbe3D";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnStart() override
+        {
+            ++starts;
+        }
+
+        void OnUpdate() override
+        {
+            ++updates;
+        }
+
+        void OnPointerDown() override
+        {
+            ++downs;
+        }
+
+        void OnClick() override
+        {
+            ++clicks;
+        }
+
+        JBro::Int32 starts = 0;
+        JBro::Int32 updates = 0;
+        JBro::Int32 downs = 0;
+        JBro::Int32 clicks = 0;
+    };
+
+    // `"Game"` 레이어의 3D 스크립트 핸들러다. `"UI"` 의 위젯이 마우스를 쓰면 빈 마우스를 본다.
+    class GameInputProbe3D final : public JBro::GameScript3D, public JBro::InputHandler<"Game", 0>
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::GameInputProbe3D";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBro::InputResult OnInput(JBro::InputView& input) override
+        {
+            ++calls;
+            sawMouse = input.Mouse().IsDown(JBro::MouseButton::Left);
+            return JBro::InputResult::Pass;
+        }
+
+        JBro::Int32 calls = 0;
+        JBro::Bool sawMouse = false;
+    };
+
+    // **3D 캔버스의 화면 레이어는 화면 UI 다**(D-362). 정육면체는 빛을 받고, 화면 레이어의 흰 사각형은 3D 뷰 위에 빛 없이 흰색 그대로다. 화면 레이어의
+    // 정육면체는 그려지지 않는다. 버튼은 3D 에도 입력을 받아 누르면 색이 바뀐다 - 스크립트의 입력 체인이 없는 3D 는 프레임워크가 위젯에 직접 넘긴다.
+    template <typename TModule>
+    void TestScreenLayersDrawScreenUiOverThe3DView()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; 3D screen UI not verified" << std::endl;
+            return;
+        }
+        JBro::System::InputSystem input;
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.input = &input;
+        Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
+        Check(JBro::ComponentRegistry::Get().Find(JBro::Component::Button2D::StaticTypeName()) != nullptr
+                && JBro::ComponentRegistry::Get().Find(JBro::Component::Transform2D::StaticTypeName()) != nullptr,
+            "a 3D framework opens the screen UI components by name");
+        JBro::ScreenSpaceFrame screen;
+        screen.referenceWidth = static_cast<JBro::Float>(TargetWidth);
+        screen.referenceHeight = static_cast<JBro::Float>(TargetHeight);
+        screen.targetWidth = static_cast<JBro::Float>(TargetWidth);
+        screen.targetHeight = static_cast<JBro::Float>(TargetHeight);
+        framework.SetScreenSpace(screen);
+        JBro::Canvas& canvas = *framework.GetCanvas();
+
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        PlaceCube(canvas, "box", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
+
+        JBro::Layer& hud = canvas.CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        // 화면 레이어에 둔 정육면체는 3D 카메라로 그리지 않는다 - 왼쪽(-1.5) 자리가 비어 있어야 한다.
+        JBro::Object::GameObject* stray = PlaceCube(canvas, "stray", {-1.5f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
+        Check(canvas.SetObjectLayer(stray, hud.GetId()), "the stray cube goes on the screen layer");
+        // 오른쪽 위 구석의 12 x 12 사각형: 화면 픽셀 x 78..89, y 2..13.
+        JBro::Object::GameObject* panel = canvas.CreateObject("panel");
+        Check(canvas.SetObjectLayer(panel, hud.GetId()), "the panel goes on the screen layer");
+        auto* place = canvas.AttachComponent<JBro::Component::Transform2D>(panel);
+        place->anchor = {1.0f, 1.0f};
+        place->position = {-12.0f, -8.0f};
+        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(panel);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {12.0f, 12.0f};
+        auto* button = canvas.AttachComponent<JBro::Component::Button2D>(panel);
+        button->size = {12.0f, 12.0f};
+        // 3D 스크립트도 돈다(D-363): 버튼의 오브젝트에 붙은 스크립트가 수명 훅과 UI 훅을 받고, 아래 레이어의 핸들러는 위젯이 쓴 마우스를 보지 못한다.
+        UiProbe3D* probe = canvas.AttachScript<UiProbe3D>(panel);
+        GameInputProbe3D* gameInput = canvas.AttachScript<GameInputProbe3D>(eye);
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        input.BeginFrame({});
+        stage.RenderOnce(framework, image, readback);
+        const Pixel cube = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(cube.r > 0.2f && cube.r < 0.999f, "the cube is drawn and lit");
+        const Pixel hudPixel = ReadPixel(image, readback.rowPitch, 84, 8);
+        Check(Near(hudPixel.r, 1.0f) && Near(hudPixel.g, 1.0f) && Near(hudPixel.b, 1.0f), "the screen square is white - over the 3D view and unlit");
+        const Pixel outside = ReadPixel(image, readback.rowPitch, 84, 20);
+        Check(outside.r < 0.05f, "nothing is drawn below the square");
+        const Pixel strayPixel = ReadPixel(image, readback.rowPitch, 12, TargetHeight / 2);
+        Check(strayPixel.r < 0.05f, "a cube on the screen layer is not drawn by the 3D camera");
+        Check(probe->starts == 1 && probe->updates == 1, "a 3D script starts and updates in its first frame");
+        // 입력 체인은 시작 훅보다 먼저 돌고 시작한 스크립트만 부른다(2D 와 같다) - 첫 프레임에는 아직 부르지 않는다.
+        Check(gameInput->calls == 0, "the input chain waits for the script to start");
+
+        // 마우스를 사각형 위에서 누르면 버튼이 눌리고 색이 pressedTint(0.7) 가 된다.
+        JBro::InputEvent move;
+        move.kind = JBro::InputEventKind::MouseMove;
+        move.x = 84.0f;
+        move.y = 8.0f;
+        JBro::InputEvent down;
+        down.kind = JBro::InputEventKind::MouseButtonDown;
+        down.button = JBro::MouseButton::Left;
+        const JBro::InputEvent press[] = {move, down};
+        input.BeginFrame({press, 2});
+        stage.RenderOnce(framework, image, readback);
+        Check(button->pressed, "the button takes the press through the 3D framework");
+        Check(probe->downs == 1 && probe->clicks == 0, "the 3D script on the button hears the press");
+        Check(gameInput->calls == 1 && false == gameInput->sawMouse, "the game layer below sees no mouse the button took");
+        const Pixel pressed = ReadPixel(image, readback.rowPitch, 84, 8);
+        Check(Near(pressed.r, 0.7f, 0.02f) && Near(pressed.b, 0.7f, 0.02f), "the pressed tint shows on the screen square");
+
+        // 멈추면 위젯도 입력을 받지 않는다(2D 와 같다).
+        JBro::InputEvent up;
+        up.kind = JBro::InputEventKind::MouseButtonUp;
+        up.button = JBro::MouseButton::Left;
+        framework.SetSimulationEnabled(false);
+        const JBro::Int32 updatesBeforePause = probe->updates;
+        input.BeginFrame({&up, 1});
+        stage.RenderOnce(framework, image, readback);
+        Check(button->pressed, "paused, the button does not see the release");
+        Check(probe->updates == updatesBeforePause, "paused, the 3D script does not update");
+        framework.SetSimulationEnabled(true);
+        input.BeginFrame({});
+        stage.RenderOnce(framework, image, readback);
+        Check(false == button->pressed, "running again, the button sees the mouse is up");
+        Check(probe->updates == updatesBeforePause + 1 && probe->clicks == 0, "and the script runs again; a release seen only after the pause is no click");
+
+        // 누르고 떼면 `OnClick` 이다.
+        input.BeginFrame({press, 2});
+        stage.RenderOnce(framework, image, readback);
+        input.BeginFrame({&up, 1});
+        stage.RenderOnce(framework, image, readback);
+        Check(probe->clicks == 1, "pressing and releasing on the button clicks it for the 3D script");
+
+        framework.Shutdown();
+        stage.Close();
+    }
+
+    // **빌트인 도형마다 카메라를 향한 면이 빛을 받는다**(D-388 우선순위 2). 흰 도형 하나를 가운데 두고 가운데 픽셀이 고정 광원의
     // 램버트 값인지 본다. 감김이 뒤집히면 바깥 면이 컬링되고 안쪽 면(앰비언트 0.25)이 보인다 - 정육면체 때 실제로 그랬다(D-108).
     // 기대색은 흰 기본 재질의 `Standard` 식(`ExpectStandard`)이다 - 구·캡슐·원기둥은 옆에서(+Z) 본 앞 법선 (0,0,1), 평면은 위에서 내려다본 법선 (0,1,0).
     template <typename TModule>
@@ -799,7 +987,7 @@ namespace
         file << text;
     }
 
-    // **모델의 메시가 그려진다**(D-338·D-342, model-import-plan 4 단계). 레지스트리 스캔 → 해석 패스(`BindCanvasAssets`)가 `meshId` 로 에셋 핸들을 채움 →
+    // **모델의 메시가 그려진다**(D-391·D-395, model-import-plan 4 단계). 레지스트리 스캔 → 해석 패스(`BindCanvasAssets`)가 `meshId` 로 에셋 핸들을 채움 →
     // `MeshLibrary` 가 CPU 자료를 처음 만날 때 렌더러에 올림. 삼각형은 화면 왼쪽 위에 있어, 정육면체 대체(가운데)와 갈린다.
     // 파일을 고쳐 다시 읽으면(in-place 재로드, 자료 세대가 오른다) 라이브러리가 다시 올려 그림이 오른쪽 아래로 옮겨진다.
     template <typename TModule>
@@ -991,7 +1179,7 @@ namespace
         JBro::Array<std::byte> image;
         JBro::TextureReadback readback;
         stage.RenderOnce(framework, image, readback);
-        Check(framework.GetMaterialLibrary().GetUploadedMaterialCount() == 1 &&framework.GetMaterialLibrary().GetUploadedTextureCount() == 1,
+        Check(framework.GetMeshMaterialLibrary().GetUploadedMaterialCount() == 1 &&framework.GetMeshMaterialLibrary().GetUploadedTextureCount() == 1,
             "with the slot empty the mesh's own material is uploaded, with its one picture");
         const auto expect = [](float r, float g, float b, float x, float z) {
             const float base[3] = {r, g, b};
@@ -1034,7 +1222,7 @@ namespace
         Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
 
         framework.Shutdown();
-        Check(stage.renderer.GetMaterialCount() == 0, "shutting the framework down unregisters its materials");
+        Check(stage.renderer.GetMeshMaterialCount() == 0, "shutting the framework down unregisters its materials");
         assets.Shutdown();
         stage.Close();
         fs::remove_all(root);
@@ -1122,7 +1310,7 @@ namespace
             place("right", partOf("Props/right.gltf", JBro::AssetType::Mesh), 0.25f);
             framework.BindCanvasAssets();
             stage.RenderOnce(framework, looseImage, readback);
-            Check(framework.GetMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMaterialLibrary().GetUploadedTextureCount() == 1,
+            Check(framework.GetMeshMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMeshMaterialLibrary().GetUploadedTextureCount() == 1,
                 "each model's mesh draws with its own material, and the two materials share one texture for the one picture");
             const Pixel left = ReadPixel(looseImage, readback.rowPitch, 30, 27);
             const Pixel right = ReadPixel(looseImage, readback.rowPitch, 57, 27);
@@ -1193,7 +1381,7 @@ namespace
             "the packaged canvas loads");
         framework.BindCanvasAssets();
         stage.RenderOnce(framework, gameImage, readback);
-        Check(framework.GetMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMaterialLibrary().GetUploadedTextureCount() == 1,
+        Check(framework.GetMeshMaterialLibrary().GetUploadedMaterialCount() == 2 && framework.GetMeshMaterialLibrary().GetUploadedTextureCount() == 1,
             "the game shares the one texture too");
         Check(gameImage.Size() == looseImage.Size() && std::memcmp(gameImage.Data(), looseImage.Data(), looseImage.Size()) == 0,
             "the game built from the package draws the very same picture as the loose project");
@@ -1204,7 +1392,7 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
-    // **3D 라이트가 메시를 비춘다**(D-353, lighting3d-plan 1 단계). 위에서 직교로 내려다본 바닥(흰 재질 × 회색 틴트)에 라이트를 내고, 다섯 자리의 픽셀을
+    // **3D 라이트가 메시를 비춘다**(D-407, lighting3d-plan 1 단계). 위에서 직교로 내려다본 바닥(흰 재질 × 회색 틴트)에 라이트를 내고, 다섯 자리의 픽셀을
     // 셰이더 식의 CPU 판(`ExpectLit`)과 견준다. 라이트가 없는 뷰는 기본 빛이고, 하나라도(환경광만이라도) 내면 낸 라이트만이다. 점광은 `range` 밖이 검고,
     // 스포트는 바깥 각 밖이 검다. 한 프레임의 두 뷰는 제 라이트를 따로 받고, 뷰 하나의 상한을 넘는 라이트는 버리고 센다.
     template <typename TModule>
@@ -1399,7 +1587,7 @@ namespace
         renderer.UnregisterMesh(floor);
         stage.Close();
     }
-    // **`Light3D` 컴포넌트가 캔버스를 비춘다**(D-353, lighting3d-plan 2 단계). 위에서 직교로 내려다본 바닥(빌트인 평면)을 프레임워크로 그린다.
+    // **`Light3D` 컴포넌트가 캔버스를 비춘다**(D-407, lighting3d-plan 2 단계). 위에서 직교로 내려다본 바닥(빌트인 평면)을 프레임워크로 그린다.
     // (1) 새 프로젝트의 시작 라이트와 같은 방향광(오브젝트 회전으로 돌린 -Z)·환경광은 라이트가 없을 때의 기본 빛과 같은 그림이다 - 회전이 방향이 된다.
     // (2) 감춘 레이어의 라이트는 꺼진다. 점광과 스포트(회전으로 아래를 본다)가 셰이더 식의 CPU 판과 같다.
     // (3) 캔버스 파일로 쓰고 다시 읽어도 라이트의 값과 그림이 같다.
@@ -1584,6 +1772,7 @@ namespace
 
 JBro::Int32 RunMeshPixelTests()
 {
+    JBRO_CASE(TestScreenLayersDrawScreenUiOverThe3DView<JBro::D3D12RHIModule>());
     JBRO_CASE(TestLightComponentsLightTheCanvas<JBro::D3D12RHIModule>());
     JBRO_CASE(TestLightComponentsLightTheCanvas<JBro::D3D11RHIModule>());
     JBRO_CASE(TestLightComponentsLightTheCanvas<JBro::VulkanRHIModule>());

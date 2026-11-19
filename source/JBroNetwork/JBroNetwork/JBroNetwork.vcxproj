@@ -2,7 +2,7 @@
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <!--
     네트워크는 별도 프로젝트다(D-122). 엔진의 공용 props 와 JBroCore 를 참조하지만 엔진 트리의 파일은 바꾸지 않는다.
-    출력은 이 폴더의 Build 아래로 간다 - 엔진의 Build 폴더에 섞이지 않게 하기 위해서다.
+    출력은 산출물 자리의 `Network\` 아래로 간다(D-370) - 엔진 산출물(`Engine\`)에 섞이지 않게 하기 위해서다.
   -->
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -24,8 +24,8 @@
   <Import Project="$(MSBuildThisFileDirectory)..\..\JBroEngine\JBro.Common.props" />
   <PropertyGroup Label="JBroNetworkPaths">
     <JBroNetworkRoot>$(MSBuildThisFileDirectory)..\</JBroNetworkRoot>
-    <OutDir>$(JBroNetworkRoot)Build\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(JBroNetworkRoot)Build\Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(JBroNetworkBuildDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(JBroNetworkBuildDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>

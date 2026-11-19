@@ -3,6 +3,8 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Canvas/PixelFields.h>
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Runtime/GameScriptBase.h>
@@ -206,6 +208,11 @@ namespace JBro
         return found != nullptr ? found->GetName() : "";
     }
 
+    void CanvasObjectSystem::SetWorldPixelsPerUnit(Float pixelsPerUnit)
+    {
+        m_worldPixelsPerUnit = pixelsPerUnit;
+    }
+
     InstanceRef CanvasObjectSystem::AddComponent(const Handle::GameObject& object, ComponentTypeId type)
     {
         Object::GameObject* owner = Internal::GameObjectHandleAccess::Resolve(object);
@@ -223,6 +230,15 @@ namespace JBro
         if (component == nullptr)
         {
             return {};
+        }
+        // 월드 레이어면 픽셀 기본값을 유닛으로 나눈다(D-355). 붙인 직후라 값은 모두 기본값이다.
+        const Layer* layer = owner->GetLayer();
+        if (m_worldPixelsPerUnit > 0.0f && layer != nullptr && layer->GetSpace() == LayerSpace::World)
+        {
+            if (const PropertyTable* table = PropertyRegistry::Lookup(type))
+            {
+                ScalePixelFields(*table, component, Float(1.0f) / m_worldPixelsPerUnit);
+            }
         }
         InstanceRef reference;
         reference.ObjectId = owner->GetInstanceId();

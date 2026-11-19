@@ -31,6 +31,9 @@ namespace JBro
             {AssetType::Layer, "Layer"},
             {AssetType::AudioEffect, "AudioEffect"},
             {AssetType::NodeGraph, "NodeGraph"},
+            {AssetType::ColorLut, "ColorLut"},
+            {AssetType::PostProcessProfile, "PostProcessProfile"},
+            {AssetType::RenderTexture, "RenderTexture"},
             {AssetType::Model, "Model"},
         };
 
@@ -48,7 +51,7 @@ namespace JBro
             {".jpeg", AssetType::Texture},
             {".bmp", AssetType::Texture},
             {".tga", AssetType::Texture},
-            // 모델 파일은 `Model` 이다(D-338). 그 안의 메시는 하위 `Mesh` 레코드다.
+            // 모델 파일은 `Model` 이다(D-391). 그 안의 메시는 하위 `Mesh` 레코드다.
             {".fbx", AssetType::Model},
             {".obj", AssetType::Model},
             {".gltf", AssetType::Model},
@@ -68,6 +71,9 @@ namespace JBro
             {".jlayer", AssetType::Layer},
             {".jfx", AssetType::AudioEffect},
             {".jgraph", AssetType::NodeGraph},
+            {".cube", AssetType::ColorLut},
+            {".jpost", AssetType::PostProcessProfile},
+            {".jrt", AssetType::RenderTexture},
         };
 
         constexpr char MetaExtension[] = ".jmeta";

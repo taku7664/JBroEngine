@@ -135,14 +135,54 @@ namespace JBro::ScriptCompiler
         return result;
     }
 
-    String FormatDiagnosticLine(std::string_view path, const Diagnostic& diagnostic, const DiagnosticMessages& messages)
+    String FormatEmitErrorLine(std::string_view error, const DiagnosticMessages& messages)
+    {
+        // `경로(줄,열): ` 이 앞에 있는가. 경로에 괄호가 있을 수 있으므로 처음으로 `숫자,숫자): ` 가 오는 `(` 를 찾는다.
+        std::size_t split = std::string_view::npos;
+        for (std::size_t open = error.find('('); open != std::string_view::npos; open = error.find('(', open + 1))
+        {
+            std::size_t cursor = open + 1;
+            std::size_t digits = 0;
+            while (cursor < error.size() && error[cursor] >= '0' && error[cursor] <= '9')
+            {
+                ++cursor;
+                ++digits;
+            }
+            if (digits == 0 || cursor >= error.size() || error[cursor] != ',')
+            {
+                continue;
+            }
+            ++cursor;
+            digits = 0;
+            while (cursor < error.size() && error[cursor] >= '0' && error[cursor] <= '9')
+            {
+                ++cursor;
+                ++digits;
+            }
+            if (digits != 0 && error.substr(cursor, 3) == "): ")
+            {
+                split = cursor + 1;
+                break;
+            }
+        }
+        const std::string_view origin = split == std::string_view::npos ? std::string_view("jbroc ") : error.substr(0, split);
+        const std::string_view detail = split == std::string_view::npos ? error : error.substr(split + 2);
+        const String argument(detail);
+        String line(origin);
+        line.Append(": error JBC4001: ");
+        line.Append(messages.FormatKey("jbroc.emit.unsupported", ArrayView<const String>(&argument, 1)).View());
+        return line;
+    }
+
+    String FormatDiagnosticLine(std::string_view path, std::string_view text, const Diagnostic& diagnostic,
+        const DiagnosticMessages& messages)
     {
         String line;
         line.Append(path);
         line.Append("(");
         line.Append(std::to_string(diagnostic.Range.Begin.Line));
         line.Append(",");
-        line.Append(std::to_string(diagnostic.Range.Begin.Column));
+        line.Append(std::to_string(CharacterColumn(text, diagnostic.Range.Begin).Get()));
         line.Append("): error JBC");
         line.Append(std::to_string(GetDiagnosticNumber(diagnostic.Code)));
         line.Append(": ");

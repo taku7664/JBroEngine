@@ -64,6 +64,11 @@ namespace JBro
             return { MakeNameId("panel"), MakeNameId(title) };
         }
 
+        GuideFocusTarget PanelMenu(const char* title)
+        {
+            return { MakeNameId("panel.menu"), MakeNameId(title) };
+        }
+
         GuideFocusTarget Menu(const char* name)
         {
             return { MakeNameId(name), 0 };
@@ -82,6 +87,16 @@ namespace JBro
         GuideFocusTarget InspectorComponent(UInt64 componentTypeId)
         {
             return { MakeNameId("inspector.component"), componentTypeId };
+        }
+
+        GuideFocusTarget InspectorComponentMenu(UInt64 componentTypeId)
+        {
+            return { MakeNameId("inspector.component_menu"), componentTypeId };
+        }
+
+        GuideFocusTarget ScriptsRootMenu()
+        {
+            return { MakeNameId("assets.scripts_root_menu"), 0 };
         }
 
         GuideFocusTarget InspectorField(UInt64 componentTypeId, NameId fieldName)

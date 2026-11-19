@@ -57,5 +57,7 @@ namespace JBro::ScriptLanguageServer::Detail
         Json Tokens(const ScriptCompiler::DocumentAnalysis& document);
         Json Folding(const ScriptCompiler::DocumentAnalysis& document);
         Json Formatting(const ScriptCompiler::DocumentAnalysis& document, const Json& params);
+        Json ScriptSummaryRequest(const ScriptCompiler::DocumentAnalysis& document, const Json& params,
+            Bool edit, Int32& code, String& error);
     };
 }

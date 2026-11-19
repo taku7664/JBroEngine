@@ -1,4 +1,4 @@
-#include "CatalogBuilder.h"
+﻿#include "CatalogBuilder.h"
 namespace JBro::ScriptApiCatalog2D::Internal
 {
 void AddCallbacks(ApiCatalog& catalog)
@@ -128,6 +128,41 @@ void AddCallbacks(ApiCatalog& catalog)
     }
     {
         auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnClick)>("OnClick", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnValueChanged)>("OnValueChanged", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnSubmit)>("OnSubmit", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnDragBegin)>("OnDragBegin", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnDragEnd)>("OnDragEnd", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnDrop)>("OnDrop", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnListItem)>("OnListItem", Parameters());
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnListMeasure)>("OnListMeasure", Parameters());
         member.IsCallback = true;
         type.Members.Add(std::move(member));
     }

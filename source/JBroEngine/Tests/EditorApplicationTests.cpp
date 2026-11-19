@@ -1,6 +1,6 @@
-﻿#include <JBro/Asset/MaterialFile.h>
+﻿#include "TestCases.h"
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Editor/Command/SetAssetFileCommand.h>
-#include "TestCases.h"
 #include "TestModels.h"
 #include <JBro/Editor/Widget/ItemLocator.h>
 #include <JBro/Core/Version.h>
@@ -45,16 +45,41 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
+#include <JBro/Asset/MaterialFile.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
+#include <JBro/Framework2D/Component/Layout2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
+#include <JBro/Framework2D/Component/Slider2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
+#include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
+#include <JBro/NodeGraph/GraphYaml.h>
+#include <JBro/NodeGraph/ShaderDomain.h>
+#include <JBro/Runtime/MaterialService.h>
+#include <JBro/Runtime/PostProcessService.h>
+#include <JBro/Editor/Command/SetAssetSourceCommand.h>
+#include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
+#include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Editor/Gizmo/LightGizmo3DModel.h>
@@ -63,6 +88,7 @@
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Types/Math3D.h>
 #include <JBro/Graphics/Renderer.h>
+#include "../Modules/JBroEditor/Source/Panel/RenderGraphPanel.h"
 #include <JBro/Physics2D/World.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
@@ -75,6 +101,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/NameTable.h>
@@ -88,6 +115,7 @@
 #include "TestFontNotoSansKR.generated.h"
 
 #include <windows.h>
+#include <imm.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -186,6 +214,10 @@ namespace
     // 가운데가 거의 남지 않아, 게임 화면이 제대로 와도 화면의 몇 퍼센트가 안 된다.
     constexpr JBro::UInt32 WindowWidth = 640;
     constexpr JBro::UInt32 WindowHeight = 480;
+    constexpr const char* DefaultPanelNames[] = {
+        "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+        "ProjectSettings", "Profiler", "RenderGraph", "Shortcuts", "EditorSettings", "BuildResults", "Agent"};
+    constexpr JBro::UInt32 DefaultPanelCount = static_cast<JBro::UInt32>(sizeof(DefaultPanelNames) / sizeof(DefaultPanelNames[0]));
 
     void Check(JBro::Bool condition, const char* message)
     {
@@ -589,14 +621,11 @@ namespace
         const std::size_t builtin = editor.GetPanelCount();
         // **이름으로 센다.** 숫자만 재면 패널을 더할 때마다 이 줄을 고치게 되고,
         // 정작 무엇이 빠졌는지는 말해 주지 않는다.
-        const char* const expected[] = {
-            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
-            "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings", "BuildResults"};
-        for (const char* title : expected)
+        for (const char* title : DefaultPanelNames)
         {
             Check(editor.FindPanel(title) != nullptr, title);
         }
-        Check(builtin == sizeof(expected) / sizeof(expected[0]),
+        Check(builtin == DefaultPanelCount.Value,
             "and the editor brings exactly those");
         Check(editor.FindPanel("Nothing Like This") == nullptr,
             "and a title nobody has finds nothing");
@@ -691,7 +720,10 @@ namespace
         Check(editor.Tick(Delta), "the editor must tick");
         Check(panel->draws == drawsWhenClosed + 1, "opening it again must draw it");
 
+        Check(JBro::Widget::GetGuideFocus() != nullptr, "a ticking editor receives the widgets' guide reports");
         editor.Shutdown();
+        // 위젯의 전역 알림 자리가 사라질 에디터를 가리키면 뒤의 ImGui 화면이 해제된 메모리를 밟는다(ScriptSummaryPanel 묶음의 크래시).
+        Check(JBro::Widget::GetGuideFocus() == nullptr, "a shut-down editor no longer receives the widgets' guide reports");
     }
 
     // 만들 때마다 새로 서는 시험용 패널이다(D-284). 그리는 중에 스스로 닫을 수 있다.
@@ -767,10 +799,7 @@ namespace
         }
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         constexpr JBro::Float Delta = 1.0f / 60.0f;
-        const char* const builtins[] = {
-            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
-            "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
-        for (const char* name : builtins)
+        for (const char* name : DefaultPanelNames)
         {
             const JBro::EditorPanelTypeInfo* type = types.Find(name);
             Check(type != nullptr && type->kind == JBro::EditorPanelKind::Unique && type->createWithUi,
@@ -5053,7 +5082,7 @@ namespace
         fs::remove_all(root, ignored);
     }
 
-    // **하위 에셋은 ▶ 로 펼친다**(D-338, model-import-plan 1 단계). 그림 파일은 Texture 와 그 짝 Sprite 두 레코드다 - Sprite 는 제 줄이 없고
+    // **하위 에셋은 ▶ 로 펼친다**(D-391, model-import-plan 1 단계). 그림 파일은 Texture 와 그 짝 Sprite 두 레코드다 - Sprite 는 제 줄이 없고
     // 파일 줄 아래에 펼친다. 목록 보기는 트리 화살표, 아이콘 보기는 칸 오른쪽의 단추다. 화살표로 펼치는 것은 고르기가 아니고,
     // 하위 줄을 누르면 인스펙터가 그 하위 에셋을 본다. 펼친 상태는 두 보기가 함께 쓴다.
     void TestTheAssetBrowserExpandsSubAssets()
@@ -5068,7 +5097,7 @@ namespace
             std::ofstream png(root / "Assets" / "art" / name, std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
-        // 모델 하나(D-338, 3 단계) - 메시 둘·재질 둘이 하위 에셋으로 펼쳐지고 제 이름을 보인다.
+        // 모델 하나(D-391, 3 단계) - 메시 둘·재질 둘이 하위 에셋으로 펼쳐지고 제 이름을 보인다.
         {
             std::ofstream obj(root / "Assets" / "art" / "crate.obj", std::ios::binary);
             obj << "mtllib parts.mtl\nv 0 0 0\nv 0 0 1\nv 1 0 1\nv 1 0 0\no Crate\nusemtl Wood\nf 1 2 3\nusemtl Metal\nf 1 3 4\n";
@@ -5232,7 +5261,7 @@ namespace
                 "every mesh and material of the model has a tile");
         }
         SaveScreenshot(*editor.GetRenderer(), 1024, 768, "assets_model_icons");
-        // 모델을 고르면 인스펙터가 모델 임포트 옵션을 보인다(D-339).
+        // 모델을 고르면 인스펙터가 모델 임포트 옵션을 보인다(D-392).
         Spot crateTile;
         Check(LocateItem(editor, hwnd, LabelId(crateScope, "##tile"), -1, crateTile) == Located::Found, "the model tile is on screen");
         ClickAt(editor, hwnd, crateTile);
@@ -5811,7 +5840,7 @@ namespace
 
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
         // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
-        Check(editor.GetPanelCount() == 12, "the default panels must be registered");
+        Check(editor.GetPanelCount() == DefaultPanelCount.Value, "the default panels must be registered");
         Check(editor.FindPanel("Simulation") != nullptr, "the simulation view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");
@@ -7468,6 +7497,43 @@ namespace
         std::cout << "  the 3D floor grid painted " << gridPixels << " pixels" << std::endl;
         Check(gridPixels > 500, "the floor grid must paint something the empty view does not");
 
+        // **3D 캔버스의 화면 레이어는 화면 UI 다**(D-362). 거기서 만든 오브젝트는 `Transform2D` 를 갖고, 붙이기 목록은 화면 UI 컴포넌트만 담는다.
+        // 월드 레이어의 오브젝트는 `Transform3D` 이고 목록에 화면 UI 컴포넌트가 없다.
+        JBro::Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        JBro::ObjectPlacement onHud;
+        onHud.layer = hud.GetId();
+        JBro::Object::GameObject* panel = JBro::EditorActions::CreateObject(editor, nullptr, onHud);
+        Check(panel != nullptr && canvas->FindComponentRaw<JBro::Component::Transform2D>(panel) != nullptr
+                && canvas->FindComponentRaw<JBro::Component::Transform3D>(panel) == nullptr,
+            "an object made on a 3D canvas's screen layer is born with a 2D transform");
+        const auto lists = [](const JBro::EditorActions::AddComponentList& list, const char* typeName) {
+            const JBro::NameId wanted = JBro::MakeNameId(typeName);
+            for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+            {
+                if (list.typeNames[index] == wanted)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        JBro::EditorActions::AddComponentList hudList;
+        JBro::EditorActions::BuildAddComponentList(editor, *panel, hudList);
+        Check(lists(hudList, JBro::Component::Button2D::StaticTypeName()) && lists(hudList, JBro::Component::Text2D::StaticTypeName()),
+            "the screen layer offers the screen UI components");
+        Check(false == lists(hudList, JBro::Component::MeshRenderer3D::StaticTypeName()), "and not the 3D ones");
+        JBro::EditorActions::AddComponentList worldList;
+        JBro::EditorActions::BuildAddComponentList(editor, *box, worldList);
+        Check(lists(worldList, JBro::Component::MeshRenderer3D::StaticTypeName()) && false == lists(worldList, JBro::Component::Button2D::StaticTypeName()),
+            "a world layer offers the 3D components and not the screen UI ones");
+        // 놓을 레이어를 대지 않으면 고른 오브젝트(방금 만든 HUD 의 것)의 레이어로 가므로 상자의 레이어를 댄다.
+        JBro::ObjectPlacement onWorld;
+        onWorld.layer = box->GetLayerId();
+        JBro::Object::GameObject* prop = JBro::EditorActions::CreateObject(editor, nullptr, onWorld);
+        Check(prop != nullptr && canvas->FindComponentRaw<JBro::Component::Transform3D>(prop) != nullptr,
+            "an object made on a world layer still gets a 3D transform");
+
         editor.Shutdown();
     }
 
@@ -8582,7 +8648,7 @@ namespace
 
     // **파일 → 새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 폴더를 고르면 이름과 프레임워크를
     // 받는 팝업이 뜨고, 이름을 치고 Enter 를 누르면 그 폴더에 프로젝트가 서고 에디터가 그리로 넘어간다.
-    // **프로젝트가 없는 에디터에서만 된다**(D-336). 새 프로젝트로 넘어간 뒤에는 또 만들지도 열지도 못하고, 3D 는 프로젝트 없는
+    // **프로젝트가 없는 에디터에서만 된다**(D-389). 새 프로젝트로 넘어간 뒤에는 또 만들지도 열지도 못하고, 3D 는 프로젝트 없는
     // 새 에디터에서 만들어 프레임워크까지 바뀌는지 본다.
     void TestNewProjectCreatesAndOpensIt()
     {
@@ -8699,7 +8765,7 @@ namespace
             dialog.path = TempPath("JBroNewProjectProbe\\Parent");
         }
 
-        // **열린 프로젝트에서는 다른 프로젝트를 만들거나 열지 않는다**(D-336). 요청은 대화상자를 띄우지 않고, 직접 불러도 파일을 쓰지 않는다.
+        // **열린 프로젝트에서는 다른 프로젝트를 만들거나 열지 않는다**(D-389). 요청은 대화상자를 띄우지 않고, 직접 불러도 파일을 쓰지 않는다.
         Check(false == editor.CanSwitchProject(), "with the new project open the editor offers no other");
         dialog.calls = 0;
         editor.RequestNewProject();
@@ -10270,7 +10336,7 @@ namespace
 
             // **설정·디버그 메뉴가 여는 창들이 실제로 있다**(D-151). 이름이 어긋나면 항목이
             // 잠긴 채로 서 있어, 메뉴는 보이는데 열리지 않는다.
-            for (const char* title : {"ProjectSettings", "Profiler", "Stats", "Log"})
+            for (const char* title : {"ProjectSettings", "Profiler", "RenderGraph", "Stats", "Log"})
             {
                 Check(editor.FindPanel(title) != nullptr, "every panel the menus name must exist");
             }
@@ -10675,6 +10741,1160 @@ namespace
         editor.Shutdown();
     }
 
+    // **렌더 그래프 창**(D-340). 디버그 메뉴의 창이 지난 프레임의 그래프를 보인다. 아래 그림을 읽는 블렌드(오버레이) 레이어 둘과 라이트가 있는 장면에서
+    //   - 첫 프레임: 레이어 텍스처가 없어 `Layer` 는 텍스처 없음으로 건너뛰고 대신 그리기 `LayerDirect` 가 돈다.
+    //   - 다음 프레임부터: `Layer`·`Backdrop`·`Composite`·`LightMap` 이 돌고 `LayerDirect` 는 필요 없음이며, 두 레이어 텍스처가 실제 텍스처 하나를 나눠 쓴다.
+    //   - 멈추면 프레임이 지나도 떠 둔 그래프가 그대로이고, 한 프레임 받기 단추가 새 그래프 하나만 받는다.
+    // 패스·텍스처·풀 탭을 차례로 찍어 남긴다.
+    // **후처리 프로필을 인스펙터에서 만들고 고쳐 카메라에 건다**(D-344, 사용자 시나리오). 빈 프로필을 만들어 카메라에 걸고, 인스펙터의
+    // `효과 추가` 로 기본 조정을 더하고, 채도의 덮어쓰기를 켜고 슬라이더를 왼쪽 끝 가까이 눌러 낮춘다. 그때마다 파일이 바뀌고 캔버스 뷰의
+    // 초록이 회색 쪽으로 간다. 되돌리기는 파일과 그림을 함께 돌린다. 캔버스 뷰의 후처리 단추를 끄면 원래 색이다. 프로필에 `.cube` 를 건
+    // LUT 효과를 쓰면 라이브러리가 3D 텍스처를 올려 초록이 뒤집힌다(자홍).
+    void TestThePostProcessProfileIsEditedInTheInspector()
+    {
+        namespace fs = std::filesystem;
+        JBro::String probeFolder("JBroPostProfileProbe");
+        probeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(probeFolder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        {
+            // 뒤집는 LUT(크기 2). 빨강이 가장 빨리 돈다.
+            std::ofstream cube(root / "Assets" / "invert.cube", std::ios::binary);
+            cube << "TITLE \"invert\"\nLUT_3D_SIZE 2\n";
+            for (int b = 0; b < 2; ++b)
+            {
+                for (int g = 0; g < 2; ++g)
+                {
+                    for (int r = 0; r < 2; ++r)
+                    {
+                        cube << (1 - r) << ' ' << (1 - g) << ' ' << (1 - b) << '\n';
+                    }
+                }
+            }
+        }
+        JBro::String projectName(probeFolder);
+        projectName.append("\\Post.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath,
+                  "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\nAssetDirectory: Assets\nResolutionWidth: 64\nResolutionHeight: 32\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the post-process profile inspector not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* eye = canvas->CreateObject("Camera");
+        canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        camera->primary = true;
+        JBro::Object::GameObject* field = canvas->CreateObject("Field");
+        canvas->AttachComponent<JBro::Component::Transform2D>(field);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(field);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {1000.0f, 1000.0f};
+        sprite->tint = {0.0f, 1.0f, 0.0f, 1.0f};
+
+        // ── 만들기: 효과가 없는 프로필이 서고 골라진다 ──
+        const JBro::String created = editor.CreatePostProcessProfileAsset("");
+        Check(created == "NewPostProcess.jpost", "a new profile gets its name");
+        const JBro::AssetRecord* profileRecord = editor.GetAssetRegistry().FindByPath("NewPostProcess.jpost");
+        Check(profileRecord != nullptr && profileRecord->type == JBro::AssetType::PostProcessProfile, "it registers as a post-process profile");
+        const JBro::AssetId profileId = profileRecord->id;
+        Check(editor.GetSelectedAsset() == profileId, "making it selects it");
+        camera->postProcessProfileId = profileId;
+        // 해석은 커맨드가 돌 때 따라 도는데 여기서는 값을 손으로 놓았다. 다시 훑으면 해석도 함께 돈다.
+        Check(editor.RescanAssets(), "the registry must rescan so the profile resolves");
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(camera->postProcessProfile.generation != 0, "the camera's profile id resolves to a handle");
+
+        const auto readFile = [&]() {
+            JBro::String text;
+            Check(editor.ReadAssetSourceText(profileId, text), "the profile must read");
+            return text;
+        };
+        const auto centre = [&]() {
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            JBro::Array<std::byte> image;
+            image.Resize(static_cast<std::size_t>(extent.width + 64) * (extent.height + 64) * 4);
+            JBro::TextureReadback readback;
+            Check(editor.GetRenderer()->GetDevice()->ReadTexture(editor.GetCanvasViewTexture(), image.Data(), image.Size(), readback),
+                "the canvas view must read back");
+            const auto* bytes = reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(extent.height / 2) * readback.rowPitch)
+                + static_cast<std::size_t>(extent.width / 2) * 4;
+            return JBro::Color{bytes[2] / 255.0f, bytes[1] / 255.0f, bytes[0] / 255.0f, 1.0f};
+        };
+        const auto settle = [&]() {
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+        };
+        JBro::Color colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "with no effects the field is green");
+
+        // ── 효과 추가: 인스펙터의 단추와 종류 표의 메뉴 ──
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot add;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(inspector->ID, "##add_post_effect"), add), "the inspector offers to add an effect");
+        ClickAt(editor, hwnd, add);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "the add button opens the list of effect types");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "ColorAdjustments"), item), "the list names the colour adjustments");
+        ClickAt(editor, hwnd, item);
+        settle();
+        JBro::String text = readFile();
+        Check(text.find("Type: ColorAdjustments") != JBro::String::npos && text.find("Parameters") == JBro::String::npos,
+            "the effect is written with no overridden field");
+        colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "an effect at its defaults leaves the field green");
+
+        // ── 덮어쓰기: 채도(필드 3)의 체크를 켠다 ──
+        inspector = ImGui::FindWindowByName("Inspector");
+        const ImGuiID table = LabelId(PushedId(inspector->ID, 0), "##post_effect");
+        Spot overrideBox;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(PushedId(table, 3), "##override"), overrideBox), "saturation has its override box");
+        ClickAt(editor, hwnd, overrideBox);
+        settle();
+        text = readFile();
+        Check(text.find("saturation: 0") != JBro::String::npos, "overriding saturation writes its default into the profile");
+
+        // ── 값: 슬라이더의 왼쪽 가까이를 누르면 채도가 내려간다 ──
+        Spot slider;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, LabelId(PushedId(table, 3), "##value"), slider), "saturation has its slider");
+        // 찾은 자리는 슬라이더 가운데(0)다. 왼쪽으로 조금 비켜 누른다.
+        slider.x -= 25;
+        ClickAt(editor, hwnd, slider);
+        settle();
+        text = readFile();
+        Check(text.find("saturation: -") != JBro::String::npos, "pressing the slider's left part lowers saturation in the file");
+        colour = centre();
+        Check(colour.R > 0.2f && colour.G - colour.R < 0.6f, "the canvas view turns towards grey");
+        const JBro::Color lowered = colour;
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "post_process_inspector");
+
+        // ── 되돌리기·다시 하기: 파일과 그림이 함께 간다 ──
+        Check(editor.GetCommands().Undo(), "the slider edit undoes");
+        settle();
+        Check(readFile().find("saturation: 0") != JBro::String::npos, "undo puts the file back");
+        colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "and the field is green again");
+        Check(editor.GetCommands().Redo(), "and redoes");
+        settle();
+        colour = centre();
+        Check(std::fabs(colour.R - lowered.R) < 0.02f, "redo brings the grey back");
+
+        // ── 캔버스 뷰의 단추 ──
+        editor.SetCanvasViewPostProcess(false);
+        settle();
+        colour = centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "with post-processing off the canvas view is drawn as it is");
+        editor.SetCanvasViewPostProcess(true);
+        settle();
+
+        // ── LUT: 프로필의 `colorLutId` 를 라이브러리가 3D 텍스처로 올린다 ──
+        const JBro::AssetRecord* lutRecord = editor.GetAssetRegistry().FindByPath("invert.cube");
+        Check(lutRecord != nullptr && lutRecord->type == JBro::AssetType::ColorLut, "the .cube registers as a colour LUT");
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry lookup = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::ColorLookup);
+        reinterpret_cast<JBro::ColorLookupEffect*>(lookup.block.Data())->colorLutId = lutRecord->id;
+        lookup.overrides = 1;
+        document.entries.Add(std::move(lookup));
+        JBro::AssetSourceTarget target;
+        Check(editor.DescribeAssetSource(profileId, target), "the profile's file is described");
+        Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetAssetSourceCommand>(
+                  target, readFile(), JBro::WritePostProcessProfile(document), "Edit Post-Process Profile")),
+            "the profile takes a LUT effect");
+        settle();
+        colour = centre();
+        Check(colour.R > 0.9f && colour.G < 0.1f && colour.B > 0.9f, "the inverting LUT turns the green field magenta");
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
+    // 후처리 시험의 프로젝트(캔버스 뷰가 작은 2D 프로젝트)를 열고 카메라와 큰 초록 바탕을 세운다. 프로필 하나를 만들어 그 아이디를 준다.
+    struct PostProbe
+    {
+        std::filesystem::path root;
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        JBro::Canvas* canvas = nullptr;
+        JBro::Component::Camera2D* camera = nullptr;
+        JBro::AssetId profileId;
+
+        JBro::Bool Open(const char* folder, const char* what)
+        {
+            namespace fs = std::filesystem;
+            JBro::String probeFolder(folder);
+            probeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+            root = fs::path(TempPath(probeFolder.c_str()).c_str());
+            std::error_code ignored;
+            fs::remove_all(root, ignored);
+            fs::create_directories(root / "Assets", ignored);
+            JBro::String projectName(probeFolder);
+            projectName.append("\\Post.jproject");
+            const JBro::String projectPath = TempPath(projectName.c_str());
+            Check(WriteTextFile(projectPath,
+                      "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\nAssetDirectory: Assets\nResolutionWidth: 64\nResolutionHeight: 32\n"),
+                "the test must be able to write its own project file");
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.windowWidth = 1024;
+            config.windowHeight = 768;
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device; " << what << " not verified" << std::endl;
+                return false;
+            }
+            JBro::ProjectFileError error;
+            Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+            Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+            hwnd = FindOwnEditorWindow();
+            Check(hwnd != nullptr, "the editor window must be findable");
+            canvas = editor.GetCanvas();
+            JBro::Object::GameObject* eye = canvas->CreateObject("Camera");
+            canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+            camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+            camera->primary = true;
+            camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            const JBro::String created = editor.CreatePostProcessProfileAsset("");
+            const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(created.c_str());
+            Check(record != nullptr && record->type == JBro::AssetType::PostProcessProfile, "the probe profile must register");
+            profileId = record->id;
+            return true;
+        }
+
+        void Close()
+        {
+            editor.Shutdown();
+            std::error_code ignored;
+            std::filesystem::remove_all(root, ignored);
+        }
+
+        void Settle()
+        {
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+        }
+
+        // 프로필 본문을 커맨드로 바꾼다(인스펙터가 쓰는 같은 길).
+        void WriteProfile(const JBro::PostProcessProfileDocument& document)
+        {
+            JBro::AssetSourceTarget target;
+            Check(editor.DescribeAssetSource(profileId, target), "the profile's file is described");
+            JBro::String before;
+            Check(editor.ReadAssetSourceText(profileId, before), "the profile must read");
+            Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetAssetSourceCommand>(
+                      target, before, JBro::WritePostProcessProfile(document), "Edit Post-Process Profile")),
+                "the profile takes its effects");
+            Settle();
+        }
+
+        // 캔버스 뷰를 되읽어 픽셀마다 본다.
+        template <typename TVisit>
+        void ReadCanvasView(TVisit&& visit)
+        {
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            JBro::Array<std::byte> image;
+            image.Resize(static_cast<std::size_t>(extent.width + 64) * (extent.height + 64) * 4);
+            JBro::TextureReadback readback;
+            Check(editor.GetRenderer()->GetDevice()->ReadTexture(editor.GetCanvasViewTexture(), image.Data(), image.Size(), readback),
+                "the canvas view must read back");
+            for (JBro::UInt32 y = 0; y < extent.height; ++y)
+            {
+                for (JBro::UInt32 x = 0; x < extent.width; ++x)
+                {
+                    const auto* bytes = reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(y.Get()) * readback.rowPitch)
+                        + static_cast<std::size_t>(x.Get()) * 4;
+                    visit(x, y, JBro::Color{bytes[2] / 255.0f, bytes[1] / 255.0f, bytes[0] / 255.0f, 1.0f});
+                }
+            }
+        }
+
+        JBro::Color Centre()
+        {
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            JBro::Color centre;
+            ReadCanvasView([&](JBro::UInt32 x, JBro::UInt32 y, const JBro::Color& colour) {
+                if (x == extent.width / 2 && y == extent.height / 2)
+                {
+                    centre = colour;
+                }
+            });
+            return centre;
+        }
+    };
+
+    // **레이어에 프로필을 걸면 그 레이어에 외곽선이 선다**(D-345, 사용자 시나리오). 검은 바탕에 흰 사각형이 든 레이어를 고르고, 인스펙터의
+    // `후처리 프로필` 칸에서 빨간 외곽선 프로필을 고른다. 캔버스 뷰에 빨간 둘레가 생기고, 되돌리면 사라지고, 캔버스 뷰의 후처리 단추를 끄면 레이어
+    // 효과도 꺼진다. 레이어 아래의 오브젝트(다른 레이어)에는 외곽선이 없다.
+    void TestALayerProfileOutlinesItsLayer()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroLayerProfileProbe", "the layer profile"))
+        {
+            return;
+        }
+        JBro::Canvas* canvas = probe.canvas;
+        JBro::Layer& fx = canvas->CreateLayer("FX");
+        JBro::Object::GameObject* square = canvas->CreateObject("Square");
+        canvas->AttachComponent<JBro::Component::Transform2D>(square);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(square);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {2.0f, 2.0f};
+        Check(canvas->SetObjectLayer(square, fx.GetId()), "the square must move into the effect layer");
+        const JBro::LayerId fxId = fx.GetId();
+
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry outline = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::Outline);
+        auto* values = reinterpret_cast<JBro::OutlineEffect*>(outline.block.Data());
+        values->color = {1.0f, 0.0f, 0.0f, 1.0f};
+        values->width = 4.0f;
+        outline.overrides = 3;
+        document.entries.Add(std::move(outline));
+        probe.WriteProfile(document);
+
+        const auto countRed = [&]() {
+            JBro::UInt32 red = 0;
+            probe.ReadCanvasView([&](JBro::UInt32, JBro::UInt32, const JBro::Color& colour) {
+                if (colour.R > 0.8f && colour.G < 0.2f && colour.B < 0.2f)
+                {
+                    ++red;
+                }
+            });
+            return red;
+        };
+        probe.Settle();
+        Check(countRed() == 0, "without a profile the layer has no outline");
+
+        // ── 인스펙터: 레이어를 고르고 프로필 칸에서 고른다 ──
+        probe.editor.SetSelectedLayer(fxId);
+        probe.Settle();
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Spot field;
+        // 레이어의 칸은 창 바로 아래 표 `##layer` 안이다.
+        Check(FindItemAnywhereInWindow(probe.editor, probe.hwnd, inspector, LabelId(LabelId(inspector->ID, "##layer"), "##layerPostProcess"), field),
+            "the layer inspector offers a post-process profile");
+        ClickAt(probe.editor, probe.hwnd, field);
+        ImGuiWindow* popup = nullptr;
+        for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(candidate->Name, "##Combo_") != nullptr && candidate->Active)
+            {
+                popup = candidate;
+            }
+        }
+        Check(popup != nullptr, "the profile field opens its list");
+        Spot item;
+        JBro::Bool listed = false;
+        for (JBro::Int32 index = 0; index < 4 && false == listed; ++index)
+        {
+            listed = FindItemAnywhereInWindow(probe.editor, probe.hwnd, popup, LabelId(PushedId(popup->ID, index), "NewPostProcess.jpost"), item);
+        }
+        Check(listed, "the list names the profile");
+        ClickAt(probe.editor, probe.hwnd, item);
+        probe.Settle();
+        Check(canvas->FindLayer(fxId)->GetPostProcessProfile() == probe.profileId, "choosing it sets the layer's profile");
+        const JBro::UInt32 outlined = countRed();
+        Check(outlined > 0, "the canvas view draws a red outline round the square");
+        SaveScreenshot(*probe.editor.GetRenderer(), 1024, 768, "layer_post_process");
+
+        // ── 캔버스 뷰의 단추는 레이어 효과도 끈다 ──
+        probe.editor.SetCanvasViewPostProcess(false);
+        probe.Settle();
+        Check(countRed() == 0, "with post-processing off the layer has no outline");
+        probe.editor.SetCanvasViewPostProcess(true);
+        probe.Settle();
+        Check(countRed() == outlined, "and turning it on brings it back");
+
+        // ── 되돌리기 ──
+        Check(probe.editor.GetCommands().Undo(), "choosing the profile undoes");
+        probe.Settle();
+        Check(canvas->FindLayer(fxId)->GetPostProcessProfile().IsNull() && countRed() == 0, "undo takes the profile and its outline away");
+        Check(probe.editor.GetCommands().Redo(), "and redoes");
+        probe.Settle();
+        Check(countRed() == outlined, "redo brings the outline back");
+        probe.Close();
+    }
+
+    // **머티리얼을 만들어 스프라이트와 효과에 건다**(D-347, 사용자 시나리오). 에셋 브라우저의 `새 셰이더`·`새 머티리얼` 길로 파일을 만들고, 머티리얼을 골라
+    // 인스펙터의 `Shader` 칸에서 셰이더를, `Domain` 칸에서 `Sprite` 를 고른다. 그 머티리얼을 건 흰 사각형이 셰이더의 초록이 되고, 파라미터의 덮어쓰기
+    // 체크를 켜 `brightness` 를 한 칸 내리면 어두워지며, 되돌리기가 따라간다. 셰이더를 깨뜨리면 사각형은 빌트인(흰색)으로 돌아가고, 고치면 다시 초록이다.
+    // 자리가 `PostProcess` 인 머티리얼을 프로필의 `Material` 효과에 걸면 화면이 그 셰이더(반전)로 그려진다.
+    void TestAMaterialShadesASpriteAndTheView()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroMaterialProbe", "the material"))
+        {
+            return;
+        }
+        JBro::EditorApplication& editor = probe.editor;
+        if (editor.GetShaderCompiler() == nullptr || false == editor.GetShaderCompiler()->HasFormat(JBro::ShaderCodeFormat::Dxil))
+        {
+            std::cout << "  [skip] no shader compiler here; the material is not verified" << std::endl;
+            probe.Close();
+            return;
+        }
+        const char* fill = "#include \"JBro/Material.hlsli\"\n"
+                           "cbuffer Material : register(b1)\n{\n    float4 fillColor = float4(0.0f, 1.0f, 0.0f, 1.0f);\n    float brightness = 1.0f;\n};\n"
+                           "float4 PSMain(JBroSpriteInput input) : SV_TARGET\n{\n"
+                           "    return float4(JBroSampleSprite(input).rgb * input.tint.rgb * fillColor.rgb * brightness, 1.0f);\n}\n";
+        const JBro::String shaderPath = editor.CreateShaderAsset("");
+        const JBro::AssetRecord* shaderRecord = editor.GetAssetRegistry().FindByPath(shaderPath.c_str());
+        Check(shaderRecord != nullptr && shaderRecord->type == JBro::AssetType::Shader, "New Shader writes a .hlsl shader asset");
+        const JBro::AssetId shaderId = shaderRecord->id;
+        JBro::String templateText;
+        Check(editor.ReadAssetText(shaderId, templateText) && templateText.Contains("JBro/Material.hlsli"), "the new shader is the material template");
+        Check(editor.WriteAssetText(shaderId, fill), "the test writes its own pixel stage");
+        const JBro::String materialPath = editor.CreateMaterialAsset("");
+        const JBro::AssetRecord* materialRecord = editor.GetAssetRegistry().FindByPath(materialPath.c_str());
+        Check(materialRecord != nullptr && materialRecord->type == JBro::AssetType::Material, "New Material writes a .jmat material asset");
+        const JBro::AssetId materialId = materialRecord->id;
+
+        JBro::Canvas* canvas = probe.canvas;
+        JBro::Object::GameObject* square = canvas->CreateObject("Square");
+        canvas->AttachComponent<JBro::Component::Transform2D>(square);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(square);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {2.0f, 2.0f};
+        sprite->materialId = materialId;
+        Check(editor.RescanAssets(), "the registry must rescan so the sprite's material resolves");
+        probe.Settle();
+        Check(sprite->material.generation != 0, "the sprite's material id resolves to a material asset");
+        JBro::Color colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G > 0.95f && colour.B > 0.95f, "a material without a shader draws the sprite as it is");
+
+        const auto readMaterial = [&]() {
+            JBro::String text;
+            Check(editor.ReadAssetSourceText(materialId, text), "the material's text reads");
+            return text;
+        };
+        const auto pick = [&](ImGuiID field, const char* name, const char* what) {
+            Spot spot;
+            ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+            Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, field, spot), what);
+            ClickAt(editor, probe.hwnd, spot);
+            ImGuiWindow* popup = nullptr;
+            for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+            {
+                if (std::strstr(candidate->Name, "##Combo_") != nullptr && candidate->Active)
+                {
+                    popup = candidate;
+                }
+            }
+            Check(popup != nullptr, "the field opens its list");
+            Spot item;
+            JBro::Bool listed = false;
+            for (JBro::Int32 index = 0; index < 4 && false == listed; ++index)
+            {
+                listed = FindItemAnywhereInWindow(editor, probe.hwnd, popup, LabelId(PushedId(popup->ID, index), name), item);
+            }
+            if (false == listed)
+            {
+                listed = FindItemAnywhereInWindow(editor, probe.hwnd, popup, LabelId(popup->ID, name), item);
+            }
+            Check(listed, "the list names the choice");
+            ClickAt(editor, probe.hwnd, item);
+            probe.Settle();
+        };
+
+        // ── 인스펙터: 셰이더와 자리를 고른다 ──
+        editor.SetSelectedAsset(materialId);
+        probe.Settle();
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID table = LabelId(inspector->ID, "##material");
+        pick(LabelId(table, "##shader"), "NewShader.hlsl", "the material inspector offers a shader field");
+        Check(readMaterial().Contains("Shader: "), "choosing the shader writes it into the material");
+        pick(LabelId(table, "##domain"), "Sprite", "the material inspector offers a domain field");
+        Check(readMaterial().Contains("Domain: Sprite"), "choosing Sprite writes the domain");
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f && colour.B < 0.05f, "the sprite is drawn green by its material's shader");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "material_sprite");
+
+        // ── 파라미터: brightness(둘째)의 덮어쓰기를 켜고 한 칸 내린다 ──
+        inspector = ImGui::FindWindowByName("Inspector");
+        const ImGuiID parameters = LabelId(inspector->ID, "##material_parameters");
+        Spot overrideBox;
+        Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, LabelId(PushedId(parameters, 1), "##override"), overrideBox),
+            "brightness has its override box");
+        ClickAt(editor, probe.hwnd, overrideBox);
+        probe.Settle();
+        Check(readMaterial().Contains("brightness: 1"), "overriding brightness writes its initial value");
+        Spot down;
+        Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, LabelId(LabelId(PushedId(parameters, 1), "##value"), "##down"), down),
+            "brightness has its step buttons");
+        ClickAt(editor, probe.hwnd, down);
+        probe.Settle();
+        Check(false == readMaterial().Contains("brightness: 1"), "the step button lowers brightness in the file");
+        colour = probe.Centre();
+        Check(colour.G < 0.9f && colour.R < 0.05f, "the canvas view darkens the sprite");
+        Check(editor.GetCommands().Undo(), "the step undoes");
+        probe.Settle();
+        Check(readMaterial().Contains("brightness: 1") && probe.Centre().G > 0.95f, "undo brings the file and the green back");
+
+        // ── 셰이더 고치기: 깨뜨리면 빌트인, 고치면 다시 머티리얼 ──
+        Check(editor.WriteAssetText(shaderId, "#include \"JBro/Material.hlsli\"\n\nfloat4 PSMain( : SV_TARGET { broken }\n"), "the shader is broken on disk");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G > 0.95f && colour.B > 0.95f, "a material whose shader does not compile falls back to the built-in shader");
+
+        // ── 셰이더 인스펙터(D-348): 자리마다 굽기 결과를 보이고, 파일을 편집기에서 연다 ──
+        // 반사 표는 그 자리에서 구워졌을 때만 선다(`##shader_reflection`, 자리 번호 아래). 표는 한 번 서면 ImGui 가 기억하므로 깨진 셰이더부터 본다.
+        editor.SetSelectedAsset(shaderId);
+        probe.Settle();
+        inspector = ImGui::FindWindowByName("Inspector");
+        const auto reflectionTable = [&](JBro::Int32 domain) {
+            return ImGui::TableFindByID(LabelId(PushedId(inspector->ID, domain), "##shader_reflection"));
+        };
+        Check(reflectionTable(0) == nullptr && reflectionTable(1) == nullptr, "a broken shader shows no reflection in any domain");
+        Spot openShader;
+        Check(FindItemAnywhereInWindow(editor, probe.hwnd, inspector, LabelId(inspector->ID, "##open_shader"), openShader),
+            "the shader inspector offers to open the file");
+        ClickAt(editor, probe.hwnd, openShader);
+        probe.Settle();
+        JBro::EditorPanel* code = editor.FindPanel("CodeEditor");
+        Check(code != nullptr && JBro::String(code->GetDisplayTitle()) == "NewShader.hlsl", "Open in Editor opens the shader in the code editor");
+        // 코드 편집기는 캔버스 뷰의 탭 자리에 열린다 - 닫아야 아래의 그림을 캔버스 뷰에서 읽는다.
+        code->SetOpen(false);
+        probe.Settle();
+        Check(editor.WriteAssetText(shaderId, fill), "the shader is fixed on disk");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "fixing the shader brings the material back");
+        // 이 셰이더는 스프라이트 입력을 받으므로 후처리 자리로는 굽지 못한다 - 자리마다 따로 보인다.
+        Check(reflectionTable(1) != nullptr, "the fixed shader shows its sprite parameters");
+        Check(reflectionTable(0) == nullptr, "the sprite-only shader still fails in the post-process domain");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "shader_inspector");
+        editor.SetSelectedAsset(materialId);
+        probe.Settle();
+
+        // ── 후처리 효과 `Material`: 자리가 PostProcess 인 머티리얼로 화면을 반전한다 ──
+        const char* invert = "#include \"JBro/Material.hlsli\"\n"
+                             "float4 PSMain(JBroPostProcessInput input) : SV_TARGET\n{\n"
+                             "    const float4 color = JBroLoadSource(input);\n    return float4(1.0f - color.rgb, color.a);\n}\n";
+        const JBro::String invertShaderPath = editor.CreateShaderAsset("");
+        const JBro::AssetId invertShaderId = editor.GetAssetRegistry().FindByPath(invertShaderPath.c_str())->id;
+        Check(editor.WriteAssetText(invertShaderId, invert), "the inverting shader is written");
+        const JBro::String invertPath = editor.CreateMaterialAsset("");
+        const JBro::AssetId invertId = editor.GetAssetRegistry().FindByPath(invertPath.c_str())->id;
+        JBro::MaterialDocument invertMaterial;
+        invertMaterial.shader = invertShaderId;
+        invertMaterial.domain = JBro::MaterialDomain::PostProcess;
+        Check(editor.WriteAssetText(invertId, JBro::WriteMaterial(invertMaterial)), "the inverting material is written");
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry entry = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::Material);
+        reinterpret_cast<JBro::MaterialEffect*>(entry.block.Data())->materialId = invertId;
+        entry.overrides = 1;
+        document.entries.Add(std::move(entry));
+        probe.WriteProfile(document);
+        probe.camera->postProcessProfileId = probe.profileId;
+        Check(editor.RescanAssets(), "the camera's profile resolves");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G < 0.05f && colour.B > 0.95f, "the Material effect inverts the green sprite to magenta");
+        probe.Close();
+    }
+
+    // **3D 프로젝트의 메시가 머티리얼로 그려진다**(D-348, 사용자 시나리오). 3D 프로젝트에서 `새 셰이더`·`새 머티리얼` 로 자리 `Mesh` 의 머티리얼을 만들어
+    // 정육면체의 `materialId` 에 걸면, 3D 프레임워크가 머티리얼 라이브러리로 풀어 렌더러가 그 메시를 머티리얼로 그린다(통계로 본다 - 편집 카메라의
+    // 자리에 기대지 않는다). 머티리얼의 자리를 `Sprite` 로 바꾸면 이 셰이더(메시 입력)는 굽히지 않아 머티리얼이 비고 메시는 빌트인으로 그린다.
+    void TestAMeshMaterialDrawsInA3DProject()
+    {
+        namespace fs = std::filesystem;
+        JBro::String folder("JBroMeshMaterialProbe");
+        folder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(folder.c_str()).c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        JBro::String projectName(folder);
+        projectName.append("\\Mesh.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
+        Check(WriteTextFile(projectPath, "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\nAssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the 3D mesh material not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        if (editor.GetShaderCompiler() == nullptr || false == editor.GetShaderCompiler()->HasFormat(JBro::ShaderCodeFormat::Dxil))
+        {
+            std::cout << "  [skip] no shader compiler here; the 3D mesh material is not verified" << std::endl;
+            editor.Shutdown();
+            fs::remove_all(root, ignored);
+            return;
+        }
+        const JBro::String shaderPath = editor.CreateShaderAsset("");
+        const JBro::AssetId shaderId = editor.GetAssetRegistry().FindByPath(shaderPath.c_str())->id;
+        Check(editor.WriteAssetText(shaderId, "#include \"JBro/Material.hlsli\"\n"
+                                              "float4 PSMain(JBroMeshInput input) : SV_TARGET\n{\n"
+                                              "    return float4(float3(1.0f, 0.0f, 1.0f) * JBroMeshLight(input.normal, input.worldPosition), 1.0f);\n}\n"),
+            "the mesh shader is written");
+        const JBro::String materialPath = editor.CreateMaterialAsset("");
+        const JBro::AssetId materialId = editor.GetAssetRegistry().FindByPath(materialPath.c_str())->id;
+        JBro::MaterialDocument document;
+        document.shader = shaderId;
+        document.domain = JBro::MaterialDomain::Mesh;
+        Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the mesh material is written");
+
+        // ── 모델의 메시(D-391·D-395, 2026-11-19 main 통합 전에는 glTF 메시 에셋 D-366): 삼각형 하나인 glTF. 인덱스 없이 base64 임베드다. ──
+        const JBro::String meshName = JBro::String(root.generic_string().c_str()) + "/Assets/Triangle.gltf";
+        Check(WriteTextFile(meshName,
+                  "{\"asset\":{\"version\":\"2.0\"},\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0}}]}],"
+                  "\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"}],"
+                  "\"bufferViews\":[{\"buffer\":0,\"byteLength\":36}],"
+                  "\"buffers\":[{\"byteLength\":36,\"uri\":\"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAA\"}]}"),
+            "the test writes its glTF");
+        Check(editor.RescanAssets(), "the registry finds the glTF");
+        const JBro::AssetRecord* modelRecord = editor.GetAssetRegistry().FindByPath("Triangle.gltf");
+        Check(modelRecord != nullptr && modelRecord->type == JBro::AssetType::Model, "a .gltf is a model asset");
+        const JBro::AssetId modelId = modelRecord->id;
+        JBro::AssetId meshAssetId;
+        for (std::size_t index = 0; index < editor.GetAssetRegistry().GetCount(); ++index)
+        {
+            const JBro::AssetRecord& part = editor.GetAssetRegistry().GetRecord(index);
+            if (part.owner == modelId && part.type == JBro::AssetType::Mesh)
+            {
+                meshAssetId = part.id;
+            }
+        }
+        Check(false == meshAssetId.IsNull(), "the model lists its mesh as a sub-asset");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* box = canvas->CreateObject("Box");
+        Check(canvas->AttachComponent<JBro::Component::Transform3D>(box) != nullptr, "the box needs a 3D transform");
+        auto* renderer = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(box);
+        Check(renderer != nullptr, "the box takes a mesh renderer");
+        renderer->meshId = JBro::MeshLibrary::BuiltinCubeId();
+        renderer->materialId = materialId;
+        Check(editor.RescanAssets(), "the registry must rescan so the material resolves");
+        const auto settle = [&]() {
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+        };
+        settle();
+        Check(renderer->material.generation != 0, "the mesh's material id resolves to a material asset");
+        JBro::RendererFrameStats stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.materialMeshCount >= 1 && stats.staleMaterialCount == 0, "the cube is drawn with its mesh material");
+        Check(stats.light3DCount == 0, "the canvas has no lights yet");
+
+        // 라이트(D-367)는 렌더러의 뷰까지 간다.
+        JBro::Object::GameObject* lamp = canvas->CreateObject("Lamp");
+        Check(canvas->AttachComponent<JBro::Component::Transform3D>(lamp) != nullptr, "the lamp needs a transform");
+        Check(canvas->AttachComponent<JBro::Component::Light3D>(lamp) != nullptr, "the lamp takes a light");
+        renderer = canvas->FindComponentRaw<JBro::Component::MeshRenderer3D>(box);
+        settle();
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.light3DCount >= 1 && stats.droppedLight3DCount == 0, "the light reaches the view");
+
+        // 메시 에셋을 건다: 렌더러에 올라가 떨어지는 메시 없이 그려진다.
+        const JBro::UInt32 meshesBefore = editor.GetRenderer()->GetLastFrameStats().meshCount;
+        renderer->meshId = meshAssetId;
+        renderer->mesh = {};
+        Check(editor.RescanAssets(), "the mesh id resolves");
+        settle();
+        Check(renderer->mesh.generation != 0, "the mesh id resolves to an asset");
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.droppedMeshCount == 0 && stats.meshCount == meshesBefore && stats.materialMeshCount >= 1, "the glTF mesh is drawn with its material");
+        // 파일이 다시 읽히면 렌더러에 다시 올린다. 시험의 라이브러리로 핸들이 바뀌는 것을 본다(같은 세대면 그대로다).
+        {
+            JBro::AssetSystem* assets = editor.GetAssetSystem();
+            JBro::MeshLibrary library;
+            Check(library.Initialize(editor.GetRenderer(), assets), "a mesh library opens over the editor's renderer");
+            const JBro::AssetHandle asset = assets->Find(meshAssetId);
+            const JBro::AssetHandle first = library.ResolveAsset(asset);
+            const JBro::AssetHandle same = library.ResolveAsset(asset);
+            Check(first.generation != 0 && first.index == same.index && first.generation == same.generation, "an unchanged mesh keeps its renderer handle");
+            JBro::String gltf;
+            Check(editor.ReadAssetText(modelId, gltf) && editor.WriteAssetText(modelId, gltf), "the glTF is written again");
+            // 모델 파일이 바뀌면 그 하위 메시를 다시 읽는다(D-395 - 에디터에서는 파일 감시가 한다).
+            Check(assets->ReloadInPlace(meshAssetId), "the model's mesh reloads in place");
+            const JBro::AssetHandle fresh = library.ResolveAsset(asset);
+            Check(fresh.generation != 0 && (fresh.index != first.index || fresh.generation != first.generation), "a reloaded mesh is uploaded again");
+            library.Shutdown();
+        }
+
+        // ── 셰이더 그래프(D-369): 새 그래프의 저장이 옆에 .hlsl 을 만들고, 그것을 머티리얼이 쓴다. ──
+        const JBro::String graphPath = editor.CreateShaderGraphAsset("");
+        const JBro::AssetRecord* graphRecord = editor.GetAssetRegistry().FindByPath(graphPath.c_str());
+        Check(graphRecord != nullptr && graphRecord->type == JBro::AssetType::NodeGraph, "New Shader Graph writes a graph asset");
+        JBro::Array<JBro::EditorPanel*> graphPanels;
+        Check(editor.FindPanels("NodeGraph", graphPanels) == 1, "and opens it");
+        // 그래프 창은 캔버스 뷰의 탭 자리에 열린다 - 닫아야 캔버스 뷰가 그려진다.
+        graphPanels[0]->SetOpen(false);
+        const JBro::AssetRecord* generatedRecord = editor.GetAssetRegistry().FindByPath("NewShaderGraph.hlsl");
+        Check(generatedRecord != nullptr && generatedRecord->type == JBro::AssetType::Shader, "a shader file is made beside the graph");
+        const JBro::AssetId generatedId = generatedRecord->id;
+        JBro::MaterialDocument graphDocument;
+        graphDocument.shader = generatedId;
+        graphDocument.domain = JBro::MaterialDomain::Mesh;
+        Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(graphDocument)), "the material takes the generated shader");
+        settle();
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.materialMeshCount >= 1, "the mesh is drawn with the graph's shader");
+        JBro::String generatedText;
+        Check(editor.ReadAssetText(generatedId, generatedText) && generatedText.Contains("Generated from a shader graph"), "the file says it is generated");
+        // 그래프를 고쳐 저장하면(패널의 저장이 부르는 길) 파일과 실린 셰이더가 함께 바뀌고, 머티리얼이 새 파라미터를 본다.
+        const JBro::AssetId graphId = editor.GetAssetRegistry().FindByPath(graphPath.c_str())->id;
+        {
+            const JBro::OwnerPtr<JBro::NodeGraph::Domain> shaderDomain = JBro::NodeGraph::MakeShaderDomain();
+            JBro::NodeGraph::Graph edited;
+            edited.SetDomain(shaderDomain->GetName());
+            const JBro::NodeGraph::NodeId output = edited.AddNode(*shaderDomain, "Output", {});
+            const JBro::NodeGraph::NodeId colour = edited.AddNode(*shaderDomain, "ColorParameter", {});
+            Check(edited.SetLabel(colour, "body") && edited.Connect(*shaderDomain, {colour, 0}, {output, 0}) == JBro::NodeGraph::ConnectResult::Connected, "the test edits the graph");
+            Check(editor.WriteAssetText(graphId, JBro::NodeGraph::WriteGraph(edited, shaderDomain.Get())), "the graph is written");
+            JBro::String why;
+            Check(editor.RegenerateShaderFromGraph(graphId, &why), "the shader file is made again");
+            Check(editor.ReadAssetText(generatedId, generatedText) && generatedText.Contains("bodyColor"), "with the new parameter");
+            settle();
+            const JBro::String* error = nullptr;
+            const JBro::CompiledMaterialShader* compiled = editor.GetMaterialShader(generatedId, JBro::MaterialDomain::Mesh, &error);
+            Check(compiled != nullptr && compiled->FindParameter("bodyColor") != nullptr, "the inspector's shader shows the new parameter");
+
+            JBro::NodeGraph::Graph broken;
+            broken.SetDomain(shaderDomain->GetName());
+            Check(editor.WriteAssetText(graphId, JBro::NodeGraph::WriteGraph(broken, shaderDomain.Get())), "a graph without an output is written");
+            Check(false == editor.RegenerateShaderFromGraph(graphId, &why) && why.Contains("Output"), "it is refused with its reason");
+            Check(editor.ReadAssetText(generatedId, generatedText) && generatedText.Contains("bodyColor"), "and the last good shader stays");
+        }
+
+        document.domain = JBro::MaterialDomain::Sprite;
+        Check(editor.WriteAssetText(materialId, JBro::WriteMaterial(document)), "the material becomes a sprite material");
+        settle();
+        stats = editor.GetRenderer()->GetLastFrameStats();
+        Check(stats.materialMeshCount == 0, "a material that no longer builds leaves the mesh to the built-in shader");
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+        std::remove(projectPath.c_str());
+    }
+
+    // **스크립트와 볼륨이 머티리얼의 파라미터를 바꾼다**(D-348, 사용자 시나리오). 초록 머티리얼 스프라이트의 `fillColor` 를 스크립트의 머티리얼 서비스로
+    // 빨강으로 덮어쓰면 빨갛고, 지우면 다시 초록이다(형이 맞지 않는 값은 얹지 않는다). 후처리는 `scale` 파라미터 하나로 화면을 곱하는 셰이더의
+    // 머티리얼 둘(밝음 1·어둠 0)을 카메라 프로필과 볼륨 프로필에 건다 - 같은 셰이더라 볼륨의 무게대로 파라미터가 섞여 반이면 반쯤 어둡다.
+    // 스크립트가 어둠 머티리얼의 `scale` 을 1 로 덮으면 볼륨 안에서도 밝다 - 덮어쓴 값이 섞기에도 든다.
+    void TestAScriptAndAVolumeChangeAMaterial()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroMaterialOverrideProbe", "the material overrides"))
+        {
+            return;
+        }
+        JBro::EditorApplication& editor = probe.editor;
+        if (editor.GetShaderCompiler() == nullptr || false == editor.GetShaderCompiler()->HasFormat(JBro::ShaderCodeFormat::Dxil))
+        {
+            std::cout << "  [skip] no shader compiler here; the material overrides are not verified" << std::endl;
+            probe.Close();
+            return;
+        }
+        const auto createShader = [&](const char* text) {
+            const JBro::String path = editor.CreateShaderAsset("");
+            const JBro::AssetId id = editor.GetAssetRegistry().FindByPath(path.c_str())->id;
+            Check(editor.WriteAssetText(id, text), "the test writes its shader");
+            return id;
+        };
+        const auto createMaterial = [&](const JBro::MaterialDocument& document) {
+            const JBro::String path = editor.CreateMaterialAsset("");
+            const JBro::AssetId id = editor.GetAssetRegistry().FindByPath(path.c_str())->id;
+            Check(editor.WriteAssetText(id, JBro::WriteMaterial(document)), "the test writes its material");
+            return id;
+        };
+        const JBro::AssetId fillShader = createShader("#include \"JBro/Material.hlsli\"\n"
+                                                      "cbuffer Material : register(b1)\n{\n    float4 fillColor = float4(0.0f, 1.0f, 0.0f, 1.0f);\n};\n"
+                                                      "float4 PSMain(JBroSpriteInput input) : SV_TARGET\n{\n    return float4(fillColor.rgb, 1.0f);\n}\n");
+        JBro::MaterialDocument fill;
+        fill.shader = fillShader;
+        fill.domain = JBro::MaterialDomain::Sprite;
+        const JBro::AssetId fillMaterial = createMaterial(fill);
+        JBro::Object::GameObject* square = probe.canvas->CreateObject("Square");
+        probe.canvas->AttachComponent<JBro::Component::Transform2D>(square);
+        auto* sprite = probe.canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(square);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {2.0f, 2.0f};
+        sprite->materialId = fillMaterial;
+        Check(editor.RescanAssets(), "the registry must rescan so the sprite's material resolves");
+        probe.Settle();
+        JBro::Color colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "the material sprite starts green");
+
+        // ── 스크립트의 머티리얼 서비스 ──
+        const JBro::Service::MaterialService service;
+        Check(false == service.FindParameter(fillMaterial, "").IsValid() && false == service.FindParameter({}, "fillColor").IsValid(),
+            "an empty name or an empty material finds nothing");
+        const JBro::Service::MaterialParameter fillColor = service.FindParameter(fillMaterial, "fillColor");
+        Check(fillColor.IsValid() && service.FindParameter(fillMaterial, "fillColor").value == fillColor.value,
+            "the service finds the parameter, the same one each time");
+        Check(service.SetFloat(fillColor, 1.0f), "a value is taken");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "but a float is not laid on a float4");
+        Check(service.SetColor(fillColor, JBro::Color{1.0f, 0.0f, 0.0f, 1.0f}), "the service overrides the colour");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.95f && colour.G < 0.05f, "the sprite turns red without its file changing");
+        JBro::String fillText;
+        Check(editor.ReadAssetSourceText(fillMaterial, fillText) && false == fillText.Contains("fillColor"), "the material file is untouched");
+        service.Clear(fillColor);
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "clearing it brings the file's green back");
+
+        // ── 오브젝트 하나의 파라미터(D-368) ──
+        // 둘째 사각형은 왼쪽에 둔다. 같은 머티리얼이고, 첫째만 빨강으로 덮어쓴다. 다른 오브젝트를 만들면 풀이 늘 수 있어 다시 찾는다.
+        {
+            JBro::Object::GameObject* neighbour = probe.canvas->CreateObject("Neighbour");
+            auto* neighbourPlace = probe.canvas->AttachComponent<JBro::Component::Transform2D>(neighbour);
+            neighbourPlace->position = {-3.0f, 0.0f};
+            auto* neighbourSprite = probe.canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(neighbour);
+            neighbourSprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+            neighbourSprite->size = {2.0f, 2.0f};
+            neighbourSprite->materialId = fillMaterial;
+            sprite = probe.canvas->FindComponentRaw<JBro::Component::SpriteRenderer2D>(square);
+            Check(editor.RescanAssets(), "the neighbour's material resolves");
+            probe.Settle();
+            const auto squareHandle = JBro::Internal::ComponentHandleAccess::FromReference<JBro::Handle::SpriteRenderer2D>(
+                JBro::InstanceRef{square->GetInstanceId(), sprite->GetInstanceId(), {}});
+            const JBro::Service::MaterialParameter own = service.FindParameter(squareHandle, fillMaterial, "fillColor");
+            Check(own.IsValid() && own.value != fillColor.value, "one object's parameter is its own");
+            const JBro::UInt32 drawnBefore = editor.GetRenderer()->GetLastFrameStats().materialSpriteCount;
+            Check(service.SetColor(own, JBro::Color{1.0f, 0.0f, 0.0f, 1.0f}), "the object's colour is overridden");
+            probe.Settle();
+            colour = probe.Centre();
+            Check(colour.R > 0.95f && colour.G < 0.05f, "that object turns red");
+            JBro::Bool neighbourStaysGreen = false;
+            const JBro::Extent2D extent = editor.GetCanvasViewExtent();
+            probe.ReadCanvasView([&](JBro::UInt32 x, JBro::UInt32 y, JBro::Color pixel) {
+                neighbourStaysGreen = neighbourStaysGreen || (x < extent.width / 2 && y == extent.height / 2 && pixel.G > 0.95f && pixel.R < 0.05f);
+            });
+            Check(neighbourStaysGreen, "the other object with the same material stays green");
+            Check(editor.GetRenderer()->GetLastFrameStats().materialSpriteCount == drawnBefore, "both are still drawn with a material");
+            service.Clear(own);
+            probe.Settle();
+            colour = probe.Centre();
+            Check(colour.G > 0.95f && colour.R < 0.05f, "clearing it brings the object back to the material");
+            probe.canvas->DestroyObject(neighbour);
+            probe.Settle();
+        }
+
+        // ── 볼륨: 같은 셰이더의 두 머티리얼이 무게대로 섞인다 ──
+        const JBro::AssetId scaleShader = createShader("#include \"JBro/Material.hlsli\"\n"
+                                                       "cbuffer Material : register(b1)\n{\n    float scale = 1.0f;\n};\n"
+                                                       "float4 PSMain(JBroPostProcessInput input) : SV_TARGET\n{\n"
+                                                       "    const float4 color = JBroLoadSource(input);\n    return float4(color.rgb * scale, color.a);\n}\n");
+        JBro::MaterialDocument bright;
+        bright.shader = scaleShader;
+        bright.domain = JBro::MaterialDomain::PostProcess;
+        const JBro::AssetId brightMaterial = createMaterial(bright);
+        JBro::MaterialDocument dark = bright;
+        const JBro::Float zero = 0.0f;
+        dark.SetParameter("scale", &zero, 1);
+        const JBro::AssetId darkMaterial = createMaterial(dark);
+        const auto profileOf = [](JBro::AssetId material) {
+            JBro::PostProcessProfileDocument document;
+            JBro::PostProcessProfileEntry entry = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::Material);
+            reinterpret_cast<JBro::MaterialEffect*>(entry.block.Data())->materialId = material;
+            entry.overrides = 1;
+            document.entries.Add(std::move(entry));
+            return document;
+        };
+        probe.WriteProfile(profileOf(brightMaterial));
+        probe.camera->postProcessProfileId = probe.profileId;
+        const JBro::String volumeProfilePath = editor.CreatePostProcessProfileAsset("");
+        const JBro::AssetId volumeProfile = editor.GetAssetRegistry().FindByPath(volumeProfilePath.c_str())->id;
+        Check(editor.WriteAssetText(volumeProfile, JBro::WritePostProcessProfile(profileOf(darkMaterial))), "the volume's profile is written");
+        JBro::Object::GameObject* cave = probe.canvas->CreateObject("Cave");
+        probe.canvas->AttachComponent<JBro::Component::Transform2D>(cave);
+        auto* volume = probe.canvas->AttachComponent<JBro::Component::PostProcessVolume2D>(cave);
+        volume->shape = JBro::Component::PostProcessVolumeShape2D::Box;
+        volume->size = {4.0f, 4.0f};
+        volume->blendDistance = 1.0f;
+        volume->postProcessProfileId = volumeProfile;
+        volume->weight = 0.5f;
+        Check(editor.RescanAssets(), "the profiles resolve");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.4f && colour.G < 0.6f && colour.R < 0.05f, "at half the weight the two materials' scale mixes to a half");
+        volume->weight = 1.0f;
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G < 0.05f, "at full weight the volume's dark material wins");
+        const JBro::Service::MaterialParameter darkScale = service.FindParameter(darkMaterial, "scale");
+        Check(service.SetFloat(darkScale, 1.0f), "the script brightens the dark material");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f, "and the volume mixes the script's value");
+        service.ClearAll();
+        probe.Settle();
+        Check(probe.Centre().G < 0.05f, "clearing every override leaves the file's dark again");
+        probe.Close();
+    }
+
+    // **카메라가 볼륨 안에 들어가면 그 프로필이 섞이고, 스크립트가 그 위를 덮는다**(D-346, 사용자 시나리오). 채도를 -100 으로 덮어쓴 프로필의
+    // 상자 볼륨을 카메라에서 떨어뜨려 두면 초록이 거의 그대로이고, 볼륨을 카메라 쪽으로 옮기면 회색이 된다. 무게를 반으로 내리면 반쯤 회색이다.
+    // 스크립트의 후처리 서비스로 채도를 0 으로 덮어쓰면 볼륨 안에서도 초록이고, 지우면 다시 회색이다.
+    void TestAVolumeBlendsAroundTheCamera()
+    {
+        PostProbe probe;
+        if (false == probe.Open("JBroVolumeProbe", "the post-process volume"))
+        {
+            return;
+        }
+        JBro::Canvas* canvas = probe.canvas;
+        JBro::Object::GameObject* field = canvas->CreateObject("Field");
+        canvas->AttachComponent<JBro::Component::Transform2D>(field);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(field);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {1000.0f, 1000.0f};
+        sprite->tint = {0.0f, 1.0f, 0.0f, 1.0f};
+
+        JBro::PostProcessProfileDocument document;
+        JBro::PostProcessProfileEntry adjustments = JBro::MakePostProcessProfileEntry(JBro::PostProcessEffects::ColorAdjustments);
+        reinterpret_cast<JBro::ColorAdjustmentsEffect*>(adjustments.block.Data())->saturation = -100.0f;
+        adjustments.overrides = JBro::UInt64(1) << 3;
+        document.entries.Add(std::move(adjustments));
+        probe.WriteProfile(document);
+
+        JBro::Object::GameObject* cave = canvas->CreateObject("Cave");
+        auto* place = canvas->AttachComponent<JBro::Component::Transform2D>(cave);
+        place->position = {30.0f, 0.0f};
+        auto* volume = canvas->AttachComponent<JBro::Component::PostProcessVolume2D>(cave);
+        Check(volume != nullptr, "a post-process volume attaches");
+        volume->shape = JBro::Component::PostProcessVolumeShape2D::Box;
+        volume->size = {2.0f, 2.0f};
+        volume->blendDistance = 30.0f;
+        volume->postProcessProfileId = probe.profileId;
+        Check(probe.editor.RescanAssets(), "the registry must rescan so the volume's profile resolves");
+        probe.Settle();
+        Check(volume->postProcessProfile.generation != 0, "the volume's profile id resolves to a handle");
+
+        // 상자 끝(x 29)에서 카메라(0)까지 29 - 섞는 거리 30 이라 무게는 1/30 이다.
+        JBro::Color colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.1f, "far from the volume the field stays nearly green");
+        place->position = {0.0f, 0.0f};
+        probe.Settle();
+        colour = probe.Centre();
+        const JBro::Float grey = colour.R;
+        Check(colour.R > 0.6f && std::fabs(colour.R - colour.G) < 0.03f, "inside the volume the field is grey");
+        // 캔버스 뷰는 볼륨의 상자(진하게)와 섞는 거리의 끝(옅게)을 그린다. 끝이 화면 안에 들도록 거리를 줄여 찍는다 - 안에서는 무게가 같다.
+        volume->blendDistance = 2.0f;
+        probe.Settle();
+        SaveScreenshot(*probe.editor.GetRenderer(), 1024, 768, "post_process_volume");
+        volume->weight = 0.5f;
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.R > 0.2f && colour.R < grey - 0.1f && colour.G > colour.R + 0.1f, "at half the weight it is half way");
+        volume->weight = 1.0f;
+
+        // ── 스크립트의 서비스 ──
+        const JBro::Service::PostProcessService service;
+        const JBro::Service::PostProcessField saturation = service.FindField("ColorAdjustments", "saturation");
+        Check(saturation.IsValid(), "the service finds the saturation field");
+        Check(false == service.SetInt(saturation, 3), "a value of the wrong type is refused");
+        Check(service.SetFloat(saturation, 0.0f), "the service overrides saturation");
+        probe.Settle();
+        colour = probe.Centre();
+        Check(colour.G > 0.95f && colour.R < 0.05f, "the script's value sits over the volume");
+        service.Clear(saturation);
+        probe.Settle();
+        colour = probe.Centre();
+        Check(std::fabs(colour.R - grey) < 0.02f, "clearing it lets the volume show again");
+        probe.Close();
+    }
+
+    void TestTheRenderGraphPanelShowsTheLastFrame()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1600;
+        config.windowHeight = 1200;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the render graph window not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "RenderGraphProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto addLayer = [&](const char* layerName, JBro::Float x) {
+            JBro::Layer& layer = canvas->CreateLayer(layerName);
+            layer.SetBlend(JBro::LayerBlend::Overlay);
+            layer.SetOpacity(0.8f);
+            layer.SetLit(true);
+            JBro::Object::GameObject* object = canvas->CreateObject(layerName);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+            Check(transform != nullptr && canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object) != nullptr,
+                "the layer's sprite needs a transform and a renderer");
+            transform->position = {x, 0.0f};
+            Check(canvas->SetObjectLayer(object, layer.GetId()), "the sprite must move into its layer");
+            auto* caster = canvas->AttachComponent<JBro::Component::ShadowCaster2D>(object);
+            Check(caster != nullptr, "the sprite must cast a shadow");
+            caster->shape = JBro::Component::ShadowShape2D::Sprite;
+        };
+        addLayer("Glow", -1.0f);
+        addLayer("Shade", 1.0f);
+        JBro::Object::GameObject* lamp = canvas->CreateObject("Lamp");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(lamp) != nullptr, "the lamp needs a transform");
+        auto* light = canvas->AttachComponent<JBro::Component::Light2D>(lamp);
+        Check(light != nullptr, "and a light");
+        light->type = JBro::Component::Light2DType::Point;
+        light->outerRadius = 4.0f;
+        light->castShadows = true;
+
+        auto* panel = static_cast<JBro::RenderGraphPanel*>(editor.FindPanel(JBro::RenderGraphPanel::TypeName));
+        Check(panel != nullptr, "the render graph window must exist");
+        Check(false == panel->IsOpen(), "it starts closed like the profiler");
+        panel->SetOpen(true);
+        // 메뉴로 열면 앞으로 꺼낸다(DrawPanelMenuItem). 시험도 같은 길이다.
+        panel->RequestFocus();
+
+        // 첫 그림의 그래프는 다음 UI 프레임이 뜬다 - UI 는 엔진 프레임보다 먼저 지어진다.
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick with the window open");
+        Check(panel->GetCapturedSerial() != 0 && panel->GetCapturedPassCount() != 0, "the window must hold the last frame's graph");
+        Check(panel->CountPasses("Layer", JBro::RenderGraphSkip::MissingTexture) >= 2,
+            "on the first frame both layer passes wait for their texture");
+        Check(panel->CountPasses("LayerDirect", JBro::RenderGraphSkip::None) >= 2, "and the fallbacks draw the layers as they are");
+
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(panel->CountPasses("Layer", JBro::RenderGraphSkip::None) >= 2, "from the next frame the layers draw into their texture");
+        Check(panel->CountPasses("LayerDirect", JBro::RenderGraphSkip::TexturePresent) >= 2, "and the fallbacks stand down");
+        Check(panel->CountPasses("Backdrop", JBro::RenderGraphSkip::None) >= 2, "overlay copies what is below");
+        Check(panel->CountPasses("Composite", JBro::RenderGraphSkip::None) >= 2, "and lays each layer on");
+        Check(panel->CountPasses("LightMap", JBro::RenderGraphSkip::None) >= 1, "the lit layers draw a light map");
+        Check(panel->CountSharedTextures() >= 1, "the two layers' textures share one actual texture");
+        Check(panel->CountPasses("ShadowedLight", JBro::RenderGraphSkip::None) >= 1, "the light casts its shadow through a mask");
+
+        // 텍스처 이름으로 찾으면 그것을 조건으로만 가리키는 패스도 나온다 - `Light` 는 `ShadowMask` 가 없을 때만 돈다(Codex 리뷰).
+        const JBro::UInt32 fallbackLight = panel->FindPass("Light");
+        Check(fallbackLight != JBro::RenderGraphPanel::NoSelection, "the shadowed light has its fallback pass");
+        panel->SetFilter("ShadowMask");
+        Check(panel->IsPassShownByFilter(fallbackLight), "searching for the mask finds the pass that runs without it");
+        Check(false == panel->IsPassShownByFilter(panel->FindPass("Composite")), "but not passes that never touch it");
+        panel->SetFilter("");
+
+        // 멈추면 떠 둔 그래프가 그대로다.
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        ImGuiWindow* window = ImGui::FindWindowByName(JBro::RenderGraphPanel::TypeName);
+        Check(window != nullptr, "the render graph window must have an ImGui window");
+        Spot pause;
+        Check(FindItemAnywhereInWindow(editor, hwnd, window, LabelId(window->ID, "##render_graph_pause"), pause),
+            "the window must have a hold button");
+        ClickAt(editor, hwnd, pause);
+        Check(editor.Tick(Frame), "the editor must settle after the hold");
+        Check(panel->IsPaused(), "pressing it must hold the graph");
+        const JBro::UInt64 held = panel->GetCapturedSerial();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must keep ticking while held");
+        }
+        Check(panel->GetCapturedSerial() == held, "a held graph does not change as frames pass");
+        Spot step;
+        Check(FindItemAnywhereInWindow(editor, hwnd, window, LabelId(window->ID, "##render_graph_step"), step),
+            "the window must have a step button");
+        ClickAt(editor, hwnd, step);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick after the step");
+        const JBro::UInt64 stepped = panel->GetCapturedSerial();
+        Check(stepped > held, "stepping takes a newer graph");
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick once more");
+        Check(panel->GetCapturedSerial() == stepped, "and only one");
+
+        // 아래 도크는 낮게 선다. 메뉴로 열면 창이 원하는 높이까지 넓힌다(D-341) - 시험도 메뉴와 같은 길이다.
+        Check(window->DockNode != nullptr, "the render graph window must be docked");
+        panel->RequestRoom();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after making room");
+        }
+        window = ImGui::FindWindowByName(JBro::RenderGraphPanel::TypeName);
+        Check(window != nullptr && window->DockNode != nullptr && window->DockNode->Size.y >= 400.0f,
+            "opening the window from the menu must make room for the tables");
+
+        // 멈춘 그래프에도 GPU 시간이 붙는다 - 시각은 몇 프레임 늦게 오므로 짝이 맞는 번호를 찾아 붙인다.
+        const JBro::UInt32 composite = panel->FindPass("Composite");
+        Check(composite != JBro::RenderGraphPanel::NoSelection, "the held graph has a composite pass");
+        for (JBro::Int32 frame = 0; frame < 6 && panel->GetPassGpuMilliseconds(composite) < 0.0f; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the timings arrive");
+        }
+        Check(panel->GetPassGpuMilliseconds(composite) >= 0.0f, "the composite pass must get its GPU time");
+
+        // 미리보기: 그래프가 만든 텍스처(레이어)와 들여온 텍스처(뷰 타깃)를 그 패스가 끝난 직후로 본다.
+        const auto preview = [&](JBro::UInt32 access, const char* what) {
+            panel->PreviewAccess(composite, access);
+            Check(editor.Tick(Frame), "the editor must tick after choosing the texture");
+            Check(panel->GetPreviewStatus() == JBro::RenderGraphCaptureStatus::Waiting,
+                "a new choice waits for its own copy instead of showing the previous one");
+            for (JBro::Int32 frame = 0; frame < 6 && panel->GetPreviewStatus() != JBro::RenderGraphCaptureStatus::Captured; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while the preview is taken");
+            }
+            Check(panel->GetPreviewStatus() == JBro::RenderGraphCaptureStatus::Captured, what);
+        };
+        preview(0, "the view target must be previewed right after the composite pass");
+        preview(1, "the layer texture must be previewed right after the composite pass");
+
+        // 패스를 골라 세 탭을 찍는다.
+        panel->SelectPass(composite);
+        JBro::Renderer* renderer = editor.GetRenderer();
+        const auto shot = [&](JBro::RenderGraphPanel::Tab tab, const char* suffix) {
+            panel->ShowTab(tab);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must draw the tab");
+            }
+            if (renderer != nullptr)
+            {
+                SaveScreenshot(*renderer, 1600, 1200, suffix);
+            }
+        };
+        shot(JBro::RenderGraphPanel::Tab::Pass, "render_graph_pass");
+        shot(JBro::RenderGraphPanel::Tab::Textures, "render_graph_textures");
+        shot(JBro::RenderGraphPanel::Tab::Pool, "render_graph_pool");
+        Check(panel->GetSelectedPass() == composite, "drawing the tabs keeps the chosen pass");
+        editor.Shutdown();
+    }
+
     // **캔버스 뷰의 라이트 기즈모와 라이팅 단추**(D-291 5 단계). 고른 라이트의 반지름·각 손잡이를 끌면 그 필드가 바뀌고 되돌리기 하나가 남는다.
     // **손잡이는 인스펙터에서 고른 라이트에만 선다**(D-304, 기존 엔진의 Light2D 탭) - 한 오브젝트에 라이트가 둘이면 고른 쪽이 고쳐진다.
     // 점 라이트의 반지름 손잡이는 축에서 시계로 45 도라 옮기기 기즈모의 x 손잡이를 가리지 않는다. 손잡이를 끌어도 고른 것은 그대로다.
@@ -10812,6 +12032,122 @@ namespace
         ClickAt(editor, hwnd, toggle);
         Check(editor.Tick(Frame), "the editor must ask for the next canvas view");
         Check(editor.IsCanvasViewLit(), "and on again");
+        editor.Shutdown();
+    }
+
+    // **버튼 누름 사각형**(D-351 1 단계). 인스펙터에서 `Button2D` 를 고르면 캔버스 뷰에 사각형과 손잡이가 서고, 변 손잡이를 끌면 그 변만
+    // 움직이며(맞은편은 그대로) 되돌리기는 하나다. 가운데 손잡이는 통째로 옮긴다. `스프라이트에 맞추기` 는 그림의 크기와 피벗으로 사각형을 쓴다.
+    void TestTheCanvasViewEditsButtonRects()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; button rect handles not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ButtonRectProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* play = canvas->CreateObject("Play");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(play) != nullptr, "the button needs a transform");
+        auto* button = canvas->AttachComponent<JBro::Component::Button2D>(play);
+        Check(button != nullptr, "and a button");
+        button->size = {2.0f, 1.0f};
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(play);
+        Check(sprite != nullptr, "and a sprite to fit to");
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {3.0f, 1.5f};
+        sprite->pivotMode = JBro::Component::SpritePivotMode::Custom;
+        sprite->pivot = {0.0f, 0.0f};
+        editor.SetSelectedObject(play);
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
+            return spot;
+        };
+        const auto hoveredAt = [&](const Spot& spot) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+            Check(editor.Tick(Frame), "the editor must tick while hovering");
+            Check(editor.Tick(Frame), "and once more for the hover to settle");
+            return ImGui::GetHoveredID();
+        };
+        const auto closeTo = [](JBro::Float got, JBro::Float want) { return std::fabs(got - want) < 0.1f; };
+        const Spot middle = at(0.0f, 0.0f);
+        Check(at(1.0f, 0.0f).x - middle.x > 20, "a unit must span enough pixels to tell the handles apart");
+
+        // 인스펙터에서 트랜스폼을 고른 동안은 손잡이가 없다. 버튼 영역을 누르면 선다.
+        Check(hoveredAt(at(1.0f, 0.0f)) != LabelId(view->ID, "##button_right"), "with the transform chosen the button has no handles");
+        SelectInspectorComponent(editor, hwnd, 1, "Button2D");
+        Check(hoveredAt(at(1.0f, 0.0f)) == LabelId(view->ID, "##button_right"), "the right edge of the hit box has a handle");
+        Check(hoveredAt(at(0.0f, 0.5f)) == LabelId(view->ID, "##button_top"), "and so does the top edge");
+        Check(hoveredAt(at(-1.0f, 0.0f)) == LabelId(view->ID, "##button_left"), "and the left edge");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, at(1.0f, 0.0f), at(2.0f, 0.0f));
+        Check(closeTo(button->size.x, 3.0f) && closeTo(button->offset.x, 0.5f), "pulling the right edge out by a unit widens the box to 3 and keeps the left edge at -1");
+        Check(button->size.y == 1.0f && button->offset.y == 0.0f, "and leaves the height alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one undo step even though it wrote two fields");
+        Check(editor.GetSelectedObject() == play, "grabbing a handle does not change the selection");
+        Check(editor.GetCommands().Undo() && button->size.x == 2.0f && button->offset.x == 0.0f, "undo puts both fields back");
+
+        // 가운데 손잡이는 크기를 두고 통째로 옮긴다.
+        Check(hoveredAt(middle) == LabelId(view->ID, "##button_center"), "the middle of the box is the move handle");
+        DragTo(editor, hwnd, middle, at(0.5f, 0.5f));
+        Check(closeTo(button->offset.x, 0.5f) && closeTo(button->offset.y, 0.5f) && button->size.x == 2.0f && button->size.y == 1.0f,
+            "dragging the center moves the box without resizing it");
+        Check(editor.GetCommands().Undo() && button->offset.x == 0.0f && button->offset.y == 0.0f, "undo puts the offset back");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "button_rect");
+
+        // 스프라이트에 맞추기: 피벗 (0, 0) 의 3 x 1.5 그림은 원점에서 오른쪽 위로 뻗으므로 사각형은 (1.5, 0.75) 가운데의 3 x 1.5 다.
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(JBro::NameTable::Get().Intern("Component::Button2D"));
+        Check(table != nullptr, "the button must have registered its properties");
+        Spot fit;
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(*table, "size"), "###fit_sprite"), fit),
+            "the fit button sits under the size field");
+        ClickAt(editor, hwnd, fit);
+        Check(editor.Tick(Frame), "the editor must run the fit");
+        Check(closeTo(button->size.x, 3.0f) && closeTo(button->size.y, 1.5f) && closeTo(button->offset.x, 1.5f) && closeTo(button->offset.y, 0.75f),
+            "fitting copies the sprite's size and moves the box to the sprite's pivot");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "the fit is one undo step");
+        Check(editor.GetCommands().Undo() && button->size.x == 2.0f && button->offset.x == 0.0f, "undo puts the box back");
+
+        // 토글도 같은 손잡이다(D-351 2 단계) - 사각형을 가진 위젯은 타입을 가리지 않는다.
+        JBro::Object::GameObject* mute = canvas->CreateObject("Mute");
+        canvas->AttachComponent<JBro::Component::Transform2D>(mute)->position = {-3.0f, 0.0f};
+        auto* toggle = canvas->AttachComponent<JBro::Component::Toggle2D>(mute);
+        toggle->size = {1.0f, 1.0f};
+        editor.SetSelectedObject(mute);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the toggle");
+        }
+        SelectInspectorComponent(editor, hwnd, 1, "Toggle2D");
+        Check(hoveredAt(at(-2.5f, 0.0f)) == LabelId(view->ID, "##button_right"), "a toggle's hit box has the same handles");
+        DragTo(editor, hwnd, at(-2.5f, 0.0f), at(-2.0f, 0.0f));
+        Check(closeTo(toggle->size.x, 1.5f) && closeTo(toggle->offset.x, 0.25f), "dragging the toggle's right edge widens it");
+        Check(editor.GetCommands().Undo() && toggle->size.x == 1.0f, "and undo puts it back");
         editor.Shutdown();
     }
 
@@ -12731,7 +14067,7 @@ namespace
     // 골라지며, 인스펙터가 네 칸을 에셋 옵션 블록으로 보인다(칸 필드 이름이 `...FontId` 라 고르기가 폰트만 보인다).
     // **에디터의 재질**(material-plan 4 단계). 브라우저의 `새 재질` 이 기본값의 `.jmat` 을 만들어 고르고, 인스펙터의 재질 블록이 그 값을 보인다.
     // 칸을 끌면 커맨드 하나가 **그 파일**을 고쳐 쓰고(메타가 아니다), 실린 재질은 제자리에서 다시 읽히며, 되돌리면 파일의 글자가 그대로 돌아온다.
-    // 모델의 하위 Material 은 파일의 값을 보이되 읽기 전용이다(D-346 (2)).
+    // 모델의 하위 Material 은 파일의 값을 보이되 읽기 전용이다(D-399 (2)).
     void TestTheEditorMakesAndEditsMaterials()
     {
         JBro::EditorApplication editor;
@@ -12761,7 +14097,7 @@ namespace
         Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        const JBro::String created = editor.CreateMaterialAsset("art");
+        const JBro::String created = editor.CreateStandardMaterialAsset("art");
         const std::filesystem::path file = root / "Assets" / created.c_str();
         Check(false == created.empty() && std::filesystem::exists(file) && file.extension() == ".jmat", "a material file is written");
         const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(created.c_str());
@@ -13866,6 +15202,8 @@ namespace
         }
         JBro::EditorShortcutManager& shortcuts = editor.GetShortcuts();
         const char* undo = JBro::EditorShortcuts::ActionId(JBro::EditorShortcut::Undo);
+        Check(shortcuts.Find(undo).handle != JBro::InvalidShortcutHandle,
+            "the undo shortcut must be registered before filtering its row");
 
         // **훑기 전에 마우스를 치운다.** 훑기 도우미는 `GetHoveredID()` 를 보는데 그것은 지난 프레임에 가리킨 것으로 물러난다 -
         // 방금 누른 단추 위에서 시작하면 첫 자리에서 "찾았다" 고 하고 엉뚱한 곳을 누른다(두 번째 클릭이 그렇게 빗나갔다).
@@ -13892,6 +15230,21 @@ namespace
             io.AddKeyEvent(ImGuiMod_Ctrl, false);
             Check(editor.Tick(Frame), "the editor must tick with the key up");
         };
+
+        // 등록된 행동을 검색한 뒤 실제 단추를 누른다. 다른 행동이 늘어도 첫 화면에 이 줄이 있다는 가정을 하지 않는다.
+        moveAway();
+        ImGuiWindow* shortcutPage = FindActiveWindowContaining("/##settings_page_");
+        Check(shortcutPage != nullptr, "the shortcut page must be drawn before filtering");
+        Spot shortcutSearch;
+        Check(FindItemAnywhereInWindow(editor, hwnd, shortcutPage,
+                  LabelId(LabelId(shortcutPage->ID, "##shortcut_search"), "##input"), shortcutSearch),
+            "the page must offer its existing search box before locating the undo row");
+        ClickAt(editor, hwnd, shortcutSearch);
+        ImGui::GetIO().AddInputCharactersUTF8(undo);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the settings search filters the registered undo action by its stable name");
+        }
 
         ClickAt(editor, hwnd, button(undo, "###slot0"));
         Check(shortcuts.IsSuspended(), "clicking a combination starts listening and holds the other shortcuts");
@@ -13950,6 +15303,14 @@ namespace
         // ── 검색: 걸린 줄만 남는다. 줄이 줄어든 만큼 목록의 높이가 준다. ─────
         moveAway();
         ImGuiWindow* page = FindActiveWindowContaining("/##settings_page_");
+        Check(page != nullptr, "the shortcut page must remain drawn before clearing its filter");
+        Spot clearSearch;
+        Check(FindItemAnywhereInWindow(editor, hwnd, page,
+                  LabelId(LabelId(page->ID, "##shortcut_search"), "##clear"), clearSearch),
+            "the existing search clear button must restore the full shortcut list");
+        ClickAt(editor, hwnd, clearSearch);
+        Check(editor.Tick(Frame), "the full shortcut list returns after clearing its filter");
+        moveAway();
         const JBro::Float fullHeight = page->ContentSize.y;
         Spot search;
         Check(FindItemAnywhereInWindow(editor, hwnd, page,
@@ -14701,8 +16062,21 @@ namespace
             return palette;
         };
 
-        // 눌러서 한다.
+        // 등록된 행동을 찾은 뒤 눌러서 한다. 다른 패널의 행동 수가 늘어도 화면에 보이는 첫 묶음에 기대지 않는다.
         ImGuiWindow* palette = open();
+        JBro::Array<const JBro::EditorActionInfo*> listed;
+        JBro::CommandPalettePopup::Collect(editor, "", listed);
+        JBro::Bool containsUndo = false;
+        for (const auto* action : listed)
+        {
+            containsUndo |= std::strcmp(action->name, "edit.undo") == 0;
+        }
+        Check(containsUndo, "the unfiltered palette includes the registered canvas undo action");
+        for (const char* at = "edit.undo"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the palette filters the canvas undo action by its stable name");
+        }
         char undoLabel[160] = {};
         std::snprintf(undoLabel, sizeof(undoLabel), "%s: %s", JBro::Loc::TextOr(JBro::LocKeys::MenuEdit, "Edit"),
             JBro::Loc::TextOr(JBro::LocKeys::MenuUndo, "Undo"));
@@ -14864,7 +16238,7 @@ namespace
         return nullptr;
     }
 
-    // **파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·`.jproject 연결` 은 프로젝트가 없을 때만 있다**(D-336). 프로젝트가 없는 에디터에서 메뉴로
+    // **파일 메뉴의 `새 프로젝트`·`프로젝트 열기`·`.jproject 연결` 은 프로젝트가 없을 때만 있다**(D-389). 프로젝트가 없는 에디터에서 메뉴로
     // 프로젝트를 열면 그 항목들이 사라지고, `프로젝트 저장` 은 두 때 모두 있다(훑기가 항목을 찾을 수 있다는 대조다).
     void TestProjectItemsShowOnlyWithoutAProject()
     {
@@ -14980,7 +16354,7 @@ namespace
         fs::remove_all(root, ignored);
     }
 
-    // **`.jproject` 연결은 메뉴에서 이 실행 파일로 선다**(D-336). 사람의 연결을 덮지 않으려고 시험의 자리(`fileTypeClassesKey`)에 쓰고 지운다.
+    // **`.jproject` 연결은 메뉴에서 이 실행 파일로 선다**(D-389). 사람의 연결을 덮지 않으려고 시험의 자리(`fileTypeClassesKey`)에 쓰고 지운다.
     void TestRegisteringTheProjectFileTypeFromTheEditor()
     {
         constexpr const char* TestClasses = "Software\\JBroEngineTests\\EditorClasses";
@@ -16340,7 +17714,7 @@ namespace
         Check(editor.FindPanels("NodeGraph", panels) == 1 && dirty(), "cancelling keeps the window and the change");
 
         // ── 저장하지 않은 그래프가 있으면 창 닫기 전에 묻는다(D-324) ──
-        // 다른 프로젝트 열기는 파일로 연 프로젝트에서는 아예 돌지 않는다(D-336) - 묻지도 닫지도 않는다.
+        // 다른 프로젝트 열기는 파일로 연 프로젝트에서는 아예 돌지 않는다(D-389) - 묻지도 닫지도 않는다.
         Check(dirty() && editor.HasUnsavedWork(), "an unsaved graph is unsaved work");
         editor.RequestOpenProject();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
@@ -17440,6 +18814,18 @@ namespace
         }
         Check(editor.GetNotifications().GetLastLevel() == JBro::NotificationLevel::Error, "an error is shown");
         ScenarioShot(editor, "b12_script_crashed");
+        // 같은 장면에서 들어오기 미끄럼(0.18 s)이 끝난 뒤 - 셋째 알림까지 창 안에 서 있다(REVIEW R7-2). `b12` 는 미끄럼 도중의 그림이다.
+        for (JBro::Int32 frame = 0; frame < 15; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor keeps drawing the crash notifications");
+        }
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, "b12b_script_crashed_settled");
+        for (JBro::UInt32 index = 0; index < editor.GetNotifications().GetVisibleCount(); ++index)
+        {
+            const JBro::NotificationView view = editor.GetNotifications().GetVisible(index);
+            Check(std::fabs(view.offsetX.Get()) < 0.5f && view.alpha.Get() > 0.99f,
+                "in the crash scene every arrived notification stands inside the window");
+        }
         // 알림은 그 스크립트의 그 줄을 가리킨다 - 로그에 적힌 첫 스크립트 프레임으로 본다.
         JBro::Bool pointed = false;
         char lineText[32];
@@ -17487,6 +18873,602 @@ namespace
         editor.Shutdown();
     }
 
+    // ── 시나리오 D: UI 를 만드는 사용자(D-351·D-352, ui-plan §6.4) ─────────────
+    // 새 프로젝트에서 스크롤 창·버튼·슬라이더·토글·글자 칸·레이아웃을 `컴포넌트 추가` 로 붙이고, 인스펙터와 캔버스 뷰를 화면으로 보고
+    // (`JBRO_EDITOR_SHOT`), 일부러 잘못 잇고(스크롤 내용 = 자기 자신, 표시 텍스트를 지움) 재생해 보고, 저장해 되읽고, 되돌린다. 스크립트 빌드는 없다.
+    void TestScenarioDUiBuilder()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroUserScenarioD").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root, ignored);
+
+        DialogProbe dialog;
+        dialog.path = JBro::String(root.string().c_str());
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario D not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        // ── 1. 새 프로젝트 ─────────────
+        editor.RequestNewProject();
+        Check(editor.Tick(Frame), "the folder dialog runs outside the frame");
+        Check(editor.IsPopupOpenById("new_project"), "then the name popup");
+        // 이름 칸이 포커스를 받을 프레임을 준다(시나리오 A 가 화면을 찍는 자리).
+        ScenarioShot(editor, "d00_new_project");
+        TypeText(editor, "UI Game");
+        PressKey(editor, ImGuiKey_Enter);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor switches to the new project");
+        }
+        Check(editor.HasOpenProject() && editor.GetCanvas() != nullptr, "the project is open with a canvas");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        // 같은 프로세스에서 앞서 돈 시나리오 C 의 스크립트 오류를 이 에디터가 다시 알리지 않는다(D-354).
+        Check(std::strcmp(editor.GetNotifications().GetLastTitle(),
+                  JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptError, "A script error stopped that callback")) != 0,
+            "a new editor does not announce the script errors an earlier editor logged");
+
+        // 인스펙터의 `컴포넌트 추가` 로 타입 이름을 쳐서 붙인다 - 사용자가 하는 그대로다.
+        ImGuiWindow* inspector = nullptr;
+        const auto addComponent = [&](const char* search) {
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the inspector shows the chosen object");
+            }
+            inspector = ImGui::FindWindowByName("Inspector");
+            Check(inspector != nullptr, "the inspector must have a window");
+            Spot add;
+            Check(FindInspectorItem(editor, hwnd, LabelId(inspector->ID, "##AddComponent"), add), "the add component button is there");
+            ClickAt(editor, hwnd, add);
+            Check(editor.Tick(Frame), "the list opens");
+            Check(editor.Tick(Frame), "its search box takes focus");
+            TypeText(editor, search);
+            PressKey(editor, ImGuiKey_Enter);
+            Check(editor.Tick(Frame), "the component is attached");
+        };
+
+        // ── 2. 목록에서 UI 갈래가 한데 모여 있다 ─────────────
+        Check(RunEditorAction(editor, "object.create"), "a window object is created");
+        JBro::Object::GameObject* window = editor.GetSelectedObject();
+        Check(window != nullptr, "and chosen");
+        {
+            JBro::EditorActions::AddComponentList list;
+            JBro::EditorActions::BuildAddComponentList(*window, list);
+            JBro::Int32 uiCount = 0;
+            JBro::Int32 layoutCount = 0;
+            for (std::size_t index = 0; index < list.names.Size(); ++index)
+            {
+                if (std::strcmp(list.categories[index], "UI") == 0)
+                {
+                    ++uiCount;
+                    Check(list.addable[index], "every UI component can be added to a fresh object");
+                }
+                if (std::strcmp(list.categories[index], "UiLayout") == 0)
+                {
+                    ++layoutCount;
+                    Check(list.addable[index], "every UI layout component can be added to a fresh object");
+                }
+            }
+            Check(uiCount == 17, "the UI group lists the seventeen widgets (button, toggle, slider, field, mask, scroll view, toggle group, dropdown, tooltip, modal, tab group, draggable, drop target, tween, canvas group, virtual keyboard, navigation)");
+            Check(layoutCount == 5, "the UI layout group lists the five placers (layout, content size fitter, list view, safe area, aspect ratio fitter) (D-361)");
+        }
+
+        // ── 3. 스크롤 창: 마스크 + 스크롤 뷰, 그 자식 버튼 ─────────────
+        addComponent("Mask2D");
+        addComponent("ScrollView2D");
+        auto* mask = canvas->FindComponentRaw<JBro::Component::Mask2D>(window);
+        auto* scroll = canvas->FindComponentRaw<JBro::Component::ScrollView2D>(window);
+        Check(mask != nullptr && scroll != nullptr, "the window has a mask and a scroll view");
+        ScenarioShot(editor, "d01_scroll_window");
+        JBro::Object::GameObject* play = JBro::EditorActions::CreateObject(editor, window);
+        Check(play != nullptr && play->GetParent() == window && editor.GetSelectedObject() == play, "a child object is created under the window and chosen");
+        addComponent("Button2D");
+        addComponent("SpriteRenderer2D");
+        auto* button = canvas->FindComponentRaw<JBro::Component::Button2D>(play);
+        auto* sprite = canvas->FindComponentRaw<JBro::Component::SpriteRenderer2D>(play);
+        Check(button != nullptr && sprite != nullptr, "the child is a button with a sprite");
+        ScenarioShot(editor, "d02_button_inspector");
+
+        // ── 4. 나머지 위젯을 각자 오브젝트에 ─────────────
+        const auto makeWidget = [&](const char* type) {
+            Check(RunEditorAction(editor, "object.create"), "an object is created for the widget");
+            JBro::Object::GameObject* object = editor.GetSelectedObject();
+            Check(object != nullptr, "and chosen");
+            addComponent(type);
+            return object;
+        };
+        JBro::Object::GameObject* volume = makeWidget("Slider2D");
+        ScenarioShot(editor, "d03_slider_inspector");
+        JBro::Object::GameObject* mute = makeWidget("Toggle2D");
+        ScenarioShot(editor, "d04_toggle_inspector");
+        JBro::Object::GameObject* name = makeWidget("InputField2D");
+        ScenarioShot(editor, "d05_field_inspector");
+        JBro::Object::GameObject* list = makeWidget("Layout2D");
+        ScenarioShot(editor, "d06_layout_inspector");
+        // B 1 순위의 셋(D-355): 드롭다운·토글 그룹·내용 크기 맞추기도 같은 목록에서 붙는다.
+        JBro::Object::GameObject* choose = makeWidget("Dropdown2D");
+        ScenarioShot(editor, "d06b_dropdown_inspector");
+        JBro::Object::GameObject* tabs = makeWidget("ToggleGroup2D");
+        JBro::Object::GameObject* fitted = makeWidget("ContentSizeFitter2D");
+        ScenarioShot(editor, "d06c_fitter_inspector");
+        Check(canvas->FindComponentRaw<JBro::Component::Dropdown2D>(choose) != nullptr && canvas->FindComponentRaw<JBro::Component::ToggleGroup2D>(tabs) != nullptr
+                && canvas->FindComponentRaw<JBro::Component::ContentSizeFitter2D>(fitted) != nullptr,
+            "the dropdown, toggle group and content size fitter are attached");
+        auto* slider = canvas->FindComponentRaw<JBro::Component::Slider2D>(volume);
+        auto* toggle = canvas->FindComponentRaw<JBro::Component::Toggle2D>(mute);
+        auto* field = canvas->FindComponentRaw<JBro::Component::InputField2D>(name);
+        auto* layout = canvas->FindComponentRaw<JBro::Component::Layout2D>(list);
+        Check(slider != nullptr && toggle != nullptr && field != nullptr && layout != nullptr, "all four widgets are attached");
+        // 글자 칸의 표시 텍스트: 자식 오브젝트의 Text2D 를 잇는다.
+        JBro::Object::GameObject* label = JBro::EditorActions::CreateObject(editor, name);
+        addComponent("Text2D");
+        auto* labelText = canvas->FindComponentRaw<JBro::Component::Text2D>(label);
+        Check(labelText != nullptr, "the label has a text");
+        field->display = label->GetScriptHandle().GetComponent<JBro::Handle::Text2D>();
+
+        // ── 5. 캔버스 뷰: 버튼의 누름 사각형 손잡이 ─────────────
+        button->size = {2.0f, 1.0f};
+        editor.SetSelectedObject(play);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles on the button");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
+            return spot;
+        };
+        SelectInspectorComponent(editor, hwnd, 1, "Button2D");
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(at(1.0f, 0.0f).x, at(1.0f, 0.0f).y));
+        Check(editor.Tick(Frame), "the editor ticks while hovering");
+        Check(editor.Tick(Frame), "and once more for the hover to settle");
+        Check(ImGui::GetHoveredID() == LabelId(view->ID, "##button_right"), "the right edge of the hit box has a handle in a real project");
+        ScenarioShot(editor, "d07_canvas_handles");
+
+        // ── 6. 일부러 잘못 잇고 재생한다 ─────────────
+        // 스크롤 내용 = 창 자신, 손잡이 = 슬라이더 자신. 재생해도 둘은 제자리다.
+        scroll->content = window->GetScriptHandle();
+        slider->handle = volume->GetScriptHandle();
+        auto* windowPlace = canvas->FindComponentRaw<JBro::Component::Transform2D>(window);
+        auto* volumePlace = canvas->FindComponentRaw<JBro::Component::Transform2D>(volume);
+        Check(windowPlace != nullptr && volumePlace != nullptr, "the widgets have transforms");
+        windowPlace->position = {1.0f, 2.0f};
+        volumePlace->position = {-3.0f, 0.5f};
+        // 표시 텍스트를 지운다 - 글자 칸의 핸들이 끊긴다.
+        Check(JBro::EditorActions::DeleteObject(editor, *label), "the label is deleted");
+        Check(editor.StartSimulation(), "play starts with the broken wiring");
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the game runs");
+        }
+        {
+            JBro::Canvas* playing = editor.GetCanvas();
+            JBro::Array<JBro::Object::GameObject*> roots;
+            playing->GetRootObjects(roots);
+            for (JBro::Object::GameObject* each : roots)
+            {
+                auto* place = playing->FindComponentRaw<JBro::Component::Transform2D>(each);
+                if (place == nullptr)
+                {
+                    continue;
+                }
+                if (playing->FindComponentRaw<JBro::Component::ScrollView2D>(each) != nullptr)
+                {
+                    Check(place->position.x == 1.0f && place->position.y == 2.0f, "a scroll view that points at itself stays put while playing");
+                }
+                if (playing->FindComponentRaw<JBro::Component::Slider2D>(each) != nullptr)
+                {
+                    Check(place->position.x == -3.0f && place->position.y == 0.5f, "a slider that is its own handle stays put while playing");
+                }
+            }
+        }
+        ScenarioShot(editor, "d08_playing_broken_wiring");
+        editor.StopSimulation();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor returns from play");
+        }
+        canvas = editor.GetCanvas();
+
+        // ── 7. 저장하고 되읽는다 - 끊긴 핸들·자기 참조가 파일을 막지 않는다 ─────────────
+        const fs::path saved = root / "ui.jcanvas";
+        JBro::CanvasFileError error;
+        if (false == editor.SaveCanvas(saved.string().c_str(), error))
+        {
+            std::cout << "  save failed: " << error.message.c_str() << std::endl;
+            Check(false, "the canvas with every widget saves");
+        }
+        const std::string text = ReadWholeText(saved);
+        Check(text.find("Component::ScrollView2D") != std::string::npos && text.find("Component::InputField2D") != std::string::npos
+                && text.find("Component::Layout2D") != std::string::npos && text.find("Component::Dropdown2D") != std::string::npos
+                && text.find("Component::ToggleGroup2D") != std::string::npos && text.find("Component::ContentSizeFitter2D") != std::string::npos,
+            "the file names the widget components");
+        const std::size_t objectsBefore = canvas->GetObjectCount();
+        // 파일은 빈 캔버스에만 읽힌다 - 프로젝트를 닫고 프로젝트 파일로 다시 연다(사용자가 에디터를 껐다 켠 것).
+        editor.CloseProject();
+        JBro::ProjectFileError projectError;
+        const fs::path projectFile = root / "UI Game" / "UI Game.jproject";
+        if (false == editor.OpenProjectFile(projectFile.string().c_str(), projectError))
+        {
+            std::cout << "  reopen failed: " << projectError.message.c_str() << std::endl;
+            Check(false, "the project file opens again");
+        }
+        canvas = editor.GetCanvas();
+        Check(canvas != nullptr && canvas->GetObjectCount() == 0, "a reopened project starts with an empty canvas");
+        if (false == editor.LoadCanvas(saved.string().c_str(), error))
+        {
+            std::cout << "  load failed: " << error.message.c_str() << " (object " << error.objectName.c_str() << ", type " << error.typeName.c_str() << ")" << std::endl;
+            Check(false, "the editor reads the canvas it wrote");
+        }
+        canvas = editor.GetCanvas();
+        Check(canvas->GetObjectCount() == objectsBefore, "every object comes back");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor draws the reopened canvas");
+        }
+        ScenarioShot(editor, "d09_reopened");
+
+        // ── 8. 되돌리기를 끝까지 누른다 ─────────────
+        JBro::Int32 undone = 0;
+        while (editor.GetCommands().GetUndoCount() > 0 && undone < 64)
+        {
+            Check(RunEditorAction(editor, "editor.undo"), "undo runs");
+            Check(editor.Tick(Frame), "and the editor draws after each undo");
+            ++undone;
+        }
+        Check(editor.GetCommands().GetUndoCount() == 0, "undo reaches the beginning");
+        editor.Shutdown();
+    }
+
+    // **시나리오 E - 글자를 치는 사용자**(D-355, script-user-scenario §3.3). 폰트가 있는 프로젝트에서 글자 칸(표시 텍스트·커서·선택 스프라이트)을 만들고
+    // 재생 중에 친다 - 누른 자리의 커서, 끌어 고르기, Shift 선택, Ctrl+C/V, IME 조합 표시를 화면으로 본다. 키보드는 플랫폼의 이벤트 자리에 바로 넣는다
+    // (WndProc 이 넣는 것과 같은 길 - 조합키는 실제 키보드 상태라 PostMessage 로는 Shift 를 누를 수 없다). 마우스는 창에 PostMessage 로 누른다.
+    void TestScenarioETextEntry()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroUserScenarioE").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "Fonts", ignored);
+        {
+            std::ofstream font(root / "Assets" / "Fonts" / "sans.otf", std::ios::binary);
+            font.write(reinterpret_cast<const char*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR));
+        }
+        const JBro::String projectPath = TempPath("JBroUserScenarioE\\Text.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario E not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError projectError;
+        Check(editor.OpenProjectFile(projectPath.c_str(), projectError), "the text project must open");
+        // 시뮬레이션 뷰를 크게 그린다 - 글자가 보여야 사람이 스크린숏으로 본다.
+        Check(editor.EnableEditorUi({640, 360}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        const JBro::AssetRecord* fontRecord = editor.GetAssetRegistry().FindByPath("Fonts/sans.otf");
+        Check(fontRecord != nullptr && fontRecord->type == JBro::AssetType::Font, "the scan registers the font");
+
+        // 화면 레이어에 글자 칸: 바탕 스프라이트 + 칸, 자식 `label`(표시 텍스트), 그 자식에 커서와 선택 스프라이트.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        const auto make = [&](const char* name, JBro::Vector2 position, JBro::Object::GameObject* parent) {
+            JBro::Object::GameObject* object = canvas->CreateObject(name);
+            canvas->SetObjectLayer(object, hud.GetId());
+            if (parent != nullptr)
+            {
+                object->SetParent(parent);
+            }
+            canvas->AttachComponent<JBro::Component::Transform2D>(object)->position = position;
+            return object;
+        };
+        JBro::Object::GameObject* name = make("name", {0.0f, 0.0f}, nullptr);
+        auto* backdrop = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(name);
+        backdrop->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        backdrop->size = {600.0f, 80.0f};
+        backdrop->tint = {0.18f, 0.2f, 0.26f, 1.0f};
+        auto* field = canvas->AttachComponent<JBro::Component::InputField2D>(name);
+        field->size = {600.0f, 80.0f};
+        JBro::Object::GameObject* label = make("label", {-280.0f, 0.0f}, name);
+        auto* text = canvas->AttachComponent<JBro::Component::Text2D>(label);
+        text->fontId = fontRecord->id;
+        text->fontSize = 48.0f;
+        // 폰트 번호는 해석 패스가 핸들로 푼다 - 다시 훑어 푼다(인스펙터로 고르면 커맨드가 한다).
+        Check(editor.RescanAssets(), "the rescan resolves the font handle");
+        field->display = label->GetScriptHandle().GetComponent<JBro::Handle::Text2D>();
+        JBro::Object::GameObject* caretObject = make("caret", {}, label);
+        auto* caretSprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(caretObject);
+        caretSprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        caretSprite->size = {4.0f, 52.0f};
+        caretSprite->renderOrder = 2;
+        field->caret = caretObject->GetScriptHandle().GetComponent<JBro::Handle::SpriteRenderer2D>();
+        JBro::Object::GameObject* highlightObject = make("highlight", {}, label);
+        auto* highlightSprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(highlightObject);
+        highlightSprite->tint = {0.3f, 0.5f, 1.0f, 0.6f};
+        highlightSprite->renderOrder = 1;
+        field->selection = highlightObject->GetScriptHandle().GetComponent<JBro::Handle::SpriteRenderer2D>();
+        JBro::Object::GameObject* underlineObject = make("underline", {}, label);
+        auto* underlineSprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(underlineObject);
+        underlineSprite->tint = {1.0f, 0.4f, 0.2f, 1.0f};
+        underlineSprite->renderOrder = 3;
+        field->composition = underlineObject->GetScriptHandle().GetComponent<JBro::Handle::SpriteRenderer2D>();
+        JBro::EditorPanel* game = editor.FindPanel("Simulation");
+        Check(game != nullptr, "the simulation view is a default panel");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles");
+        }
+
+        // 재생하고 시뮬레이션 뷰에 포커스를 준다. 글자 칸을 창에서 누른다 - 게임 픽셀 → 창 픽셀은 시뮬레이션 뷰의 매핑을 거꾸로 센다.
+        Check(editor.StartSimulation(), "play starts");
+        game->RequestFocus();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the playing editor settles");
+        }
+        Check(game->IsFocused(), "the simulation view holds the focus");
+        JBro::Canvas* playing = editor.GetCanvas();
+        JBro::Component::InputField2D* playingField = nullptr;
+        JBro::Component::Text2D* playingText = nullptr;
+        JBro::Component::SpriteRenderer2D* playingHighlight = nullptr;
+        JBro::Component::SpriteRenderer2D* playingUnderline = nullptr;
+        JBro::Layer* playingHud = nullptr;
+        playing->ForEach<JBro::Component::InputField2D>([&](JBro::Component::InputField2D& each) { playingField = &each; });
+        playing->ForEach<JBro::Component::Text2D>([&](JBro::Component::Text2D& each) { playingText = &each; });
+        playing->ForEach<JBro::Component::SpriteRenderer2D>([&](JBro::Component::SpriteRenderer2D& each) {
+            if (each.renderOrder == 1)
+            {
+                playingHighlight = &each;
+            }
+            if (each.renderOrder == 3)
+            {
+                playingUnderline = &each;
+            }
+        });
+        Check(playingField != nullptr && playingText != nullptr && playingHighlight != nullptr, "the playing canvas has the field, its text and the highlight");
+        {
+            JBro::Array<JBro::Object::GameObject*> roots;
+            playing->GetRootObjects(roots);
+            for (JBro::Object::GameObject* each : roots)
+            {
+                if (playing->FindComponentRaw<JBro::Component::InputField2D>(each) != nullptr)
+                {
+                    playingHud = each->GetLayer();
+                }
+            }
+        }
+        Check(playingHud != nullptr, "the field sits on the HUD layer while playing");
+        auto* widgets = playing->GetSystems().FindSystem<JBro::System::Button2DSystem>();
+        auto* texts = playing->GetSystems().FindSystem<JBro::System::Text2DSystem>();
+        Check(widgets != nullptr && texts != nullptr, "the widget and text systems are there");
+        const auto gameToClient = [&](JBro::Float gameX, JBro::Float gameY, JBro::Int32& clientX, JBro::Int32& clientY) {
+            const JBro::InputSurfaceMapping& mapping = editor.GetSimulationViewMapping();
+            clientX = static_cast<JBro::Int32>(std::lround((gameX / mapping.scaleX + mapping.originX).Get()));
+            clientY = static_cast<JBro::Int32>(std::lround((gameY / mapping.scaleY + mapping.originY).Get()));
+        };
+        // 레이어 좌표(기준 픽셀, 가운데 원점)의 점을 창에서 누른다.
+        const auto clickLayer = [&](JBro::Float layerX, JBro::Float layerY, JBro::Bool release) {
+            JBro::Float gameX = 0.0f;
+            JBro::Float gameY = 0.0f;
+            Check(widgets->LayerToPixel(*playingHud, {layerX, layerY}, gameX, gameY), "the layer point maps to a game pixel");
+            JBro::Int32 x = 0;
+            JBro::Int32 y = 0;
+            gameToClient(gameX, gameY, x, y);
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the pointer moves");
+            PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the press reaches the game");
+            if (release)
+            {
+                PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the release reaches the game");
+            }
+        };
+        const auto dragLayerTo = [&](JBro::Float layerX, JBro::Float layerY) {
+            JBro::Float gameX = 0.0f;
+            JBro::Float gameY = 0.0f;
+            Check(widgets->LayerToPixel(*playingHud, {layerX, layerY}, gameX, gameY), "the drag target maps to a game pixel");
+            JBro::Int32 x = 0;
+            JBro::Int32 y = 0;
+            gameToClient(gameX, gameY, x, y);
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the drag reaches the game");
+            PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the drop reaches the game");
+        };
+        auto& platform = static_cast<JBro::WindowsPlatform&>(editor.GetPlatform());
+        const auto record = [&](JBro::InputEventKind kind, JBro::Key key, JBro::UInt32 codePoint, JBro::KeyModifiers modifiers) {
+            JBro::InputEvent event;
+            event.kind = kind;
+            event.key = key;
+            event.codePoint = codePoint;
+            event.modifiers = modifiers;
+            platform.RecordInputEvent(event);
+        };
+        const auto typeText = [&](const char* ascii) {
+            for (const char* at = ascii; *at != '\0'; ++at)
+            {
+                record(JBro::InputEventKind::Text, JBro::Key::Unknown, static_cast<JBro::UInt32>(static_cast<unsigned char>(*at)), JBro::KeyModifierNone);
+            }
+            Check(editor.Tick(Frame) && editor.Tick(Frame), "the typed text reaches the game");
+        };
+        const auto pressKey = [&](JBro::Key key, JBro::KeyModifiers modifiers) {
+            record(JBro::InputEventKind::KeyDown, key, 0, modifiers);
+            Check(editor.Tick(Frame), "the key goes down");
+            record(JBro::InputEventKind::KeyUp, key, 0, modifiers);
+            Check(editor.Tick(Frame), "the key comes up");
+        };
+        const auto textOf = [&](JBro::TextId id) {
+            const JBro::ArrayView<const char> bytes = JBro::TextStore::Get().GetText(id);
+            return std::string(bytes.Data() != nullptr ? bytes.Data() : "", bytes.Size());
+        };
+
+        // 1. 칸을 누르면 포커스. 글자를 치면 들어간다.
+        clickLayer(-250.0f, 0.0f, true);
+        Check(playingField->focused && playingField->caretIndex == 0, "pressing the empty field focuses it with the caret at the front");
+        typeText("Hello");
+        Check(textOf(playingField->text) == "Hello" && playingField->caretIndex == 5, "typing fills the field");
+
+        // 2. IME 조합: 조합 글자는 보이는 텍스트에만 있고 저장 글자에는 없다 **[봄 e01]**. 끝나면 결과 글자가 들어간다.
+        record(JBro::InputEventKind::CompositionBegin, JBro::Key::Unknown, 0, JBro::KeyModifierNone);
+        record(JBro::InputEventKind::Composition, JBro::Key::Unknown, 0xD55C, JBro::KeyModifierNone);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the composition reaches the game");
+        Check(playingField->composing && textOf(playingField->text) == "Hello" && textOf(playingText->text) == "Hello\xED\x95\x9C",
+            "the composed syllable shows after the caret but is not stored");
+        Check(playingUnderline != nullptr && playingUnderline->visible && playingUnderline->size.x > 10.0f && playingUnderline->size.y > 1.0f
+                && playingUnderline->size.y < playingUnderline->size.x,
+            "the composition underline is stretched under the composed syllable (D-361)");
+        ScenarioShot(editor, "e01_composing");
+        record(JBro::InputEventKind::CompositionEnd, JBro::Key::Unknown, 0, JBro::KeyModifierNone);
+        record(JBro::InputEventKind::Text, JBro::Key::Unknown, 0xD55C, JBro::KeyModifierNone);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the result reaches the game");
+        Check(false == playingField->composing && textOf(playingField->text) == "Hello\xED\x95\x9C" && textOf(playingText->text) == "Hello\xED\x95\x9C",
+            "the finished syllable is stored and shown");
+
+        // 3. Shift+← 둘: 선택 [4, 6) 이 파랗게 선다 **[봄 e02]**. Ctrl+C 가 OS 클립보드에 쓴다(시험이 끝나면 전 글자를 되돌린다).
+        pressKey(JBro::Key::Left, JBro::KeyModifierShift);
+        pressKey(JBro::Key::Left, JBro::KeyModifierShift);
+        Check(editor.Tick(Frame), "the selection settles");
+        Check(playingField->caretIndex == 4 && playingField->selectionAnchor == 6, "shift+left twice selects the last two characters");
+        Check(playingHighlight->visible && playingHighlight->size.x > 10.0f && playingHighlight->size.y > 10.0f, "the highlight sprite is stretched over the selection");
+        ScenarioShot(editor, "e02_selection");
+        JBro::String savedClipboard;
+        const JBro::Bool hadClipboard = platform.ReadClipboardText(savedClipboard);
+        record(JBro::InputEventKind::KeyDown, JBro::Key::C, 0, JBro::KeyModifierControl);
+        record(JBro::InputEventKind::Text, JBro::Key::Unknown, 0x03, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame), "ctrl+c goes down");
+        record(JBro::InputEventKind::KeyUp, JBro::Key::C, 0, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame), "ctrl+c comes up");
+        JBro::String clipboard;
+        const JBro::Bool readBack = platform.ReadClipboardText(clipboard);
+        if (false == readBack || clipboard != "o\xED\x95\x9C")
+        {
+            // 떨어지면 무엇이 읽혔는지 남긴다 - 클립보드는 바깥 상태라 까닭이 여럿이다.
+            std::cout << "  clipboard read=" << (readBack ? 1 : 0) << " bytes=" << clipboard.size() << " caret=" << playingField->caretIndex.Get()
+                << " anchor=" << playingField->selectionAnchor.Get() << " text=" << textOf(playingField->text) << std::endl;
+        }
+        Check(readBack && clipboard == "o\xED\x95\x9C", "ctrl+c puts the selection on the OS clipboard");
+        Check(textOf(playingField->text) == "Hello\xED\x95\x9C", "and the control character is not typed");
+
+        // 4. 포인터로 커서 놓기: 셋째 글자 앞 자리의 조금 오른쪽을 누르면 커서는 3 이다. 끌어 끝까지 가면 [3, 6) 이 선택이다 **[봄 e03]**. Ctrl+V 가 선택을 대신한다.
+        JBro::Float caretX = 0.0f;
+        JBro::Float caretY = 0.0f;
+        Check(texts->GetLocalCaret(playingText->GetInstanceId(), 3, caretX, caretY), "the laid-out text knows where its third glyph starts");
+        clickLayer(-280.0f + caretX + 3.0f, caretY, false);
+        Check(playingField->focused && playingField->caretIndex == 3 && playingField->selectionAnchor == -1, "a press just right of a glyph boundary puts the caret there");
+        dragLayerTo(200.0f, 0.0f);
+        Check(playingField->caretIndex == 6 && playingField->selectionAnchor == 3, "dragging to the end selects from the pressed glyph to the end");
+        ScenarioShot(editor, "e03_drag_selection");
+        record(JBro::InputEventKind::KeyDown, JBro::Key::V, 0, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame), "ctrl+v goes down");
+        record(JBro::InputEventKind::KeyUp, JBro::Key::V, 0, JBro::KeyModifierControl);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "ctrl+v comes up");
+        Check(textOf(playingField->text) == "Helo\xED\x95\x9C" && playingField->caretIndex == 5 && playingField->selectionAnchor == -1,
+            "ctrl+v replaces the selection with the clipboard");
+        if (hadClipboard)
+        {
+            platform.WriteClipboardText(savedClipboard.c_str(), savedClipboard.size());
+        }
+        ScenarioShot(editor, "e04_pasted");
+
+        // 4b. **실제 IME**(D-362). 한국어 IME 를 이 스레드에 올리고 IMM 으로 `글` 을 조합하면 IME 가 진짜 `WM_IME_*` 를 에디터 창에 보낸다 - 플랫폼·입력·위젯을 지나
+        // 칸의 커서 자리에 조합 글자와 밑줄이 보이고, 확정하면 저장 글자가 된다. 한국어 IME 가 없는 기계는 건너뛴다.
+        {
+            const HKL before = GetKeyboardLayout(0);
+            const HKL korean = LoadKeyboardLayoutW(L"00000412", KLF_ACTIVATE);
+            if (korean == nullptr || LOWORD(reinterpret_cast<UINT_PTR>(korean)) != 0x0412)
+            {
+                std::cout << "  [skip] no Korean IME on this machine; the real composition in the editor was not verified" << std::endl;
+            }
+            else
+            {
+                // 앞의 Ctrl+V 는 V 를 뗀 것까지만 흉내 냈다 - 실제 키보드처럼 Ctrl 도 뗀다. 남아 있으면 확정 글자가 단축키로 읽혀 버려진다.
+                record(JBro::InputEventKind::KeyUp, JBro::Key::LeftControl, 0, JBro::KeyModifierNone);
+                Check(editor.Tick(Frame), "ctrl is released");
+                SetForegroundWindow(hwnd);
+                SetFocus(hwnd);
+                ActivateKeyboardLayout(korean, 0);
+                HIMC context = ImmGetContext(hwnd);
+                Check(context != nullptr, "the editor window has an input context");
+                ImmSetOpenStatus(context, TRUE);
+                DWORD conversion = 0;
+                DWORD sentence = 0;
+                ImmGetConversionStatus(context, &conversion, &sentence);
+                ImmSetConversionStatus(context, conversion | IME_CMODE_HANGUL, sentence);
+                const wchar_t syllable[] = L"\uAE00";
+                ImmSetCompositionStringW(context, SCS_SETSTR, const_cast<wchar_t*>(syllable), sizeof(wchar_t), nullptr, 0);
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the real composition reaches the game");
+                Check(playingField->composing && textOf(playingField->text) == "Helo\xED\x95\x9C"
+                        && textOf(playingText->text) == "Helo\xED\x95\x9C\xEA\xB8\x80",
+                    "a real IME composition shows at the caret but is not stored");
+                Check(playingUnderline->visible, "and is underlined");
+                ScenarioShot(editor, "e05_real_ime");
+                ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the completed syllable reaches the game");
+                Check(false == playingField->composing && textOf(playingField->text) == "Helo\xED\x95\x9C\xEA\xB8\x80" && playingField->caretIndex == 6
+                        && false == playingUnderline->visible,
+                    "completing stores the syllable at the caret and drops the underline");
+                ImmSetCompositionStringW(context, SCS_SETSTR, const_cast<wchar_t*>(syllable), sizeof(wchar_t), nullptr, 0);
+                Check(editor.Tick(Frame), "a second composition starts");
+                ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+                Check(editor.Tick(Frame) && editor.Tick(Frame), "the cancel reaches the game");
+                Check(false == playingField->composing && textOf(playingField->text) == "Helo\xED\x95\x9C\xEA\xB8\x80"
+                        && textOf(playingText->text) == "Helo\xED\x95\x9C\xEA\xB8\x80",
+                    "cancelling leaves the stored text as it was");
+                ImmReleaseContext(hwnd, context);
+                ActivateKeyboardLayout(before, 0);
+            }
+        }
+
+        // 5. Esc 로 포커스를 놓으면 커서·선택이 사라진다. 멈추면 편집 캔버스의 글자 칸은 비어 있다.
+        pressKey(JBro::Key::Escape, JBro::KeyModifierNone);
+        Check(editor.Tick(Frame), "the escape settles");
+        Check(false == playingField->focused && playingField->selectionAnchor == -1, "escape drops the focus and the selection");
+        editor.StopSimulation();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor returns from play");
+        }
+        canvas = editor.GetCanvas();
+        JBro::Component::InputField2D* restored = nullptr;
+        canvas->ForEach<JBro::Component::InputField2D>([&](JBro::Component::InputField2D& each) { restored = &each; });
+        Check(restored != nullptr && textOf(restored->text).empty(), "stopping puts the empty field back");
+        editor.Shutdown();
+    }
+
     // 캔버스의 뿌리 오브젝트를 이름으로 찾는다. 실행을 멈추면 오브젝트가 새로 만들어지므로 포인터를 들고 다니지 않는다.
     JBro::Object::GameObject* FindRootNamed(JBro::Canvas& canvas, const char* name)
     {
@@ -17526,7 +19508,7 @@ namespace
         return differing;
     }
 
-    // **시나리오 D: 3D 로 처음 쓰는 사용자**(D-335, todo-3d 우선순위 1). 새 프로젝트에서 3D 를 고른다 → 열자마자 카메라와 큐브가 있고
+    // **시나리오 D: 3D 로 처음 쓰는 사용자**(D-388, todo-3d 우선순위 1). 새 프로젝트에서 3D 를 고른다 → 열자마자 카메라와 큐브가 있고
     // 캔버스 뷰 가운데에 큐브가 보인다 → 눌러 고른다 → 기즈모로 옮기고 되돌린다 → 실행하면 게임 화면에 큐브가 그려진다 → 멈추면 그대로다.
     // 스크립트는 다루지 않는다(3D 스크립트는 우선순위 7). MSBuild 가 없어도 돈다.
     void TestScenarioD3DFirstProject()
@@ -17616,7 +19598,7 @@ namespace
         Check(mesh != nullptr && mesh->meshId == JBro::MeshLibrary::BuiltinCubeId() && mesh->visible,
             "the cube draws the builtin cube mesh");
         Check(canvas->FindComponentRaw<JBro::Component::Transform3D>(cube) != nullptr, "and has a 3D transform");
-        // 시작 라이트(D-353 (3)): 기본 빛과 같은 방향광과 환경광이 한 오브젝트에 있다.
+        // 시작 라이트(D-407 (3)): 기본 빛과 같은 방향광과 환경광이 한 오브젝트에 있다.
         JBro::Object::GameObject* lamp = FindRootNamed(*canvas, "Light");
         Check(lamp != nullptr && canvas->FindComponentRaw<JBro::Component::Transform3D>(lamp) != nullptr, "the new 3D canvas starts with a light");
         JBro::Int32 suns = 0;
@@ -17653,7 +19635,7 @@ namespace
         Check(editor.GetSelectedObject() == cube, "clicking the middle of the view picks the cube the view looks at");
         ScenarioShot(editor, "d04_cube_picked");
 
-        // ── 3b. 인스펙터의 메시 칸에서 도형을 바꾸고 되돌린다(D-335 우선순위 2) ─────────────
+        // ── 3b. 인스펙터의 메시 칸에서 도형을 바꾸고 되돌린다(D-388 우선순위 2) ─────────────
         // 빌트인 도형은 레지스트리에 없지만 목록 앞에 이름으로 선다. 전에는 칸이 `(없는 에셋)` 이었다.
         {
             const JBro::PropertyTable* meshFields = JBro::PropertyRegistry::Lookup(
@@ -17745,10 +19727,10 @@ namespace
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }
-    // **시나리오 E: 3D 라이트를 놓고 고친다**(D-353, lighting3d-plan 3 단계). 바닥·상자·구에 방향광·환경광·스포트·점광을 둔다.
+    // **시나리오 L: 3D 라이트를 놓고 고친다**(D-407, lighting3d-plan 3 단계). 바닥·상자·구에 방향광·환경광·스포트·점광을 둔다.
     // 라이트 오브젝트에는 전구 표시가 서고 그 자리를 누르면 그 라이트가 골라진다. 인스펙터에서 `Light3D` 를 고르면 스포트는 원뿔과 손잡이가 서고,
     // 바깥 각 손잡이를 축에서 멀리 끌면 각이 커지며 한 번 되돌리면 돌아온다. 축 끝 손잡이를 끌면 `range` 가 늘어난다.
-    void TestScenarioELights3D()
+    void TestScenarioLights3D()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -17757,7 +19739,7 @@ namespace
         config.windowHeight = ScenarioHeight;
         if (false == editor.Initialize(config))
         {
-            std::cout << "  [skip] no D3D12 device; scenario E not verified" << std::endl;
+            std::cout << "  [skip] no D3D12 device; scenario L not verified" << std::endl;
             return;
         }
         JBro::ProjectDescriptor project;
@@ -17855,14 +19837,14 @@ namespace
             Check(editor.Tick(Frame), "and once more for the hover to settle");
             return ImGui::GetHoveredID();
         };
-        ScenarioShot(editor, "e01_lights_placed");
+        ScenarioShot(editor, "l01_lights_placed");
 
         // ── 1. 전구 표시의 자리를 누르면 그 라이트가 골라진다 ─────────────
         ClickAt(editor, hwnd, screenOf({2.6f, 1.4f, 0.4f}));
         Check(editor.Tick(Frame), "the click is taken");
         Check(editor.GetSelectedObject() == bulb, "clicking a light's marker picks that light");
         SelectInspectorComponent(editor, hwnd, 1, "Light3D");
-        ScenarioShot(editor, "e02_point_light_range");
+        ScenarioShot(editor, "l02_point_light_range");
 
         // ── 2. 스포트를 고르고 원뿔의 손잡이를 끈다 ─────────────
         editor.SetSelectedObject(torch);
@@ -17878,7 +19860,7 @@ namespace
         const Spot apex = screenOf(torchTransform->position);
         Check(hoveredAt(outer) == LabelId(view->ID, "##light3d_outer_angle"), "the spot's outer angle has a handle on its end circle");
         Check(hoveredAt(end) == LabelId(view->ID, "##light3d_range"), "and its range a handle at the end of its axis");
-        ScenarioShot(editor, "e03_spot_cone");
+        ScenarioShot(editor, "l03_spot_cone");
 
         const std::size_t undo = editor.GetCommands().GetUndoCount();
         Spot wider = outer;
@@ -17889,7 +19871,7 @@ namespace
         Check(spot->innerAngle.Get() == 30.0f, "and leaves the inner angle alone");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one undo step");
         Check(editor.GetSelectedObject() == torch, "grabbing a light handle does not change the selection");
-        ScenarioShot(editor, "e04_spot_widened");
+        ScenarioShot(editor, "l04_spot_widened");
         Check(editor.GetCommands().Undo() && spot->outerAngle.Get() == 60.0f, "undo puts the angle back");
         for (JBro::Int32 frame = 0; frame < 30; ++frame)
         {
@@ -17902,7 +19884,7 @@ namespace
         DragTo(editor, hwnd, end, further);
         Check(spot->range > 4.0f && spot->range < 8.0f, "dragging the axis end further makes the range longer");
         Check(editor.GetCommands().Undo() && spot->range == 3.5f, "and undo puts it back");
-        ScenarioShot(editor, "e05_after_undo");
+        ScenarioShot(editor, "l05_after_undo");
 
         // ── 3. 실행하면 게임 카메라의 화면도 그 빛을 받는다 ─────────────
         Check(RunEditorAction(editor, "simulation.play"), "play (F5) starts");
@@ -17917,7 +19899,7 @@ namespace
         Check(editor.IsSimulationPlaying() && IsFrontTab("Simulation"), "the simulation runs in front");
         ImGuiWindow* game = ImGui::FindWindowByName("Simulation");
         Check(game != nullptr, "the simulation view has a window");
-        ScenarioShot(editor, "e06_playing");
+        ScenarioShot(editor, "l06_playing");
         // 푸른 점광을 끈 그림과 견준다. 게임 화면 안에서 달라져야 그 빛이 게임 카메라에 닿은 것이다.
         JBro::Object::GameObject* playingBulb = FindRootNamed(*editor.GetCanvas(), "Bulb");
         Check(playingBulb != nullptr, "the bulb is there while playing");
@@ -18027,6 +20009,14 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheCanvasViewDrawsColliderShapes());
     JBRO_CASE(TestTheCanvasViewEditsPolygonColliderPoints());
     JBRO_CASE(TestTheCanvasViewDragsLightHandles());
+    JBRO_CASE(TestTheCanvasViewEditsButtonRects());
+    JBRO_CASE(TestTheRenderGraphPanelShowsTheLastFrame());
+    JBRO_CASE(TestThePostProcessProfileIsEditedInTheInspector());
+    JBRO_CASE(TestALayerProfileOutlinesItsLayer());
+    JBRO_CASE(TestAVolumeBlendsAroundTheCamera());
+    JBRO_CASE(TestAMaterialShadesASpriteAndTheView());
+    JBRO_CASE(TestAScriptAndAVolumeChangeAMaterial());
+    JBRO_CASE(TestAMeshMaterialDrawsInA3DProject());
     JBRO_CASE(TestTheCanvasViewDrawsCapsuleColliders());
     JBRO_CASE(TestTheCanvasViewRulerReadsInPixelsToo());
     JBRO_CASE(TestTheCanvasViewGridLabelsStayOnTheirLines());
@@ -18084,14 +20074,141 @@ JBro::Int32 RunEditorApplicationTests()
     return 0;
 }
 
+namespace
+{
+    // **오류 알림은 들어온 뒤 창 안에 서고 끝까지 읽힌다**(Script QA 결함 7). 시나리오 B 의 `b12` 그림은 알림이 오른쪽에서 미끄러져
+    // 들어오는 0.18 초 사이(시나리오 화면은 3 프레임 뒤에 찍는다)라 오른쪽 끝이 잘려 보였다. 같은 세 알림을 두 언어로 띄워 들어오는 중과
+    // 끝난 뒤를 찍고(`JBRO_EDITOR_SHOT`), 끝난 뒤에는 비킴이 없고 불투명한지 본다.
+    void ShowTheCrashNotifications(const char* locale, const char* shotSuffix)
+    {
+        // 시험 실행 파일 옆에는 에디터 번역표가 없어(jbroc 것만 복사된다) 그대로 두면 어느 언어로 띄워도 영어 기본 글로 그린다.
+        // 언어마다 실제 글자로 재려고 엔진 소스의 번역표를 쓴다.
+        JBro::String localization;
+        {
+            JBro::WindowsPlatform probe;
+            JBro::JMemoryContext memory;
+            Check(probe.Initialize(memory), "the platform initializes");
+            const JBro::String engineRoot = JBro::ScriptProject::FindEngineRoot(probe, probe.GetExecutableFolder().c_str());
+            probe.Shutdown();
+            Check(false == engineRoot.empty(), "the engine sources are found from the test executable");
+            localization = engineRoot + "/Localization";
+        }
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        config.locale = locale;
+        config.localizationDirectory = localization.c_str();
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the notification layout not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor lays out its docks before the notifications");
+        }
+        char created[256] = {};
+        std::snprintf(created, sizeof(created), JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptCreated, "Created the script %s"), "Hero");
+        JBro::EditorNotifications& notifications = editor.GetNotifications();
+        notifications.Notify(JBro::NotificationLevel::Success, created,
+            JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptCreatedNext, "Click to open it in your code editor."));
+        notifications.Notify(JBro::NotificationLevel::Success, JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptsBuilt, "The scripts were built"),
+            JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptsBuiltNext, "Attach them with Add Component in the inspector"));
+        char message[512] = {};
+        std::snprintf(message, sizeof(message), JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFaultAt, "%s - %s:%u (%s)"),
+            JBro::Loc::TextOr(JBro::LocKeys::ScriptFaultAccessViolation, "The script accessed invalid memory"), "Hero.cpp", 20u, "OnUpdate");
+        notifications.Notify(JBro::NotificationLevel::Error,
+            JBro::Loc::TextOr(JBro::LocKeys::NotifyScriptFaultStopped, "A script error stopped the simulation"), message);
+        // 1 프레임 뒤에는 알림이 아직 그려지지 않아 그림이 비었다(REVIEW R7-1). 미끄럼 도중(5 프레임 뒤, 0.18 s 의 절반쯤)을 찍는다.
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor draws the arriving notifications");
+        }
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, (std::string("notification_sliding_") + shotSuffix).c_str());
+        for (JBro::Int32 frame = 0; frame < 25; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor keeps drawing the notifications");
+        }
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, (std::string("notification_settled_") + shotSuffix).c_str());
+        Check(notifications.GetVisibleCount() == 3, "the three notifications are on screen");
+        for (JBro::UInt32 index = 0; index < notifications.GetVisibleCount(); ++index)
+        {
+            const JBro::NotificationView view = notifications.GetVisible(index);
+            Check(std::fabs(view.offsetX.Get()) < 0.5f && view.alpha.Get() > 0.99f,
+                "a notification that has arrived stands inside the window, not pushed past its right edge");
+        }
+        editor.Shutdown();
+    }
+
+    void TestTheCrashNotificationFitsTheWindow()
+    {
+        ShowTheCrashNotifications("ko-KR", "ko");
+        ShowTheCrashNotifications("en-US", "en");
+    }
+}
+
+namespace
+{
+    // **핸들 무효 접근 경고는 에디터 로그 창에 한 줄로 묶여 보인다**(D-380, ProjectRule §6.1). 게임 DLL 에서 난 경고가 호스트 로그에
+    // 닿는 것은 `ScriptDLLLoader` 가 보고, 여기서는 그 로그가 창에 그려지는지 화면으로 남긴다. 같은 연산을 여러 번 해도 묶음은 하나다.
+    void TestHandleWarningsShowInTheLogPanel()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the log panel not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor lays out its docks");
+        }
+        JBro::Log::Clear();
+        JBro::Handle::GameObject nobody;
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
+        {
+            nobody.SetActive(false);
+            Check(editor.Tick(Frame), "the editor keeps ticking while a script pokes an invalid handle");
+        }
+        const JBro::LogGroup* group = nullptr;
+        for (std::size_t index = 0; index < JBro::Log::GetGroupCount(); ++index)
+        {
+            group = JBro::Log::GetGroupAt(index)->key == "handle.GameObject.SetActive" ? JBro::Log::GetGroupAt(index) : group;
+        }
+        Check(group != nullptr && group->count == 5 && group->latestLevel == JBro::LogLevel::Warning,
+            "five invalid writes are one warning group in the editor's log");
+        ImGui::SetWindowFocus("Log");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles on the log tab");
+        }
+        ImGuiWindow* log = ImGui::FindWindowByName("Log");
+        Check(log != nullptr && log->DockTabIsVisible, "the log tab is in front");
+        SaveScreenshot(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, "handle_warning_log");
+        editor.Shutdown();
+    }
+}
+
 // 사용자 시나리오(tasks/script-user-scenario.md)는 실제 MSBuild 로 스크립트를 빌드해 오래 걸리므로 묶음을 따로 둔다.
 JBro::Int32 RunUserScenarioTests()
 {
     JBRO_CASE(TestScenarioAFirstScript());
     JBRO_CASE(TestScenarioBHostileUser());
     JBRO_CASE(TestScenarioCJBroScript());
+    JBRO_CASE(TestScenarioDUiBuilder());
+    JBRO_CASE(TestScenarioETextEntry());
+    JBRO_CASE(TestTheCrashNotificationFitsTheWindow());
+    JBRO_CASE(TestHandleWarningsShowInTheLogPanel());
     JBRO_CASE(TestScenarioD3DFirstProject());
-    JBRO_CASE(TestScenarioELights3D());
+    JBRO_CASE(TestScenarioLights3D());
     std::cout << "User scenario tests passed.\n";
     return 0;
 }

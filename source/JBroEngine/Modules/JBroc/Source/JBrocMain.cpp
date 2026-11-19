@@ -20,6 +20,7 @@
 #include <JBro/Types/ArrayView.h>
 #include <JBro/Types/String.h>
 #include "CppProjectOutput.h"
+#include "StackGuard.h"
 
 #include <crtdbg.h>
 #include <algorithm>
@@ -289,6 +290,44 @@ namespace
 
 JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv);
 
+namespace
+{
+    // 분석과 C++ 생성은 구문 트리의 깊이만큼 재귀한다. 기본 1 MB 스택은 Debug 에서 식 깊이 24(생성)·40(분석)에 넘쳐, `jbroc` 이 아무 말 없이
+    // 0xC00000FD 로 죽었다(빌드에는 MSB3073 한 줄, 언어 서버는 연결이 끊김). 식은 이제 깊이 상한(D-374)으로 막고, 상한이 없는
+    // 문장 블록의 겹을 위해 일은 스택을 크게 예약한 스레드에서 한다. 그래도 넘치면 결함으로 알리고 종료 코드 3 으로 끝낸다.
+    constexpr SIZE_T WorkerStackReserve = 256u * 1024u * 1024u;
+
+    struct Arguments
+    {
+        JBro::Int32 Argc;
+        wchar_t** Argv;
+    };
+
+    // 잡히지 않은 예외는 아무 말 없이 종료 코드 3 으로 죽는다. 무엇이 죽었는지 표준 에러에 남긴다.
+    JBro::Int32 RunCatchingExceptions(JBro::Int32 argc, wchar_t** argv)
+    {
+        try
+        {
+            return Run(argc, argv);
+        }
+        catch (const std::exception& exception)
+        {
+            WriteLine(STD_ERROR_HANDLE, String("jbroc: internal error: ").Append(exception.what()).View());
+        }
+        catch (...)
+        {
+            WriteLine(STD_ERROR_HANDLE, "jbroc: internal error");
+        }
+        return ExitInternalError;
+    }
+
+    JBro::Int32 RunArguments(void* data)
+    {
+        const Arguments& arguments = *static_cast<const Arguments*>(data);
+        return RunCatchingExceptions(arguments.Argc, arguments.Argv);
+    }
+}
+
 int wmain(int argc, wchar_t** argv)
 {
     // **단언이 대화상자를 띄우면 안 된다(D-69 와 같은 이유).** JBroc 은 편집기의 빌드 태스크가 사람 없이 부른다.
@@ -301,20 +340,14 @@ int wmain(int argc, wchar_t** argv)
     }
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 
-    // 잡히지 않은 예외는 아무 말 없이 종료 코드 3 으로 죽는다. 무엇이 죽었는지 표준 에러에 남긴다.
-    try
+    Arguments arguments{argc, argv};
+    const JBro::CompilerOutput::GuardedRun run =
+        JBro::CompilerOutput::RunOnLargeStack(&RunArguments, &arguments, WorkerStackReserve, ExitInternalError);
+    if (run.StackOverflow)
     {
-        return Run(argc, argv);
+        WriteLine(STD_ERROR_HANDLE, "jbroc: internal error: the source nests too deeply to compile (stack overflow)");
     }
-    catch (const std::exception& exception)
-    {
-        WriteLine(STD_ERROR_HANDLE, String("jbroc: internal error: ").Append(exception.what()).View());
-    }
-    catch (...)
-    {
-        WriteLine(STD_ERROR_HANDLE, "jbroc: internal error");
-    }
-    return ExitInternalError;
+    return run.Result;
 }
 
 JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
@@ -414,20 +447,20 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         }
         const ApiCatalog catalog = JBro::ScriptApiCatalog2D::BuildCatalog();
         const OwnerPtr<AnalysisResult> analyzed = AnalyzeProject(inputs.View(), catalog);
-        bool sourceErrors = false;
+        Bool sourceErrors = false;
         Array<CppSource> cppSources;
         for (const auto& ownedDocument : analyzed->Documents)
         {
             const DocumentAnalysis& document = *ownedDocument;
             for (const Diagnostic& diagnostic : document.ParseDiagnostics.GetItems())
             {
-                WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(document.Input.Path.View(), diagnostic, messages).View());
+                WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(document.Input.Path.View(), document.Input.Text.View(), diagnostic, messages).View());
             }
             for (const SemanticDiagnostic& diagnostic : document.Diagnostics)
             {
                 String line(document.Input.Path);
                 line.Append("(").Append(std::to_string(diagnostic.Range.Begin.Line)).Append(",")
-                    .Append(std::to_string(diagnostic.Range.Begin.Column)).Append("): ")
+                    .Append(std::to_string(CharacterColumn(document.Input.Text.View(), diagnostic.Range.Begin).Get())).Append("): ")
                     .Append(diagnostic.Warning ? "warning " : "error ").Append(diagnostic.Code.View())
                     .Append(": ").Append(messages.FormatKey(diagnostic.MessageKey.c_str(), diagnostic.Arguments.View()).View());
                 WriteLine(STD_OUTPUT_HANDLE, line.View());
@@ -451,7 +484,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
             {
                 for (const String& error : emitted.Errors)
                 {
-                    WriteLine(STD_ERROR_HANDLE, String("jbroc: C++ emit error: ").Append(error.View()).View());
+                    WriteLine(STD_OUTPUT_HANDLE, FormatEmitErrorLine(error.View(), messages).View());
                 }
                 return ExitSourceErrors;
             }
@@ -482,7 +515,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         {
             for (const String& error : emitted.Errors)
             {
-                WriteLine(STD_ERROR_HANDLE, String("jbroc: C++ emit error: ").Append(error.View()).View());
+                WriteLine(STD_OUTPUT_HANDLE, FormatEmitErrorLine(error.View(), messages).View());
             }
             return ExitSourceErrors;
         }
@@ -536,7 +569,7 @@ JBro::Int32 Run(JBro::Int32 argc, wchar_t** argv)
         const SyntaxTree tree = Parse(source, diagnostics);
         for (const Diagnostic& diagnostic : diagnostics.GetItems())
         {
-            WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(path.View(), diagnostic, messages).View());
+            WriteLine(STD_OUTPUT_HANDLE, FormatDiagnosticLine(path.View(), source.GetText(), diagnostic, messages).View());
         }
         if (diagnostics.HasErrors() && ExitSuccess == exitCode)
         {

@@ -7,6 +7,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 
 namespace
 {
@@ -68,8 +69,14 @@ namespace
             LocaleTables()
             {
                 Check(std::filesystem::create_directory(Directory), "locale probe uses a fresh temporary directory");
-                std::ofstream(Directory / "ko-KR.yaml") << "Entries:\n  jbroc.parse.expected_declaration: KOREAN_DECLARATION\n";
-                std::ofstream(Directory / "en-US.yaml") << "Entries:\n  jbroc.parse.expected_declaration: ENGLISH_DECLARATION\n";
+                std::ofstream(Directory / "ko-KR.yaml") << "Entries:\n  jbroc.parse.expected_declaration: KOREAN_DECLARATION\n"
+                    "  jbroc.summary.invalid_initializer: KOREAN_INITIALIZER\n"
+                    "  jbroc.summary.unsupported_change: KOREAN_SETTINGS\n"
+                    "  jbroc.summary.stale_version: KOREAN_STALE\n";
+                std::ofstream(Directory / "en-US.yaml") << "Entries:\n  jbroc.parse.expected_declaration: ENGLISH_DECLARATION\n"
+                    "  jbroc.summary.invalid_initializer: ENGLISH_INITIALIZER\n"
+                    "  jbroc.summary.unsupported_change: ENGLISH_SETTINGS\n"
+                    "  jbroc.summary.stale_version: ENGLISH_STALE\n";
             }
             ~LocaleTables()
             {
@@ -91,6 +98,10 @@ namespace
                 .Append(locale).Append(R"(","initializationOptions":{"projectFile":"C:/project/game.jproject"}}})").View());
             frames.Append(Frame(R"({"jsonrpc":"2.0","method":"initialized","params":{}})"));
             frames.Append(Frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/project/Contents/Locale.jscript","version":1,"text":"bad\n"}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":1,"text":"class Settings\n{\nInt value = 1\n}\n"}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","id":10,"method":"jbro/editFieldSettings","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":1},"position":{"line":2,"character":4},"changes":{"initializer":""}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","id":11,"method":"jbro/editFieldSettings","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":1},"position":{"line":2,"character":4},"changes":{"name":"renamed"}}})"));
+            frames.Append(Frame(R"({"jsonrpc":"2.0","id":12,"method":"jbro/scriptSummary","params":{"textDocument":{"uri":"file:///C:/project/Contents/Settings.jscript","version":0}}})"));
             frames.Append(Frame(R"({"jsonrpc":"2.0","id":2,"method":"shutdown"})"));
             frames.Append(Frame(R"({"jsonrpc":"2.0","method":"exit"})"));
             std::istringstream input(frames.Std());
@@ -100,7 +111,132 @@ namespace
             const Bool korean = locale[0] == '\0' || String(locale).ToLowerCopy().StartsWith("ko");
             Check(String(output.str()).Contains(korean ? "KOREAN_DECLARATION" : "ENGLISH_DECLARATION"),
                 "client language tags select a supported diagnostic table without using the tag as a file path");
+            const String response(output.str());
+            Check(response.Contains(korean ? "KOREAN_INITIALIZER" : "ENGLISH_INITIALIZER")
+                && response.Contains(korean ? "KOREAN_SETTINGS" : "ENGLISH_SETTINGS")
+                && response.Contains(korean ? "KOREAN_STALE" : "ENGLISH_STALE"),
+                "field validation, rejected settings and stale summary errors use the requested locale table");
         }
+    }
+
+    void TestScriptSummaryProtocol()
+    {
+        using namespace JBro::ScriptLanguageServer;
+        using Json = nlohmann::json;
+        MemoryFiles files;
+        const char* uri = "file:///C:/project/Contents/Summary.jscript";
+        const char* source = "class Counter\r\n{\r\n  [name(\"\xF0\x9F\x98\x80\")] Int count = 1 // keep\r\n"
+            "  [prop, range(0, 10)] Float speed = 3\r\n  Int range = 0\r\n  Array<Int> values\r\n"
+            "  fn Read()\r\n  {\r\n    Int value = values[range] // [prop, range]\r\n  }\r\n}\r\n";
+        String inputFrames;
+        auto send = [&](const Json& message)
+        {
+            inputFrames.Append(Frame(message.dump()));
+        };
+        send(Json{{"jsonrpc", "2.0"}, {"id", 1}, {"method", "initialize"},
+            {"params", Json{{"initializationOptions", Json{{"projectFile", "C:/project/game.jproject"}}}}}});
+        send(Json{{"jsonrpc", "2.0"}, {"method", "initialized"}, {"params", Json::object()}});
+        send(Json{{"jsonrpc", "2.0"}, {"method", "textDocument/didOpen"},
+            {"params", Json{{"textDocument", Json{{"uri", uri}, {"version", 7}, {"text", source}}}}}});
+        auto request = [&](Int32 id, const char* method, Json params)
+        {
+            send(Json{{"jsonrpc", "2.0"}, {"id", id.Get()}, {"method", method}, {"params", std::move(params)}});
+        };
+        const Json current = Json{{"uri", uri}, {"version", 7}};
+        request(20, "jbro/scriptSummary", Json{{"textDocument", current}});
+        request(29, "textDocument/semanticTokens/full", Json{{"textDocument", current}});
+        request(27, "textDocument/hover", Json{{"textDocument", current}, {"position", Json{{"line", 2}, {"character", 15}}}});
+        request(28, "textDocument/hover", Json{{"textDocument", current}, {"position", Json{{"line", 2}, {"character", 19}}}});
+        request(21, "jbro/editFieldSettings", Json{{"textDocument", Json{{"uri", uri}, {"version", 6}}},
+            {"position", Json{{"line", 2}, {"character", 19}}}, {"changes", Json{{"initializer", "8"}}}});
+        request(22, "jbro/editFieldSettings", Json{{"textDocument", current},
+            {"position", Json{{"line", 2}, {"character", 19}}}, {"changes", Json{{"initializer", "8"}}}});
+        request(23, "jbro/editFieldSettings", Json{{"textDocument", current},
+            {"position", Json{{"line", 2}, {"character", 19}}}, {"changes", Json{{"initializer", "1\nInt injected = 2"}}}});
+        request(24, "jbro/scriptSummary", Json{{"textDocument", Json{{"uri", uri}}}});
+        send(Json{{"jsonrpc", "2.0"}, {"method", "textDocument/didChange"},
+            {"params", Json{{"textDocument", Json{{"uri", uri}, {"version", 8}}},
+                {"contentChanges", Json::array({Json{{"text", "class Counter\n{\nInt count = (\n}\n"}}})}}}});
+        request(25, "jbro/scriptSummary", Json{{"textDocument", Json{{"uri", uri}, {"version", 8}}}});
+        request(26, "jbro/editFieldSettings", Json{{"textDocument", Json{{"uri", uri}, {"version", 8}}},
+            {"position", Json{{"line", 2}, {"character", 4}}}, {"changes", Json{{"initializer", "9"}}}});
+        request(2, "shutdown", Json::object());
+        send(Json{{"jsonrpc", "2.0"}, {"method", "exit"}});
+        ServerOptions options;
+        options.Files = &files;
+        std::istringstream input(inputFrames.Std());
+        std::ostringstream output;
+        std::ostringstream log;
+        Check(Run(input, output, log, std::move(options)) == 0, "script summary protocol session shuts down cleanly");
+        std::istringstream frames(output.str());
+        Array<Json> responses;
+        String header;
+        while (std::getline(frames, header.Std()))
+        {
+            Check(header.StartsWith("Content-Length: "), "summary response framing stays valid");
+            const std::size_t length = std::stoull(header.Substr(16).Std());
+            std::getline(frames, header.Std());
+            String body(length, '\0');
+            frames.read(body.data(), static_cast<std::streamsize>(length));
+            responses.Add(Json::parse(body));
+        }
+        auto response = [&](Int32 id) -> Json
+        {
+            for (const Json& value : responses)
+            {
+                if (value.contains("id") && value["id"] == id.Get())
+                {
+                    return value;
+                }
+            }
+            throw std::runtime_error("missing script summary response");
+        };
+        const Json summary = response(20)["result"];
+        const Json legend = response(1)["result"]["capabilities"]["semanticTokensProvider"]["legend"]["tokenTypes"];
+        Check(legend.size() == 18 && legend[16] == "operator" && legend[17] == "decorator",
+            "attribute tokens append a standard decorator kind without changing existing token numbers");
+        const Json tokenData = response(29)["result"]["data"];
+        UInt32 tokenLine = 0, tokenCharacter = 0, attributes = 0;
+        Bool nameAttribute = false, propAttribute = false, rangeAttribute = false, stringArgument = false;
+        Bool numberArgument = false, bracket = false, rangeVariable = false, rangeIndex = false;
+        for (std::size_t index = 0; index < tokenData.size(); index += 5)
+        {
+            const UInt32 deltaLine = tokenData[index].get<std::uint32_t>();
+            tokenLine += deltaLine;
+            tokenCharacter = (deltaLine == 0 ? tokenCharacter : UInt32(0)) + tokenData[index + 1].get<std::uint32_t>();
+            const UInt32 type = tokenData[index + 3].get<std::uint32_t>();
+            if (type == 17)
+            {
+                ++attributes;
+                nameAttribute |= tokenLine == 2 && tokenCharacter == 3 && tokenData[index + 2] == 4;
+                propAttribute |= tokenLine == 3 && tokenCharacter == 3 && tokenData[index + 2] == 4;
+                rangeAttribute |= tokenLine == 3 && tokenCharacter == 9 && tokenData[index + 2] == 5;
+            }
+            stringArgument |= type == 13 && tokenLine == 2 && tokenCharacter == 8;
+            numberArgument |= type == 14 && tokenLine == 3 && tokenCharacter == 15;
+            bracket |= type == 16 && tokenLine == 3 && tokenCharacter == 2;
+            rangeVariable |= type == 8 && tokenLine == 4 && tokenCharacter == 6;
+            rangeIndex |= type == 8 && tokenLine == 8 && tokenCharacter == 23;
+        }
+        Check(attributes == 3 && nameAttribute && propAttribute && rangeAttribute && stringArgument,
+            "only AST attribute names are decorators; strings, comments, same-name variables and array indexing keep their kinds");
+        Check(numberArgument && bracket && rangeVariable && rangeIndex,
+            "attribute numbers and delimiters retain their colors and range remains a property outside attribute declarations");
+        Check(response(27)["result"]["contents"]["value"] == "Int", "primitive type hover shows the type once");
+        Check(response(28)["result"]["contents"]["value"].get<std::string>().find("count") != std::string::npos,
+            "member hover retains its member signature");
+        Check(summary["valid"] == true && summary["version"] == 7, "summary echoes the exact unsaved buffer version");
+        Check(summary["types"][0]["members"][0]["selectionRange"]["start"]["character"] == 19,
+            "summary field positions count a preceding emoji as two UTF-16 units");
+        Check(response(21)["error"]["code"] == -32801, "stale summary edits return ContentModified");
+        const Json edit = response(22)["result"];
+        Check(edit["version"] == 7 && edit["edits"].size() == 1 && edit["edits"][0]["newText"] == "8"
+            && edit["edits"][0]["range"]["start"]["character"] == 27,
+            "settings edits return only the initializer span using UTF-16 positions");
+        Check(response(23)["error"]["code"] == -32602 && response(24)["error"]["code"] == -32602,
+            "expression injection and requests without document versions are rejected");
+        Check(response(25)["result"]["valid"] == false && response(25)["result"]["types"].empty()
+            && response(26)["error"]["code"] == -32602, "invalid source has no editable summary or source edits");
     }
 }
 
@@ -175,6 +311,7 @@ JBro::Int32 RunScriptLanguageServerTests()
     Check(unicodeResult.Contains("\"diagnostics\":[],\"uri\":\"file:///C:/project/Contents/Reader.jscript\""),
         "closing an unsaved file must clear its diagnostics");
     JBRO_CASE(TestClientLocaleTags());
+    JBRO_CASE(TestScriptSummaryProtocol());
     for (const Bool repair : {false, true})
     {
         String ordered = Frame(R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"initializationOptions":{"projectFile":"C:/project/game.jproject"}}})");

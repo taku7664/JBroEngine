@@ -44,7 +44,7 @@ namespace JBro
         Bool GetFileWriteTime(const char* utf8Path, Int64& outUnixSeconds) const override;
         Bool OpenPathWithShell(const char* utf8Path) override;
         Bool RevealInFileBrowser(const char* utf8Path) override;
-        // `WindowsFileType.cpp` 의 것이다(D-336).
+        // `WindowsFileType.cpp` 의 것이다(D-389).
         Bool RegisterFileType(const FileTypeAssociation& desc) override;
         Bool UnregisterFileType(const FileTypeAssociation& desc) override;
         String ReadFileTypeCommand(const char* classesKey, const char* extension) const override;
@@ -53,9 +53,15 @@ namespace JBro
         ChildProcess StartProcess(const char* utf8CommandLine, const char* utf8WorkingFolder, const char* utf8OutputFile) override;
         ProcessStatus PollProcess(const ChildProcess& process, Int32& exitCode) override;
         void CloseProcess(ChildProcess& process) override;
+        OwnerPtr<IProcessChannel> StartProcessChannel(const char* command, const char* workingFolder) override;
+        void SetTextInputPosition(WindowHandle window, Float x, Float y, Float lineHeight) override;
+        void SetCompositionInline(WindowHandle window, Bool inlineComposition) override;
+        Bool ReadClipboardText(String& utf8) override;
+        Bool WriteClipboardText(const char* utf8, std::size_t size) override;
         Bool LaunchProcess(const char* utf8CommandLine, const char* utf8WorkingFolder) override;
         String ReadEnvironmentVariable(const char* name) const override;
         Bool FileExists(const char* utf8Path) const override;
+        Bool IsPathWithinDirectory(const char* root, const char* path) const override;
         Bool ReadFileWriteTime(const char* utf8Path, UInt64& time) const override;
         Bool DirectoryExists(const char* utf8Path) const override;
         Bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;
@@ -91,6 +97,10 @@ namespace JBro
         void SetPendingHighSurrogate(std::uint16_t unit);
         // 지금 눌려 있는 마우스 버튼의 수다(D-158). 첫 버튼에 마우스를 붙잡고 마지막 버튼에 놓는다.
         UInt32& HeldMouseButtons() { return m_heldButtons; }
+        // IME 조합(D-355). WndProc 이 `WM_IME_COMPOSITION` 에서 부른다 - 조합 글자(`result` 거짓)는 `CompositionBegin` 과 글자마다 `Composition` 으로,
+        // 결과 글자(`result` 참)는 `Text` 로 낸다.
+        void RecordComposition(void* hwnd, Bool result);
+        Bool IsCompositionInline() const { return m_inlineComposition; }
 
     private:
         // 한 프레임에 받아 둘 입력의 상한이다.
@@ -109,5 +119,6 @@ namespace JBro
         Bool m_comInitialized = false;
         Bool m_quitRequested = false;
         UInt32 m_heldButtons = 0;
+        Bool m_inlineComposition = false;
     };
 }

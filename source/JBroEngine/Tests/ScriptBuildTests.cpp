@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include <JBro/ScriptCompiler/DiagnosticMessages.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorNotifications.h>
@@ -259,6 +260,14 @@ namespace
         Check(build.find("\"C:/VS/MSBuild.exe\" \"F:/\xed\x95\x9c/GameScript.vcxproj\" ") == 0, "the tool and the project are quoted");
         Check(Contains(build, " -p:Configuration=Debug ") && Contains(build, " -p:Platform=x64 "), "for the configuration and x64");
         Check(Contains(build, " -nr:false "), "without leaving build nodes behind the editor");
+        const String selectedCompiler = ScriptBuild::MakeBuildCommand("MSBuild.exe", "GameScript.vcxproj", "Debug", "build.log", "C:/active build/JBroc.exe");
+        Check(Contains(selectedCompiler, "\"-p:JBroCompilerPath=C:/active build/JBroc.exe\""),
+            "the active editor's compiler is selected with its spaced path quoted");
+#ifdef _DEBUG
+        Check(Contains(build, " -p:JBroScriptHostConfiguration=Debug "), "script runtime and libraries match the Debug host");
+#else
+        Check(Contains(build, " -p:JBroScriptHostConfiguration=Release "), "unoptimized script runtime and libraries match the Release host");
+#endif
         Check(Contains(build, "\"-flp:LogFile=F:/\xed\x95\x9c/x64/ScriptBuild.log;Encoding=UTF-8;Verbosity=minimal\""),
             "the diagnostics go to a UTF-8 log, quoted for the Korean path");
 
@@ -590,6 +599,124 @@ namespace
         Check(editor.GetScriptBuildState() != State::Running, "closing the project stops it");
         editor.Shutdown();
     }
+
+    // **컴파일러 진단은 에디터 언어로 온다**(Script QA 결함 5). 빌드 타깃이 `jbroc` 에 언어를 넘기지 않아, 영어 에디터의 빌드 결과에
+    // JBroScript 진단만 한국어로 섞였다. 에디터가 고른 언어를 빌드 명령이 `JBroCompilerLocale` 로 넘긴다.
+    void BuildATypoIn(const char* locale, const char* folder, const char* expected, const char* message)
+    {
+        using State = EditorApplication::ScriptBuildState;
+        const fs::path root = FreshFolder(folder);
+        fs::create_directories(root / "Contents" / "Assets");
+        fs::create_directories(root / "Contents" / "Scripts");
+        const fs::path projectPath = root / "Typo.jproject";
+        std::ofstream(projectPath, std::ios::binary) <<
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Contents/Assets\n"
+            "ScriptSourceDirectory: Contents\n"
+            "ScriptOutputLibraryPath: x64/Debug/GameScript.dll\n"
+            "Build:\n"
+            "  ProductName: Typo\n";
+        std::ofstream(root / "Contents" / "Scripts" / "Typo.jscript", std::ios::binary)
+            << "script Typo\n{\n    fn F() -> String\n    {\n        return \"\xea\xb0\x80\xeb\x82\x98\xeb\x8b\xa4\" + missingName\n    }\n}\n";
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        config.locale = locale;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the compiler language not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the typo project opens");
+        Check(BuildAndWait(editor), "the typo build starts");
+        Check(editor.GetScriptBuildState() == State::Failed, "a JBroScript typo fails the build");
+        Bool found = false;
+        for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+        {
+            // 한글 셋 뒤의 `missingName` 은 글자로 24 열이다(바이트로는 30). 빌드 결과도 글자 열을 받는다(D-379).
+            found = found || (diagnostic.code == "JBC3004" && diagnostic.message.find(expected) != String::npos
+                && diagnostic.line == 5 && diagnostic.column == 24);
+        }
+        if (false == found)
+        {
+            for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+            {
+                std::cout << "  " << diagnostic.code.c_str() << " (" << diagnostic.line.Get() << "," << diagnostic.column.Get() << ") "
+                          << diagnostic.message.c_str() << std::endl;
+            }
+        }
+        Check(found, message);
+        editor.Shutdown();
+    }
+
+    void TestTheCompilerSpeaksTheEditorLanguage()
+    {
+        WindowsPlatform probe;
+        JMemoryContext memory;
+        Check(probe.Initialize(memory), "the platform initializes");
+        const Bool haveMSBuild = false == ScriptBuild::LocateMSBuild(probe, Utf8(FreshFolder("tools3")).c_str()).empty();
+        probe.Shutdown();
+        if (false == haveMSBuild)
+        {
+            std::cout << "  [skip] no MSBuild on this machine; the compiler language not verified" << std::endl;
+            return;
+        }
+        BuildATypoIn("en-US", "locale-en", "Unknown name: missingName", "an English editor shows the JBroScript diagnostic in English");
+        BuildATypoIn("ko-KR", "locale-ko", "\xec\x95\x8c \xec\x88\x98 \xec\x97\x86\xeb\x8a\x94 \xec\x9d\xb4\xeb\xa6\x84",
+            "a Korean editor shows it in Korean");
+        Check(ScriptBuild::CompilerLocaleFor("ko") == "ko-KR" && ScriptBuild::CompilerLocaleFor("en-GB") == "en-US"
+                && ScriptBuild::CompilerLocaleFor("fr-FR") == "en-US" && ScriptBuild::CompilerLocaleFor("").empty(),
+            "the editor language maps onto a compiler language the way the language server maps it");
+        Check(Contains(ScriptBuild::MakeBuildCommand("MSBuild.exe", "GameScript.vcxproj", "Debug", "build.log", nullptr, "en-US"),
+                " -p:JBroCompilerLocale=en-US"),
+            "the build command carries the compiler language");
+        Check(false == Contains(ScriptBuild::MakeBuildCommand("MSBuild.exe", "GameScript.vcxproj", "Debug", "build.log"), "JBroCompilerLocale"),
+            "a build without a language keeps the compiler's own default");
+    }
+}
+
+namespace
+{
+    // **생성 단계 오류도 빌드 결과에서 파일과 줄로 읽힌다**(D-384, REVIEW R4-1). 전에는 `jbroc: C++ emit error: 경로(줄,열): …` 라
+    // 에디터의 진단 파서가 오류로 알아보지 못해 빌드 결과에는 `MSB3073` 만 남았다. 지금 줄은 진단 줄과 같은 모양이다.
+    void TestEmitErrorsAreReadAsFileDiagnostics()
+    {
+        ScriptCompiler::DiagnosticMessages messages;
+        {
+            WindowsPlatform probe;
+            JMemoryContext memory;
+            Check(probe.Initialize(memory), "the platform initializes");
+            const std::string directory = std::string(probe.GetExecutableFolder().c_str()) + "/Localization/jbroc";
+            probe.Shutdown();
+            Check(messages.Load(directory.c_str(), "en-US", nullptr), "the compiler translation table beside the test loads");
+        }
+        ScriptBuild::Diagnostic before;
+        const char* old = "jbroc: C++ emit error: C:\\Game\\Contents\\Scripts\\Copy.jscript(6,21): C++ emitter does not support the output projection of CopyText";
+        Check(false == ScriptBuild::ParseDiagnosticLine(old, std::strlen(old), before), "the old emitter line was not a diagnostic to the build results");
+
+        const String line = ScriptCompiler::FormatEmitErrorLine(
+            "C:\\Game (copy)\\Contents\\Scripts\\Copy.jscript(6,21): C++ emitter does not support this expression yet", messages);
+        ScriptBuild::Diagnostic diagnostic;
+        Check(ScriptBuild::ParseDiagnosticLine(line.c_str(), line.size(), diagnostic), "the emitter line is a diagnostic");
+        Check(diagnostic.isError && diagnostic.code == "JBC4001" && diagnostic.line == 6 && diagnostic.column == 21
+                && diagnostic.file == "C:\\Game (copy)\\Contents\\Scripts\\Copy.jscript"
+                && Contains(diagnostic.message, "C++ emitter does not support this expression yet"),
+            "the build results read the file, line, column and code of an emitter error, even with a parenthesis in the path");
+        const String placeless = ScriptCompiler::FormatEmitErrorLine("no source files", messages);
+        ScriptBuild::Diagnostic project;
+        Check(ScriptBuild::ParseDiagnosticLine(placeless.c_str(), placeless.size(), project) && project.code == "JBC4001"
+                && project.file.empty(),
+            "an emitter error without a place is still an error line, without a file");
+    }
 }
 
 Int32 RunScriptBuildTests()
@@ -603,6 +730,8 @@ Int32 RunScriptBuildTests()
     TestOnlyAnInstallWithTheCompilerIsUsed();
     TestTheScriptEditorIsRemembered();
     TestTheEditorBuildsTheScriptsAndFindsTheErrorLine();
+    TestTheCompilerSpeaksTheEditorLanguage();
+    TestEmitErrorsAreReadAsFileDiagnostics();
     std::cout << "Script build tests passed.\n";
     return 0;
 }

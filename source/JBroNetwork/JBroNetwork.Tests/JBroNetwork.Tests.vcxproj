@@ -20,8 +20,8 @@
   <Import Project="$(MSBuildThisFileDirectory)..\..\JBroEngine\JBro.Common.props" />
   <PropertyGroup Label="JBroNetworkPaths">
     <JBroNetworkRoot>$(MSBuildThisFileDirectory)..\</JBroNetworkRoot>
-    <OutDir>$(JBroNetworkRoot)Build\$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(JBroNetworkRoot)Build\Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+    <OutDir>$(JBroNetworkBuildDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(JBroNetworkBuildDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>

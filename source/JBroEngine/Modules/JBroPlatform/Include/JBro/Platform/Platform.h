@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Platform/Input.h>
+#include <JBro/Platform/ProcessChannel.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafeArea.h>
 #include <JBro/Types/String.h>
@@ -136,7 +137,7 @@ namespace JBro
         Bool pickFolder = false;
     };
 
-    // 확장자 하나를 프로그램과 잇는 것이다(D-336). 글자는 전부 UTF-8 이다.
+    // 확장자 하나를 프로그램과 잇는 것이다(D-389). 글자는 전부 UTF-8 이다.
     struct FileTypeAssociation
     {
         // `.jproject` 처럼 점을 붙여 쓴다.
@@ -352,6 +353,13 @@ namespace JBro
             (void)utf8Path;
             return false;
         }
+        // Resolve filesystem aliases before checking containment. Failure denies access.
+        virtual Bool IsPathWithinDirectory(const char* root, const char* path) const
+        {
+            (void)root;
+            (void)path;
+            return false;
+        }
         // 폴더를 만든다(중간 폴더도 함께). **이미 있으면 참이다** - 부르는 쪽이 "있는가" 를
         // 먼저 묻고 만들면 그 사이에 생긴 경우를 다루지 못한다(D-139).
         virtual Bool CreateDirectoryAt(const char* utf8Path)
@@ -401,7 +409,7 @@ namespace JBro
             (void)utf8Path;
             return false;
         }
-        // **확장자를 이 프로그램과 잇는다**(D-336). 탐색기에서 그 확장자의 파일을 두 번 누르면 `desc.command` 가 돈다.
+        // **확장자를 이 프로그램과 잇는다**(D-389). 탐색기에서 그 확장자의 파일을 두 번 누르면 `desc.command` 가 돈다.
         // 현재 사용자의 자리(Windows 는 `HKEY_CURRENT_USER` 아래 `desc.classesKey`)에만 쓰고 관리자 권한을 묻지 않는다.
         // 없는 플랫폼이면 거짓이다.
         virtual Bool RegisterFileType(const FileTypeAssociation& desc)
@@ -422,7 +430,7 @@ namespace JBro
             (void)extension;
             return String();
         }
-        // **실행 파일 자체의 경로**다(D-336). `GetExecutableFolder` 와 달리 구분자를 운영체제의 것(Windows 는 `\`)으로 둔다 -
+        // **실행 파일 자체의 경로**다(D-389). `GetExecutableFolder` 와 달리 구분자를 운영체제의 것(Windows 는 `\`)으로 둔다 -
         // 운영체제에 넘길 명령줄을 짓는 데 쓴다. 없는 플랫폼이면 빈 글자다.
         virtual String GetExecutablePath() const
         {
@@ -445,6 +453,39 @@ namespace JBro
             return {};
         }
         // 끝났으면 `Exited` 와 종료 코드다. 기다리지 않는다.
+        virtual OwnerPtr<IProcessChannel> StartProcessChannel(const char* command, const char* workingFolder)
+        {
+            (void)command;
+            (void)workingFolder;
+            return nullptr;
+        }
+        virtual void SetTextInputPosition(WindowHandle window, Float x, Float y, Float lineHeight)
+        {
+            (void)window;
+            (void)x;
+            (void)y;
+            (void)lineHeight;
+        }
+        // **IME 조합을 창 안에서 보인다**(D-355). 참이면 플랫폼의 조합 창을 띄우지 않고 조합 글자(`CompositionBegin`·`Composition`·`CompositionEnd`)와
+        // 결과 글자(`Text`)만 준다 - 게임의 글자 칸이 제 자리에 조합을 그린다. 거짓이면 전처럼 플랫폼의 조합 창이다(에디터의 ImGui 글자 칸).
+        // 조합 이벤트는 어느 쪽이든 온다. 없는 플랫폼은 무시한다.
+        virtual void SetCompositionInline(WindowHandle window, Bool inlineComposition)
+        {
+            (void)window;
+            (void)inlineComposition;
+        }
+        // **OS 클립보드의 글자**(D-355). 읽기는 글자가 없으면 거짓이고, 쓰기는 못 쓰면 거짓이다. UTF-8 이다. 없는 플랫폼은 늘 거짓이다.
+        virtual Bool ReadClipboardText(String& utf8)
+        {
+            (void)utf8;
+            return false;
+        }
+        virtual Bool WriteClipboardText(const char* utf8, std::size_t size)
+        {
+            (void)utf8;
+            (void)size;
+            return false;
+        }
         virtual ProcessStatus PollProcess(const ChildProcess& process, Int32& exitCode)
         {
             (void)process;

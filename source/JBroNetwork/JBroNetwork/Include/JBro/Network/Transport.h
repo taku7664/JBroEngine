@@ -79,6 +79,9 @@ namespace JBro::Network
 
         // 서버. WS 와 같은 번호의 UDP 포트도 잡는다(못 잡으면 UDP 없이 간다). 이미 역할이 있으면 거짓이다.
         Bool Listen(std::uint16_t port);
+        // 이 기계에서 오는 접속만 받는다(WS 와 UDP 둘 다). 같은 기계에서 서버와 클라이언트를 띄우는 시험과,
+        // 망에 포트를 열 까닭이 없는 도구가 쓴다 - 망에 열지 않으므로 Windows 방화벽이 묻지 않는다.
+        Bool ListenLoopback(std::uint16_t port);
         // 클라이언트. `host` 는 `ws://` 접두를 벗겨 받는다. 결과는 `Connected` 나 `Disconnected` 이벤트로 온다.
         Bool Connect(const char* host, std::uint16_t port);
         // 전부 닫고 역할을 지운다. 준비돼 있던 연결마다 `Disconnected(Normal)` 을 남긴다.
@@ -101,6 +104,9 @@ namespace JBro::Network
 
         NetworkRole GetRole() const;
         Bool IsListening() const;
+        // **서버가 이 연결에 붙인 번호다.** 클라이언트만 뜻이 있다(서버·역할 없음은 `InvalidConnectionId`).
+        // 소유권이 "이 오브젝트는 3 번 연결의 것" 으로 오므로, 클라이언트가 자기 번호를 알아야 제 것인지 가린다.
+        ConnectionId GetLocalConnectionId() const;
         // hello 가 끝나기 전까지는 `Connecting` 이다.
         ConnectionState GetConnectionState(ConnectionId connection) const;
         UInt32 GetConnectionCount() const;
@@ -267,7 +273,9 @@ namespace JBro::Network
         UInt32 NextMaskKey();
 
         // ── UDP ──
-        void OpenServerUdp(std::uint16_t port);
+        Bool ListenOn(std::uint16_t port, Bool loopbackOnly);
+        ConnectionId m_localConnectionId = InvalidConnectionId;
+        void OpenServerUdp(std::uint16_t port, Bool loopbackOnly);
         void AttachClientUdp(Connection& connection, UInt64 token);
         void AttachUdpPeer(Connection& connection);
         Bool SendUdpDatagram(Connection& connection, NetChannel channel, MessageId messageId, const void* data, UInt32 size);

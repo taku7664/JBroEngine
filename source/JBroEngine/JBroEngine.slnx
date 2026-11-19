@@ -9,6 +9,26 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/ThirdParty/">
+    <Project Path="ThirdParty/md4c/md4c.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <Build Solution="Debug_Game2D|x64" Project="false" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <Build Solution="Debug_Game3D|x64" Project="false" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <Build Solution="Release_Game2D|x64" Project="false" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+      <Build Solution="Release_Game3D|x64" Project="false" />
+    </Project>
+    <Project Path="ThirdParty/ImGuiColorTextEdit/ImGuiColorTextEdit.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <Build Solution="Debug_Game2D|x64" Project="false" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <Build Solution="Debug_Game3D|x64" Project="false" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <Build Solution="Release_Game2D|x64" Project="false" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+      <Build Solution="Release_Game3D|x64" Project="false" />
+    </Project>
     <Project Path="ThirdParty/nlohmann-json/nlohmann-json.vcxproj">
       <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
       <BuildType Solution="Release_Game2D|x64" Project="Release" />
@@ -77,6 +97,18 @@
       <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
       <BuildType Solution="Release_Game3D|x64" Project="Release" />
     </Project>
+    <Project Path="Modules/JBroScriptRuntime/JBroScriptRuntime.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroScreenUi/JBroScreenUi.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
     <Project Path="Modules/JBroTextRendering/JBroTextRendering.vcxproj">
       <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
       <BuildType Solution="Release_Game2D|x64" Project="Release" />
@@ -90,6 +122,12 @@
       <BuildType Solution="Release_Game3D|x64" Project="Release" />
     </Project>
     <Project Path="Modules/JBroNodeGraph/JBroNodeGraph.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroShaderCompiler/JBroShaderCompiler.vcxproj">
       <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
       <BuildType Solution="Release_Game2D|x64" Project="Release" />
       <BuildType Solution="Debug_Game3D|x64" Project="Debug" />

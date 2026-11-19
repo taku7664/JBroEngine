@@ -9,5 +9,17 @@
 	"GitHub sign-in failed. Try again.": "GitHub 로그인에 실패했습니다. 다시 시도하세요.",
 	"Engine log is disconnected. Waiting for the engine editor.": "엔진 로그 연결이 끊겼습니다. 엔진 편집기를 기다리는 중입니다.",
 	"Earlier occurrences were omitted": "이전 발생 기록은 보관 한도를 넘어 생략되었습니다",
-	"Engine log could not be read: {0}": "엔진 로그를 읽지 못했습니다: {0}"
+	"Engine log could not be read: {0}": "엔진 로그를 읽지 못했습니다: {0}",
+	"Invalid engine log reply": "엔진 로그 응답 형식이 올바르지 않습니다.",
+	"Unexpected engine log YAML": "엔진 로그 응답에 알 수 없는 항목이 있습니다.",
+	"Engine log request timed out": "엔진 로그 요청 시간이 초과되었습니다.",
+	"Engine log reply is too large": "엔진 로그 응답이 허용 크기를 넘었습니다.",
+	"Engine log connection closed": "엔진 로그 연결이 종료되었습니다.",
+	"Invalid encoded engine log field": "엔진 로그 항목의 인코딩이 올바르지 않습니다.",
+	"Incomplete engine log page": "엔진 로그 응답에 필요한 정보가 없습니다.",
+	"Incomplete engine log occurrence": "엔진 로그 기록에 필요한 정보가 없습니다.",
+	"Incomplete engine log group": "엔진 로그 묶음에 필요한 정보가 없습니다.",
+	"Unsupported engine log protocol": "지원하지 않는 엔진 로그 통신 버전입니다.",
+	"Engine returned an empty group page with more results": "엔진이 다음 결과가 있다고 응답했지만 로그 묶음이 비어 있습니다.",
+	"Too many engine log group pages": "엔진 로그 묶음의 응답 횟수가 허용 범위를 넘었습니다."
 }

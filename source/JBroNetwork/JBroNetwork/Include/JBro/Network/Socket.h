@@ -78,6 +78,9 @@ namespace JBro::Network
         virtual Bool Open() = 0;
         // 서버가 포트를 잡는다. 0 이면 임시 포트다.
         virtual Bool Bind(std::uint16_t port) = 0;
+        // 이 기계에서 오는 데이터그램만 받는다. `IStreamSocket::ListenLoopback` 과 짝이다 - 둘을 같이 써야
+        // 트랜스포트가 망에 포트를 열지 않는다. 그래야 Windows 방화벽도 묻지 않는다.
+        virtual Bool BindLoopback(std::uint16_t port) = 0;
         virtual Bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) = 0;
         virtual SocketIo SendTo(const Endpoint& to, const void* data, std::size_t size) = 0;
         virtual SocketIo ReceiveFrom(void* buffer, std::size_t capacity, std::size_t& outReceived, Endpoint& outFrom) = 0;

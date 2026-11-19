@@ -114,7 +114,12 @@ namespace JBro::Internal
     X(vkCmdDispatch)                                                                                           \
     X(vkCmdCopyBufferToImage)                                                                                  \
     X(vkCmdCopyImageToBuffer)                                                                                  \
-    X(vkCmdCopyImage)
+    X(vkCmdCopyImage)                                                                                      \
+    X(vkCreateQueryPool)                                                                                   \
+    X(vkDestroyQueryPool)                                                                                  \
+    X(vkGetQueryPoolResults)                                                                               \
+    X(vkCmdResetQueryPool)                                                                                 \
+    X(vkCmdWriteTimestamp2)
 
     struct VulkanFunctions
     {

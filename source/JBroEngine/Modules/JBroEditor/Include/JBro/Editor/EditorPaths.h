@@ -23,4 +23,6 @@ namespace JBro::EditorPaths
 
     // `root` 와 `relative` 를 `/` 하나로 잇는다. 한쪽이 비어 있으면 나머지 그대로다.
     String JoinPath(const char* root, const char* relative);
+    // Lexical path normalization only; never reads the filesystem.
+    String Normalize(const String& path);
 }

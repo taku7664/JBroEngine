@@ -1,5 +1,5 @@
-// Mesh materials (material-plan stage 3, D-346): Standard is glTF metallic-roughness PBR lit by the view's light
-// block (D-353, lighting3d-plan); Unlit is base colour plus emissive. Both share the vertex stage.
+// Mesh materials (material-plan stage 3, D-399): Standard is glTF metallic-roughness PBR lit by the view's light
+// block (D-407, lighting3d-plan); Unlit is base colour plus emissive. Both share the vertex stage.
 //
 // Colour space: material colours, the instance tint and sRGB-viewed textures arrive linear. Lighting is linear
 // and the result is encoded to sRGB on the way out, because the frame targets are UNORM (no HDR target or tone map
@@ -24,7 +24,7 @@ cbuffer ViewConstants : register(b0)
 };
 #endif
 
-// One block per material (Renderer::RegisterMaterial). Layout mirrors GpuMaterialConstants in Renderer.h.
+// One block per standard material (Renderer::RegisterMeshMaterial). Layout mirrors GpuMaterialConstants in Renderer.h.
 cbuffer MaterialConstants : register(b1)
 {
     float4 gBaseColor;
@@ -34,7 +34,8 @@ cbuffer MaterialConstants : register(b1)
     float4 gParams;
 };
 
-// The view's lights (D-353). Layout mirrors GpuLightConstants in Renderer.h. A view that submitted no 3D light gets
+// The view's lights (D-407). Layout mirrors GpuLightConstants in Renderer.h. A shader material (D-348) reads the
+// same block at b2 through the prelude's JBroLights. A view that submitted no 3D light gets
 // the renderer's default block: the fixed directional light and ambient that came before light components.
 struct Light
 {
@@ -80,14 +81,16 @@ struct VertexInput
     float4 tangent : ATTRIBUTE8;
 };
 
+// Shader materials (D-348) read the same output: the prelude's JBroMeshInput lists the first four in this order,
+// which is how Vulkan links the stages. The tangent comes last so that prefix stays the same (D-406).
 struct VertexOutput
 {
     float4 position : SV_POSITION;
     float3 normal : NORMAL0;
     float4 tint : COLOR0;
     float2 uv : TEXCOORD0;
-    float4 tangent : TANGENT0;
     float3 worldPosition : TEXCOORD1;
+    float4 tangent : TANGENT0;
 };
 
 VertexOutput VSMain(VertexInput input)

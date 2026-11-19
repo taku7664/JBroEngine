@@ -2,10 +2,32 @@
 
 #include <JBro/AudioTypes/BuiltinAudioComponents.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
+#include <JBro/Framework2D/Component/Layout2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
+#include <JBro/Framework2D/Component/Slider2D.h>
+#include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
+#include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
+#include <JBro/Framework2D/Component/Tooltip2D.h>
+#include <JBro/Framework2D/Component/Modal2D.h>
+#include <JBro/Framework2D/Component/TabGroup2D.h>
+#include <JBro/Framework2D/Component/Draggable2D.h>
+#include <JBro/Framework2D/Component/DropTarget2D.h>
+#include <JBro/Framework2D/Component/Tween2D.h>
+#include <JBro/Framework2D/Component/ListView2D.h>
+#include <JBro/Framework2D/Component/SafeArea2D.h>
+#include <JBro/Framework2D/Component/CanvasGroup2D.h>
+#include <JBro/Framework2D/Component/AspectRatioFitter2D.h>
+#include <JBro/Framework2D/Component/VirtualKeyboard2D.h>
+#include <JBro/Framework2D/Component/Navigation2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -27,8 +49,30 @@ namespace JBro::Component
             Bool all = true;
             all = RegisterBuiltinProperties<Transform2D>()      && all;
             all = RegisterBuiltinProperties<Camera2D>()         && all;
+            all = RegisterBuiltinProperties<PostProcessVolume2D>() && all;
             all = RegisterBuiltinProperties<SpriteRenderer2D>() && all;
             all = RegisterBuiltinProperties<Light2D>() && all;
+            all = RegisterBuiltinProperties<Slider2D>() && all;
+            all = RegisterBuiltinProperties<Toggle2D>() && all;
+            all = RegisterBuiltinProperties<ToggleGroup2D>() && all;
+            all = RegisterBuiltinProperties<Dropdown2D>() && all;
+            all = RegisterBuiltinProperties<ContentSizeFitter2D>() && all;
+            all = RegisterBuiltinProperties<Tooltip2D>() && all;
+            all = RegisterBuiltinProperties<Modal2D>() && all;
+            all = RegisterBuiltinProperties<TabGroup2D>() && all;
+            all = RegisterBuiltinProperties<Draggable2D>() && all;
+            all = RegisterBuiltinProperties<DropTarget2D>() && all;
+            all = RegisterBuiltinProperties<Tween2D>() && all;
+            all = RegisterBuiltinProperties<ListView2D>() && all;
+            all = RegisterBuiltinProperties<SafeArea2D>() && all;
+            all = RegisterBuiltinProperties<CanvasGroup2D>() && all;
+            all = RegisterBuiltinProperties<AspectRatioFitter2D>() && all;
+            all = RegisterBuiltinProperties<VirtualKeyboard2D>() && all;
+            all = RegisterBuiltinProperties<Navigation2D>() && all;
+            all = RegisterBuiltinProperties<Mask2D>() && all;
+            all = RegisterBuiltinProperties<ScrollView2D>() && all;
+            all = RegisterBuiltinProperties<InputField2D>() && all;
+            all = RegisterBuiltinProperties<Layout2D>() && all;
             all = RegisterBuiltinProperties<ShadowCaster2D>() && all;
             all = RegisterBuiltinProperties<Text2D>()           && all;
             all = RegisterBuiltinProperties<Button2D>()         && all;

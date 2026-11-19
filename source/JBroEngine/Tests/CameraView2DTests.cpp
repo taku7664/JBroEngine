@@ -5,7 +5,7 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
-#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
+#include <JBro/ScreenUi/System/Transform2DSystem.h>
 
 #include <cmath>
 #include <iostream>
@@ -240,6 +240,52 @@ namespace
         Check(false == JBro::ComputeCameraWorldArea2D(pixel, identity, frame, corners), "an undrawable camera has no area");
     }
 
+    // **뷰포트**(D-359). 오른쪽 절반의 카메라는 대상의 오른쪽 절반 사각형에 그리고, 반폭은 그 사각형의 비율을 따른다. 화면 레이어의 사각형은 전체 뷰포트일 때만 레터박스다.
+    void TestCameraViewportsSplitTheScreen()
+    {
+        using JBro::Component::CameraProjection2D;
+        const JBro::ScreenSpaceFrame base = Frame(200.0f, 100.0f, 200.0f, 100.0f);
+        JBro::RenderCamera2D right = Camera(CameraProjection2D::Orthographic);
+        right.viewportOrigin = {0.5f, 0.0f};
+        right.viewportSize = {0.5f, 1.0f};
+        Check(JBro::HasDrawableViewport(right) && false == JBro::HasFullViewport(right), "half a screen is drawable but not full");
+        JBro::ScreenSpaceFrame frame = base;
+        JBro::ApplyCameraViewport(right, frame);
+        Check(Close(frame.areaX, 100.0f) && Close(frame.areaY, 0.0f) && Close(frame.areaWidth, 100.0f) && Close(frame.areaHeight, 100.0f),
+            "the right half viewport is the right half of the target in pixels");
+        JBro::CameraView2D view;
+        Check(JBro::ComputeCameraView2D(right, frame, view) && Close(view.halfWidth, 5.0f * 100.0f / 100.0f), "the half width follows the viewport's aspect");
+        JBro::ScreenSpaceFrame screen = base;
+        JBro::ApplyCameraArea(&right, screen);
+        Check(screen.areaWidth == 0.0f && screen.areaHeight == 0.0f, "a partial viewport leaves the screen-layer rect at the whole target");
+        // 뷰포트 안의 레터박스: 100 x 100 안에 200 x 100 기준을 넣으면 0.5 배의 100 x 50 이 세로 가운데다.
+        JBro::RenderCamera2D pixel = right;
+        pixel.projection = CameraProjection2D::PixelPerfect;
+        frame = base;
+        JBro::ApplyCameraViewport(pixel, frame);
+        Check(Close(frame.areaX, 100.0f) && Close(frame.areaY, 25.0f) && Close(frame.areaWidth, 100.0f) && Close(frame.areaHeight, 50.0f),
+            "a pixel-perfect camera letterboxes inside its viewport");
+        // 넘치는 뷰포트는 잘리고, 빈 뷰포트는 그릴 수 없다.
+        JBro::RenderCamera2D wide = right;
+        wide.viewportSize = {0.8f, 1.0f};
+        frame = base;
+        JBro::ApplyCameraViewport(wide, frame);
+        Check(Close(frame.areaWidth, 100.0f), "a viewport past the right edge is clipped");
+        JBro::RenderCamera2D empty = right;
+        empty.viewportSize = {0.0f, 1.0f};
+        Check(false == JBro::HasDrawableViewport(empty), "a zero-width viewport is not drawable");
+        JBro::RenderCamera2D nan = right;
+        nan.viewportOrigin = {std::numeric_limits<float>::quiet_NaN(), 0.0f};
+        frame = base;
+        JBro::ApplyCameraViewport(nan, frame);
+        Check(Close(frame.areaX, 0.0f) && Close(frame.areaWidth, 100.0f), "a NaN origin counts as zero");
+        JBro::RenderCamera2D full = Camera(CameraProjection2D::Orthographic);
+        Check(JBro::HasFullViewport(full), "the default viewport is the whole target");
+        frame = base;
+        JBro::ApplyCameraViewport(full, frame);
+        Check(frame.areaWidth == 0.0f, "and leaves the rect empty, meaning the whole target");
+    }
+
     void TestUndrawableCamerasAreSkippedWhenChoosing()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
@@ -288,6 +334,7 @@ JBro::Int32 RunCameraView2DTests()
     JBRO_CASE(TestTheCameraViewMatchesItsProjection());
     JBRO_CASE(TestTheCameraAreaFollowsTheCameraObject());
     JBRO_CASE(TestUndrawableCamerasAreSkippedWhenChoosing());
+    JBRO_CASE(TestCameraViewportsSplitTheScreen());
     std::cout << "Camera view 2D tests passed.\n";
     return 0;
 }

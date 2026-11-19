@@ -1,4 +1,5 @@
 ﻿#include <JBro/Runtime/GameObjectHandle.h>
+#include <JBro/Runtime/ScriptLogContext.h>
 
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/GameObject.h>
@@ -344,11 +345,14 @@ namespace JBro
         const char* operation,
         InstanceId instanceId)
     {
-        std::fprintf(
-            stderr,
-            "JBro warning: GameObject::%s on invalid handle (id=%llu)\n",
-            operation,
+        // 호스트 로그(에디터 로그 창)로 보낸다(ProjectRule §6.1, D-380). 키가 연산마다 같아 매 프레임 같은 자리에서 나도 한 줄로 묶인다.
+        // 무효한 경우에만 글자를 만든다 - 정상 경로에는 비용이 없다.
+        char key[96];
+        char message[192];
+        std::snprintf(key, sizeof(key), "handle.GameObject.%s", operation);
+        std::snprintf(message, sizeof(message), "GameObject::%s on invalid handle (id=%llu)", operation,
             static_cast<unsigned long long>(instanceId));
+        WriteEngineLog(LogLevel::Warning, "script", key, message);
     }
 
     Object::GameObject* Handle::GameObject::Resolve() const

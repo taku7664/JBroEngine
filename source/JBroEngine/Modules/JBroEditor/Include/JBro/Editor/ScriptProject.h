@@ -102,7 +102,8 @@ namespace JBro
         String MakeGitIgnore();
 
         // 엔진 폴더(`JBro.GameScript.props` 가 있는 곳)를 찾는다. `startFolder` 에서 위로 몇 칸 올라가며 본다 - 개발 빌드의
-        // 에디터는 `source/JBroEngine/Build/x64/Debug/` 에 있다. 엔진 설치본에는 SDK 가 없어 빈 글자다(cpp-script-plan §4).
+        // 에디터는 `<산출물 자리>/Engine/x64/<구성>/` 에 있고, 산출물 자리가 체크아웃 밖이면 `Engine/EngineRoot.txt` 가 소스 자리를 가리킨다(D-370).
+        // 엔진 설치본에는 SDK 가 없어 빈 글자다(cpp-script-plan §4).
         String FindEngineRoot(IPlatform& platform, const char* startFolder);
 
         // 스크립트 프로젝트가 있는가(`GameScript.vcxproj`).

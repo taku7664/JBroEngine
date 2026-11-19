@@ -11,6 +11,7 @@ namespace JBro
         try
         {
             m_meshes.Reserve(capacity);
+
             m_layerOrders.Reserve(m_meshes.Capacity() + m_texts.Capacity());
         }
         catch (const std::bad_alloc&)
@@ -40,6 +41,7 @@ namespace JBro
         m_hasCamera = false;
         m_meshes.Clear();
         m_droppedMeshCount = 0;
+        m_lights.Clear();
         m_texts.Clear();
         m_droppedTextCount = 0;
         m_lights.Clear();

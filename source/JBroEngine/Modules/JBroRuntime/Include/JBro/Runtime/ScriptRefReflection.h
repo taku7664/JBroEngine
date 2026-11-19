@@ -10,9 +10,11 @@
 namespace JBro::Internal
 {
     Bool ScriptRefToText(const InstanceRef& reference, ComponentTypeId typeId,
-        char* buffer, std::size_t capacity, std::size_t& required) noexcept;
+        char* buffer, std::size_t capacity, std::size_t& required,
+        Bool (*isCompatible)(const GameScriptBase*) noexcept) noexcept;
     Bool ScriptRefFromText(InstanceRef& reference, ComponentTypeId typeId,
-        const char* text, std::size_t length) noexcept;
+        const char* text, std::size_t length,
+        Bool (*isCompatible)(const GameScriptBase*) noexcept) noexcept;
 }
 
 namespace JBro
@@ -30,10 +32,16 @@ namespace JBro
                 made.ToText = [](const void* value, char* buffer, std::size_t capacity,
                     std::size_t& required) noexcept -> Bool {
                     return Internal::ScriptRefToText(*static_cast<const Ref<T>*>(value),
-                        typeId, buffer, capacity, required);
+                        typeId, buffer, capacity, required,
+                        [](const GameScriptBase* script) noexcept -> Bool {
+                            return dynamic_cast<const T*>(script) != nullptr;
+                        });
                 };
                 made.FromText = [](void* value, const char* text, std::size_t length) noexcept -> Bool {
-                    return Internal::ScriptRefFromText(*static_cast<Ref<T>*>(value), typeId, text, length);
+                    return Internal::ScriptRefFromText(*static_cast<Ref<T>*>(value), typeId, text, length,
+                        [](const GameScriptBase* script) noexcept -> Bool {
+                            return dynamic_cast<const T*>(script) != nullptr;
+                        });
                 };
                 made.Equals = [](const void* left, const void* right) noexcept -> Bool {
                     return *static_cast<const Ref<T>*>(left) == *static_cast<const Ref<T>*>(right);

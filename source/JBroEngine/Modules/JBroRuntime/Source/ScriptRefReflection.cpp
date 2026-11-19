@@ -38,36 +38,49 @@ namespace JBro::Internal
         }
 
         Int64 OrdinalOf(const Object::GameObject& owner, ComponentTypeId typeId,
-            const GameScriptBase* script) noexcept
+            const GameScriptBase* script,
+            Bool (*isCompatible)(const GameScriptBase*) noexcept) noexcept
         {
             Int64 ordinal = 0;
-            for (const ScriptSlot& slot : owner.GetScripts())
+            // Exact types retain their existing ordinals; compatible derived types follow them.
+            for (UInt32 pass = 0; pass < 2; ++pass)
             {
-                if (slot.typeId == typeId)
+                for (const ScriptSlot& slot : owner.GetScripts())
                 {
-                    if (slot.reference.TryGet() == script)
+                    const GameScriptBase* candidate = slot.reference.TryGet();
+                    const Bool exact = slot.typeId == typeId;
+                    if (candidate != nullptr && ((pass == 0 && exact) || (pass == 1 && !exact && isCompatible(candidate))))
                     {
-                        return ordinal;
+                        if (candidate == script)
+                        {
+                            return ordinal;
+                        }
+                        ++ordinal;
                     }
-                    ++ordinal;
                 }
             }
             return -1;
         }
 
         GameScriptBase* NthOfType(const Object::GameObject& owner,
-            ComponentTypeId typeId, Int64 ordinal) noexcept
+            ComponentTypeId typeId, Int64 ordinal,
+            Bool (*isCompatible)(const GameScriptBase*) noexcept) noexcept
         {
             Int64 seen = 0;
-            for (const ScriptSlot& slot : owner.GetScripts())
+            for (UInt32 pass = 0; pass < 2; ++pass)
             {
-                if (slot.typeId == typeId)
+                for (const ScriptSlot& slot : owner.GetScripts())
                 {
-                    if (seen == ordinal)
+                    GameScriptBase* candidate = slot.reference.TryGet();
+                    const Bool exact = slot.typeId == typeId;
+                    if (candidate != nullptr && ((pass == 0 && exact) || (pass == 1 && !exact && isCompatible(candidate))))
                     {
-                        return slot.reference.TryGet();
+                        if (seen == ordinal)
+                        {
+                            return candidate;
+                        }
+                        ++seen;
                     }
-                    ++seen;
                 }
             }
             return nullptr;
@@ -75,7 +88,8 @@ namespace JBro::Internal
     }
 
     Bool ScriptRefToText(const InstanceRef& reference, ComponentTypeId typeId,
-        char* buffer, std::size_t capacity, std::size_t& required) noexcept
+        char* buffer, std::size_t capacity, std::size_t& required,
+        Bool (*isCompatible)(const GameScriptBase*) noexcept) noexcept
     {
         char local[48];
         std::size_t length = 0;
@@ -92,8 +106,12 @@ namespace JBro::Internal
                     : nullptr;
                 const Int64 index = owner != nullptr
                     ? remap->toIndex(remap->user, owner->GetInstanceId()) : Int64(-1);
-                const Int64 ordinal = index >= 0 && script->GetCachedTypeId() == typeId
-                    ? OrdinalOf(*owner, typeId, script) : Int64(-1);
+                const Int64 ordinal = index >= 0 && isCompatible(script)
+                    ? OrdinalOf(*owner, typeId, script, isCompatible) : Int64(-1);
+                if (index >= 0 && ordinal < 0)
+                {
+                    return false;
+                }
                 if (ordinal >= 0)
                 {
                     char* at = std::to_chars(local, local + sizeof(local), index.Get()).ptr;
@@ -116,7 +134,8 @@ namespace JBro::Internal
     }
 
     Bool ScriptRefFromText(InstanceRef& destination, ComponentTypeId typeId,
-        const char* text, std::size_t length) noexcept
+        const char* text, std::size_t length,
+        Bool (*isCompatible)(const GameScriptBase*) noexcept) noexcept
     {
         if (text == nullptr)
         {
@@ -130,19 +149,19 @@ namespace JBro::Internal
         const char* end = text + length;
         if (text[0] == '@')
         {
-            std::uint64_t objectId = 0;
-            std::uint64_t scriptId = 0;
-            if (false == ParsePair(text + 1, end, objectId, scriptId))
+            std::uint64_t nativeObjectId = 0;
+            std::uint64_t nativeScriptId = 0;
+            if (false == ParsePair(text + 1, end, nativeObjectId, nativeScriptId))
             {
                 return false;
             }
             InstanceRef parsed;
-            parsed.ObjectId = objectId;
-            parsed.ComponentId = scriptId;
+            parsed.ObjectId = UInt64(nativeObjectId);
+            parsed.ComponentId = UInt64(nativeScriptId);
             const ResolvedInstance resolved = ResolveInstanceById(
                 parsed.ObjectId, parsed.ComponentId, RefCategory::Script);
             if (resolved.Pointer != nullptr
-                && static_cast<const GameScriptBase*>(resolved.Pointer)->GetCachedTypeId() != typeId)
+                && !isCompatible(static_cast<const GameScriptBase*>(resolved.Pointer)))
             {
                 return false;
             }
@@ -154,17 +173,19 @@ namespace JBro::Internal
         {
             return false;
         }
-        std::int64_t index = -1;
-        std::int64_t ordinal = -1;
-        if (false == ParsePair(text, end, index, ordinal))
+        std::int64_t nativeIndex = -1;
+        std::int64_t nativeOrdinal = -1;
+        if (false == ParsePair(text, end, nativeIndex, nativeOrdinal))
         {
             return false;
         }
+        const Int64 index = nativeIndex;
+        const Int64 ordinal = nativeOrdinal;
         InstanceRef parsed;
         const Object::GameObject* owner = GameObjectHandleAccess::Resolve(
             GameObjectHandleAccess::FromId(remap->toObjectId(remap->user, index)));
         GameScriptBase* script = owner != nullptr && ordinal >= 0
-            ? NthOfType(*owner, typeId, ordinal) : nullptr;
+            ? NthOfType(*owner, typeId, ordinal, isCompatible) : nullptr;
         if (script != nullptr)
         {
             parsed.ObjectId = owner->GetInstanceId();

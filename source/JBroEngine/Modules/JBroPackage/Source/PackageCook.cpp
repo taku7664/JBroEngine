@@ -174,7 +174,7 @@ namespace JBro::Package
     }
 
     Bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
-        PackageWriter& writer, CookReport& report)
+        PackageWriter& writer, CookReport& report, IShaderCompiler* compiler)
     {
         LooseAssetSource loose;
         loose.Bind(&platform, assetRoot);
@@ -268,6 +268,51 @@ namespace JBro::Package
                     ++report.bakedAtlases;
                 }
                 AddBlob(writer, report, *record, BlobKind::Source, font.bytes);
+                continue;
+            }
+            if (record->type == AssetType::Shader)
+            {
+                if (compiler == nullptr)
+                {
+                    Fail(report, *record, "no shader compiler: a game cannot compile material shaders");
+                    continue;
+                }
+                if (false == compiler->HasFormat(ShaderCodeFormat::SpirV) || false == compiler->HasFormat(ShaderCodeFormat::Dxil))
+                {
+                    Fail(report, *record, "the shader compiler cannot write every backend (is the Vulkan SDK's dxcompiler.dll next to the editor?)");
+                    continue;
+                }
+                // 셰이더는 어느 자리로 쓰일지 모른다(머티리얼이 정한다). 모든 자리를 구워 되는 것만 싣는다.
+                CompiledShaderSet set;
+                String errors;
+                const std::string_view text(reinterpret_cast<const char*>(source.Data()), source.Size());
+                for (const MaterialDomain domain : {MaterialDomain::PostProcess, MaterialDomain::Sprite, MaterialDomain::Mesh})
+                {
+                    CompiledMaterialShader compiled;
+                    String error;
+                    if (compiler->Compile(text, record->relativePath.c_str(), domain, compiled, error))
+                    {
+                        set.variants.Add(std::move(compiled));
+                    }
+                    else
+                    {
+                        errors.append(error);
+                        errors.append("\n");
+                    }
+                }
+                if (set.variants.IsEmpty())
+                {
+                    String why("the shader compiles for neither domain: ");
+                    why.append(errors);
+                    Fail(report, *record, why.c_str());
+                    continue;
+                }
+                Array<std::byte> blob;
+                WriteCompiledShaderSet(set, blob);
+                if (AddBlob(writer, report, *record, BlobKind::CompiledShader, blob))
+                {
+                    ++report.compiledShaders;
+                }
                 continue;
             }
             AddBlob(writer, report, *record, BlobKind::Source, source);

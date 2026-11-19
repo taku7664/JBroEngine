@@ -83,6 +83,9 @@ namespace JBro
         // 빌트인 컴포넌트를 갈래로 묶고, 마지막 `스크립트` 갈래에 스크립트 DLL 이 등록한 것을 이름 순으로 담는다(D-308).
         // 엔진 안에서는 둘이 따로 살지만(D-302) 사용자에게는 한 목록이다.
         void BuildAddComponentList(const Object::GameObject& object, AddComponentList& out);
+        // 위와 같은데 프로젝트의 차원을 본다(D-362). 3D 캔버스에서는 화면 레이어의 오브젝트에 화면 UI 컴포넌트(트랜스폼 2D·스프라이트·텍스트·위젯)만,
+        // 월드 레이어의 오브젝트에는 그 밖의 것만 담는다 - 3D 의 화면 레이어는 화면 UI 시스템이 그리고, 월드 레이어의 2D 컴포넌트는 아무도 그리지 않는다.
+        void BuildAddComponentList(const EditorApplication& editor, const Object::GameObject& object, AddComponentList& out);
 
         // 이미 열려 있는 메뉴 안에 `컴포넌트 추가` 하위 메뉴를 그린다(D-180, 기존
         // `DrawAddComponentMenu`). 붙였으면 참이다.

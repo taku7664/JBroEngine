@@ -3,6 +3,8 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cstring>
@@ -112,8 +114,10 @@ Steps:
         return finished;
     }
 
-    Bool EditorGuide::Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus)
+    Bool EditorGuide::Start(const Guide& guide, EditorApplication& editor, EditorGuideFocus& focus, Bool manualPanels)
     {
+        m_manualPanels = manualPanels;
+        m_openingPanel = nullptr;
         m_guide = &guide;
         m_finished = false;
         m_revisiting = false;
@@ -126,6 +130,8 @@ Steps:
         if (false == EnterStep(0, editor, focus))
         {
             m_guide = nullptr;
+            m_manualPanels = false;
+            m_openingPanel = nullptr;
             focus.End();
             return false;
         }
@@ -135,8 +141,48 @@ Steps:
     void EditorGuide::Stop(EditorGuideFocus& focus)
     {
         m_guide = nullptr;
+        m_manualPanels = false;
+        m_openingPanel = nullptr;
         m_step = 0;
         focus.End();
+    }
+
+    Bool EditorGuide::BeginFocus(const GuideFocusPath& path, EditorApplication& editor, EditorGuideFocus& focus)
+    {
+        m_openingPanel = nullptr;
+        GuideFocusPath routed = path;
+        if (m_manualPanels)
+        {
+            for (UInt32 index = 0; index < routed.count; ++index)
+            {
+                if (routed.targets[index].name != GuideFocusTargets::Panel("").name)
+                {
+                    continue;
+                }
+                routed.open[index] = GuideFocusOpen::User;
+                // 닫힌 창은 탭이 없으므로 실제 창 메뉴부터 사용자가 연다.
+                const EditorPanelRegistry& registry = EditorPanelRegistry::Get();
+                for (UInt32 type = 0; type < registry.GetCount(); ++type)
+                {
+                    const auto& info = registry.GetAt(type);
+                    if (info.kind != EditorPanelKind::Unique || MakeNameId(info.name) != routed.targets[index].key)
+                    {
+                        continue;
+                    }
+                    const EditorPanel* panel = editor.FindPanel(info.name);
+                    if (panel != nullptr && !panel->IsOpen())
+                    {
+                        m_openingPanel = info.name;
+                        routed = {};
+                        routed.Push(GuideFocusTargets::Menu("menu.window"), GuideFocusOpen::User);
+                        routed.Push(GuideFocusTargets::Menu("menu.window_editor"), GuideFocusOpen::User);
+                        routed.Push(GuideFocusTargets::PanelMenu(info.name), GuideFocusOpen::User);
+                        return focus.Begin(routed);
+                    }
+                }
+            }
+        }
+        return focus.Begin(routed);
     }
 
     Bool EditorGuide::TryEnter(UInt32 index, EditorApplication& editor, EditorGuideFocus& focus)
@@ -153,7 +199,7 @@ Steps:
                 return false;
             }
         }
-        if (false == focus.Begin(path))
+        if (false == BeginFocus(path, editor, focus))
         {
             return false;
         }
@@ -231,6 +277,32 @@ Steps:
         return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting || m_confirming);
     }
 
+    Bool EditorGuide::RefreshCurrentStep(EditorApplication& editor, EditorGuideFocus& focus)
+    {
+        const auto* step = GetStep();
+        if (step == nullptr || m_confirming)
+        {
+            return true;
+        }
+        GuideFocusPath path = step->path;
+        if (step->buildPath.IsBound())
+        {
+            path = {};
+            if (!step->buildPath.Invoke(editor, path))
+            {
+                Stop(focus);
+                return false;
+            }
+        }
+        if (!BeginFocus(path, editor, focus))
+        {
+            Stop(focus);
+            return false;
+        }
+        focus.SetKeyboardAllowed(step->keyboard);
+        return true;
+    }
+
     void EditorGuide::Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action)
     {
         if (m_guide == nullptr)
@@ -241,6 +313,8 @@ Steps:
         {
             // Esc 로 막이 걷혔다. 가이드도 거기서 멈춘다.
             m_guide = nullptr;
+            m_manualPanels = false;
+            m_openingPanel = nullptr;
             m_step = 0;
             return;
         }
@@ -263,6 +337,15 @@ Steps:
                 }
             }
             return;
+        }
+        if (m_openingPanel != nullptr)
+        {
+            const EditorPanel* panel = editor.FindPanel(m_openingPanel);
+            if (panel != nullptr && panel->IsOpen())
+            {
+                RefreshCurrentStep(editor, focus);
+                return;
+            }
         }
         const GuideStep& step = m_guide->steps[m_step];
         const Bool nextPressed = action == GuideFocusAction::Next && ShowsNext() && WhyNextBlocked(editor) == nullptr;
@@ -308,7 +391,7 @@ Steps:
         {
             // 같은 일에 드는 다른 길이 있으면 그리로 간다(계층 줄이 검색에 가려졌으면 캔버스 뷰로).
             GuideFocusPath path;
-            if (step.nextRoute.Invoke(editor, path) && focus.Begin(path))
+            if (step.nextRoute.Invoke(editor, path) && BeginFocus(path, editor, focus))
             {
                 focus.SetKeyboardAllowed(step.keyboard);
                 return;

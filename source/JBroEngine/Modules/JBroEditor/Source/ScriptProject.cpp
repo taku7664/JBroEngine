@@ -18,6 +18,8 @@ namespace JBro::ScriptProject
         constexpr const char* EnginePropsFileName = "JBroEngine.props";
         constexpr const char* ScriptsFolderName = "Scripts";
         constexpr const char* EngineMarkerFileName = "JBro.GameScript.props";
+        // 엔진 빌드가 산출물 폴더에 적어 두는 소스 자리다(`JBro.Common.props`, D-370).
+        constexpr const char* EngineRootPointerFileName = "EngineRoot.txt";
 
         // C++ 예약어와, 스크립트 기반 타입·매크로가 이미 쓰는 이름이다. 스크립트 이름과 필드 이름에 쓰면 컴파일이 깨지거나
         // 기반의 함수를 가린다(기존 엔진 `IsReservedScriptName` 을 넓혔다).
@@ -33,7 +35,7 @@ namespace JBro::ScriptProject
             "typeid", "typename", "union", "unsigned", "using", "virtual", "void", "volatile", "wchar_t", "while",
             "OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy", "OnAttached", "OnDetached",
             "OnEnabled", "OnDisabled", "GetOwner", "GetTypeId", "StaticTypeName", "IsEnabled", "SetEnabled",
-            "JBroSelf", "JBroFieldBase", "JBroFieldAt", "JBro", "GameScript2D", "GameScriptBase", "ScriptModule",
+            "JBroSelf", "JBroFieldBase", "JBroFieldAt", "JBro", "GameScript2D", "GameScript3D", "GameScriptBase", "ScriptModule",
         };
 
         Bool IsIdentifier(const char* text)
@@ -273,15 +275,17 @@ namespace JBro::ScriptProject
     {
         switch (type)
         {
+        // 화면 UI 의 핸들은 두 차원 모두다 - 3D 캔버스의 화면 레이어도 2D 의 화면 UI 를 쓴다(D-363).
         case FieldType::Transform2D:
         case FieldType::SpriteRenderer2D:
+        case FieldType::Text2D:
+        case FieldType::Button2D:
+            return true;
         case FieldType::Camera2D:
         case FieldType::Rigidbody2D:
         case FieldType::Collider2D:
         case FieldType::DistanceJoint2D:
         case FieldType::HingeJoint2D:
-        case FieldType::Text2D:
-        case FieldType::Button2D:
         case FieldType::AudioListener2D:
         case FieldType::Light2D:
         case FieldType::ShadowCaster2D:
@@ -307,20 +311,11 @@ namespace JBro::ScriptProject
         String out;
         Line(out, "#pragma once");
         Line(out);
+        // 값 필드의 설명서는 두 프렐류드가 모두 들인다 - 필드 타입마다 include 를 더하지 않는다.
         Line(out, "#include <JBro/ScriptAPI.h>");
-        // 2D 프렐류드는 3D 수학 타입의 리플렉션 설명자를 들이지 않는다. `Vector3` 필드가 있으면 그것만 더 들인다(MSBuild 로 확인했다).
-        Bool needsMath3D = false;
-        for (const FieldSpec& field : fields)
-        {
-            needsMath3D = needsMath3D || field.type == FieldType::Vector3;
-        }
-        if (needsMath3D)
-        {
-            Line(out, "#include <JBro/Reflection/Math3DReflection.h>");
-        }
         Line(out);
         LineF(out, "class %s final : public %s", className,
-            framework == FrameworkKind::Framework3D ? "GameScriptBase" : "GameScript2D");
+            framework == FrameworkKind::Framework3D ? "GameScript3D" : "GameScript2D");
         Line(out, "{");
         LineF(out, "    JBRO_SCRIPT_BODY(%s)", className);
         Line(out, "public:");
@@ -492,6 +487,28 @@ namespace JBro::ScriptProject
             if (platform.FileExists(EditorPaths::JoinPath(folder.c_str(), EngineMarkerFileName).c_str()))
             {
                 return folder;
+            }
+            // 산출물이 체크아웃 밖에 있으면(`JBRO_BUILD_ROOT`, D-370) 위로 올라가도 소스가 없다. 빌드가 적어 둔 자리를 따라가되,
+            // 그 자리에 엔진이 있을 때만 믿는다 - 체크아웃을 옮기거나 지우면 표지가 옛 자리를 가리킨다.
+            Array<std::byte> pointer;
+            if (platform.ReadWholeFile(EditorPaths::JoinPath(folder.c_str(), EngineRootPointerFileName).c_str(), pointer))
+            {
+                String target(reinterpret_cast<const char*>(pointer.Data()), pointer.Size());
+                if (target.size() >= 3 && static_cast<unsigned char>(target[0]) == 0xEF
+                    && static_cast<unsigned char>(target[1]) == 0xBB && static_cast<unsigned char>(target[2]) == 0xBF)
+                {
+                    target.erase(0, 3);
+                }
+                while (false == target.empty()
+                    && (target.back() == '\r' || target.back() == '\n' || target.back() == ' ' || target.back() == '\\' || target.back() == '/'))
+                {
+                    target.pop_back();
+                }
+                if (false == target.empty()
+                    && platform.FileExists(EditorPaths::JoinPath(target.c_str(), EngineMarkerFileName).c_str()))
+                {
+                    return target;
+                }
             }
             folder = EditorPaths::FolderOf(folder.c_str());
         }

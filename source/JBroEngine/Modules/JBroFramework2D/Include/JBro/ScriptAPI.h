@@ -16,6 +16,12 @@
 #include <JBro/Runtime/ScriptRefReflection.h>
 #include <JBro/Runtime/NullableReflection.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
+// 에디터 `새 스크립트` 가 내놓는 값 필드(`Vector2`·`Vector3`·`Color`·에셋)의 설명서다. 값 타입과 따로 두는 헤더라(D-241)
+// 프렐류드가 들이지 않으면 `JBRO_FIELD(Vector2, ...)` 가 설명서 없음으로 멈춘다. 두 프렐류드가 같은 줄을 공유한다.
+#include <JBro/Reflection/CoreTypeDescriptors.h>
+#include <JBro/Reflection/Math2DReflection.h>
+#include <JBro/Reflection/Math3DReflection.h>
+#include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Script/Macros.h>
 // 네트워크 값 서비스(D-122). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.
@@ -32,17 +38,39 @@
 
 // 빌트인 컴포넌트는 핸들로만 보인다(D-302). 데이터 헤더(`Component/*.h`)는 스크립트 대상 빌드에서 `#error` 다.
 #include <JBro/Framework2D/ComponentTypes2D.h>
+#include <JBro/Framework2D/Handle/AspectRatioFitter2D.h>
 #include <JBro/Framework2D/Handle/AudioListener2D.h>
+#include <JBro/Framework2D/Handle/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Handle/Button2D.h>
 #include <JBro/Framework2D/Handle/Camera2D.h>
+#include <JBro/Framework2D/Handle/CanvasGroup2D.h>
 #include <JBro/Framework2D/Handle/Collider2D.h>
+#include <JBro/Framework2D/Handle/ContentSizeFitter2D.h>
 #include <JBro/Framework2D/Handle/DistanceJoint2D.h>
+#include <JBro/Framework2D/Handle/Draggable2D.h>
+#include <JBro/Framework2D/Handle/DropTarget2D.h>
+#include <JBro/Framework2D/Handle/Dropdown2D.h>
 #include <JBro/Framework2D/Handle/HingeJoint2D.h>
+#include <JBro/Framework2D/Handle/InputField2D.h>
+#include <JBro/Framework2D/Handle/Layout2D.h>
 #include <JBro/Framework2D/Handle/Light2D.h>
+#include <JBro/Framework2D/Handle/ListView2D.h>
+#include <JBro/Framework2D/Handle/Mask2D.h>
+#include <JBro/Framework2D/Handle/Modal2D.h>
+#include <JBro/Framework2D/Handle/Navigation2D.h>
+#include <JBro/Framework2D/Handle/ScrollView2D.h>
+#include <JBro/Framework2D/Handle/Slider2D.h>
+#include <JBro/Framework2D/Handle/Toggle2D.h>
+#include <JBro/Framework2D/Handle/ToggleGroup2D.h>
 #include <JBro/Framework2D/Handle/Rigidbody2D.h>
+#include <JBro/Framework2D/Handle/SafeArea2D.h>
 #include <JBro/Framework2D/Handle/ShadowCaster2D.h>
 #include <JBro/Framework2D/Handle/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Handle/TabGroup2D.h>
 #include <JBro/Framework2D/Handle/Text2D.h>
+#include <JBro/Framework2D/Handle/Tooltip2D.h>
+#include <JBro/Framework2D/Handle/Tween2D.h>
+#include <JBro/Framework2D/Handle/VirtualKeyboard2D.h>
 #include <JBro/Framework2D/Handle/Transform2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework2D/Prefab/Prefab.h>

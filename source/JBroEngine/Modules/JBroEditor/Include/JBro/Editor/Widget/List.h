@@ -19,6 +19,7 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/ValueMath.h>
 
 namespace JBro::Widget
 {
@@ -33,6 +34,9 @@ namespace JBro::Widget
         // 기본으로 켜지 않는 이유: 순서 없는 목록에서는 번호가 거짓이 되고,
         // 가로가 빠듯한 목록에서는 내용 폭만 깎는다. 켜도 원소 칸이 좁아지면 빠진다(D-309).
         ListFlagsShowIndex = 1u << 2,
+        // Custom rows without the editor's reorder/add/remove controls.
+        ListFlagsPlain = 1u << 3,
+        ListFlagsClipRows = 1u << 4,
     };
 
     // 목록 행을 끄는 꾸러미다(`DragKind::ListReorder`). **어느 목록의 행인지를 함께 싣는다**(D-255) -
@@ -170,6 +174,43 @@ namespace JBro::Widget
 
         Bool changed = false;
         ImGui::PushID(id);
+
+        if ((flags & ListFlagsPlain) != 0)
+        {
+            auto* storage = ImGui::GetStateStorage();
+            const auto widthKey = ImGui::GetID("##plain_width");
+            const Float width = ImGui::GetContentRegionAvail().x;
+            const Bool clip = (flags & ListFlagsClipRows) != 0 && storage->GetFloat(widthKey, -1.0f) == width;
+            storage->SetFloat(widthKey, width);
+            for (Int32 index = 0; index < count; ++index)
+            {
+                ImGui::PushID(index.Get());
+                const auto heightKey = ImGui::GetID("##plain_height");
+                const Float height = storage->GetFloat(heightKey, ImGui::GetTextLineHeightWithSpacing());
+                if (clip && !ImGui::IsRectVisible(ImVec2(width, height)))
+                {
+                    ImGui::Dummy(ImVec2(width, height));
+                }
+                else
+                {
+                    const Float top = ImGui::GetCursorPosY();
+                    if (readOnly)
+                    {
+                        DisableScope disabled;
+                        drawRow(index);
+                    }
+                    else
+                    {
+                        changed = drawRow(index) || changed;
+                    }
+                    const Float drawn = ImGui::GetCursorPosY() - top;
+                    storage->SetFloat(heightKey, Max(Float(0.0f), Float(drawn - style.ItemSpacing.y)));
+                }
+                ImGui::PopID();
+            }
+            ImGui::PopID();
+            return changed;
+        }
 
         // 행 간격을 최소로. 목록은 빽빽해야 한눈에 들어온다.
         StyleScope compact;

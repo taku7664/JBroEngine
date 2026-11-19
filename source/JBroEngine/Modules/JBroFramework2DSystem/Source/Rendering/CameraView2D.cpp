@@ -38,26 +38,88 @@ namespace JBro
         }
     }
 
+    namespace
+    {
+        Float Unit(Float value)
+        {
+            return Float(std::isfinite(value.Get()) ? Float::Clamp(value, 0.0f, 1.0f) : 0.0f);
+        }
+    }
+
+    Bool HasDrawableViewport(const RenderCamera2D& camera)
+    {
+        const Float width = Unit(camera.viewportSize.x);
+        const Float height = Unit(camera.viewportSize.y);
+        return width > 0.0f && height > 0.0f && Unit(camera.viewportOrigin.x) < 1.0f && Unit(camera.viewportOrigin.y) < 1.0f;
+    }
+
+    Bool HasFullViewport(const RenderCamera2D& camera)
+    {
+        return HasDrawableViewport(camera) && Unit(camera.viewportOrigin.x) <= 0.0f && Unit(camera.viewportOrigin.y) <= 0.0f
+            && Unit(camera.viewportSize.x) >= 1.0f && Unit(camera.viewportSize.y) >= 1.0f;
+    }
+
+    void ApplyCameraViewport(const RenderCamera2D& camera, ScreenSpaceFrame& frame)
+    {
+        frame.areaX = 0.0f;
+        frame.areaY = 0.0f;
+        frame.areaWidth = 0.0f;
+        frame.areaHeight = 0.0f;
+        if (false == IsDrawableCamera2D(camera) || false == HasDrawableViewport(camera) || false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f))
+        {
+            return;
+        }
+        const Bool full = HasFullViewport(camera);
+        // 뷰포트의 픽셀 사각형. 오른쪽·아래로 넘치는 만큼 자른다.
+        const Float originX = Unit(camera.viewportOrigin.x);
+        const Float originY = Unit(camera.viewportOrigin.y);
+        const Float width = Float(Unit(camera.viewportSize.x) + originX > 1.0f ? (Float(1.0f) - originX).Get() : Unit(camera.viewportSize.x).Get());
+        const Float height = Float(Unit(camera.viewportSize.y) + originY > 1.0f ? (Float(1.0f) - originY).Get() : Unit(camera.viewportSize.y).Get());
+        const Float pixelX = originX * frame.targetWidth;
+        const Float pixelY = originY * frame.targetHeight;
+        const Float pixelWidth = width * frame.targetWidth;
+        const Float pixelHeight = height * frame.targetHeight;
+        if (camera.projection == Component::CameraProjection2D::PixelPerfect)
+        {
+            // 레터박스는 뷰포트 안에서 센다 - 뷰포트 크기를 대상으로 두고 잰 뒤 뷰포트 자리를 더한다.
+            ScreenSpaceFrame inside = frame;
+            inside.targetWidth = pixelWidth;
+            inside.targetHeight = pixelHeight;
+            inside.areaX = 0.0f;
+            inside.areaY = 0.0f;
+            inside.areaWidth = 0.0f;
+            inside.areaHeight = 0.0f;
+            ScreenArea area;
+            Float scale = 0.0f;
+            if (ComputePixelPerfectArea(inside, area, scale))
+            {
+                frame.areaX = pixelX + area.x;
+                frame.areaY = pixelY + area.y;
+                frame.areaWidth = area.width;
+                frame.areaHeight = area.height;
+                return;
+            }
+        }
+        if (false == full)
+        {
+            frame.areaX = pixelX;
+            frame.areaY = pixelY;
+            frame.areaWidth = pixelWidth;
+            frame.areaHeight = pixelHeight;
+        }
+    }
+
     void ApplyCameraArea(const RenderCamera2D* camera, ScreenSpaceFrame& frame)
     {
         frame.areaX = 0.0f;
         frame.areaY = 0.0f;
         frame.areaWidth = 0.0f;
         frame.areaHeight = 0.0f;
-        if (camera == nullptr || camera->projection != Component::CameraProjection2D::PixelPerfect
-            || false == IsDrawableCamera2D(*camera))
+        if (camera == nullptr || false == HasFullViewport(*camera))
         {
             return;
         }
-        ScreenArea area;
-        Float scale = 0.0f;
-        if (ComputePixelPerfectArea(frame, area, scale))
-        {
-            frame.areaX = area.x;
-            frame.areaY = area.y;
-            frame.areaWidth = area.width;
-            frame.areaHeight = area.height;
-        }
+        ApplyCameraViewport(*camera, frame);
     }
 
     Bool ComputeCameraView2D(const RenderCamera2D& camera, const ScreenSpaceFrame& frame, CameraView2D& result)
@@ -111,18 +173,4 @@ namespace JBro
         return true;
     }
 
-    Bool ComputeParallaxOffset2D(const Matrix3x2& view, Float factor, Float& dx, Float& dy)
-    {
-        // 카메라의 월드 자리는 뷰가 원점으로 보내는 점이다: x·m11 + y·m21 + m31 = 0, x·m12 + y·m22 + m32 = 0.
-        const Float det = view.m11 * view.m22 - view.m21 * view.m12;
-        if (false == std::isfinite(det) || std::fabs(det) < 1e-12f)
-        {
-            return false;
-        }
-        const Float cameraX = (view.m21 * view.m32 - view.m31 * view.m22) / det;
-        const Float cameraY = (view.m31 * view.m12 - view.m11 * view.m32) / det;
-        dx = cameraX * (1.0f - factor);
-        dy = cameraY * (1.0f - factor);
-        return std::isfinite(dx) && std::isfinite(dy);
-    }
 }

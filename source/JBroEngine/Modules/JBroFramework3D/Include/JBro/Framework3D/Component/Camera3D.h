@@ -6,6 +6,7 @@
 #error "A script reaches Component::Camera3D through its handle in <JBro/ScriptAPI.h>, not the component data header."
 #endif
 
+#include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
@@ -42,5 +43,8 @@ namespace JBro::Component
         JBRO_FIELD(Float, farPlane)  = 1000.0f;
         JBRO_FIELD(Color, clearColor) { 0.08f, 0.09f, 0.11f, 1.0f };
         JBRO_FIELD(Bool,  primary) = false;
+        // **이 카메라의 후처리 프로필**(`.jpost`, D-344). 비어 있으면 후처리가 없다. 게임 화면과 캔버스 뷰(단추로 끌 수 있다)가 이 프로필을 건다.
+        JBRO_FIELD(AssetId, postProcessProfileId);
+        JBRO_FIELD(AssetHandle, postProcessProfile, NoSerialize() | ReadOnly() | Hidden());
     };
 }

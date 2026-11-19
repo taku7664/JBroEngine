@@ -1,4 +1,5 @@
 ﻿#include <JBro/Runtime/LayerHandle.h>
+#include <JBro/Runtime/ScriptLogContext.h>
 
 #include <JBro/Runtime/IObjectSystem.h>
 #include <JBro/Runtime/SystemContext.h>
@@ -67,6 +68,11 @@ namespace JBro::Handle
 
     void Layer::ReportInvalidAccess(const char* operation, UInt32 id)
     {
-        std::fprintf(stderr, "JBro warning: Layer::%s on invalid handle (id=%u)\n", operation, static_cast<unsigned>(id));
+        // `Handle::GameObject` 의 무효 접근과 같은 길이다(D-380).
+        char key[96];
+        char message[160];
+        std::snprintf(key, sizeof(key), "handle.Layer.%s", operation);
+        std::snprintf(message, sizeof(message), "Layer::%s on invalid handle (id=%u)", operation, static_cast<unsigned>(id.Get()));
+        WriteEngineLog(LogLevel::Warning, "script", key, message);
     }
 }

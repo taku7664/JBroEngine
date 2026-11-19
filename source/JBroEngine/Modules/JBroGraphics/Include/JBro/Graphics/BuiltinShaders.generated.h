@@ -24,6 +24,20 @@ namespace JBro
         Light2D,
         Light2DShadowed,
         Shadow2D,
+        PostCopy,
+        PostExposure,
+        PostTonemap,
+        PostBloomPrefilter,
+        PostBloomDownsample,
+        PostBloomUpsample,
+        PostBloomComposite,
+        PostColorAdjust,
+        PostColorLookup,
+        PostLayerBlur,
+        PostLayerOutlineDistance,
+        PostLayerOutlineComposite,
+        PostLayerShadowBlur,
+        PostLayerShadowComposite,
         Count
     };
 

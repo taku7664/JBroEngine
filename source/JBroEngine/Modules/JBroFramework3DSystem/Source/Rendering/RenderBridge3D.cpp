@@ -93,6 +93,7 @@ namespace JBro::Internal
                     submit.world = MakeTransformMatrix3D(item.position, item.rotation, item.scale);
                     submit.mesh = item.mesh;
                     submit.material = item.material;
+                    submit.meshMaterial = item.meshMaterial;
                     submit.tint[0] = item.tint.R;
                     submit.tint[1] = item.tint.G;
                     submit.tint[2] = item.tint.B;
@@ -292,7 +293,7 @@ namespace JBro::Internal
         // 블렌드나 불투명도가 걸린 레이어만 그 뷰를 제 텍스처에 그려 얹는다(`CameraParams::composite`). 대상을 지우는 것은 첫 뷰다.
         // 그릴 것이 없으면 뷰 하나로 지우기만 한다. 디버그 선은 맨 위 레이어의 뷰에 얹는다 - 그 뷰가 얹는 뷰면 따로 하나 더 연다.
         // `onlyLayer` 가 0 이상이면 그 레이어 차례 하나만 블렌드 없이 그린다(썸네일, D-288).
-        // **라이트는 뷰마다 다시 낸다**(D-353). 레이어마다 뷰가 열리고 라이트는 레이어를 가리지 않으므로 같은 목록을 모든 뷰에 낸다 - 렌더러는 앞 뷰와 같은 블록을
+        // **라이트는 뷰마다 다시 낸다**(D-407). 레이어마다 뷰가 열리고 라이트는 레이어를 가리지 않으므로 같은 목록을 모든 뷰에 낸다 - 렌더러는 앞 뷰와 같은 블록을
         // 다시 올리지 않는다. 캔버스 뷰는 에디터에서 숨긴 오브젝트의 라이트를 빼고 낸다.
         void PushLights(const RenderWorld3D& world, Renderer& renderer, Bool editorView)
         {
@@ -323,7 +324,7 @@ namespace JBro::Internal
 
         Bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, Bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
-            const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1)
+            const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1, Bool postProcess = false)
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
@@ -389,6 +390,11 @@ namespace JBro::Internal
                 CameraParams layerCamera = camera;
                 layerCamera.composite = onlyLayer >= 0 ? CompositeBlend::Normal : ToCompositeBlend3D(blend);
                 layerCamera.compositeOpacity = onlyLayer >= 0 ? Float(1.0f) : opacity;
+                // 레이어의 프로필 효과(D-345)는 그 뷰를 한 장으로 얹으며 건다. 썸네일과 후처리를 끈 캔버스 뷰는 걸지 않는다.
+                if (onlyLayer < 0 && postProcess)
+                {
+                    layerCamera.layerPostProcess = world.GetLayerPostProcess(orders[at]);
+                }
                 // **패럴랙스는 그 레이어 뷰의 카메라 위치만 계수배다**(D-286, 기존 `ApplyLayerSpace`). 회전과 투영은 그대로다. 게임 화면만이다 -
                 // 캔버스 뷰는 배치하는 자리라 걸지 않는다.
                 if (false == editorView && parallax != 1.0f)
@@ -402,7 +408,8 @@ namespace JBro::Internal
                 PushLights(world, renderer, editorView);
                 accepted = PushMeshes(world, renderer, editorView, orders[at]) && accepted;
                 accepted = PushWorldTexts(world, renderer, cameraRotation, orders[at]) && accepted;
-                const Bool plain = onlyLayer >= 0 || (blend == LayerBlend::Normal && opacity >= 1.0f);
+                const Bool plain = onlyLayer >= 0
+                    || (blend == LayerBlend::Normal && opacity >= 1.0f && layerCamera.layerPostProcess.entries.size == 0);
                 if (at + 1 == orders.Size() && plain && false == linesDrawn)
                 {
                     PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
@@ -424,6 +431,20 @@ namespace JBro::Internal
                     PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
                 }
                 if (false == renderer.EndView())
+                {
+                    return false;
+                }
+            }
+            // **후처리는 레이어를 다 얹은 뒤 한 번이다**(D-344). 3D 는 레이어마다 뷰라 뷰마다 걸면 노출·톤맵이 겹친다 - 그릴 것 없는 뷰 하나가
+            // 얹힌 그림을 장면으로 옮겨(렌더러의 `SceneLoad`) 효과를 건다. 그래서 3D 의 장면은 백버퍼 포맷까지만 밝다.
+            const PostProcessStack& post = world.GetPostProcess();
+            if (postProcess && post.entries.size != 0)
+            {
+                CameraParams finish = camera;
+                finish.composite = CompositeBlend::Normal;
+                finish.compositeOpacity = 1.0f;
+                finish.postProcess = post;
+                if (false == renderer.BeginView(finish) || false == renderer.EndView())
                 {
                     return false;
                 }
@@ -468,7 +489,7 @@ namespace JBro::Internal
         parameters.target = view.target;
         parameters.targetExtent = view.extent;
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
-            view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height));
+            view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height), -1, view.postProcess);
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 
@@ -515,7 +536,7 @@ namespace JBro::Internal
         }
         const Bool showLines = debugDraw != nullptr && debugDraw->IsSimulationViewVisible();
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
-            showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(renderer.GetFrameExtent().height));
+            showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(renderer.GetFrameExtent().height), -1, true);
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 }

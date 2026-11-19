@@ -26,6 +26,8 @@ namespace JBro::System
         virtual Bool IsConnected() const = 0;
         virtual UInt32 GetConnectionCount() const = 0;
         virtual Network::ConnectionId GetConnectionAt(UInt32 index) const = 0;
+        // 클라이언트일 때 서버가 이 연결에 붙인 번호. 서버·역할 없음은 `InvalidConnectionId` 다.
+        virtual Network::ConnectionId GetLocalConnectionId() const = 0;
         virtual double GetRoundTripMilliseconds(Network::ConnectionId connection) const = 0;
         virtual double GetUdpLossRate(Network::ConnectionId connection) const = 0;
 
@@ -42,5 +44,9 @@ namespace JBro::System
         virtual InstanceId FindLocalObject(Network::NetworkObjectId id) const = 0;
         // 서버는 모든 오브젝트에 권한이 있고, 클라이언트는 아무것에도 없다(예측·소유 위임은 열어 둔 것).
         virtual Bool HasAuthority(InstanceId object) const = 0;
+        // 서버 전용. 이 오브젝트를 어느 연결이 갖는지 정한다. `InvalidConnectionId` 면 서버가 갖는다.
+        // 복제 표에 아직 없는 오브젝트는 거짓이다 - 스냅숏에 들어온 다음 스텝에 다시 부른다.
+        virtual Bool SetObjectOwner(InstanceId object, Network::ConnectionId owner) = 0;
+        virtual Network::ConnectionId GetObjectOwner(InstanceId object) const = 0;
     };
 }

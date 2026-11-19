@@ -9,12 +9,12 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
-#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
-#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
-#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
+#include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
+#include <JBro/ScreenUi/System/SpriteRender2DSystem.h>
+#include <JBro/ScreenUi/System/Transform2DSystem.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
-#include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
+#include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 

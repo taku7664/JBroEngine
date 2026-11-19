@@ -1,4 +1,4 @@
-# 모델 임포트 계획 (D-338)
+# 모델 임포트 계획 (D-391)
 
 > 상태: **완료** (2026-11-16 시작, 2026-11-17 여섯 단계 완료). 남은 것은 §4(재질 단계와 함께 할 것·`[남은 일]`). todo-3d 우선순위 3. 사용자와 토론해 정한 것(2026-11-16): 가져오는 단위는 메시가 아니라 **모델**,
 > 디코더는 **ufbx + cgltf**("범용적인 걸 쓰되 하나로 안 되면 여럿 허용"), 하위 에셋은 에셋 브라우저에서 **▶ 로 펼친다**(그림의 Texture·Sprite 도 같이),
@@ -7,7 +7,7 @@
 ## 1. 지금 있는 것 (2026-11-16 실측)
 
 - 확장자 표(`AssetTypeRules.cpp`)가 `.obj .gltf .glb` 를 `Mesh` 로 안다. 읽는 코드는 없다 - `AssetSystem::Load` 는 메시에 빈 핸들이다.
-- `MeshLibrary`(Framework3DSystem)가 빌트인 도형 다섯을 렌더러에 올리고 `AssetId → AssetHandle` 을 든다(D-337). 스프라이트의 `SpriteLibrary` 와 같은 자리다.
+- `MeshLibrary`(Framework3DSystem)가 빌트인 도형 다섯을 렌더러에 올리고 `AssetId → AssetHandle` 을 든다(D-390). 스프라이트의 `SpriteLibrary` 와 같은 자리다.
 - 렌더러의 메시 정점(`MeshVertex`)은 위치·법선뿐이다(24 바이트, 셰이더 ABI). UV 는 재질 때 붙는다(todo-3d 우선순위 4).
 - 레지스트리의 `AssetRecord::owner` 가 이미 "이 레코드는 저 에셋에서 나왔다" 를 적는다 - 그림 파일 하나가 Texture 와 Sprite 두 레코드가 되고
   `.jmeta` 하나에 두 아이디가 든다(D-111). 모델의 하위 에셋은 같은 틀이다.
@@ -67,9 +67,9 @@
   고르면 `같은 그림` 줄에 묶인 에셋들, 누르면 브라우저에서 보인다. 묶인 Texture 의 옵션을 고치면 칸 아래에 "바꾸면 따로 읽는다" 를 안내한다(막지 않는다).
   통계 패널에 묶은 수와 아낀 메모리 한 줄(선택).
 - 실제 메모리 공유는 텍스처가 GPU 에 쓰이는 재질 단계에서 붙는다. 첫 판은 해시 기록·배지·`같은 그림` 줄까지다.
-  → 섰다(material-plan 5 단계, D-351): 디코드·GPU 업로드·패키지 블롭이 열쇠마다 한 번이다. CPU 픽셀은 아직 그림마다 한 벌(복사)이다.
+  → 섰다(material-plan 5 단계, D-404): 디코드·GPU 업로드·패키지 블롭이 열쇠마다 한 번이다. CPU 픽셀은 아직 그림마다 한 벌(복사)이다.
 - 바깥 그림 파일은 원래 에셋 하나라 묶을 것이 없다.
-- **선 모양(5 단계, D-343)**: 키는 `Texture/그림 이름`이고 키를 짓는 곳은 `ListModelSubAssets` 하나다(메시·재질·내장 그림 차례, 겹치면 ` (2)`) - 목록을 맞추는 쪽과
+- **선 모양(5 단계, D-396)**: 키는 `Texture/그림 이름`이고 키를 짓는 곳은 `ListModelSubAssets` 하나다(메시·재질·내장 그림 차례, 겹치면 ` (2)`) - 목록을 맞추는 쪽과
   읽는 쪽(`AssetSystem`)이 같은 이름으로 같은 것을 찾는다. `.jmeta` 의 그림 항목만 `Hash`(16 자리 16 진수)와 제 `ImportOptions` 를 든다 - 메시·재질 항목에 있으면 읽기도 쓰기도 실패다.
   해시는 모델을 다시 맞출 때마다 파일에서 다시 적고, 옵션은 사용자가 고친 것을 지킨다. 새 그림은 `ModelTextureDefaults`(밉맵 켬)로 적는다.
   레지스트리는 하위 레코드에 묶음 열쇠 `AssetRecord::sharedImageKey`(`MakeSharedImageKey` - 해시와 필터·색 공간·밉맵을 섞은 FNV-1a, 0 은 묶지 않음)를 단다.
@@ -97,7 +97,7 @@
 
 ### 2.7 임포트 옵션 (`.jmeta` 의 `ImportOptions`)
 
-사용자와 추렸다(D-339): **비용이 싸거나 빠지면 결과가 틀리는 것**은 첫 판에 넣고, 비싸거나 쓰는 곳이 없는 것은 남은 일(§4)로 둔다.
+사용자와 추렸다(D-392): **비용이 싸거나 빠지면 결과가 틀리는 것**은 첫 판에 넣고, 비싸거나 쓰는 곳이 없는 것은 남은 일(§4)로 둔다.
 스프라이트 옵션과 같은 자리(브라우저에서 고른 에셋의 인스펙터)에서 고치고 커밋으로 되돌린다.
 
 - **`ModelImportOptions`**: `scale`(1.0, 단위를 바꾼 뒤 곱하는 배율) · `convertUnits`(켬, 파일의 단위를 미터로 - FBX 는 흔히 cm) ·
@@ -116,15 +116,15 @@
 | 단계 | 내용 | 상태 |
 |---|---|---|
 | 1 | 브라우저 ▶ 펼치기 화면 - 그림의 Texture·Sprite 로 먼저 세우고 화면을 찍어 확인받는다 | `[완료]` 2026-11-16 · 사용자 확인("이대로 커밋") · `AssetBrowserPanel`(`Collect` 가 `owner` 있는 레코드를 파일 줄에 단다, `DrawFile` 의 트리 화살표, `DrawFileTile` 의 `DrawTileExpander`·묶음 띠, `HandleChildInput`) · 시험 `TestTheAssetBrowserExpandsSubAssets`(화면 `assets_expanded_list`·`assets_expanded_icons`·`assets_folded_icons`) |
-| 2 | ufbx·cgltf 를 `ThirdParty/` 에 들인다(내려받기는 파일·출처·크기를 밝히고 확인) · `ModelDecoder` 와 `ModelData` · 시험 모델(작은 `.glb`·`.fbx`·`.obj`) | `[완료]` 2026-11-16 · ufbx v0.23.1(자기 정적 라이브러리)·cgltf v1.15(헤더, 구현은 `ModelDecoder.cpp` 한 곳) · `JBroAsset` 의 `ModelDecoder.h` (`ModelData`·`DecodeModel`·`ModelFileReader`·`HashModelBytes`)와 `AssetTypes.h` 의 `ModelImportOptions`(D-339) · 시험 묶음 `ModelDecoder` 가 모델을 직접 짓는다(데이터 URI `.gltf`·바깥 `.bin` `.gltf`·`.glb`·`.mtl` 있는 `.obj`·ASCII `.fbx`) · 뮤테이션 여덟(감김·UV 뒤집기·단위·매끈함 각·합치기·`importMaterials`·해시·배율)이 모두 잡힌다 - 처음 해시 시험은 길이만 달라 지나갔다. 세부는 §2.2 의 "선 모양" |
-| 3 | `AssetType::Model` · 확장자 표 · 레지스트리의 하위 레코드와 `.jmeta` 하위 아이디 고정 · `ModelImportOptions` | `[완료]` 2026-11-16 · D-341 · `AssetType::Model`(`.fbx .obj .gltf .glb`), `AssetRecord::name`, `.jmeta` 의 `Model.ImportOptions`·`Model.SubAssets`(`Key`·`Id`), `RefreshModelSubAssets`(`ModelImport.h`), 스캔이 하위 레코드를 세움, 인스펙터의 모델 임포트 옵션(블록 종류를 열거형 하나로), 메시 칸 목록의 `모델 / 메시`, 브라우저의 모델·메시·재질 아이콘, `TextureImportOptions` 의 `colorSpace`·`mipmaps`(값만, D-339 (a)) · 시험 `AssetRegistry` 의 `TestModelsRegisterTheirSubAssets`·브라우저 펼치기 시험의 모델(화면 `assets_model_icons`·`assets_model_inspector`) |
-| 4 | `AssetSystem` 의 메시 풀 · `MeshLibrary` 등록과 해석 패스 · 메시 칸 목록의 `모델 / 메시` · 파일 감시로 다시 읽기 | `[완료]` 2026-11-16 · D-342 · `MeshData` 풀(`AssetSystem::ReadMesh` - 모델을 읽어 그 이름의 메시, 마지막 모델 하나를 들고 있음, 곁 파일은 에셋 폴더에서 바로), `MeshLibrary::ResolveAsset`(처음 만날 때·자료 세대가 오를 때 올림), `MeshRender3DSystem` 이 컴포넌트 핸들을 되쓰지 않음, 호스트 감시가 모델 파일 변경 때 하위 목록을 맞춤 · 시험 `MeshPixel` 의 `TestAModelMeshIsDrawnAndFollowsAReload`(세 백엔드), `D3D12Smoke` 의 모델 파일 변경 · 시험 도우미 `RenderOnce` 를 호스트와 같은 차례(갱신 → 프레임)로 고침 |
-| 5 | 내장 그림의 하위 Texture · 해시 기록 · 브라우저 배지와 인스펙터 `같은 그림` 줄 | `[완료]` 2026-11-17 · D-343 · `ListModelSubAssets`·`MakeSharedImageKey`·`ModelTextureDefaults`(`ModelImport.h`), `.jmeta` 그림 항목의 `Hash`·`ImportOptions`, `AssetRecord::sharedImageKey`, `AssetSystem::ReadEmbeddedTexture`, `Widget::OverlayBadge`·`ShowTooltip`·`LinkText`, `EditorApplication::FindSameImages`, 인스펙터의 하위 에셋 머리와 `같은 그림` 줄 · 시험 `AssetRegistry` 의 `TestEmbeddedImagesAreSubAssetsGroupedByContent`, `AssetSystem` 의 `TestAModelsEmbeddedImageLoadsAsATexture`, 브라우저 펼치기 시험의 두 glTF(화면 `assets_same_image_badge`·`assets_same_image_inspector`) · 시험 모델 짓는 도우미를 `Tests/TestModels.h` 로 옮겼다 · 세부는 §2.5 의 "선 모양" |
-| 6 | `.jpak` 에 엔진이 바로 읽는 이진 메시로 구워 넣기(2D 의 미리 뜬 아틀라스와 같은 자리) | `[완료]` 2026-11-17 · D-345 · 블롭 `CookedMesh`(`JMSH` 머리 16 바이트 + `ModelVertex` 그대로 + 32 비트 인덱스, `WriteCookedMesh`·`ReadCookedMesh`), `PackageCook` 이 모델을 한 번 읽어 하위 Mesh 는 `CookedMesh`·내장 그림은 `CookedTexture` 로 그 하위 아이디에 두고 모델은 메타만, `AssetSystem` 은 쿡된 블롭을 먼저 본다, `DecodeModelFile`·`FindModelSubAsset`(`ModelImport.h`)을 메타 맞추기·쿡·에셋 시스템이 같이 쓴다 · 시험 `Package` 의 `TestAModelShipsAsCookedMeshesAndImages`(곁 `.bin` 이 있는 glTF 를 굽고 원본 폴더를 지운 뒤 메시·그림이 느슨한 것과 같음, 깨진 블롭 거절) |
+| 2 | ufbx·cgltf 를 `ThirdParty/` 에 들인다(내려받기는 파일·출처·크기를 밝히고 확인) · `ModelDecoder` 와 `ModelData` · 시험 모델(작은 `.glb`·`.fbx`·`.obj`) | `[완료]` 2026-11-16 · ufbx v0.23.1(자기 정적 라이브러리)·cgltf v1.15(헤더, 구현은 `ModelDecoder.cpp` 한 곳) · `JBroAsset` 의 `ModelDecoder.h` (`ModelData`·`DecodeModel`·`ModelFileReader`·`HashModelBytes`)와 `AssetTypes.h` 의 `ModelImportOptions`(D-392) · 시험 묶음 `ModelDecoder` 가 모델을 직접 짓는다(데이터 URI `.gltf`·바깥 `.bin` `.gltf`·`.glb`·`.mtl` 있는 `.obj`·ASCII `.fbx`) · 뮤테이션 여덟(감김·UV 뒤집기·단위·매끈함 각·합치기·`importMaterials`·해시·배율)이 모두 잡힌다 - 처음 해시 시험은 길이만 달라 지나갔다. 세부는 §2.2 의 "선 모양" |
+| 3 | `AssetType::Model` · 확장자 표 · 레지스트리의 하위 레코드와 `.jmeta` 하위 아이디 고정 · `ModelImportOptions` | `[완료]` 2026-11-16 · D-394 · `AssetType::Model`(`.fbx .obj .gltf .glb`), `AssetRecord::name`, `.jmeta` 의 `Model.ImportOptions`·`Model.SubAssets`(`Key`·`Id`), `RefreshModelSubAssets`(`ModelImport.h`), 스캔이 하위 레코드를 세움, 인스펙터의 모델 임포트 옵션(블록 종류를 열거형 하나로), 메시 칸 목록의 `모델 / 메시`, 브라우저의 모델·메시·재질 아이콘, `TextureImportOptions` 의 `colorSpace`·`mipmaps`(값만, D-392 (a)) · 시험 `AssetRegistry` 의 `TestModelsRegisterTheirSubAssets`·브라우저 펼치기 시험의 모델(화면 `assets_model_icons`·`assets_model_inspector`) |
+| 4 | `AssetSystem` 의 메시 풀 · `MeshLibrary` 등록과 해석 패스 · 메시 칸 목록의 `모델 / 메시` · 파일 감시로 다시 읽기 | `[완료]` 2026-11-16 · D-395 · `MeshData` 풀(`AssetSystem::ReadMesh` - 모델을 읽어 그 이름의 메시, 마지막 모델 하나를 들고 있음, 곁 파일은 에셋 폴더에서 바로), `MeshLibrary::ResolveAsset`(처음 만날 때·자료 세대가 오를 때 올림), `MeshRender3DSystem` 이 컴포넌트 핸들을 되쓰지 않음, 호스트 감시가 모델 파일 변경 때 하위 목록을 맞춤 · 시험 `MeshPixel` 의 `TestAModelMeshIsDrawnAndFollowsAReload`(세 백엔드), `D3D12Smoke` 의 모델 파일 변경 · 시험 도우미 `RenderOnce` 를 호스트와 같은 차례(갱신 → 프레임)로 고침 |
+| 5 | 내장 그림의 하위 Texture · 해시 기록 · 브라우저 배지와 인스펙터 `같은 그림` 줄 | `[완료]` 2026-11-17 · D-396 · `ListModelSubAssets`·`MakeSharedImageKey`·`ModelTextureDefaults`(`ModelImport.h`), `.jmeta` 그림 항목의 `Hash`·`ImportOptions`, `AssetRecord::sharedImageKey`, `AssetSystem::ReadEmbeddedTexture`, `Widget::OverlayBadge`·`ShowTooltip`·`LinkText`, `EditorApplication::FindSameImages`, 인스펙터의 하위 에셋 머리와 `같은 그림` 줄 · 시험 `AssetRegistry` 의 `TestEmbeddedImagesAreSubAssetsGroupedByContent`, `AssetSystem` 의 `TestAModelsEmbeddedImageLoadsAsATexture`, 브라우저 펼치기 시험의 두 glTF(화면 `assets_same_image_badge`·`assets_same_image_inspector`) · 시험 모델 짓는 도우미를 `Tests/TestModels.h` 로 옮겼다 · 세부는 §2.5 의 "선 모양" |
+| 6 | `.jpak` 에 엔진이 바로 읽는 이진 메시로 구워 넣기(2D 의 미리 뜬 아틀라스와 같은 자리) | `[완료]` 2026-11-17 · D-398 · 블롭 `CookedMesh`(`JMSH` 머리 16 바이트 + `ModelVertex` 그대로 + 32 비트 인덱스, `WriteCookedMesh`·`ReadCookedMesh`), `PackageCook` 이 모델을 한 번 읽어 하위 Mesh 는 `CookedMesh`·내장 그림은 `CookedTexture` 로 그 하위 아이디에 두고 모델은 메타만, `AssetSystem` 은 쿡된 블롭을 먼저 본다, `DecodeModelFile`·`FindModelSubAsset`(`ModelImport.h`)을 메타 맞추기·쿡·에셋 시스템이 같이 쓴다 · 시험 `Package` 의 `TestAModelShipsAsCookedMeshesAndImages`(곁 `.bin` 이 있는 glTF 를 굽고 원본 폴더를 지운 뒤 메시·그림이 느슨한 것과 같음, 깨진 블롭 거절) |
 
 각 단계는 시험·뮤테이션·문서·커밋을 끝내고 다음으로 간다.
 
-### 2.8 하위 목록이 서는 길 (3 단계에서 정한 것, D-341)
+### 2.8 하위 목록이 서는 길 (3 단계에서 정한 것, D-394)
 
 - `.jmeta` 의 `Model:` 블록에 `ImportOptions` 와 `SubAssets`(항목마다 `Key: Mesh/Body`·`Id`)가 있다. 키는 `종류/이름` 이고 종류는 `Mesh`·`Material`·`Texture`(5 단계)다.
   키가 겹치거나 아이디가 모델·서로와 겹치면 메타 전체가 실패다.
@@ -143,7 +143,7 @@
 - 텍스처 꺼내기(내장 그림을 파일로 풀어 일반 Texture 로).
 - 정점 형식에 UV 를 더하는 것(재질 단계). 그때까지 UV 는 CPU 자료에만 있다.
 
-**남은 일 - 옵션과 기능 (D-339 에서 미룬 것, 사용자: "남은 작업으로 둬")**
+**남은 일 - 옵션과 기능 (D-392 에서 미룬 것, 사용자: "남은 작업으로 둬")**
 
 - `[남은 일]` `colorSpace`·`mipmaps` 의 **효과**: sRGB 텍스처 뷰, 밉 체인 만들기와 업로드, 샘플러. 재질 단계(우선순위 4)와 RHI 확장(D-322)에서. 옵션 값은 2 단계부터 저장된다.
 - `[남은 일]` 탄젠트 **계산**(파일에 없을 때) - MikkTSpace 를 들여야 한다(서드파티, 확인 대상). 노멀맵 재질과 함께.

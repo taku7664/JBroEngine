@@ -219,6 +219,129 @@ namespace JBro::Internal
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             *to.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
+        // 원본도 셰이더가 읽는 것이면 돌려 둔다(D3D12 와 같은 계약, D-339).
+        if (from.sampled)
+        {
+            VulkanDevice::TransitionImage(m_commands, from.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            *from.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+        return true;
+    }
+
+    Bool VulkanCommandContext::WriteTimestamp(UInt32 index)
+    {
+        // 렌더 패스 밖에서만이다(D-341) - 세 백엔드가 같은 자리에서 받도록 맞춘다.
+        if (m_device == nullptr || m_renderPassActive)
+        {
+            return false;
+        }
+        return m_device->RecordTimestamp(index);
+    }
+
+    Bool VulkanCommandContext::Barrier(JArrayView<TextureBarrier> barriers)
+    {
+        if (m_device == nullptr || m_commands == VK_NULL_HANDLE || m_renderPassActive || (barriers.size != 0 && barriers.data == nullptr))
+        {
+            return false;
+        }
+        // 다 맞는지 먼저 본다. 하나라도 틀리면 아무것도 기록하지 않는다.
+        for (UInt32 index = 0; index < barriers.size; ++index)
+        {
+            VkImage image = VK_NULL_HANDLE;
+            VkImageLayout* layouts = nullptr;
+            TextureDesc desc;
+            if (false == m_device->ResolveBarrierImage(barriers.data[index].texture, image, layouts, desc)
+                || false == IsTextureBarrierValid(desc, barriers.data[index]))
+            {
+                return false;
+            }
+        }
+        constexpr UInt32 BatchCapacity = 32;
+        VkImageMemoryBarrier2 batch[BatchCapacity] = {};
+        UInt32 batchCount = 0;
+        const auto flush = [&]() {
+            if (batchCount == 0)
+            {
+                return;
+            }
+            VkDependencyInfo dependency = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+            dependency.imageMemoryBarrierCount = batchCount.Get();
+            dependency.pImageMemoryBarriers = batch;
+            vk.vkCmdPipelineBarrier2(m_commands, &dependency);
+            batchCount = 0;
+        };
+        for (UInt32 index = 0; index < barriers.size; ++index)
+        {
+            const TextureBarrier& wanted = barriers.data[index];
+            VkImage image = VK_NULL_HANDLE;
+            VkImageLayout* layouts = nullptr;
+            TextureDesc desc;
+            m_device->ResolveBarrierImage(wanted.texture, image, layouts, desc);
+            VkImageLayout after = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            switch (wanted.access)
+            {
+            case TextureAccess::ShaderRead:
+                after = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                break;
+            case TextureAccess::RenderTarget:
+                after = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+                break;
+            case TextureAccess::DepthWrite:
+                after = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+                break;
+            case TextureAccess::CopySource:
+                after = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+                break;
+            case TextureAccess::CopyDestination:
+                after = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+                break;
+            case TextureAccess::Storage:
+                after = VK_IMAGE_LAYOUT_GENERAL;
+                break;
+            }
+            const VkImageAspectFlags aspect = desc.format == TextureFormat::D32Float ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_COLOR_BIT;
+            const UInt32 firstMip = wanted.mipLevel == AllTextureMips ? UInt32(0) : wanted.mipLevel;
+            const UInt32 endMip = wanted.mipLevel == AllTextureMips ? desc.mipLevels : wanted.mipLevel + 1;
+            for (UInt32 mip = firstMip; mip < endMip; ++mip)
+            {
+                if (layouts[mip.Get()] == after)
+                {
+                    continue;
+                }
+                // 같은 묶음에서 이 mip 을 이미 옮겼으면 그 배리어의 도착만 바꾼다 - 한 번의 배리어 안의 전이는 차례가 없어서, 둘로 두면
+                // 둘째의 출발 레이아웃이 맞지 않는다. 처음 레이아웃으로 돌아오면 그 배리어를 뺀다.
+                Bool merged = false;
+                for (UInt32 earlier = 0; earlier < batchCount; ++earlier)
+                {
+                    VkImageMemoryBarrier2& existing = batch[earlier.Get()];
+                    if (existing.image == image && existing.subresourceRange.baseMipLevel == mip.Get())
+                    {
+                        VulkanDevice::FillTransition(existing, image, aspect, existing.oldLayout, after, mip, 1);
+                        if (existing.oldLayout == after)
+                        {
+                            existing = batch[(batchCount - 1).Get()];
+                            --batchCount;
+                        }
+                        merged = true;
+                        break;
+                    }
+                }
+                if (merged)
+                {
+                    layouts[mip.Get()] = after;
+                    continue;
+                }
+                if (batchCount == BatchCapacity)
+                {
+                    flush();
+                }
+                VulkanDevice::FillTransition(batch[batchCount.Get()], image, aspect, layouts[mip.Get()], after, mip, 1);
+                ++batchCount;
+                layouts[mip.Get()] = after;
+            }
+        }
+        flush();
         return true;
     }
 

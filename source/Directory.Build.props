@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    이 아래의 모든 MSBuild 프로젝트가 먼저 읽는다. 산출물 자리는 `JBro.BuildPaths.props` 가 정한다(D-370).
+    csproj 의 `bin`·`obj` 는 여기서 옮긴다 - `BaseIntermediateOutputPath` 는 SDK 가 읽기 전에 정해져야 해서 csproj 안에서는 늦다.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)JBro.BuildPaths.props" Condition="'$(JBroBuildPathsImported)' == ''" />
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' == '.csproj'">
+    <BaseOutputPath>$(JBroOutputRoot)$(MSBuildProjectName)\bin\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(JBroOutputRoot)$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

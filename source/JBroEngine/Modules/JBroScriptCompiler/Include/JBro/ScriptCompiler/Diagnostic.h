@@ -40,6 +40,8 @@ namespace JBro::ScriptCompiler
         ExpectedNullAfterIs,
         ExpectedCaseOrDefault,
         MissingFieldType,          // {0} 필드 이름
+        ExpressionTooDeep,         // {0} 최대 깊이(D-374)
+        BlockTooDeep,              // {0} 최대 블록 겹(D-376)
 
         Count,
     };

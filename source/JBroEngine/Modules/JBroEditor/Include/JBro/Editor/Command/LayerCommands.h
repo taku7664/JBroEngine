@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
@@ -73,6 +74,8 @@ namespace JBro
         Bool m_lit = true;
         // 원본 에셋 표시도 같이 뜬다(D-287) - 기존 엔진은 레이어 삭제를 되돌리면 이것을 잃었다.
         Uuid m_sourceAsset;
+        // 후처리 프로필도 같이 뜬다(D-345).
+        Uuid m_postProcessProfile;
         Array<EditorObjectId> m_objects;
         Bool m_captured = false;
     };
@@ -220,6 +223,25 @@ namespace JBro
         Bool m_captured = false;
     };
 
+    // **레이어의 후처리 프로필을 바꾼다**(D-345). 인스펙터의 에셋 칸이 낸다. 빈 아이디는 프로필을 뗀다.
+    class SetLayerPostProcessProfileCommand final : public EditorCommand
+    {
+    public:
+        SetLayerPostProcessProfileCommand(Canvas& canvas, LayerId layer, const Uuid& profile);
+
+        const char* GetName() const override;
+        Bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        Canvas* m_canvas = nullptr;
+        LayerId m_layerId = InvalidLayerId;
+        Uuid m_before;
+        Uuid m_after;
+        Bool m_captured = false;
+    };
+
     // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣는다**(D-287, 기존 `CAddLayerFromAssetCommand`). 파일의 글자는 만들 때 떠 둔다 - 파일이 그 사이에
     // 바뀌어도 이 커맨드는 같은 것을 넣는다. 처음 실행이 오브젝트를 만든 뒤 그 나무들을 떠 두고, 되돌리면 나무째 지우고 레이어를 뺀다. 다시 하기는
     // 떠 둔 나무를 **같은 번호로** 되살린다 - 뒤의 커맨드가 그 오브젝트를 번호로 가리켜도 이어진다. 레이어는 새 번호로 선다(`DeleteLayerCommand` 와 같다).
@@ -237,6 +259,8 @@ namespace JBro
         LayerId GetLayerId() const { return m_layerId; }
         // 읽지 못했을 때의 까닭이다.
         const String& GetError() const { return m_error; }
+        // 처음 읽을 때 잇지 못한 스크립트 필드다(D-364). 다시 하기는 떠 둔 것을 되살리므로 새로 생기지 않는다.
+        const Array<ScriptResolveNote>& GetScriptNotes() const { return m_scriptNotes; }
 
     private:
         Canvas* m_canvas = nullptr;
@@ -245,6 +269,7 @@ namespace JBro
         Uuid m_asset;
         LayerId m_layerId = InvalidLayerId;
         String m_error;
+        Array<ScriptResolveNote> m_scriptNotes;
         // 처음 실행 뒤에 뜬다 - 레이어의 값(레이어 에셋 글자의 레이어 노드)과 자리, 뿌리 나무들.
         Bool m_captured = false;
         std::size_t m_index = 0;
@@ -256,6 +281,7 @@ namespace JBro
         Float m_opacity = 1.0f;
         Float m_parallax = 1.0f;
         Bool m_lit = true;
+        Uuid m_postProcessProfile;
         Array<ObjectTreeSnapshot> m_trees;
     };
 

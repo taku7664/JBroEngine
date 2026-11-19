@@ -3,6 +3,8 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Graphics/PostProcess.h>
 #include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Types/Angle.h>
 #include <JBro/Types/Array.h>
@@ -33,6 +35,8 @@ namespace JBro
         Float nearPlane = 0.1f;
         Float farPlane = 1000.0f;
         Color clearColor{0.08f, 0.09f, 0.11f, 1.0f};
+        // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld3D::SetPostProcess` 로 건다.
+        AssetHandle postProcessProfile;
     };
 
     struct MeshRenderItem
@@ -42,7 +46,10 @@ namespace JBro
         Quaternion rotation;
         Vector3 scale{1.0f, 1.0f, 1.0f};
         AssetHandle mesh;
+        // 셰이더 머티리얼(D-348)의 렌더러 핸들이다. 있으면 `meshMaterial` 은 보지 않는다.
         AssetHandle material;
+        // 표준 머티리얼(D-399)의 렌더러 핸들이다. 둘 다 비면 렌더러의 기본 표준 머티리얼이다.
+        AssetHandle meshMaterial;
         Color tint{1.0f, 1.0f, 1.0f, 1.0f};
         // 레이어의 차례와 얹는 방식이다(D-280). 브리지가 레이어마다 뷰를 하나 열어 차례대로 그린다 - 포토샵의 레이어처럼 뒤 레이어가 늘 위다.
         std::uint16_t layerOrder = 0;
@@ -80,7 +87,7 @@ namespace JBro
         Float layerParallax = 1.0f;
     };
 
-    // 3D 라이트 하나다(D-353). 자리와 방향은 월드다. 브리지가 레이어마다 연 뷰 모두에 렌더러의 `Light3DSubmit` 으로 옮긴다 - 라이트는 레이어를 가리지 않는다.
+    // 3D 라이트 하나다(D-407). 자리와 방향은 월드다. 브리지가 레이어마다 연 뷰 모두에 렌더러의 `Light3DSubmit` 으로 옮긴다 - 라이트는 레이어를 가리지 않는다.
     struct Light3DRenderItem
     {
         Object::GameObject* owner = nullptr;
@@ -103,11 +110,51 @@ namespace JBro
         Bool ReserveMeshes(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera3D& camera);
+        // **이번 카메라의 후처리**(D-344). 프레임워크가 카메라의 프로필을 풀어 건다 - 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다.
+        // `BeginFrame` 이 비우지 않는다: 멈춘 동안의 추출(중단점)에서도 지난 값이 그대로 산다.
+        void SetPostProcess(const PostProcessStack& stack)
+        {
+            m_postProcess = stack;
+        }
+        const PostProcessStack& GetPostProcess() const
+        {
+            return m_postProcess;
+        }
+        // **레이어 차례마다의 후처리**(D-345). 프레임워크가 레이어의 프로필을 풀어 차례(`LayerOrder`) 자리에 건다. 프로필이 없는 레이어는 빈 목록이다.
+        // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리는 프레임워크를 세울 때 잡고(`ReserveLayerPostProcess`), 레이어가 그보다 많아질 때만
+        // 늘린다 - 프레임 밖(추출 뒤)에서 부른다.
+        void ReserveLayerPostProcess(std::size_t capacity)
+        {
+            m_layerPostProcess.Reserve(capacity);
+        }
+        void SetLayerPostProcessCount(std::size_t count)
+        {
+            if (m_layerPostProcess.Size() < count)
+            {
+                m_layerPostProcess.Resize(count);
+            }
+            for (std::size_t at = 0; at < m_layerPostProcess.Size(); ++at)
+            {
+                m_layerPostProcess[at] = {};
+            }
+        }
+        void SetLayerPostProcess(std::size_t order, const PostProcessStack& stack)
+        {
+            if (order < m_layerPostProcess.Size())
+            {
+                m_layerPostProcess[order] = stack;
+            }
+        }
+        const PostProcessStack& GetLayerPostProcess(std::size_t order) const
+        {
+            static const PostProcessStack Empty{};
+            return order < m_layerPostProcess.Size() ? m_layerPostProcess[order] : Empty;
+        }
         Bool SubmitMesh(const MeshRenderItem& item);
         // 3D 텍스트의 글자다. 용량(`ReserveTexts`)을 넘으면 세고 버린다.
         Bool ReserveTexts(std::size_t capacity);
         Bool SubmitText(const WorldTextRenderItem& item);
-        // 3D 라이트다(D-353). 용량(`ReserveLights`)을 넘으면 세고 버린다.
+        // 3D 라이트다(D-407). 용량(`ReserveLights`)을 넘으면 세고 버린다.
         Bool ReserveLights(std::size_t capacity);
         Bool SubmitLight(const Light3DRenderItem& item);
         std::size_t GetLightCount() const;
@@ -130,6 +177,8 @@ namespace JBro
 
     private:
         RenderCamera3D m_camera;
+        PostProcessStack m_postProcess;
+        Array<PostProcessStack> m_layerPostProcess;
         Bool m_hasCamera = false;
         Array<MeshRenderItem> m_meshes;
         std::size_t m_droppedMeshCount = 0;

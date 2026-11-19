@@ -113,6 +113,16 @@ namespace JBro
         m_sourceAsset = asset;
     }
 
+    const Uuid& Layer::GetPostProcessProfile() const
+    {
+        return m_postProcessProfile;
+    }
+
+    void Layer::SetPostProcessProfile(const Uuid& profile)
+    {
+        m_postProcessProfile = profile;
+    }
+
     Float Layer::GetParallax() const
     {
         return m_parallax;

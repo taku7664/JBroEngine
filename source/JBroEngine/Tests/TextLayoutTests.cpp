@@ -175,6 +175,117 @@ namespace
         Check(Near(layout.GetGlyphs()[1].x, (599.0f - 74.0f) * 0.5f), "kerning scales with the font size");
     }
 
+    // **커서 자리**(D-354). 바이트 위치 앞의 커서는 그 글자의 왼쪽이고(공백도 글자다), 끝은 마지막 글자의 전진 폭 끝이며, 정렬로 밀린 양을 더한다.
+    // 줄이 여럿이면 그 줄의 세로 가운데다. A 608 · 공백 224 · V 575 (fontTools, README).
+    void TestCaretPositionFollowsTheGlyphs()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
+        Check(false == layout.GetCaretPosition(0, x, y), "without a layout there is no caret");
+
+        Check(layout.Build(Utf8("A V"), faces, Unscaled()) == LayoutError::None, "A V lays out");
+        Check(layout.GetCaretPosition(0, x, y) && Near(x, 0.0f), "the caret before the first glyph is at its origin");
+        Check(layout.GetCaretPosition(1, x, y) && Near(x, 608.0f), "before the space it sits after A");
+        Check(layout.GetCaretPosition(2, x, y) && Near(x, 608.0f + 224.0f), "before V it sits after the space");
+        Check(layout.GetCaretPosition(3, x, y) && Near(x, 608.0f + 224.0f + 575.0f), "at the end it sits after V's advance");
+        Check(layout.GetCaretPosition(99, x, y) && Near(x, 608.0f + 224.0f + 575.0f), "a position past the end is the end");
+        const JBro::Float lineHeight = layout.GetLines()[0].height;
+        Check(Near(y, layout.GetMaxY() - lineHeight * 0.5f), "the caret sits at the middle of its line");
+
+        LayoutOptions right = Unscaled();
+        right.alignX = AlignX::Right;
+        Check(layout.Build(Utf8("A V"), faces, right) == LayoutError::None, "right-aligned A V lays out");
+        Check(layout.GetCaretPosition(0, x, y) && Near(x, -(608.0f + 224.0f + 575.0f)), "right alignment shifts the caret with the glyphs");
+        Check(layout.GetCaretPosition(3, x, y) && Near(x, 0.0f), "so the end sits at the anchor");
+        Check(Near(layout.GetGlyphs()[0].x, -(608.0f + 224.0f + 575.0f)), "which is where the first glyph is");
+
+        Check(layout.Build(Utf8("A\nV"), faces, Unscaled()) == LayoutError::None, "two lines lay out");
+        Check(layout.GetLines().Size() == 2, "there are two lines");
+        Check(layout.GetCaretPosition(1, x, y) && Near(x, 608.0f) && Near(y, layout.GetMaxY() - layout.GetLines()[0].height * 0.5f),
+            "before the newline the caret ends the first line");
+        Check(layout.GetCaretPosition(2, x, y) && Near(x, 0.0f)
+                && Near(y, layout.GetMaxY() - layout.GetLines()[0].height - layout.GetLines()[1].height * 0.5f),
+            "before V the caret starts the second line");
+        Check(layout.GetCaretPosition(3, x, y) && Near(x, 575.0f), "the end is after V on the second line");
+
+        Check(layout.Build(Utf8(""), faces, Unscaled()) == LayoutError::None, "empty text lays out");
+        Check(false == layout.GetCaretPosition(0, x, y) || Near(x, 0.0f), "an empty layout has no caret or one at the origin");
+    }
+
+    // **자리 → 커서**(D-355). 글자의 가운데를 넘으면 그 글자의 뒤다. 줄은 y 로 고른다. A 608 · 공백 224 · V 575.
+    void TestCaretOffsetFollowsThePointer()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        JBro::UInt32 offset = 99;
+        Check(false == layout.GetCaretOffsetAt(0.0f, 0.0f, offset), "without a layout there is no caret to hit");
+
+        Check(layout.Build(Utf8("A V"), faces, Unscaled()) == LayoutError::None, "A V lays out");
+        const JBro::Float middle = layout.GetMaxY() - layout.GetLines()[0].height * 0.5f;
+        Check(layout.GetCaretOffsetAt(-50.0f, middle, offset) && offset == 0, "left of the text is the start");
+        Check(layout.GetCaretOffsetAt(300.0f, middle, offset) && offset == 0, "the left half of A is before A");
+        Check(layout.GetCaretOffsetAt(310.0f, middle, offset) && offset == 1, "the right half of A is after A");
+        Check(layout.GetCaretOffsetAt(608.0f + 100.0f, middle, offset) && offset == 1, "the left half of the space is before it");
+        Check(layout.GetCaretOffsetAt(608.0f + 130.0f, middle, offset) && offset == 2, "the right half of the space is after it");
+        Check(layout.GetCaretOffsetAt(5000.0f, middle, offset) && offset == 3, "right of the text is the end");
+        Check(layout.GetCaretOffsetAt(300.0f, 10000.0f, offset) && offset == 0, "above the first line is the first line");
+        Check(layout.GetCaretOffsetAt(5000.0f, -10000.0f, offset) && offset == 3, "below the last line is the last line");
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
+        JBro::Float lineHeight = 0.0f;
+        Check(layout.GetCaretPosition(1, x, y, lineHeight) && Near(lineHeight, layout.GetLines()[0].height), "the caret reports its line height");
+
+        LayoutOptions right = Unscaled();
+        right.alignX = AlignX::Right;
+        Check(layout.Build(Utf8("A V"), faces, right) == LayoutError::None, "right-aligned A V lays out");
+        Check(layout.GetCaretOffsetAt(-(224.0f + 575.0f) - 300.0f, middle, offset) && offset == 1, "alignment shifts the hit test with the glyphs");
+
+        Check(layout.Build(Utf8("A\nV"), faces, Unscaled()) == LayoutError::None, "two lines lay out");
+        const JBro::Float first = layout.GetMaxY() - layout.GetLines()[0].height * 0.5f;
+        const JBro::Float second = layout.GetMaxY() - layout.GetLines()[0].height - layout.GetLines()[1].height * 0.5f;
+        Check(layout.GetCaretOffsetAt(5000.0f, first, offset) && offset == 1, "past the end of the first line is before its newline");
+        Check(layout.GetCaretOffsetAt(-50.0f, second, offset) && offset == 2, "left of the second line is its start");
+        Check(layout.GetCaretOffsetAt(5000.0f, second, offset) && offset == 3, "past the end of the second line is the end");
+
+        Check(layout.Build(Utf8("\xC3\xA9V"), faces, Unscaled()) == LayoutError::None, "a two-byte glyph lays out");
+        Check(layout.GetCaretOffsetAt(5000.0f, middle, offset) && offset == 3, "the end counts the bytes of a multi-byte glyph");
+        Check(false == layout.GetCaretOffsetAt(std::numeric_limits<float>::quiet_NaN(), 0.0f, offset), "a NaN point hits nothing");
+    }
+
+    // **구간의 줄마다 사각형**(D-362). A 608 · 공백 224 · V 575.
+    void TestRangeRectsFollowTheLines()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        RangeRect rects[4];
+        Check(layout.GetRangeRects(0, 3, rects, 4) == 0, "without a layout there are no rectangles");
+        Check(layout.Build(Utf8("A V"), faces, Unscaled()) == LayoutError::None, "A V lays out");
+        Check(layout.GetRangeRects(0, 3, rects, 4) == 1 && Near(rects[0].left, 0.0f) && Near(rects[0].right, 608.0f + 224.0f + 575.0f)
+                && Near(rects[0].top, layout.GetMaxY()) && Near(rects[0].top - rects[0].bottom, layout.GetLines()[0].height),
+            "the whole of one line is one rectangle of the line's height");
+        Check(layout.GetRangeRects(1, 2, rects, 4) == 1 && Near(rects[0].left, 608.0f) && Near(rects[0].right, 608.0f + 224.0f), "a space alone is its advance");
+        Check(layout.GetRangeRects(2, 2, rects, 4) == 0 && layout.GetRangeRects(3, 1, rects, 4) == 0, "an empty or reversed range has none");
+        Check(layout.GetRangeRects(2, 99, rects, 4) == 1 && Near(rects[0].right, 608.0f + 224.0f + 575.0f), "an end past the text stops at the text");
+
+        Check(layout.Build(Utf8("A\nV\nA"), faces, Unscaled()) == LayoutError::None, "three lines lay out");
+        const JBro::Float h0 = layout.GetLines()[0].height;
+        const JBro::Float h1 = layout.GetLines()[1].height;
+        Check(layout.GetRangeRects(0, 5, rects, 4) == 3, "a range over three lines is three rectangles");
+        Check(Near(rects[0].left, 0.0f) && Near(rects[0].right, 608.0f) && Near(rects[1].right, 575.0f) && Near(rects[2].right, 608.0f),
+            "each covers its own line's letters");
+        Check(Near(rects[1].top, layout.GetMaxY() - h0) && Near(rects[2].top, layout.GetMaxY() - h0 - h1), "and stacks down by line height");
+        Check(layout.GetRangeRects(0, 5, rects, 2) == 2, "the capacity caps the count");
+        Check(layout.GetRangeRects(1, 3, rects, 4) == 1 && Near(rects[0].left, 0.0f) && Near(rects[0].right, 575.0f),
+            "the newline alone draws nothing and the V on the next line does");
+        Check(layout.Build(Utf8("A\n\nV"), faces, Unscaled()) == LayoutError::None, "an empty middle line lays out");
+        Check(layout.GetRangeRects(0, 4, rects, 4) == 2, "an empty line in the range has no rectangle");
+    }
+
     // **stb 가 건너뛰던 GPOS 모양**(text-plan §7). 같은 서브셋을 확장 조회(형식 9)로 감싼 것과, 쌍 조정의 첫 값 형식을
     // XPlacement|XAdvance 로 넓힌 것이다(MakeGposVariants.py). stb 는 둘 다 커닝을 0 으로 읽었다. 우리 읽기는 ASCII 의 모든 쌍에서
     // 원본과 같은 값을 준다.
@@ -861,6 +972,9 @@ JBro::Int32 RunTextLayoutTests()
         JBRO_CASE(TestFaceReadsTheFont());
         JBRO_CASE(TestFaceRejectsGarbageAndMoves());
         JBRO_CASE(TestKerningIsAppliedAcrossTheRun());
+        JBRO_CASE(TestCaretPositionFollowsTheGlyphs());
+        JBRO_CASE(TestCaretOffsetFollowsThePointer());
+        JBRO_CASE(TestRangeRectsFollowTheLines());
         JBRO_CASE(TestKerningSurvivesGposShapesStbSkipped());
         JBRO_CASE(TestCombiningMarksAttachToTheirBase());
         JBRO_CASE(TestOldHangulJoinsThroughGsub());

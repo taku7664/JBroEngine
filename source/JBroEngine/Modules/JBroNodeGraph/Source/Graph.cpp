@@ -222,6 +222,17 @@ namespace JBro::NodeGraph
         return true;
     }
 
+    Bool Graph::SetLabel(NodeId id, String label)
+    {
+        Node* node = FindNodeMutable(id);
+        if (node == nullptr)
+        {
+            return false;
+        }
+        node->label = static_cast<String&&>(label);
+        return true;
+    }
+
     Bool Graph::InsertWaypoint(LinkId id, std::size_t index, Vector2 point)
     {
         Link* link = FindLinkMutable(id);

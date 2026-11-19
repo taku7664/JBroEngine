@@ -3,7 +3,7 @@
 #include <JBro/Graphics/Renderer.h>
 
 #include <JBro/Framework2DSystem/Framework2D.h>
-#include <JBro/Framework2DSystem/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
@@ -134,6 +134,17 @@ namespace
         }
 
         JBro::UInt32 copyCount = 0;
+
+        // 렌더 그래프가 패스 앞에서 그 패스의 텍스처를 묶어 옮긴다(D-339). 세기만 한다.
+        JBro::Bool Barrier(JBro::JArrayView<JBro::TextureBarrier> barriers) override
+        {
+            ++barrierCallCount;
+            barrierCount += barriers.size;
+            return true;
+        }
+
+        JBro::UInt32 barrierCallCount = 0;
+        JBro::UInt32 barrierCount = 0;
 
         JBro::Bool SetTexture(JBro::UInt32, JBro::TextureHandle) override
         {
@@ -1120,8 +1131,8 @@ namespace
         context.renderer = &renderer;
         Check(framework.Initialize(context), "framework must bind a ready renderer");
         auto* canvas = framework.GetCanvas();
-        Check(canvas->GetSystems().GetSystemCount() == 9,
-            "canvas must own the nine implemented default systems (text since D-200, buttons since D-237, 2D lights and shadow casters since D-291)");
+        Check(canvas->GetSystems().GetSystemCount() == 12,
+            "canvas must own the twelve implemented default systems (text since D-200, buttons since D-237, 2D lights and shadow casters since D-291, masks since D-351, layouts since D-352, tweens since D-357)");
         auto* cameraObject = canvas->CreateObject("camera");
         auto* cameraTransform = canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
         cameraTransform->position = {2.0f, 3.0f};

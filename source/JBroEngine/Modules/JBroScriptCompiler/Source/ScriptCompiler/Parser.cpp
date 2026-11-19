@@ -3,6 +3,7 @@
 #include <JBro/ScriptCompiler/Lexer.h>
 #include <JBro/ScriptCompiler/Token.h>
 
+#include <string>
 #include <utility>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
@@ -171,15 +172,88 @@ namespace JBro::ScriptCompiler
             NodeIndex Make(SyntaxKind kind, const SourceLocation& begin, std::string_view text,
                 std::uint16_t flags, const Array<NodeIndex>& children)
             {
-                return m_tree.AddNode(kind, MakeRange(begin), text, flags,
-                    ArrayView<const NodeIndex>(children.Data(), children.Size()));
+                return MakeNode(kind, begin, text, flags, ArrayView<const NodeIndex>(children.Data(), children.Size()));
             }
 
             NodeIndex Make(SyntaxKind kind, const SourceLocation& begin, std::string_view text,
                 std::uint16_t flags, std::initializer_list<NodeIndex> children)
             {
-                return m_tree.AddNode(kind, MakeRange(begin), text, flags,
-                    ArrayView<const NodeIndex>(children.begin(), children.size()));
+                return MakeNode(kind, begin, text, flags, ArrayView<const NodeIndex>(children.begin(), children.size()));
+            }
+
+            static Bool IsExpressionKind(SyntaxKind kind)
+            {
+                return kind >= SyntaxKind::NameExpression && kind <= SyntaxKind::NullAssertExpression;
+            }
+
+            // 식 노드는 자기 깊이(자식 식의 가장 깊은 것 + 1)를 적어 둔다. `MaxExpressionDepth` 를 넘는 노드는 만들지 않고
+            // `JBC2015` 를 낸다(D-374). 파서가 스스로 재귀하는 자리는 `NestedTooDeep` 이 들어가기 전에 막는다.
+            NodeIndex MakeNode(SyntaxKind kind, const SourceLocation& begin, std::string_view text,
+                std::uint16_t flags, ArrayView<const NodeIndex> children)
+            {
+                UInt32 depth = 0;
+                if (IsExpressionKind(kind))
+                {
+                    UInt32 deepest = 0;
+                    for (const NodeIndex child : children)
+                    {
+                        if (InvalidNode != child && child < m_expressionDepths.Size() && m_expressionDepths[child] > deepest)
+                        {
+                            deepest = m_expressionDepths[child];
+                        }
+                    }
+                    depth = deepest + 1;
+                    if (depth > MaxExpressionDepth)
+                    {
+                        // 이 노드는 만들지 않고 안쪽 식(첫 자식, 이미 한도 안)을 돌려준다. 이어지는 `+ 1 + 1 …` 도 같은 길로 읽혀 문장이
+                        // 끝까지 소비되고, 식의 타입이 비지 않아 `return` 의 타입 오류 같은 연쇄 진단이 붙지 않는다.
+                        ReportTooDeep(MakeRange(begin));
+                        return 0 == children.Size() ? InvalidNode : children[0];
+                    }
+                }
+                const NodeIndex node = m_tree.AddNode(kind, MakeRange(begin), text, flags, children);
+                if (m_expressionDepths.Size() <= node)
+                {
+                    m_expressionDepths.Resize(node + 1);
+                }
+                m_expressionDepths[node] = depth;
+                return node;
+            }
+
+            void ReportTooDeep(const SourceRange& range)
+            {
+                if (0 != m_speculationDepth)
+                {
+                    m_speculationFailed = true;
+                    return;
+                }
+                if (m_recovering)
+                {
+                    return;
+                }
+                m_diagnostics.Add(DiagnosticCode::ExpressionTooDeep, range, std::to_string(MaxExpressionDepth.Get()));
+                m_recovering = true;
+            }
+
+            // 괄호·단항·호출 인자·`??` 의 오른쪽은 파서 자신이 재귀한다. 노드가 서기 전에 스택이 깊어지므로 들어갈 때 센다.
+            // 들어간 겹 수는 그 자리에서 만들어질 식 노드의 깊이를 넘지 않으므로 한도는 같은 숫자다.
+            struct NestingScope
+            {
+                explicit NestingScope(UInt32& nesting) : Nesting(nesting) { ++Nesting; }
+                ~NestingScope() { --Nesting; }
+                NestingScope(const NestingScope&) = delete;
+                NestingScope& operator=(const NestingScope&) = delete;
+                UInt32& Nesting;
+            };
+
+            Bool NestedTooDeep()
+            {
+                if (m_expressionNesting > MaxExpressionDepth)
+                {
+                    ReportTooDeep(Current().Range);
+                    return true;
+                }
+                return false;
             }
 
             SourceRange MakeRange(const SourceLocation& begin) const
@@ -270,9 +344,9 @@ namespace JBro::ScriptCompiler
                 m_recovering = false;
             }
 
-            NodeIndex ParseTypeDeclaration()
+            NodeIndex ParseTypeDeclaration(std::uint16_t flags = SyntaxFlagNone, const SourceLocation* memberBegin = nullptr)
             {
-                const SourceLocation begin = Current().Range.Begin;
+                const SourceLocation begin = memberBegin == nullptr ? Current().Range.Begin : *memberBegin;
                 const TokenKind keyword = Advance().Kind;
                 SyntaxKind kind = SyntaxKind::ScriptDeclaration;
                 switch (keyword)
@@ -315,10 +389,10 @@ namespace JBro::ScriptCompiler
                 if (false == Expect(TokenKind::LeftBrace, "{"))
                 {
                     SyncStatement();
-                    return Make(kind, begin, name, SyntaxFlagNone, children);
+                    return Make(kind, begin, name, flags, children);
                 }
                 ParseMembers(children);
-                return Make(kind, begin, name, SyntaxFlagNone, children);
+                return Make(kind, begin, name, flags, children);
             }
 
             void ParseMembers(Array<NodeIndex>& children)
@@ -350,9 +424,9 @@ namespace JBro::ScriptCompiler
                 }
             }
 
-            NodeIndex ParseEnumDeclaration()
+            NodeIndex ParseEnumDeclaration(std::uint16_t flags = SyntaxFlagNone, const SourceLocation* memberBegin = nullptr)
             {
-                const SourceLocation begin = Current().Range.Begin;
+                const SourceLocation begin = memberBegin == nullptr ? Current().Range.Begin : *memberBegin;
                 Advance();
                 std::string_view name;
                 if (At(TokenKind::Identifier))
@@ -368,7 +442,7 @@ namespace JBro::ScriptCompiler
                 if (false == Expect(TokenKind::LeftBrace, "{"))
                 {
                     SyncStatement();
-                    return Make(SyntaxKind::EnumDeclaration, begin, name, SyntaxFlagNone, members);
+                    return Make(SyntaxKind::EnumDeclaration, begin, name, flags, members);
                 }
                 while (true)
                 {
@@ -396,7 +470,7 @@ namespace JBro::ScriptCompiler
                     // 멤버는 한 줄에 하나다.
                     ExpectEndOfStatement();
                 }
-                return Make(SyntaxKind::EnumDeclaration, begin, name, SyntaxFlagNone, members);
+                return Make(SyntaxKind::EnumDeclaration, begin, name, flags, members);
             }
 
             NodeIndex ParseMember()
@@ -435,6 +509,15 @@ namespace JBro::ScriptCompiler
                     Advance();
                 }
 
+                if (At(TokenKind::KeywordClass) || At(TokenKind::KeywordStruct) || At(TokenKind::KeywordInterface)
+                    || At(TokenKind::KeywordEnum))
+                {
+                    if (attributes != InvalidNode || (flags & SyntaxFlagStatic) != 0)
+                    {
+                        Report(DiagnosticCode::ExpectedMember);
+                    }
+                    return At(TokenKind::KeywordEnum) ? ParseEnumDeclaration(flags, &begin) : ParseTypeDeclaration(flags, &begin);
+                }
                 if (At(TokenKind::KeywordFn))
                 {
                     return ParseFunction(begin, attributes, flags);
@@ -520,15 +603,12 @@ namespace JBro::ScriptCompiler
                 if (At(TokenKind::Identifier))
                 {
                     name = Advance().Text;
-                    if (name == "operator" && At(TokenKind::EqualEqual))
+                    if (name == "operator" && (At(TokenKind::EqualEqual) || At(TokenKind::BangEqual)))
                     {
-                        flags |= SyntaxFlagOperatorEqual;
-                        Advance();
-                    }
-                    else if (name == "operator" && At(TokenKind::BangEqual))
-                    {
-                        flags |= SyntaxFlagOperatorNotEqual;
-                        Advance();
+                        flags |= At(TokenKind::EqualEqual) ? SyntaxFlagOperatorEqual : SyntaxFlagOperatorNotEqual;
+                        const Token& operation = Advance();
+                        name = std::string_view(name.data(), static_cast<std::size_t>(
+                            operation.Text.data() + operation.Text.size() - name.data()));
                     }
                 }
                 else
@@ -640,7 +720,29 @@ namespace JBro::ScriptCompiler
                     Report(DiagnosticCode::ExpectedType);
                     return InvalidNode;
                 }
-                const std::string_view name = Advance().Text;
+                const char* nameBegin = Current().Text.data();
+                std::string_view name = Advance().Text;
+                while (true)
+                {
+                    const std::size_t beforeDot = m_position;
+                    const SourceLocation beforeDotEnd = m_lastEnd;
+                    SkipNewlines();
+                    if (false == At(TokenKind::Dot))
+                    {
+                        m_position = beforeDot;
+                        m_lastEnd = beforeDotEnd;
+                        break;
+                    }
+                    Advance();
+                    SkipNewlines();
+                    if (false == At(TokenKind::Identifier))
+                    {
+                        Report(DiagnosticCode::ExpectedName);
+                        break;
+                    }
+                    const std::string_view part = Advance().Text;
+                    name = std::string_view(nameBegin, static_cast<std::size_t>(part.data() + part.size() - nameBegin));
+                }
                 Array<NodeIndex> arguments;
                 if (At(TokenKind::Less))
                 {
@@ -681,7 +783,7 @@ namespace JBro::ScriptCompiler
                 {
                     return true;
                 }
-                if (TokenKind::Less != next && TokenKind::Question != next)
+                if (TokenKind::Less != next && TokenKind::Question != next && TokenKind::Dot != next && TokenKind::Newline != next)
                 {
                     return false;
                 }
@@ -697,6 +799,14 @@ namespace JBro::ScriptCompiler
             {
                 const SourceLocation begin = Current().Range.Begin;
                 Array<NodeIndex> statements;
+                const NestingScope blocks(m_blockNesting);
+                if (m_blockNesting > MaxBlockDepth)
+                {
+                    // 한도를 넘는 블록은 읽지 않고 짝이 맞는 `}` 까지 건너뛴다 - 재귀하지 않으므로 수만 겹이어도 스택이 깊어지지 않는다(D-376).
+                    Report(DiagnosticCode::BlockTooDeep, std::to_string(MaxBlockDepth.Get()));
+                    SkipBalancedBlock();
+                    return Make(SyntaxKind::Block, begin, std::string_view(), SyntaxFlagNone, statements);
+                }
                 Advance(); // {
                 while (true)
                 {
@@ -724,6 +834,28 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 return Make(SyntaxKind::Block, begin, std::string_view(), SyntaxFlagNone, statements);
+            }
+
+            // `{` 에 서 있다. 짝이 맞는 `}` 까지(그것도 먹는다) 건너뛴다. 파일이 먼저 끝나면 거기서 멈춘다.
+            void SkipBalancedBlock()
+            {
+                UInt32 open = 0;
+                while (false == At(TokenKind::EndOfFile))
+                {
+                    if (At(TokenKind::LeftBrace))
+                    {
+                        ++open;
+                    }
+                    else if (At(TokenKind::RightBrace))
+                    {
+                        --open;
+                    }
+                    Advance();
+                    if (0 == open)
+                    {
+                        return;
+                    }
+                }
             }
 
             // 조건 뒤나 else 뒤의 본문이다. 한 줄 본문은 없다(jbroscript-syntax §11.2).
@@ -1014,6 +1146,11 @@ namespace JBro::ScriptCompiler
 
             NodeIndex ParseExpression()
             {
+                const NestingScope nesting(m_expressionNesting);
+                if (NestedTooDeep())
+                {
+                    return InvalidNode;
+                }
                 const NodeIndex left = ParseOr();
                 if (InvalidNode == left || false == At(TokenKind::DotDot))
                 {
@@ -1105,6 +1242,11 @@ namespace JBro::ScriptCompiler
                 if (InvalidNode != left && At(TokenKind::QuestionQuestion))
                 {
                     const std::string_view op = Advance().Text;
+                    const NestingScope nesting(m_expressionNesting);
+                    if (NestedTooDeep())
+                    {
+                        return InvalidNode;
+                    }
                     const NodeIndex right = ParseCoalescing();
                     left = Make(SyntaxKind::BinaryExpression, BeginOf(left), op, SyntaxFlagNone, { left, right });
                 }
@@ -1141,6 +1283,11 @@ namespace JBro::ScriptCompiler
                 {
                     const SourceLocation begin = Current().Range.Begin;
                     const std::string_view op = Advance().Text;
+                    const NestingScope nesting(m_expressionNesting);
+                    if (NestedTooDeep())
+                    {
+                        return InvalidNode;
+                    }
                     const NodeIndex operand = ParseUnary();
                     return Make(SyntaxKind::UnaryExpression, begin, op, SyntaxFlagNone, { operand });
                 }
@@ -1314,6 +1461,10 @@ namespace JBro::ScriptCompiler
             Bool m_recovering = false;
             UInt32 m_speculationDepth = 0;
             Bool m_speculationFailed = false;
+            // 노드 번호마다 식의 깊이다. 식이 아닌 노드는 0 이다.
+            Array<UInt32> m_expressionDepths;
+            UInt32 m_expressionNesting = 0;
+            UInt32 m_blockNesting = 0;
         };
     }
 

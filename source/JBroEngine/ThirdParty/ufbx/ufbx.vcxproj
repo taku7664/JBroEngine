@@ -27,7 +27,7 @@
     <ClCompile>
       <!--
         고치지 않은 외부 소스다(ThirdParty/README.md). C 로 컴파일하고, 경고를 우리 수준으로 강제하지 않는다.
-        구현 번역 단위는 ufbx.c 하나이고 JBroAsset 의 모델 디코더만 링크한다(D-338).
+        구현 번역 단위는 ufbx.c 하나이고 JBroAsset 의 모델 디코더만 링크한다(D-391).
       -->
       <CompileAs>CompileAsC</CompileAs>
       <LanguageStandard_C>stdc11</LanguageStandard_C>

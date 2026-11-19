@@ -50,6 +50,12 @@ namespace JBro::Service
         return nullptr != network && network->IsConnected();
     }
 
+    Network::ConnectionId NetworkSessionService::GetLocalConnectionId() const
+    {
+        System::INetworkSystem* network = Network();
+        return nullptr != network ? network->GetLocalConnectionId() : Network::InvalidConnectionId;
+    }
+
     UInt32 NetworkSessionService::GetConnectionCount() const
     {
         System::INetworkSystem* network = Network();
@@ -121,6 +127,18 @@ namespace JBro::Service
     {
         System::INetworkSystem* network = Network();
         return nullptr != network ? network->FindLocalObject(id) : InvalidInstanceId;
+    }
+
+    Bool NetworkService::SetObjectOwner(InstanceId object, Network::ConnectionId owner) const
+    {
+        System::INetworkSystem* network = Network();
+        return nullptr != network && network->SetObjectOwner(object, owner);
+    }
+
+    Network::ConnectionId NetworkService::GetObjectOwner(InstanceId object) const
+    {
+        System::INetworkSystem* network = Network();
+        return nullptr != network ? network->GetObjectOwner(object) : Network::InvalidConnectionId;
     }
 
     Bool NetworkService::HasAuthority(InstanceId object) const

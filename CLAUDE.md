@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 > 글로벌 지침(`~/.claude/CLAUDE.md`) 상속: 사고규율(Before/After Acting), 행동규율(Break/Cross/Ground), 환경식별, 호칭, Python/uv 규칙 등.
 
@@ -72,7 +72,7 @@
 - [docs/Jbro_CPP_Script_Object_Safety.md](./docs/Jbro_CPP_Script_Object_Safety.md) — 폐기된 스크립트 객체 안전성 초안
 - [tasks/todo.md](./tasks/todo.md) — 공용 남은 일과 확정 결정(Decisions) 기록. **남은 일은 공용·2D·3D 로 나눈다**(D-116):
   [tasks/todo-2d.md](./tasks/todo-2d.md)(2D 프레임워크·에디터 화면·스프라이트, `[논의]` 항목 포함),
-  [tasks/todo-3d.md](./tasks/todo-3d.md)(재질·물리 3D·3D 기즈모. **지금은 2D 를 멈추고 3D 를 먼저 한다** - 순서는 그 문서의 "우선순위" 절, D-335)
+  [tasks/todo-3d.md](./tasks/todo-3d.md)(재질·물리 3D·3D 기즈모. **지금은 2D 를 멈추고 3D 를 먼저 한다** - 순서는 그 문서의 "우선순위" 절, D-388)
 - [tasks/jbroscript-plan.md](./tasks/jbroscript-plan.md) — JBroScript(`.jscript`) 언어와 리플렉션 계획(D-56).
   언어는 **미구현**이고 리플렉션(`PropertyInfo`·`JBRO_FIELD`·컨테이너 조작)은 섰다.
   기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
@@ -101,7 +101,7 @@
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
   엔진 버전은 `JBro.Common.props` 한 곳에 있고 실행 파일의 버전 리소스가 말한다(D-101)
 - [tasks/framework3d-plan.md](./tasks/framework3d-plan.md) — 3D 프레임워크·D3D11/Vulkan 백엔드·트랜스폼 기즈모(D-106~D-109).
-  네 단계가 모두 섰다. 실측·가정·열린 것이 §2.6~§2.9·§3 에 있다
+  네 단계가 모두 섰다. 실측·가정·열린 것이 §2.6~§2.9·§3 에 있다. glTF 메시 에셋(D-366 - 2026-11-19 통합에서 원격의 모델 임포트 D-391 로 대신했다)과 `Light3D`(D-367)가 §4 다
 - [tasks/asset-plan.md](./tasks/asset-plan.md) — 에셋 시스템 계획(D-111~D-113). 1 단계(`Uuid`·레지스트리·`.jmeta`·스캔),
   2 단계(타입별 풀·텍스처와 스프라이트 로드·해석 패스), 3 단계(텍스처 있는 스프라이트·UV 사각형·`SpriteLibrary`)가 섰다.
   4 단계(에디터: 검색 드롭다운·에셋 필드·에셋 크기와 샘플러·에셋 브라우저와 옵션 편집·파일 감시, D-118~D-121)까지 섰다.
@@ -136,25 +136,35 @@
   섰다. `.jpak` 에 미리 뜬 아틀라스는 패키지 계획(D-232)에서 섰다. 옛한글은 커널이 GSUB 의 자모 기능(`ljmo`·`vjmo`·`tjmo`)을 직접 읽는다(D-238). 남은 것은 일반 GSUB(합자·아랍 문자)다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
-- [tasks/model-import-plan.md](./tasks/model-import-plan.md) — 3D 모델 임포트(D-338). 파일 하나가 `Model` 이고 메시·재질·내장 그림이 하위 에셋이다. 디코더는 ufbx(FBX·OBJ)와 cgltf(glTF),
+- [tasks/model-import-plan.md](./tasks/model-import-plan.md) — 3D 모델 임포트(D-391). 파일 하나가 `Model` 이고 메시·재질·내장 그림이 하위 에셋이다. 디코더는 ufbx(FBX·OBJ)와 cgltf(glTF),
   브라우저는 하위 에셋을 ▶ 로 펼치고(그림도), 내장된 같은 그림은 해시로 묶어 배지로 보인다. 지금 상태가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4
-- [tasks/material-plan.md](./tasks/material-plan.md) — 3D 재질(D-346). 빌트인 `Standard`(metallic-roughness PBR)·`Unlit`, 출처는 모델의 하위 Material(읽기 전용)과 `.jmat`,
-  `materialId` 가 비면 메시가 파일에서 쓰던 재질. **다섯 단계가 모두 섰다**(정점·재질 자료·렌더러·에디터·같은 그림 한 번과 3D 게임 빌드 실측, D-347~D-351).
+- [tasks/material-plan.md](./tasks/material-plan.md) — 3D 재질(D-399). 빌트인 `Standard`(metallic-roughness PBR)·`Unlit`, 출처는 모델의 하위 Material(읽기 전용)과 `.jmat`,
+  `materialId` 가 비면 메시가 파일에서 쓰던 재질. **다섯 단계가 모두 섰다**(정점·재질 자료·렌더러·에디터·같은 그림 한 번과 3D 게임 빌드 실측, D-400~D-404).
   지금 상태가 §1, 사용자와 정한 여덟 항목이 §2, 단계가 §3, `[열림]` 이 §4
-- [tasks/lighting3d-plan.md](./tasks/lighting3d-plan.md) — 3D 조명(D-353). `Light3D` 하나에 `Ambient`·`Directional`·`Point`·`Spot`, glTF 의 거리·원뿔 감쇠, 라이트가 없으면 지금의 고정 빛,
-  뷰마다 라이트 64 의 포워드. **세 단계가 모두 섰다**(렌더러·컴포넌트와 시작 라이트·에디터 표시와 기즈모, D-354~D-356). 지금 상태와 상용 엔진·glTF 비교가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4
+- [tasks/main-merge-plan.md](./tasks/main-merge-plan.md) — 로컬 main 과 원격 main 의 통합(D-406, 2026-11-19). 겹침 표·결정 번호 대응표(원격 D-335~D-352 → D-388~D-405)·
+  머티리얼 두 갈래(셰이더 머티리얼·표준 머티리얼)와 이름을 가른 것, 시험 결과가 있다
+- [tasks/lighting3d-plan.md](./tasks/lighting3d-plan.md) — 3D 조명(D-407). `Light3D` 하나에 `Ambient`·`Directional`·`Point`·`Spot`, glTF 의 거리·원뿔 감쇠, 라이트가 없으면 지금의 고정 빛,
+  뷰마다 라이트 64 의 포워드. **세 단계가 모두 섰다**(렌더러·컴포넌트와 시작 라이트·에디터 표시와 기즈모, D-408~D-410). 지금 상태와 상용 엔진·glTF 비교가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.
   새 Tier E 모듈 `JBroPackage`, 에셋 시스템의 바이트 출처 `IAssetSource`, 호스트의 `BuildGame` 과 패키지로 여는 프로젝트(`AssetPackage`), 에디터 파일 메뉴 "게임 빌드".
   기존 엔진 `.jbpack` 의 구조와 아팠던 것 K1~K6(쓰는 곳 둘·색인의 임포트 옵션·`ifstream`·고정 키)이 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4, 실측이 §5 에 있다
 - [tasks/ui-plan.md](./tasks/ui-plan.md) — 화면 공간 UI(D-237). UI 트리 대신 캔버스 레이어의 `Space = Screen`·맞춤 방식과 `Transform2D.anchor`, 좌표는 기준 해상도의 픽셀.
-  세 단계(그리기·에디터의 월드/UI 보기·입력의 `Button2D` 와 `Screen2DService`)가 섰다.
+  세 단계(그리기·에디터의 월드/UI 보기·입력의 `Button2D` 와 `Screen2DService`)가 섰다. 2 부(§6, D-351~D-354: 위젯 시스템 - `Toggle2D`·`Slider2D`·`InputField2D`·`ScrollView2D`·`Layout2D`·
+  `Mask2D`·게임패드 포커스)와 3 부(§7, D-355~D-359: 글자 칸의 선택·클립보드·IME, `ToggleGroup2D`~`Navigation2D` 의 새 위젯 열다섯, 카메라 뷰포트의 분할 화면), 4 부(§7.6, D-360: 3 부의 열림 일곱 -
+  드롭다운의 키보드·게임패드, 스크롤바 페이지 넘김, 끌기 올리기, 툴팁 따라가기, 가상 키보드의 게임패드, 가변 크기 목록, 트윈 사슬), 5 부(§7.7, D-361: 끌기 올리기 보완·가변 목록 부분 재기·글자 칸의
+  조합 밑줄과 더블 클릭과 Ctrl+Z·그룹 `blocksRaycasts`·카메라마다 후처리·컴포넌트 갈래 `UI`/`UiLayout`)도 섰다. 6 부(§7.8, D-362)로 5 부가 남긴 다섯 - 둘째 뷰 지우기·여러 줄 선택 강조·
+  실제 IME 시험·렌더 텍스처 `.jrt`·3D 캔버스의 화면 레이어(화면 UI 시스템을 새 모듈 `JBroScreenUi` 로 떼어 2D·3D 가 같이 쓴다)도 섰다.
+  §7.9(D-363)로 3D 스크립트가 돈다 - 스크립트 시스템은 공용 모듈 `JBroScriptRuntime`, 3D 스크립트의 기반은 UI 훅을 든 `GameScript3D`, 3D 스크립트 SDK 는 화면 UI 핸들만 2D 에서 받는다.
   기존 엔진 UI 의 구조와 아팠던 것 U1~U4(첫 프레임 앵커 0·분할 화면 어긋남·버튼의 직접 폴링)가 §1, 설계가 §2, 단계(그리기·에디터·입력)가 §3, 실측이 §5 에 있다
 - [tasks/layer-plan.md](./tasks/layer-plan.md) — 캔버스 레이어의 남은 기능. 기존 엔진 `CGameLayer` 의 필드별 상태(패럴랙스 D-286·레이어 에셋·썸네일 이식,
   안전 영역은 뺐고 `KeepOnCanvasChange`·런타임 레이어 불러오기는 런타임 캔버스 전환이 없어 막혔다)와 포토샵식 다음 후보(그룹·클리핑 마스크·잠금·솔로·색 조정)
 - [tasks/postprocess-plan.md](./tasks/postprocess-plan.md) — 후처리 초석(D-322). 확장성 우선으로 RHI 확장(상수 버퍼·컴퓨트·서브리소스·깊이 읽기·포맷)·DAG 렌더 그래프(지금 패스까지 옮긴다)·
-  효과 종류 표와 주입 지점·프로필·Shader·Material 에셋·카메라·레이어·볼륨 적용을 깐다. 지금 상태(기존 엔진은 Reinhard 톤맵뿐)가 §1, 설계가 §2, 단계가 §3, 정한 것과 미정이 §4. **계획만 섰다**
+  효과 종류 표와 주입 지점·프로필·Shader·Material 에셋·카메라·레이어·볼륨 적용을 깐다. 지금 상태(기존 엔진은 Reinhard 톤맵뿐)가 §1, 설계가 §2, 단계가 §3, 정한 것과 미정이 §4. **1~11 단계가 섰다** -
+  RHI 확장(D-325~D-328)·셰이더 매니페스트(D-329)·렌더 그래프와 명시 배리어(D-339, 렌더러의 지금 패스가 모두 그래프 패스다)·디버그 메뉴의 `렌더 그래프` 창과 Vulkan 그리기 시험(D-340)·창의 패스별 GPU 시간과 패스 직후 미리보기(D-341)·효과 종류 표·주입 지점·`RGBA16Float` HDR 장면·노출과 톤맵(None·Reinhard·ACES·AgX, D-342)·래스터 밉 체인 블룸·기본 조정·`.cube` LUT(D-343)·`.jpost` 프로필과 카메라의 `postProcessProfileId`·인스펙터 편집(D-344)·레이어 프로필과 레이어 효과 블러·외곽선·그림자(D-345)·볼륨 `PostProcessVolume2D`·`3D` 와 섞기·공통 서비스 `PostProcess`(D-346).
+  11 단계(D-347)로 `.hlsl` Shader 에셋·`.jmat` Material 에셋·에디터의 즉석 굽기(`JBroShaderCompiler`)·후처리 효과 `Material`·스프라이트 머티리얼이 섰고, 계획의 단계는 끝났다.
+  D-348(§3.15)로 메시 머티리얼·머티리얼 스프라이트의 빛·스크립트 서비스 `Material` 의 파라미터 덮어쓰기·같은 셰이더 머티리얼의 볼륨 섞기·셰이더 인스펙터가, D-368(§3.16)로 오브젝트 하나의 파라미터(머티리얼 인스턴스)가 섰다
 - [tasks/node-graph-plan.md](./tasks/node-graph-plan.md) — 노드 그래프 프레임워크(D-323). 모델은 Tier E 모듈 `JBroNodeGraph`(노드·핀·링크·도메인·YAML), 화면은 `JBroEditor` 의 화면 모델·`Widget::NodeGraphCanvas`·`NodeGraphPanel`,
-  편집은 그래프 창마다 커맨드 스택, 다듬기는 샘플 도메인 `Math` 와 `.jgraph` 에셋. 층이 §2, 단계가 §3, 미정이 §4
+  편집은 그래프 창마다 커맨드 스택, 다듬기는 샘플 도메인 `Math` 와 `.jgraph` 에셋. 층이 §2, 단계가 §3, 미정이 §4. 셰이더 그래프(도메인 `Shader`, 저장하면 옆에 `.hlsl`, D-369)가 §5 다
 - [tasks/guide-focus-plan.md](./tasks/guide-focus-plan.md) — 에디터 가이드 포커스(D-251). 반투명 막에 대상 위젯만 뚫고 그 위젯만 입력을 받게 하며,
   닫힌 패널·트리를 부모부터 한 칸씩 연다. 기구 `EditorGuideFocus`·`Widget::GuideFocus` 와 내용 `Guide`·`GuideStep`·`EditorGuide` 로 나눈다.
   **열두 단계가 섰다** - 입력 문·표식·막과 애니메이션·부모부터 열기·가이드 둘(`도움말` → `가이드`)·글자로 적는 가이드(D-267: 단계는 `Do: object.delete`

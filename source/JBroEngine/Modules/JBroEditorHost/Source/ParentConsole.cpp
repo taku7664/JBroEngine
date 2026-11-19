@@ -25,7 +25,7 @@ void AttachToParentConsole()
     freopen_s(&stream, "CONOUT$", "w", stderr);
 }
 
-// 넓은 문자 인자 하나를 UTF-8 로 바꾼다(D-336). `EditorHostMain.cpp` 의 `wmain` 이 부른다.
+// 넓은 문자 인자 하나를 UTF-8 로 바꾼다(D-389). `EditorHostMain.cpp` 의 `wmain` 이 부른다.
 JBro::String ToUtf8Argument(const wchar_t* argument)
 {
     if (argument == nullptr || argument[0] == L'\0')

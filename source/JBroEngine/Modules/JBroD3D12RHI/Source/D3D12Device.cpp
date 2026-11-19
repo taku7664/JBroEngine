@@ -1,4 +1,5 @@
 ﻿#include "D3D12Device.h"
+#include <cstring>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
 
@@ -191,6 +192,36 @@ namespace JBro::Internal
             return false;
         }
 
+        // GPU 시각(D-341). 못 만들면 시각만 못 적는다 - 장치를 버리지 않는다.
+        UINT64 frequency = 0;
+        if (SUCCEEDED(m_graphicsQueue->GetTimestampFrequency(&frequency)) && frequency != 0)
+        {
+            D3D12_QUERY_HEAP_DESC queryDesc = {};
+            queryDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+            queryDesc.Count = (MaxFramesInFlight * MaxTimestampsPerFrame).Get();
+            D3D12_HEAP_PROPERTIES readbackHeap = {};
+            readbackHeap.Type = D3D12_HEAP_TYPE_READBACK;
+            D3D12_RESOURCE_DESC readbackDesc = {};
+            readbackDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+            readbackDesc.Width = static_cast<UINT64>(queryDesc.Count) * sizeof(UINT64);
+            readbackDesc.Height = 1;
+            readbackDesc.DepthOrArraySize = 1;
+            readbackDesc.MipLevels = 1;
+            readbackDesc.SampleDesc.Count = 1;
+            readbackDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+            if (SUCCEEDED(m_device->CreateQueryHeap(&queryDesc, IID_PPV_ARGS(&m_timestampHeap)))
+                && SUCCEEDED(m_device->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE, &readbackDesc,
+                    D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&m_timestampReadback))))
+            {
+                m_timestampFrequency = frequency;
+            }
+            else
+            {
+                m_timestampHeap.Reset();
+                m_timestampReadback.Reset();
+            }
+        }
+
         D3D12_DESCRIPTOR_HEAP_DESC renderTargetHeapDesc = {};
         renderTargetHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         // 텍스처마다 mip 수 상한만큼의 칸이다 - mip 하나하나가 따로 그릴 수 있는 렌더 타깃이다.
@@ -361,6 +392,15 @@ namespace JBro::Internal
             swapchain.occupied = false;
         }
 
+        m_timestampHeap.Reset();
+        m_timestampReadback.Reset();
+        m_timestampFrequency = 0;
+        m_frameTimestampCount = 0;
+        m_completedTimestampCount = 0;
+        for (UInt32 slot = 0; slot < MaxFramesInFlight; ++slot)
+        {
+            m_slotTimestampCount[slot.Get()] = 0;
+        }
         m_commandList4.Reset();
         m_commandList.Reset();
         for (ComPtr<ID3D12CommandAllocator>& allocator : m_commandAllocators)
@@ -591,6 +631,26 @@ namespace JBro::Internal
             return result;
         }
 
+        // 이 슬롯의 앞 프레임이 끝났다(위의 펜스). 그 프레임이 적은 GPU 시각을 받아 둔다(D-341).
+        if (m_slotTimestampCount[frameSlot.Get()] != 0 && m_timestampReadback != nullptr)
+        {
+            const UInt32 count = m_slotTimestampCount[frameSlot.Get()];
+            const std::size_t first = static_cast<std::size_t>((frameSlot * MaxTimestampsPerFrame).Get()) * sizeof(UINT64);
+            D3D12_RANGE readRange = {first, first + static_cast<std::size_t>(count.Get()) * sizeof(UINT64)};
+            void* mapped = nullptr;
+            if (SUCCEEDED(m_timestampReadback->Map(0, &readRange, &mapped)))
+            {
+                std::memcpy(m_completedTimestamps, static_cast<const std::byte*>(mapped) + first,
+                    static_cast<std::size_t>(count.Get()) * sizeof(UINT64));
+                const D3D12_RANGE written = {0, 0};
+                m_timestampReadback->Unmap(0, &written);
+                m_completedTimestampCount = count;
+                m_completedTimestampSerial = m_slotTimestampSerial[frameSlot.Get()];
+            }
+            m_slotTimestampCount[frameSlot.Get()] = 0;
+        }
+        m_frameTimestampCount = 0;
+
         if (FAILED(m_commandAllocators[frameSlot]->Reset())
             || FAILED(m_commandList->Reset(m_commandAllocators[frameSlot].Get(), nullptr)))
         {
@@ -679,6 +739,17 @@ namespace JBro::Internal
             backBuffer.state = D3D12_RESOURCE_STATE_PRESENT;
         }
 
+        // 이번 프레임에 적은 GPU 시각을 되읽기 버퍼로 푼다. 받는 것은 이 슬롯을 다시 쓸 때다(D-341).
+        if (m_frameTimestampCount != 0)
+        {
+            const UInt32 first = m_activeFrameSlot * MaxTimestampsPerFrame;
+            m_commandList->ResolveQueryData(m_timestampHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, first.Get(), m_frameTimestampCount.Get(),
+                m_timestampReadback.Get(), static_cast<UINT64>(first.Get()) * sizeof(UINT64));
+            m_slotTimestampCount[m_activeFrameSlot.Get()] = m_frameTimestampCount;
+            m_slotTimestampSerial[m_activeFrameSlot.Get()] = m_activeFrameSerial;
+            m_frameTimestampCount = 0;
+        }
+
         if (FAILED(m_commandList->Close()))
         {
             MarkDeviceLost();
@@ -737,6 +808,8 @@ namespace JBro::Internal
         }
         m_commandList->Close();
         m_commandContext.Reset();
+        // 버린 프레임의 시각은 풀지 않았다. 다음 프레임이 0 부터 다시 적는다.
+        m_frameTimestampCount = 0;
 
         D3D12SwapchainState& swapchain = m_swapchains[m_activeSwapchainIndex];
         for (UInt32 index = 0; index < swapchain.desc.bufferCount; ++index)

@@ -12,12 +12,16 @@
 
 namespace JBro
 {
+    class IShaderCompiler;
+
     struct GameBuildOptions
     {
         // 복사할 게임 호스트 실행 파일(UTF-8 절대경로)이다. 차원에 맞는 것을 부르는 쪽(에디터)이 고른다. 비면 실행 파일 없이 패키지와 프로젝트만 낸다.
         String gameHostPath;
         // 0 이상이면 내놓는 프로젝트의 물리 워커 수로 적는다(`Auto` 를 빌드 때 정한다, D-223). 게임은 패키지에서 캔버스를 세어 볼 수 없다.
         Int32 physicsWorkers = -1;
+        // 머티리얼 셰이더를 굽는 곳이다(D-347). 패키지는 구운 셰이더만 싣는다 - 없으면 셰이더가 든 빌드는 실패한다.
+        IShaderCompiler* shaderCompiler = nullptr;
     };
 
     struct GameBuildReport

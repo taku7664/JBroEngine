@@ -1,5 +1,9 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/ScriptBuild.h>
 #include <JBro/Editor/ScriptProject.h>
+#include <JBro/ScriptApiCatalog2D/Catalog.h>
+#include <JBro/ScriptCompiler/ApiCatalog.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -14,6 +18,8 @@
 
 #pragma comment(lib, "Dbghelp.lib")
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstring>
 #include <filesystem>
@@ -111,11 +117,16 @@ namespace
         // 다른 차원의 핸들은 그 프렐류드에 없어 컴파일되지 않는다 - 그 프로젝트에는 내놓지 않는다.
         using ScriptProject::FieldType;
         using ScriptProject::IsFieldTypeOffered;
-        Check(IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework2D)
-                && false == IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework3D)
+        Check(IsFieldTypeOffered(FieldType::Camera2D, FrameworkKind::Framework2D)
+                && false == IsFieldTypeOffered(FieldType::Camera2D, FrameworkKind::Framework3D)
                 && IsFieldTypeOffered(FieldType::Transform3D, FrameworkKind::Framework3D)
                 && false == IsFieldTypeOffered(FieldType::Transform3D, FrameworkKind::Framework2D),
-            "a 2D handle is offered only to 2D projects and a 3D handle only to 3D ones");
+            "a 2D world handle is offered only to 2D projects and a 3D handle only to 3D ones");
+        // 화면 UI 의 핸들은 3D 프로젝트에도 내놓는다 - 3D 캔버스의 화면 레이어가 쓴다(D-363).
+        Check(IsFieldTypeOffered(FieldType::Button2D, FrameworkKind::Framework3D) && IsFieldTypeOffered(FieldType::Text2D, FrameworkKind::Framework3D)
+                && IsFieldTypeOffered(FieldType::Transform2D, FrameworkKind::Framework3D)
+                && false == IsFieldTypeOffered(FieldType::Rigidbody2D, FrameworkKind::Framework3D),
+            "the screen UI handles are offered to 3D projects too, the 2D world ones are not");
         Check(IsFieldTypeOffered(FieldType::AudioSource, FrameworkKind::Framework2D)
                 && IsFieldTypeOffered(FieldType::AudioSource, FrameworkKind::Framework3D)
                 && IsFieldTypeOffered(FieldType::GameObject, FrameworkKind::Framework3D),
@@ -127,17 +138,16 @@ namespace
                 "every handle field type has its own C++ name");
         }
 
-        // 2D 프렐류드는 `Vector3` 의 설명자를 들이지 않는다. 그 필드가 있을 때만 더 들인다(MSBuild 로 확인했다).
-        Check(false == Contains(header, "Math3DReflection.h"), "a script without a Vector3 field does not pull in 3D reflection");
+        // 값 필드의 설명서는 프렐류드가 들인다 - 필드 타입마다 include 를 더하지 않는다. 실제로 컴파일되는지는
+        // `TestEveryOfferedFieldTypeBuilds` 가 MSBuild 로 본다.
         Array<ScriptProject::FieldSpec> spatial;
         spatial.Add({String("Offset"), ScriptProject::FieldType::Vector3});
-        Check(Contains(ScriptProject::MakeScriptHeader("Mover", spatial, FrameworkKind::Framework2D),
-                "#include <JBro/Reflection/Math3DReflection.h>\r\n"),
-            "a Vector3 field brings the header that describes it");
+        Check(false == Contains(ScriptProject::MakeScriptHeader("Mover", spatial, FrameworkKind::Framework2D), "Reflection/"),
+            "a value field needs no include beyond the prelude");
 
         const String header3D = ScriptProject::MakeScriptHeader("Orbit", {}, FrameworkKind::Framework3D);
         const String source3D = ScriptProject::MakeScriptSource("Orbit", FrameworkKind::Framework3D);
-        Check(Contains(header3D, ": public GameScriptBase") && Contains(source3D, "JBRO_REGISTER_SCRIPT_3D(Orbit);"),
+        Check(Contains(header3D, ": public GameScript3D") && Contains(source3D, "JBRO_REGISTER_SCRIPT_3D(Orbit);"),
             "a 3D script uses the 3D base and registration");
         Check(Contains(ScriptProject::MakeModuleSource(FrameworkKind::Framework3D), "JBRO_SCRIPT_MODULE_3D()"),
             "and the 3D entry point");
@@ -448,7 +458,7 @@ namespace
             {
                 continue;
             }
-            const std::string text = ReadAll(file.path());
+            const JBro::String text = ReadAll(file.path());
             const fs::path object = generatedDirectory.parent_path() / (file.path().stem().native() + L".obj");
             if (text.find("operator()<Guard>()") != std::string::npos)
             {
@@ -516,6 +526,475 @@ namespace
     }
 }
 
+namespace
+{
+    // **3D 스크립트가 화면 UI 를 쓴다**(D-363). 3D 프로젝트의 사용자 스크립트가 `GameScript3D` 의 UI 훅과 화면 UI 핸들로 MSBuild 를 통과하고, 3D 스크립트 SDK 에는
+    // 2D 의 월드 핸들이 없으며, `GameScriptBase` 에서 바로 파생한 3D 스크립트는 등록에서 막힌다.
+    void TestA3DScriptBuildsAgainstTheScreenUi()
+    {
+        const fs::path root = FreshFolder("editor3d");
+        fs::create_directories(root / "Contents" / "Assets");
+        const fs::path projectPath = root / "Scripted3D.jproject";
+        std::ofstream(projectPath, std::ios::binary) <<
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Contents/Assets\n"
+            "ScriptSourceDirectory: Contents\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: Scripted3D\n";
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; a 3D script build not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the 3D project opens");
+        Array<ScriptProject::FieldSpec> fields;
+        fields.Add({String("Target"), ScriptProject::FieldType::Button2D});
+        String failure;
+        Check(false == editor.CreateScript("", "Clicker", fields, failure).empty(), "the editor creates a 3D script with a button field");
+        const fs::path scripts = root / "Contents" / "Scripts";
+        Check(ReadAll(scripts / "Clicker.h").find("class Clicker final : public GameScript3D") != std::string::npos
+                && ReadAll(scripts / "Clicker.h").find("JBRO_FIELD(Button2D, Target)") != std::string::npos,
+            "the 3D script derives from GameScript3D and holds a Button2D handle");
+        // 버튼의 훅을 쓰는 스크립트로 바꾼다.
+        std::ofstream(scripts / "Clicker.h", std::ios::trunc) <<
+            "#pragma once\n"
+            "#include <JBro/ScriptAPI.h>\n"
+            "class Clicker final : public GameScript3D\n"
+            "{\n"
+            "    JBRO_SCRIPT_BODY(Clicker)\n"
+            "public:\n"
+            "    JBRO_FIELD(Button2D, Target) = {};\n"
+            "    JBRO_FIELD(Text2D, Label) = {};\n"
+            "    JBRO_FIELD(Int32, Clicks) = 0;\n"
+            "protected:\n"
+            "    void OnClick() override;\n"
+            "    void OnValueChanged() override;\n"
+            "};\n";
+        std::ofstream(scripts / "Clicker.cpp", std::ios::trunc) <<
+            "#include \"Clicker.h\"\n"
+            "JBRO_REGISTER_SCRIPT_3D(Clicker);\n"
+            "void Clicker::OnClick()\n"
+            "{\n"
+            "    Clicks = Clicks + 1;\n"
+            "    Target.SetInteractable(false);\n"
+            "    Label.SetRichText(true);\n"
+            "}\n"
+            "void Clicker::OnValueChanged()\n"
+            "{\n"
+            "}\n";
+        const auto waitForBuild = [&editor]() {
+            for (Int32 step = 0; step < 6000; ++step)
+            {
+                Check(editor.Tick(1.0f / 60.0f), "the editor keeps ticking while scripts build");
+                if (editor.GetScriptBuildState() != EditorApplication::ScriptBuildState::Running)
+                {
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            Check(false, "the editor's script build finishes within a minute");
+        };
+        Check(editor.BuildScripts(), "the editor starts the 3D script build");
+        waitForBuild();
+        for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+        {
+            std::cout << "  " << diagnostic.file.c_str() << ": " << diagnostic.code.c_str() << " " << diagnostic.message.c_str() << std::endl;
+        }
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded
+                && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
+            "a 3D script using the screen UI handles and hooks builds into the game DLL");
+
+        const fs::path leak = scripts / "Leak.cpp";
+        const auto buildFailsWith = [&](const char* text, const char* code, const char* where) {
+            std::ofstream(leak, std::ios::trunc) << text;
+            Check(editor.BuildScripts(), "the editor starts a build that should fail");
+            waitForBuild();
+            Bool found = false;
+            for (const ScriptBuild::Diagnostic& diagnostic : editor.GetScriptDiagnostics())
+            {
+                found = found || (diagnostic.code == code && diagnostic.file.find(where) != String::npos);
+            }
+            return editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Failed && found;
+        };
+        Check(buildFailsWith("#include <JBro/Framework2D/Handle/Rigidbody2D.h>\n", "C1083", "Leak.cpp"),
+            "a 2D world handle is not in the 3D script SDK");
+        Check(buildFailsWith("#include <JBro/Framework2D/ServiceContext.h>\n", "C1083", "Leak.cpp"),
+            "nor are the 2D services");
+        Check(buildFailsWith(
+                  "#include <JBro/ScriptAPI.h>\n"
+                  "class Bare final : public GameScriptBase\n"
+                  "{\n"
+                  "    JBRO_SCRIPT_BODY(Bare)\n"
+                  "};\n"
+                  "JBRO_REGISTER_SCRIPT_3D(Bare);\n",
+                  "C2338", "GameScript.h"),
+            "a 3D script that skips GameScript3D is refused at registration");
+        fs::remove(leak);
+        Check(editor.BuildScripts(), "the editor builds again without the leak");
+        waitForBuild();
+        Check(editor.GetScriptBuildState() == EditorApplication::ScriptBuildState::Succeeded, "and the 3D build is clean again");
+        editor.Shutdown();
+    }
+}
+
+namespace
+{
+    // 에디터 없이 에디터와 같은 순서(`EnsureProject` → `RefreshEngineProps` → `MakeBuildCommand` → MSBuild → `ParseLog`)로
+    // 스크립트 프로젝트를 빌드한다. 보는 것이 MSBuild 라 그래픽 장치가 없어도 돈다(REVIEW R1-1). 빌드 도구가 없을 때만 건너뛴다.
+    struct DirectBuild
+    {
+        Bool Ran = false;
+        Bool Succeeded = false;
+        Array<ScriptBuild::Diagnostic> Diagnostics;
+    };
+
+    DirectBuild BuildDirectly(WindowsPlatform& platform, const fs::path& root)
+    {
+        DirectBuild result;
+        const fs::path contents = root / "Contents";
+        const String executableFolder = platform.GetExecutableFolder();
+        const String engineRoot = ScriptProject::FindEngineRoot(platform, executableFolder.c_str());
+        Check(false == engineRoot.empty(), "the engine sources are found from the test executable");
+        String error;
+        Check(ScriptProject::EnsureProject(platform, Utf8(contents).c_str(), FrameworkKind::Framework2D, error)
+                || ScriptProject::HasProject(platform, Utf8(contents).c_str()),
+            "the script project exists before the direct build");
+        ScriptProject::RefreshEngineProps(platform, Utf8(contents).c_str(), engineRoot.c_str());
+        const String msbuild = ScriptBuild::LocateMSBuild(platform, Utf8(root).c_str());
+        if (msbuild.empty())
+        {
+            std::cout << "  [skip] no MSBuild with the v145 tools; the direct script build is not verified" << std::endl;
+            return result;
+        }
+        const fs::path log = root / "x64" / "ScriptBuild.log";
+        fs::create_directories(log.parent_path());
+        fs::remove(log);
+        const String compiler = EditorPaths::JoinPath(executableFolder.c_str(), "JBroc.exe");
+        const String command = ScriptBuild::MakeBuildCommand(msbuild.c_str(), Utf8(contents / "GameScript.vcxproj").c_str(), "Debug",
+            Utf8(log).c_str(), compiler.c_str(), "");
+        ChildProcess process = platform.StartProcess(command.c_str(), Utf8(contents).c_str(), nullptr);
+        Check(process.process != nullptr, "MSBuild starts for the direct script build");
+        Int32 exitCode = -1;
+        for (Int32 step = 0; step < 6000 && platform.PollProcess(process, exitCode) == ProcessStatus::Running; ++step)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        Check(platform.PollProcess(process, exitCode) == ProcessStatus::Exited, "the direct script build ends within five minutes");
+        platform.CloseProcess(process);
+        Array<std::byte> bytes;
+        if (platform.ReadWholeFile(Utf8(log).c_str(), bytes))
+        {
+            ScriptBuild::ParseLog(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), result.Diagnostics);
+        }
+        result.Ran = true;
+        result.Succeeded = exitCode == 0;
+        if (false == result.Succeeded)
+        {
+            for (const ScriptBuild::Diagnostic& diagnostic : result.Diagnostics)
+            {
+                if (diagnostic.isError)
+                {
+                    std::cout << "  " << diagnostic.file.c_str() << "(" << diagnostic.line.Get() << "): " << diagnostic.code.c_str()
+                              << " " << diagnostic.message.c_str() << std::endl;
+                }
+            }
+        }
+        return result;
+    }
+
+    // **에디터가 내놓는 필드 타입은 모두 사용자 프로젝트에서 컴파일된다.** 만든 글자만 보면 SDK 사본에 설명서가 없는 타입
+    // (`Vector2`·`Color`·에셋)을 놓쳤다 - 글자는 맞는데 `TypeDescriptorOf` 가 없어 C2338 로 멈췄다. 목록은 `FieldType` 에서
+    // 읽으므로 종류가 늘면 시험도 따라 는다. JBroScript 의 `[prop]` 값 필드도 같은 설명서를 쓴다.
+    // 스크립트를 만드는 함수(`ScriptProject::CreateScript`)는 에디터의 `새 스크립트` 가 부르는 그것이다.
+    void BuildEveryOfferedFieldType(FrameworkKind framework, const char* folder)
+    {
+        WindowsPlatform platform;
+        const fs::path root = FreshFolder(folder);
+        const fs::path contents = root / "Contents";
+        fs::create_directories(contents / "Scripts");
+        String error;
+        Check(ScriptProject::EnsureProject(platform, Utf8(contents).c_str(), framework, error), "the field type project is created");
+
+        using ScriptProject::FieldType;
+        Array<ScriptProject::FieldSpec> fields;
+        for (Int32 index = 0; index < static_cast<Int32>(FieldType::Count); ++index)
+        {
+            const FieldType type = static_cast<FieldType>(index.Get());
+            if (ScriptProject::IsFieldTypeOffered(type, framework))
+            {
+                fields.Add({String("Field").Append(std::to_string(index.Get())), type});
+            }
+        }
+        Check(fields.Size() > 10, "the editor offers the value and handle field types");
+        Check(ScriptProject::CreateScript(platform, Utf8(contents / "Scripts").c_str(), "EveryField", fields, framework, error),
+            "a script with every offered field type is created");
+        if (framework == FrameworkKind::Framework2D)
+        {
+            std::ofstream(contents / "Scripts" / "ValueProps.jscript") <<
+                "script ValueProps\n{\n    [prop] Vector2 offset\n    [prop] Color tint\n}\n";
+        }
+        const DirectBuild build = BuildDirectly(platform, root);
+        if (false == build.Ran)
+        {
+            return;
+        }
+        Check(build.Succeeded && fs::exists(root / "x64" / "Debug" / "GameScript.dll"),
+            "every field type the editor offers compiles in a user script project");
+    }
+
+    // **카탈로그에서 출력 인자로 투영한 엔진 함수는 모두 생성 C++ 로 빌드되거나 분석이 `JBC3050` 으로 거절한다**(D-382, REVIEW R2-2).
+    // 전에는 분석·언어 서버가 통과시킨 호출이 빌드에서 위치 없는 영어 한 줄로 멈췄다. 목록은 카탈로그를 읽어 만들므로 함수가 늘면 시험도 는다.
+    // 받는 쪽: 서비스는 전역 이름, 정적 멤버는 타입 이름, 핸들은 `ref` 필드, 값은 값 필드다. 제네릭은 `T`·`V` 를 Int, `K` 를 String 으로 둔다.
+    std::string Concrete(std::string type)
+    {
+        const auto swap = [&type](const char* from, const char* to) {
+            for (std::size_t at = type.find(from); at != std::string::npos; at = type.find(from, at + std::strlen(to)))
+            {
+                const Bool before = at == 0 || false == std::isalnum(static_cast<unsigned char>(type[at - 1]));
+                const std::size_t end = at + std::strlen(from);
+                const Bool after = end == type.size() || false == std::isalnum(static_cast<unsigned char>(type[end]));
+                if (before && after)
+                {
+                    type.replace(at, std::strlen(from), to);
+                }
+            }
+        };
+        swap("K", "String");
+        swap("T", "Int");
+        swap("V", "Int");
+        return type;
+    }
+
+    struct ProjectedCall
+    {
+        std::string Name;
+        std::string Fields;
+        std::string Call;
+        std::string Result;
+        Bool Emittable = true;
+        // 결과 필드를 섞는 꼴(`InputCapture`)은 분석이 받고 생성기가 아직 내리지 못한다 - 사용자 결정 대기(DECISIONS-NEEDED Q9).
+        Bool AwaitsDecision = false;
+    };
+
+    ProjectedCall MakeProjectedCall(const ScriptCompiler::ApiCatalog& catalog, const ScriptCompiler::ApiType* owner,
+        const ScriptCompiler::ApiMember& member, std::size_t number)
+    {
+        ProjectedCall call;
+        const std::string tag = std::to_string(number);
+        call.Name = (owner != nullptr ? std::string(owner->Name.c_str()) + "." : std::string()) + member.Name.c_str();
+        call.Emittable = ScriptCompiler::CanEmitOutputProjection(member);
+        call.AwaitsDecision = false == call.Emittable && false == member.NativeReturnField.IsEmpty();
+        call.Result = Concrete(member.Type.c_str());
+        std::string receiver;
+        if (owner != nullptr)
+        {
+            const std::string ownerName = owner->Name == "Table" ? "Table<String, Int>" : owner->Name == "Array" ? "Array<Int>" : owner->Name.c_str();
+            if (owner->Kind == ScriptCompiler::ApiTypeKind::Service)
+            {
+                for (const ScriptCompiler::ApiGlobal& global : catalog.Globals)
+                {
+                    receiver = global.Type == owner->Name ? std::string(global.Name.c_str()) : receiver;
+                }
+            }
+            else if (member.IsStatic)
+            {
+                receiver = ownerName;
+            }
+            else
+            {
+                receiver = "receiver" + tag;
+                call.Fields += std::string("    ") + (owner->Kind == ScriptCompiler::ApiTypeKind::Handle ? "ref " : "") + ownerName + " " + receiver + "\n";
+            }
+            receiver += ".";
+        }
+        std::string arguments;
+        for (std::size_t index = 0; index < member.Parameters.Size(); ++index)
+        {
+            const ScriptCompiler::ParameterInfo& parameter = member.Parameters[index];
+            const std::string name = "argument" + tag + "_" + std::to_string(index);
+            call.Fields += "    " + Concrete(parameter.Type.c_str()) + " " + name + "\n";
+            arguments += (index == 0 ? "" : ", ") + std::string(parameter.Borrowed ? "ref " : "") + name;
+        }
+        call.Call = receiver + member.Name.c_str() + "(" + arguments + ")";
+        return call;
+    }
+
+    void TestEveryProjectedEngineFunctionBuildsOrIsRejected()
+    {
+        const ScriptCompiler::ApiCatalog catalog = ScriptApiCatalog2D::BuildCatalog();
+        Array<ProjectedCall> calls;
+        for (const ScriptCompiler::ApiType& type : catalog.Types)
+        {
+            for (const ScriptCompiler::ApiMember& member : type.Members)
+            {
+                if (member.HasOutputProjection)
+                {
+                    calls.Add(MakeProjectedCall(catalog, &type, member, calls.Size()));
+                }
+            }
+        }
+        for (const ScriptCompiler::ApiMember& function : catalog.Functions)
+        {
+            if (function.HasOutputProjection)
+            {
+                calls.Add(MakeProjectedCall(catalog, nullptr, function, calls.Size()));
+            }
+        }
+        std::string emittableFields;
+        std::string emittableBodies;
+        std::string rejectedFields;
+        std::string rejectedBodies;
+        Array<std::string> rejectedNames;
+        Array<UInt32> rejectedLines;
+        std::size_t emittable = 0;
+        Array<std::string> awaiting;
+        for (std::size_t index = 0; index < calls.Size(); ++index)
+        {
+            const ProjectedCall& call = calls[index];
+            const std::string number = std::to_string(index);
+            if (call.AwaitsDecision)
+            {
+                awaiting.Add(call.Name);
+                continue;
+            }
+            if (call.Emittable)
+            {
+                ++emittable;
+                emittableFields += call.Fields;
+                emittableBodies += "    fn Call" + number + "()\n    {\n        " + call.Result + " result = " + call.Call + "\n    }\n";
+                continue;
+            }
+            rejectedFields += call.Fields;
+            rejectedBodies += "    fn Call" + number + "()\n    {\n        " + call.Call + "\n    }\n";
+            rejectedNames.Add(call.Name);
+        }
+        std::cout << "  projected engine functions: " << calls.Size() << " (" << emittable << " lowered, "
+                  << rejectedNames.Size() << " rejected by the analysis, " << awaiting.Size() << " waiting for a decision)" << std::endl;
+        Check(calls.Size() >= 25 && emittable >= 15 && rejectedNames.Size() >= 1, "the catalog projects engine functions both ways");
+        // 결정 대기 목록이 늘면 이 시험이 알린다 - 새 꼴은 내리거나 거절하거나 결정 목록에 올려야 한다.
+        Check(awaiting.Size() == 2 && awaiting[0] == "InputService.CaptureBinding" && awaiting[1] == "CaptureBinding",
+            "only the two InputCapture projections wait for the user's decision");
+
+        WindowsPlatform platform;
+        {
+            const fs::path root = FreshFolder("projected");
+            fs::create_directories(root / "Contents" / "Scripts");
+            std::ofstream(root / "Contents" / "Scripts" / "Projected.jscript", std::ios::binary)
+                << "script Projected\n{\n" << emittableFields << emittableBodies << "}\n";
+            const DirectBuild build = BuildDirectly(platform, root);
+            if (build.Ran)
+            {
+                Check(build.Succeeded, "every projection the emitter lowers builds in a user script project");
+            }
+        }
+        {
+            const fs::path root = FreshFolder("projected-rejected");
+            fs::create_directories(root / "Contents" / "Scripts");
+            const std::string head = "script Rejected\n{\n" + rejectedFields;
+            std::ofstream(root / "Contents" / "Scripts" / "Rejected.jscript", std::ios::binary) << head << rejectedBodies << "}\n";
+            const DirectBuild build = BuildDirectly(platform, root);
+            if (false == build.Ran)
+            {
+                return;
+            }
+            // 호출문은 함수마다 셋째 줄이다: 머리 줄 수 + 4·i + 3.
+            const UInt32 headLines = static_cast<UInt32>(std::count(head.begin(), head.end(), '\n'));
+            std::size_t found = 0;
+            for (std::size_t index = 0; index < rejectedNames.Size(); ++index)
+            {
+                const UInt32 line = headLines + static_cast<UInt32>(4 * index) + 3;
+                Bool here = false;
+                for (const ScriptBuild::Diagnostic& diagnostic : build.Diagnostics)
+                {
+                    here = here || (diagnostic.code == "JBC3050" && diagnostic.line == line && Contains(diagnostic.file, "Rejected.jscript"));
+                }
+                if (false == here)
+                {
+                    std::cout << "  no JBC3050 for " << rejectedNames[index] << " on line " << line.Get() << std::endl;
+                }
+                found += here ? 1 : 0;
+            }
+            Bool emitterReached = false;
+            for (const ScriptBuild::Diagnostic& diagnostic : build.Diagnostics)
+            {
+                emitterReached = emitterReached || Contains(diagnostic.message, "emit");
+            }
+            Check(false == build.Succeeded && found == rejectedNames.Size() && false == emitterReached,
+                "every projection the emitter cannot lower is a JBC3050 on its call line, before the C++ emitter");
+        }
+    }
+
+    // **엔진 구현 타입은 이름만 보이고 쓸 수 없다**(D-375, ProjectRule §5). 기반 클래스와 핸들이 `Canvas`·`Object::GameObject` 를
+    // 전방 선언하므로 포인터 선언까지는 되지만, 정의가 프렐류드에 없어 크기·멤버를 쓰면 C2027 이다. 정의가 새어 들어오면 이 시험이 잡는다.
+    void TestEngineImplementationTypesCannotBeUsed()
+    {
+        WindowsPlatform platform;
+        const fs::path root = FreshFolder("incomplete");
+        const fs::path contents = root / "Contents";
+        fs::create_directories(contents / "Scripts");
+        String error;
+        Check(ScriptProject::EnsureProject(platform, Utf8(contents).c_str(), FrameworkKind::Framework2D, error), "the probe project is created");
+        struct Probe
+        {
+            const char* Name;
+            const char* Body;
+        };
+        const Probe probes[] = {
+            {"CanvasSize", "JBro::UInt64 CanvasSize() { return sizeof(JBro::Canvas); }\n"},
+            {"GameObjectSize", "JBro::UInt64 GameObjectSize() { return sizeof(JBro::Object::GameObject); }\n"},
+            {"CanvasMember", "void UseCanvas(JBro::Canvas* canvas) { canvas->Tick(0.0f); }\n"},
+            {"GameObjectMember", "void UseObject(JBro::Object::GameObject* object) { object->GetName(); }\n"},
+        };
+        for (const Probe& probe : probes)
+        {
+            const fs::path source = contents / "Scripts" / "Probe.cpp";
+            std::ofstream(source, std::ios::trunc) << "#include <JBro/ScriptAPI.h>\n" << probe.Body;
+            const DirectBuild build = BuildDirectly(platform, root);
+            if (false == build.Ran)
+            {
+                return;
+            }
+            Bool incomplete = false;
+            for (const ScriptBuild::Diagnostic& diagnostic : build.Diagnostics)
+            {
+                incomplete = incomplete || (diagnostic.code == "C2027" && Contains(diagnostic.file, "Probe.cpp"));
+            }
+            if (false == incomplete)
+            {
+                std::cout << "  probe " << probe.Name << std::endl;
+            }
+            Check(false == build.Succeeded && incomplete, "an engine implementation type is only an incomplete name in a user script (C2027)");
+        }
+        // 이름만 쓰는 포인터 선언은 지금 컴파일된다 - D-375 가 적은 한계다. 이것이 바뀌면(선언까지 숨기면) 문서도 함께 고친다.
+        std::ofstream(contents / "Scripts" / "Probe.cpp", std::ios::trunc)
+            << "#include <JBro/ScriptAPI.h>\nJBro::Bool HoldsNothing() { JBro::Canvas* canvas = nullptr; return canvas == nullptr; }\n";
+        const DirectBuild pointer = BuildDirectly(platform, root);
+        if (pointer.Ran)
+        {
+            Check(pointer.Succeeded, "a pointer to the incomplete name still compiles, as D-375 records");
+        }
+    }
+
+    void TestEveryOfferedFieldTypeBuilds()
+    {
+        BuildEveryOfferedFieldType(FrameworkKind::Framework2D, "fields2d");
+        BuildEveryOfferedFieldType(FrameworkKind::Framework3D, "fields3d");
+    }
+}
+
 Int32 RunScriptProjectTests()
 {
     TestTheScriptFilesSayWhatTheUserAskedFor();
@@ -524,6 +1003,10 @@ Int32 RunScriptProjectTests()
     TestTheEnginePropsFollowTheEngine();
     TestTheEngineIsFoundFromWhereTheEditorRuns();
     TestTheEditorCreatesAScriptAndItsProject();
+    TestA3DScriptBuildsAgainstTheScreenUi();
+    TestEveryOfferedFieldTypeBuilds();
+    TestEngineImplementationTypesCannotBeUsed();
+    TestEveryProjectedEngineFunctionBuildsOrIsRejected();
     std::cout << "Script project tests passed.\n";
     return 0;
 }

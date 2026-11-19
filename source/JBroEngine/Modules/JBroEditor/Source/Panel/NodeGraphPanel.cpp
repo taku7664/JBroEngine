@@ -384,8 +384,21 @@ namespace JBro
         }
         m_savedText = text;
         m_message.clear();
+        m_messageIsError = false;
         m_dirtyRevision = static_cast<std::uint64_t>(-1);
         UpdateTitle();
+        // **셰이더 그래프는 옆에 `.hlsl` 을 쓴다**(D-369). 머티리얼·패키지는 그 파일만 본다. 그래프 자체는 저장됐으므로 만들지 못해도 저장은 성공이고 까닭을 보인다.
+        String why;
+        if (!m_editor->RegenerateShaderFromGraph(m_asset, &why))
+        {
+            m_message = Loc::TextOr(LocKeys::NodeGraphShaderFailed, "The shader file could not be made");
+            if (!why.empty())
+            {
+                m_message.append(": ");
+                m_message.append(why.c_str());
+            }
+            m_messageIsError = true;
+        }
         return true;
     }
 
@@ -710,6 +723,12 @@ namespace JBro
         return found != nullptr && edited.SetCommentRect(comment, found->position, size) && Commit("Resize Comment", edited);
     }
 
+    Bool NodeGraphPanel::SetNodeLabel(NodeGraph::NodeId node, const String& label)
+    {
+        NodeGraph::Graph edited = m_document.graph;
+        return edited.SetLabel(node, label) && Commit("Rename Node", edited);
+    }
+
     Bool NodeGraphPanel::SetCommentTitle(NodeGraph::CommentId comment, const String& title)
     {
         NodeGraph::Graph edited = m_document.graph;
@@ -861,6 +880,7 @@ namespace JBro
             {
                 edited.SetInput(added, pin, node.inputs[pin]);
             }
+            edited.SetLabel(added, node.label);
             fromIds.Add(node.id);
             toIds.Add(added);
             pasted.Add(added);

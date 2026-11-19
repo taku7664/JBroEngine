@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
 #include <cstdint>
@@ -20,6 +21,10 @@ namespace JBro::ScriptCompiler
         UInt32 Column = 1;
     };
 
+    // 사용자에게 보이는 열(1 부터)이다 - 줄 시작부터 그 자리까지의 **글자(코드 포인트) 수 + 1**. `jbroc` 명령줄의 진단 줄이 쓴다(D-379):
+    // `$msCompile` 매처와 에디터 `빌드 결과` 는 열을 글자로 읽으므로 바이트 열을 내면 한글 뒤에서 어긋났다. `text` 는 그 자리가 든 원문 전체다.
+    UInt32 CharacterColumn(std::string_view text, const SourceLocation& at) noexcept;
+
     // [Begin, End) 다. End 는 마지막 글자의 다음 자리다.
     struct SourceRange
     {
@@ -36,9 +41,13 @@ namespace JBro::ScriptCompiler
 
         const String& GetPath() const noexcept { return m_path; }
         std::string_view GetText() const noexcept { return m_text.View(); }
+        // 줄마다 그 줄의 첫 바이트 위치다(0 번 줄은 0, BOM 은 그대로 둔다). 만들 때 한 번 센다 - 분석이 자리마다 줄·열을 만들며
+        // 파일 처음부터 줄바꿈을 세어 필드 수의 제곱으로 느렸다(D-387).
+        const Array<UInt32>& GetLineStarts() const noexcept { return m_lineStarts; }
 
     private:
         String m_path;
         String m_text;
+        Array<UInt32> m_lineStarts;
     };
 }

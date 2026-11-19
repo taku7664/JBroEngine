@@ -44,6 +44,67 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 스프라이트를 어떻게 펴 그리는가(D-351). `Simple` 은 쿼드 하나, `Sliced` 는 에셋의 테두리로 9 조각(모서리는 그대로, 변과 가운데가 늘어난다),
+    // `Tiled` 는 칸 크기로 되풀이, `Filled` 는 `fillAmount` 만큼만 `fillOrigin` 쪽에서부터 그린다(진행 막대). `Sliced`·`Tiled` 는 `size` 를 채운다.
+    enum class SpriteDrawMode : std::uint8_t { Simple, Sliced, Tiled, Filled };
+    // `Filled` 가 채우기를 시작하는 변이다.
+    enum class SpriteFillOrigin : std::uint8_t { Left, Right, Bottom, Top };
+    // 버튼이 상태를 그림에 어떻게 보이는가(D-351). `ColorTint` 는 대상 스프라이트의 `tint`, `SpriteSwap` 은 `sprite` 를 상태마다 바꾼다.
+    enum class ButtonTransition : std::uint8_t { None, ColorTint, SpriteSwap };
+    // 슬라이더의 어느 변이 0 인가(D-351).
+    enum class SliderDirection : std::uint8_t { LeftToRight, RightToLeft, BottomToTop, TopToBottom };
+    // 레이아웃이 자식을 늘어놓는 방향이다(D-352). `Grid` 는 `columns` 열로 줄을 바꾼다.
+    enum class LayoutMode : std::uint8_t { Horizontal, Vertical, Grid };
+    // 트윈이 움직이는 것(D-357). `Position`·`Scale` 은 `fromVector`·`toVector`, `Rotation`(도)·`Alpha` 는 `fromValue`·`toValue`, `Tint` 는 `fromColor`·`toColor` 다.
+    enum class TweenTarget : std::uint8_t { Position, Scale, Rotation, Tint, Alpha };
+    // 트윈이 끝에 닿으면(D-357). `Once` 는 멈추고, `Loop` 는 처음부터, `PingPong` 은 되돌아온다.
+    enum class TweenLoop : std::uint8_t { Once, Loop, PingPong };
+    // 가로세로비 맞추기가 어느 변을 따르는가(D-358). `WidthControlsHeight` 는 폭이 주인이고 높이를 `aspect` 로 센다.
+    enum class AspectMode : std::uint8_t { WidthControlsHeight, HeightControlsWidth };
+}
+
+namespace JBro
+{
+    JBRO_DEFINE_ENUM_TYPE(Component::SpriteDrawMode, "Component::SpriteDrawMode",
+        { Component::SpriteDrawMode::Simple, "Simple" },
+        { Component::SpriteDrawMode::Sliced, "Sliced" },
+        { Component::SpriteDrawMode::Tiled,  "Tiled" },
+        { Component::SpriteDrawMode::Filled, "Filled" });
+    JBRO_DEFINE_ENUM_TYPE(Component::SpriteFillOrigin, "Component::SpriteFillOrigin",
+        { Component::SpriteFillOrigin::Left,   "Left" },
+        { Component::SpriteFillOrigin::Right,  "Right" },
+        { Component::SpriteFillOrigin::Bottom, "Bottom" },
+        { Component::SpriteFillOrigin::Top,    "Top" });
+    JBRO_DEFINE_ENUM_TYPE(Component::ButtonTransition, "Component::ButtonTransition",
+        { Component::ButtonTransition::None,       "None" },
+        { Component::ButtonTransition::ColorTint,  "ColorTint" },
+        { Component::ButtonTransition::SpriteSwap, "SpriteSwap" });
+    JBRO_DEFINE_ENUM_TYPE(Component::SliderDirection, "Component::SliderDirection",
+        { Component::SliderDirection::LeftToRight, "LeftToRight" },
+        { Component::SliderDirection::RightToLeft, "RightToLeft" },
+        { Component::SliderDirection::BottomToTop, "BottomToTop" },
+        { Component::SliderDirection::TopToBottom, "TopToBottom" });
+    JBRO_DEFINE_ENUM_TYPE(Component::TweenTarget, "Component::TweenTarget",
+        { Component::TweenTarget::Position, "Position" },
+        { Component::TweenTarget::Scale,    "Scale" },
+        { Component::TweenTarget::Rotation, "Rotation" },
+        { Component::TweenTarget::Tint,     "Tint" },
+        { Component::TweenTarget::Alpha,    "Alpha" });
+    JBRO_DEFINE_ENUM_TYPE(Component::TweenLoop, "Component::TweenLoop",
+        { Component::TweenLoop::Once,     "Once" },
+        { Component::TweenLoop::Loop,     "Loop" },
+        { Component::TweenLoop::PingPong, "PingPong" });
+    JBRO_DEFINE_ENUM_TYPE(Component::AspectMode, "Component::AspectMode",
+        { Component::AspectMode::WidthControlsHeight, "WidthControlsHeight" },
+        { Component::AspectMode::HeightControlsWidth, "HeightControlsWidth" });
+    JBRO_DEFINE_ENUM_TYPE(Component::LayoutMode, "Component::LayoutMode",
+        { Component::LayoutMode::Horizontal, "Horizontal" },
+        { Component::LayoutMode::Vertical,   "Vertical" },
+        { Component::LayoutMode::Grid,       "Grid" });
+}
+
+namespace JBro::Component
+{
     enum class CameraProjection2D { Orthographic, PixelPerfect };
 }
 
@@ -54,6 +115,20 @@ namespace JBro
     JBRO_DEFINE_ENUM_TYPE(Component::CameraProjection2D, "Component::CameraProjection2D",
         { Component::CameraProjection2D::Orthographic, "Orthographic" },
         { Component::CameraProjection2D::PixelPerfect, "PixelPerfect" });
+}
+
+namespace JBro::Component
+{
+    // 후처리 볼륨의 모양이다(D-346). `Global` 은 캔버스 어디서나, `Box`·`Circle` 은 오브젝트의 트랜스폼에 놓인 모양 안이다.
+    enum class PostProcessVolumeShape2D : std::uint8_t { Global, Box, Circle };
+}
+
+namespace JBro
+{
+    JBRO_DEFINE_ENUM_TYPE(Component::PostProcessVolumeShape2D, "Component::PostProcessVolumeShape2D",
+        { Component::PostProcessVolumeShape2D::Global, "Global" },
+        { Component::PostProcessVolumeShape2D::Box,    "Box" },
+        { Component::PostProcessVolumeShape2D::Circle, "Circle" });
 }
 
 namespace JBro::Component

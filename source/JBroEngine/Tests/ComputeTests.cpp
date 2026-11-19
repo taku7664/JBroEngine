@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include "TestCases.h"
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/RHI/ConstantRing.h>
@@ -47,7 +48,7 @@ namespace Spv
 // 후처리 계획 3 단계(postprocess-plan §3)의 RHI 를 잰다 - 컴퓨트 파이프라인·읽고 쓰는 텍스처·구조화 버퍼·`Dispatch` 의 자동 배리어.
 //
 // D3D12 와 D3D11 은 돌려서 잰다. **D3D12 의 검증 레이어가 배리어를 잰다** - 쓰기 상태로 옮기지 않거나 돈 뒤 읽기 상태로 되돌리지 않으면
-// 그림이 맞아도 검증 오류다. Vulkan 도 돌려서 잰다(SPIR-V 탐침은 2026-11-17, D-352) -
+// 그림이 맞아도 검증 오류다. Vulkan 도 돌려서 잰다(SPIR-V 탐침은 2026-11-17, D-405) -
 // 레이아웃 전이와 메모리 배리어는 Vulkan 검증 레이어가 잰다.
 namespace
 {
@@ -501,7 +502,7 @@ namespace
 
     // **렌더 패스가 그린 텍스처를 바로 다음 디스패치가 읽는다**(블룸의 첫 내림). 쓰는 쪽은 `Sampled` 없는 읽고 쓰는 텍스처라 앞의
     // 디스패치 뒤로 쓰기 상태에 남는다 - 그래서 이 디스패치 앞에는 그 텍스처의 전이가 없고, 패스 끝의 "읽기 상태로" 전이 하나만이
-    // 그림과 컴퓨트 사이를 잇는다. Vulkan 은 그 전이가 컴퓨트 단계도 기다려야 한다(D-352) - 동기화 검증
+    // 그림과 컴퓨트 사이를 잇는다. Vulkan 은 그 전이가 컴퓨트 단계도 기다려야 한다(D-405) - 동기화 검증
     // (`VK_LAYER_VALIDATE_SYNC=1`)이 그 자리의 읽기-쓰기 위험을 말한다.
     template <typename TModule>
     void TestComputeReadsWhatAPassDrew()

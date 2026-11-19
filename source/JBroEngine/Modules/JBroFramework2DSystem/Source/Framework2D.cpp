@@ -1,6 +1,6 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Runtime/SystemContext.h>
-#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
+#include <JBro/ScreenUi/System/Transform2DSystem.h>
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Profiler.h>
@@ -16,11 +16,18 @@
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
 #include <JBro/Framework2DSystem/System/Light2DSystem.h>
 #include <JBro/Framework2DSystem/System/ShadowCaster2DSystem.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
-#include <JBro/Framework2DSystem/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Layout2DSystem.h>
+#include <JBro/ScreenUi/System/Tween2DSystem.h>
+#include <JBro/ScreenUi/System/Mask2DSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
-#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
+#include <JBro/ScreenUi/System/SpriteRender2DSystem.h>
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
+#include <JBro/Framework2DSystem/Rendering/PostProcessVolume2DWeight.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include "Rendering/RenderBridge2D.h"
@@ -88,6 +95,19 @@ namespace JBro
                 m_context.network->RegisterPool(m_networkBinding->transforms);
             }
             m_spriteLibrary.Initialize(context.assets, context.renderer);
+            m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
+            m_postProcess.Initialize(context.assets, context.renderer, &m_materials);
+            m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
+            m_cameraMixers.Reserve(MaxCameraMixers);
+            for (UInt32 index = 0; index < MaxCameraMixers; ++index)
+            {
+                PostProcessMixer& mixer = m_cameraMixers.Add(PostProcessMixer{});
+                mixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
+            }
+            m_volumes.Reserve(MaxVolumes);
+            m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
+            m_postProcessSystem.Bind(&m_postMixer);
+            m_materialSystem.Bind(&m_materials);
             CreateDefaultSystems();
             m_canvas->GetSystems().Initialize(*m_canvas);
         }
@@ -129,9 +149,13 @@ namespace JBro
         m_scriptBlocks[1] = MakeFramework2DServiceContextBlock(m_scriptServices);
         // 오브젝트 서비스(D-301). 공통 시스템 컨텍스트의 이 모듈 사본에 꽂는다 - DLL 은 싣는 순간 이 컨텍스트를 받아 간다.
         m_objects.Bind(m_canvas.Get(), "Component::Transform2D");
+        // 스크립트가 월드 레이어에 붙이는 위젯의 픽셀 기본값은 유닛으로 나눈다(D-355, 에디터의 D-354 와 같다).
+        m_objects.SetWorldPixelsPerUnit(DefaultPixelsPerUnit);
         {
             SystemContext systems = GetSystemContext();
             systems.Objects = &m_objects;
+            systems.PostProcess = &m_postProcessSystem;
+            systems.Material = &m_materialSystem;
             BindSystemContext(systems);
         }
         m_scriptBlockCount = 2;
@@ -150,6 +174,18 @@ namespace JBro
         {
             SystemContext systems = GetSystemContext();
             systems.Objects = nullptr;
+            BindSystemContext(systems);
+        }
+        if (GetSystemContext().PostProcess == &m_postProcessSystem)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.PostProcess = nullptr;
+            BindSystemContext(systems);
+        }
+        if (GetSystemContext().Material == &m_materialSystem)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.Material = nullptr;
             BindSystemContext(systems);
         }
         m_objects.Bind(nullptr, nullptr);
@@ -174,6 +210,8 @@ namespace JBro
         }
         const FrameTime& time = m_context.time->GetFrameTime();
         m_renderWorld.BeginFrame();
+        // 바뀐 머티리얼(본문·셰이더·텍스처)을 추출 전에 다시 짓는다(D-347). 렌더러 프레임 밖이다.
+        m_materials.Update();
         m_canvas->BeginFrame();
         {
             // 화면 기준을 갱신 전에 건다 - 트랜스폼이 이번 프레임의 앵커를 잰다(D-237).
@@ -236,6 +274,120 @@ namespace JBro
             SetSteppedSystemsEnabled(false);
         }
         m_renderWorld.EndFrame();
+        ResolveCameraTargets();
+        ResolvePostProcess();
+    }
+
+    void Framework2D::MixPostProcessFor(const RenderCamera2D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom)
+    {
+        // 카메라의 프로필이 기준이고, 카메라 자리의 볼륨을 우선순위가 낮은 것부터 섞은 뒤 스크립트의 덮어쓰기를 얹는다(D-346).
+        mixer.Begin(m_postProcess.Resolve(camera.postProcessProfile));
+        m_volumes.Clear();
+        Canvas& canvas = *m_canvas;
+        canvas.ForEach<Component::PostProcessVolume2D>([&](Component::PostProcessVolume2D& volume) {
+            if (false == volume.IsActiveComponent() || volume.postProcessProfile.generation == 0)
+            {
+                return;
+            }
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(volume);
+            const auto* transform = canvas.FindComponentRaw<Component::Transform2D>(owner);
+            const Bool placed = transform != nullptr && transform->IsActiveComponent() && transform->worldValid;
+            const Float weight = ComputePostProcessVolumeWeight2D(volume, placed ? transform : nullptr, camera.position);
+            if (weight <= 0.0f || m_volumes.Size() >= m_volumes.Capacity())
+            {
+                return;
+            }
+            m_volumes.Add({volume.priority, weight, volume.postProcessProfile});
+        });
+        // 우선순위가 같으면 캔버스의 차례 그대로다(안정 정렬). 볼륨은 몇 개뿐이라 끼워 넣기로 한다.
+        for (std::size_t at = 1; at < m_volumes.Size(); ++at)
+        {
+            const VolumeSample moving = m_volumes[at];
+            std::size_t to = at;
+            while (to > 0 && m_volumes[to - 1].priority > moving.priority)
+            {
+                m_volumes[to] = m_volumes[to - 1];
+                --to;
+            }
+            m_volumes[to] = moving;
+        }
+        for (const VolumeSample& sample : m_volumes)
+        {
+            mixer.Blend(m_postProcess.ResolveProfile(sample.profile), sample.weight);
+        }
+        if (overridesFrom != nullptr)
+        {
+            mixer.CopyOverridesFrom(*overridesFrom);
+        }
+        mixer.ApplyOverrides();
+    }
+
+    void Framework2D::ResolveCameraTargets()
+    {
+        const ArrayView<const RenderCamera2D> cameras = m_renderWorld.GetCameras();
+        for (std::size_t index = 0; index < cameras.Size(); ++index)
+        {
+            const RenderCamera2D& camera = cameras[static_cast<UInt32>(index)];
+            if (camera.renderTexture.generation == 0)
+            {
+                continue;
+            }
+            AssetHandle spriteTexture;
+            TextureHandle target;
+            Extent2D extent;
+            TextureFilter filter = TextureFilter::Linear;
+            if (m_spriteLibrary.ResolveRenderTexture(camera.renderTexture, spriteTexture, target, extent, filter))
+            {
+                m_renderWorld.SetCameraTarget(index, target, extent, spriteTexture);
+            }
+            else
+            {
+                m_renderWorld.SetCameraTarget(index, {}, {}, {});
+            }
+        }
+    }
+
+    void Framework2D::ResolvePostProcess()
+    {
+        // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다. 카메라가 없으면 후처리도 없다.
+        const RenderCamera2D* camera = m_renderWorld.GetCamera();
+        if (camera == nullptr)
+        {
+            m_renderWorld.SetPostProcess({});
+            m_renderWorld.SetCameraPostProcessCount(0);
+        }
+        else
+        {
+            MixPostProcessFor(*camera, m_postMixer, nullptr);
+            m_renderWorld.SetPostProcess(m_postMixer.GetResult());
+            // 분할 화면(D-361): 그릴 카메라마다 제 프로필과 제 자리의 볼륨으로 섞는다. 주 카메라는 위의 것이고, 자리를 넘는 카메라는 주 카메라의 것을 받는다.
+            const ArrayView<const RenderCamera2D> cameras = m_renderWorld.GetCameras();
+            const std::size_t count = cameras.Size() < m_cameraMixers.Size() ? static_cast<std::size_t>(cameras.Size()) : m_cameraMixers.Size();
+            m_renderWorld.SetCameraPostProcessCount(count);
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                const RenderCamera2D& each = cameras[static_cast<UInt32>(index)];
+                if (each.owner == camera->owner)
+                {
+                    m_renderWorld.SetCameraPostProcess(index, m_postMixer.GetResult());
+                    continue;
+                }
+                MixPostProcessFor(each, m_cameraMixers[index], &m_postMixer);
+                m_renderWorld.SetCameraPostProcess(index, m_cameraMixers[index].GetResult());
+            }
+        }
+        // 레이어의 프로필(D-345)은 차례 자리에 건다. 처음 보는 프로필만 싣는다.
+        const std::size_t layerCount = m_canvas->GetLayerCount();
+        m_renderWorld.SetLayerPostProcessCount(layerCount);
+        for (std::size_t index = 0; index < layerCount; ++index)
+        {
+            const Layer* layer = m_canvas->GetLayerAt(index);
+            if (layer == nullptr || layer->GetPostProcessProfile().IsNull())
+            {
+                continue;
+            }
+            m_renderWorld.SetLayerPostProcess(layer->GetOrder(), m_postProcess.Resolve(m_postProcess.FindOrLoad(layer->GetPostProcessProfile())));
+        }
     }
 
     void Framework2D::SetPhysicsWorkerCount(UInt32 count)
@@ -344,6 +496,7 @@ namespace JBro
             systems.FindSystem<System::Text2DSystem>(),
         };
         m_renderWorld.BeginFrame();
+        m_materials.Update();
         for (GameSystem* system : extraction)
         {
             if (system != nullptr)
@@ -352,6 +505,8 @@ namespace JBro
             }
         }
         m_renderWorld.EndFrame();
+        ResolveCameraTargets();
+        ResolvePostProcess();
     }
 
     void Framework2D::EndBreakFrames()
@@ -444,6 +599,8 @@ namespace JBro
         m_layer2DStates.Clear();
         m_canvas.Reset();
         m_spriteLibrary.Shutdown();
+        m_postProcess.Shutdown();
+        m_materials.Shutdown();
         m_renderWorld = {};
         m_context     = {};
         m_initialized = false;
@@ -548,16 +705,34 @@ namespace JBro
     {
         auto& systems = m_canvas->GetSystems();
         systems.AddSystem<System::Transform2DSystem>();
+        systems.AddSystem<System::Mask2DSystem>();
+        // 레이아웃은 에셋 크기의 스프라이트를 재는 데 스프라이트 라이브러리를 쓴다(D-355).
+        {
+            auto& layout = systems.AddSystem<System::Layout2DSystem>();
+            layout.SetSpriteLibrary(&m_spriteLibrary);
+            layout.SetHookDispatcher(&m_uiHooks);
+        }
+        // 트윈은 위젯 뒤, 레이아웃 앞이다(D-357).
+        systems.AddSystem<System::Tween2DSystem>();
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
         System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
         scripts.SetInputSystem(m_context.input);
         // 버튼은 입력 체인의 `"UI"` 레이어에 선다(D-237).
-        systems.AddSystem<System::Button2DSystem>().SetScriptSystem(&scripts);
+        {
+            auto& buttons = systems.AddSystem<System::Button2DSystem>();
+            buttons.SetInputChain(&scripts);
+            buttons.SetHookDispatcher(&m_uiHooks);
+            m_worldLayers.SetCanvas(m_canvas.Get());
+            buttons.SetWorldLayerMapper(&m_worldLayers);
+            // 글자 칸의 IME 조합 창과 클립보드는 호스트의 것이다(D-355). 없으면(시험) 조합 창을 옮기지 않고 클립보드가 비어 있다.
+            buttons.SetTextInputHost(m_context.textInput);
+        }
         systems.AddSystem<System::Physics2DSystem>();
         systems.AddSystem<System::Camera2DSystem>().SetRenderWorld(&m_renderWorld);
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();
         sprites.SetRenderWorld(&m_renderWorld);
         sprites.SetSpriteLibrary(&m_spriteLibrary);
+        sprites.SetMaterialLibrary(&m_materials);
         // 라이트도 스프라이트와 같은 차례에 담는다(D-291).
         systems.AddSystem<System::Light2DSystem>().SetRenderWorld(&m_renderWorld);
         // 그림자 변은 스프라이트 크기가 풀린 뒤에 담는다(D-291 3 단계).

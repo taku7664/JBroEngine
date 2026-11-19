@@ -1,0 +1,15 @@
+﻿// 문자열 리터럴끼리의 연산(D-386). 전에는 생성 C++ 에서 원시 리터럴 둘이 되어 `"a" + "b"` 는 C2110 이었고,
+// `==` 는 내용이 아니라 주소를 비교했다. 게임 DLL 에서 실제로 값을 본다.
+class StringLiteralModel
+{
+    public static fn Joined() -> String
+    {
+        return "a" + "b" + "c"
+    }
+
+    public static fn SameText() -> Bool
+    {
+        String built = "a" + "b"
+        return "ab" == built and "x" != "y" and "same" == "same"
+    }
+}

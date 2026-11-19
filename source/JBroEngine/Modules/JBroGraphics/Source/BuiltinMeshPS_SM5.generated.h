@@ -64,8 +64,8 @@
 // NORMAL                   0   xyz         1     NONE   float   xyz 
 // COLOR                    0   xyzw        2     NONE   float   xyzw
 // TEXCOORD                 0   xy          3     NONE   float   xy  
-// TANGENT                  0   xyzw        4     NONE   float   xyzw
-// TEXCOORD                 1   xyz         5     NONE   float   xyz 
+// TEXCOORD                 1   xyz         4     NONE   float   xyz 
+// TANGENT                  0   xyzw        5     NONE   float   xyzw
 //
 //
 // Output signature:
@@ -88,8 +88,8 @@ dcl_resource_texture2d (float,float,float,float) t4
 dcl_input_ps linear v1.xyz
 dcl_input_ps linear v2.xyzw
 dcl_input_ps linear v3.xy
-dcl_input_ps linear v4.xyzw
-dcl_input_ps linear v5.xyz
+dcl_input_ps linear v4.xyz
+dcl_input_ps linear v5.xyzw
 dcl_output o0.xyzw
 dcl_temps 12
 sample_indexable(texture2d)(float,float,float,float) r0.xyzw, v3.xyxx, t0.xyzw, s0
@@ -111,14 +111,14 @@ mul r3.xyz, r2.zzzz, v1.xyzx
 mul r2.z, cb0[4].w, cb1[2].z
 ge r2.z, r2.z, l(0.500000)
 if_nz r2.z
-  dp3 r2.z, r3.xyzx, v4.xyzx
-  mad r4.xyz, -r3.xyzx, r2.zzzz, v4.xyzx
+  dp3 r2.z, r3.xyzx, v5.xyzx
+  mad r4.xyz, -r3.xyzx, r2.zzzz, v5.xyzx
   dp3 r2.z, r4.xyzx, r4.xyzx
   rsq r2.z, r2.z
   mul r4.xyz, r2.zzzz, r4.xyzx
   mul r5.xyz, r3.zxyz, r4.yzxy
   mad r5.xyz, r3.yzxy, r4.zxyz, -r5.xyzx
-  mul r5.xyz, r5.xyzx, v4.wwww
+  mul r5.xyz, r5.xyzx, v5.wwww
   sample_indexable(texture2d)(float,float,float,float) r6.xyz, v3.xyxx, t3.xyzw, s0
   mad r6.xyz, r6.xyzx, l(2.000000, 2.000000, 2.000000, 0.000000), l(-1.000000, -1.000000, -1.000000, 0.000000)
   mul r5.xyz, r5.xyzx, r6.yyyy
@@ -128,7 +128,7 @@ if_nz r2.z
   rsq r2.z, r2.z
   mul r3.xyz, r2.zzzz, r4.xyzx
 endif 
-add r4.xyz, -v5.xyzx, cb0[4].xyzx
+add r4.xyz, -v4.xyzx, cb0[4].xyzx
 dp3 r2.z, r4.xyzx, r4.xyzx
 rsq r2.z, r2.z
 mul r5.xyz, r2.zzzz, r4.xyzx
@@ -156,7 +156,7 @@ loop
   uge r6.w, r6.z, r6.x
   breakc_nz r6.w
   ishl r6.w, r6.z, l(2)
-  add r10.xyz, -v5.xyzx, cb2[r6.w + 1].xyzx
+  add r10.xyz, -v4.xyzx, cb2[r6.w + 1].xyzx
   dp3 r7.w, r10.xyzx, r10.xyzx
   max r7.w, r7.w, l(0.000100)
   rsq r9.w, r7.w
@@ -230,10 +230,10 @@ ret
 
 const BYTE JBroBuiltinMeshPS_SM5[] =
 {
-     68,  88,  66,  67, 156,  60, 
-    113,  13, 156,  72,  43,  54, 
-     90, 225,  89, 121, 205, 244, 
-    192, 199,   1,   0,   0,   0, 
+     68,  88,  66,  67, 141,  20, 
+    254,  55, 225, 230,  50,  85, 
+     91,  75, 180,  43, 208, 163, 
+    252,  61,   1,   0,   0,   0, 
     220,  23,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
      24,   5,   0,   0, 228,   5, 
@@ -466,14 +466,14 @@ const BYTE JBroBuiltinMeshPS_SM5[] =
       0,   0,   0,   0,   0,   0, 
       3,   0,   0,   0,   3,   0, 
       0,   0,   3,   3,   0,   0, 
-    186,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      3,   0,   0,   0,   4,   0, 
-      0,   0,  15,  15,   0,   0, 
     177,   0,   0,   0,   1,   0, 
       0,   0,   0,   0,   0,   0, 
-      3,   0,   0,   0,   5,   0, 
+      3,   0,   0,   0,   4,   0, 
       0,   0,   7,   7,   0,   0, 
+    186,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      3,   0,   0,   0,   5,   0, 
+      0,   0,  15,  15,   0,   0, 
      83,  86,  95,  80,  79,  83, 
      73,  84,  73,  79,  78,   0, 
      78,  79,  82,  77,  65,  76, 
@@ -523,9 +523,9 @@ const BYTE JBroBuiltinMeshPS_SM5[] =
       2,   0,   0,   0,  98,  16, 
       0,   3,  50,  16,  16,   0, 
       3,   0,   0,   0,  98,  16, 
-      0,   3, 242,  16,  16,   0, 
-      4,   0,   0,   0,  98,  16, 
       0,   3, 114,  16,  16,   0, 
+      4,   0,   0,   0,  98,  16, 
+      0,   3, 242,  16,  16,   0, 
       5,   0,   0,   0, 101,   0, 
       0,   3, 242,  32,  16,   0, 
       0,   0,   0,   0, 104,   0, 
@@ -626,14 +626,14 @@ const BYTE JBroBuiltinMeshPS_SM5[] =
       0,   7,  66,   0,  16,   0, 
       2,   0,   0,   0,  70,   2, 
      16,   0,   3,   0,   0,   0, 
-     70,  18,  16,   0,   4,   0, 
+     70,  18,  16,   0,   5,   0, 
       0,   0,  50,   0,   0,  10, 
     114,   0,  16,   0,   4,   0, 
       0,   0,  70,   2,  16, 128, 
      65,   0,   0,   0,   3,   0, 
       0,   0, 166,  10,  16,   0, 
       2,   0,   0,   0,  70,  18, 
-     16,   0,   4,   0,   0,   0, 
+     16,   0,   5,   0,   0,   0, 
      16,   0,   0,   7,  66,   0, 
      16,   0,   2,   0,   0,   0, 
      70,   2,  16,   0,   4,   0, 
@@ -662,7 +662,7 @@ const BYTE JBroBuiltinMeshPS_SM5[] =
      16,   0,   5,   0,   0,   0, 
      70,   2,  16,   0,   5,   0, 
       0,   0, 246,  31,  16,   0, 
-      4,   0,   0,   0,  69,   0, 
+      5,   0,   0,   0,  69,   0, 
       0, 139, 194,   0,   0, 128, 
      67,  85,  21,   0, 114,   0, 
      16,   0,   6,   0,   0,   0, 
@@ -713,7 +713,7 @@ const BYTE JBroBuiltinMeshPS_SM5[] =
       0,   0,   0,   9, 114,   0, 
      16,   0,   4,   0,   0,   0, 
      70,  18,  16, 128,  65,   0, 
-      0,   0,   5,   0,   0,   0, 
+      0,   0,   4,   0,   0,   0, 
      70, 130,  32,   0,   0,   0, 
       0,   0,   4,   0,   0,   0, 
      16,   0,   0,   7,  66,   0, 
@@ -849,7 +849,7 @@ const BYTE JBroBuiltinMeshPS_SM5[] =
       0,   0,   0,  11, 114,   0, 
      16,   0,  10,   0,   0,   0, 
      70,  18,  16, 128,  65,   0, 
-      0,   0,   5,   0,   0,   0, 
+      0,   0,   4,   0,   0,   0, 
      70, 130,  32,   6,   2,   0, 
       0,   0,   1,   0,   0,   0, 
      58,   0,  16,   0,   6,   0, 

@@ -31,6 +31,7 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
+#include <JBro/Types/String.h>
 
 // 공용 위젯 계층이다(ProjectRule §11.1).
 //
@@ -130,6 +131,48 @@ namespace
     };
 
     // **스코프는 되돌아 나가도 스택을 되돌린다.** 그것이 존재 이유다.
+    void TestPlainListsClipRowsWithoutOwningTheirStorage()
+    {
+        Stage stage;
+        JBro::Int32 drawn = 0;
+        JBro::Int32 mutations = 0;
+        const auto frame = [&](JBro::UInt32 flags) {
+            drawn = 0;
+            stage.Begin();
+            JBro::Widget::ListVirtual("plain", 100, [&](JBro::Int32) -> JBro::Bool {
+                ++drawn;
+                JBro::Widget::Text("Wrapped conversation row");
+                ImGui::Dummy(ImVec2(1.0f, 70.0f));
+                return false;
+            }, [&] { ++mutations; }, [&](JBro::Int32) { ++mutations; }, [&](JBro::Int32, JBro::Int32) { ++mutations; }, flags);
+            stage.End();
+            Check(stage.IdStackDepth() == 1, "plain list restores the caller's ID stack");
+        };
+        frame(JBro::Widget::ListFlagsPlain);
+        Check(drawn == 100, "unclipped pass measures variable row heights");
+        frame(JBro::Widget::ListFlagsPlain | JBro::Widget::ListFlagsClipRows);
+        // The first scrollbar changes available width and requires one measurement pass.
+        frame(JBro::Widget::ListFlagsPlain | JBro::Widget::ListFlagsClipRows);
+        Check(drawn > 0 && drawn < 10 && mutations == 0, "only visible rows render; a list view never mutates caller storage");
+    }
+    void TestIconActionButtonsReportGuideAvailability()
+    {
+        Stage stage;
+        JBro::EditorGuideFocus focus;
+        JBro::GuideFocusPath path;
+        const auto target = JBro::GuideFocusTargets::Action("test.icon.action");
+        Check(path.Push(target) && focus.Begin(path), "guide targets the icon action button");
+        JBro::Widget::SetGuideFocus(&focus);
+        stage.Begin();
+        focus.BeginFrame();
+        JBro::Widget::SetNextItemTarget(target);
+        JBro::Widget::ActionButton("Disabled icon action", JBro::Widget::Severity::Success, false, "fixture reason", {}, JBro::Icons::Play);
+        Check(focus.IsCurrentDisabled() && std::strcmp(focus.GetDisabledReason(), "fixture reason") == 0,
+            "adding an icon preserves disabled guide state and its reason");
+        stage.End();
+        JBro::Widget::SetGuideFocus(nullptr);
+    }
+
     void TestScopesUnwindThemselves()
     {
         Stage stage;
@@ -538,6 +581,125 @@ namespace
 
     // 글자 칸은 `String` 과 ImGui 버퍼 사이를 옮긴다. 아무도 만지지 않으면
     // 값이 그대로여야 한다 - 프레임마다 다시 써 넣으면 되돌리기가 매 프레임 쌓인다.
+    void TestABoundedMultilineFieldKeepsItsActionsReachable()
+    {
+        Stage stage;
+        stage.Begin();
+        JBro::String text;
+        for (JBro::UInt32 i = 0; i < 100; ++i)
+        {
+            text += "line\n";
+        }
+        const JBro::String before = text;
+        JBro::Widget::TextField("##bounded", text).Multiline(true, 4.0f).MaxVisibleLines(4.0f)();
+        const JBro::Float height = ImGui::GetItemRectSize().y;
+        Check(height <= ImGui::GetTextLineHeight() * 4.0f + ImGui::GetStyle().FramePadding.y * 2.0f + 1.0f,
+            "long input scrolls inside its bounded field instead of displacing later actions");
+        Check(text == before, "limiting visible lines never truncates input");
+        JBro::Widget::TextField("##bounded.fixed", text).MaxLength(4096).Multiline(true, 10.0f).MaxVisibleLines(4.0f)();
+        Check(ImGui::GetItemRectSize().y <= ImGui::GetTextLineHeight() * 4.0f + ImGui::GetStyle().FramePadding.y * 2.0f + 1.0f,
+            "the same visible-line limit applies to fixed-capacity fields");
+        Check(text == before, "a fixed field also retains the complete value");
+        JBro::Widget::TextField("##unchanged.fixed", text).MaxLength(4096).Multiline(true, 10.0f)();
+        Check(ImGui::GetItemRectSize().y >= ImGui::GetTextLineHeight() * 10.0f - 1.0f,
+            "fields that do not opt into a limit retain their existing height");
+        stage.End();
+    }
+
+    void TestWrappedInputReflowsWithoutChangingItsText()
+    {
+        Stage stage;
+        JBro::String text;
+        for (JBro::UInt32 i = 0; i < 30; ++i)
+        {
+            text += "한글문장과LongUnbrokenIdentifier0123456789 ";
+        }
+        const JBro::String before = text;
+        for (JBro::UInt32 frame = 0; frame < 3; ++frame)
+        {
+            stage.Begin();
+            JBro::Widget::TextField field("##wrapped", text);
+            field.Multiline(true, 2.0f).WordWrap().MaxVisibleLines(8.0f).Width(150.0f);
+            Check(field.GetMultilineHeight(150.0f) > field.GetMultilineHeight(3000.0f),
+                "soft-wrapped lines grow a narrow field even without newline characters");
+            field();
+            Check(ImGui::GetItemRectSize().y <= ImGui::GetTextLineHeight() * 8.0f + ImGui::GetStyle().FramePadding.y * 2.0f + 1.0f,
+                "wrapped input stops growing at its visible-line limit");
+            stage.End();
+        }
+        auto* parent = ImGui::FindWindowByName("Stage");
+        ImGuiWindow* input = nullptr;
+        for (auto* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->ParentWindow == parent && window->ChildId == parent->GetID("##wrapped"))
+            {
+                input = window;
+            }
+        }
+        Check(input != nullptr && input->ScrollMax.x < 1.0f && input->ScrollMax.y > 0.0f,
+            "long text actually wraps and scrolls vertically instead of extending horizontally");
+        Check(text == before, "visual wrapping never inserts newlines into the user's text");
+    }
+
+    void TestMultilineEnterSubmissionIsOptIn()
+    {
+        for (const JBro::UInt32 capacity : {JBro::UInt32(0), JBro::UInt32(512)})
+        {
+            Stage stage;
+            JBro::String text;
+            JBro::Bool submitOnEnter = true;
+            ImRect rect;
+            const auto frame = [&]() {
+                stage.Begin();
+                const JBro::Bool submitted = JBro::Widget::TextField("##submit", text)
+                    .Multiline().MaxLength(capacity.Value).CommitOnEnter(submitOnEnter).LiveText()();
+                rect = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+                stage.End();
+                return submitted;
+            };
+            frame();
+            frame();
+            auto& io = ImGui::GetIO();
+            const auto focus = [&]() {
+                io.AddMousePosEvent(rect.GetCenter().x, rect.GetCenter().y);
+                frame();
+                io.AddMouseButtonEvent(0, true);
+                frame();
+                io.AddMouseButtonEvent(0, false);
+                frame();
+            };
+            focus();
+            io.AddInputCharactersUTF8("first");
+            Check(!frame() && text == "first", "typing updates live text without submitting");
+            io.AddKeyEvent(ImGuiMod_Shift, true);
+            io.AddKeyEvent(ImGuiKey_Enter, true);
+            Check(!frame() && text == "first\n", "Shift Enter inserts a newline without submitting");
+            io.AddKeyEvent(ImGuiKey_Enter, false);
+            io.AddKeyEvent(ImGuiMod_Shift, false);
+            frame();
+            io.AddInputCharactersUTF8("second");
+            Check(!frame() && text == "first\nsecond", "typing after a newline still does not submit");
+            io.AddKeyEvent(ImGuiKey_Enter, true);
+            Check(frame() && text == "first\nsecond", "Enter submits without appending a newline");
+            Check(!frame(), "a held Enter does not submit the inactive field again");
+            io.AddKeyEvent(ImGuiKey_Enter, false);
+            frame();
+            focus();
+            io.AddKeyEvent(ImGuiKey_KeypadEnter, true);
+            Check(frame() && text == "first\nsecond", "keypad Enter also submits without changing text");
+            io.AddKeyEvent(ImGuiKey_KeypadEnter, false);
+            frame();
+            submitOnEnter = false;
+            focus();
+            io.AddKeyEvent(ImGuiKey_Enter, true);
+            frame();
+            Check(text.find('\n', text.find('\n') + 1) != JBro::String::npos,
+                "ordinary multiline fields retain Enter newline behavior");
+            io.AddKeyEvent(ImGuiKey_Enter, false);
+            frame();
+        }
+    }
+
     void TestTheTextFieldLeavesUntouchedValuesAlone()
     {
         Stage stage;
@@ -580,8 +742,11 @@ namespace
         ImVec2 triggerMin;
         ImVec2 triggerMax;
         JBro::Bool triggerKnown = false;
+        JBro::Float requiredPopupWidth = 0.0f;
         const auto frame = [&]() {
             stage.Begin();
+            const auto& style = ImGui::GetStyle();
+            requiredPopupWidth = ImGui::CalcTextSize(items[1]).x + style.FramePadding.x * 4.0f + style.ScrollbarSize;
             const JBro::Bool changed = JBro::Widget::FilterCombo("##probe", items, current)
                 .EmptyText("(none)")
                 .Width(200.0f)
@@ -636,6 +801,17 @@ namespace
         Check(triggerMax.x - triggerMin.x > 100.0f, "the trigger must have the width it was given");
 
         open();
+        const JBro::Float priorScale = ImGui::GetStyle().FontScaleMain;
+        ImGui::GetStyle().FontScaleMain = priorScale.Value * 2.0f;
+        frame();
+        frame();
+        frame();
+        Check(FindComboPopup()->Size.x >= requiredPopupWidth - 1.0f,
+            "an open filtered list remeasures its longest name after a font scale change");
+        ImGui::GetStyle().FontScaleMain = priorScale.Value;
+        frame();
+        frame();
+        frame();
         type("rig");
         pressEnter();
         Check(current == 2, "typing 'rig' and Enter must pick Rigidbody2D");
@@ -670,6 +846,63 @@ namespace
         type("trans");
         pressEnter();
         Check(current == 0 && changedFrames == 2, "picking the current item again is not a change");
+    }
+
+    void TestFilterComboEmptyResultsFitAndWrapAtTheScreenEdge()
+    {
+        Stage stage;
+        const char* const items[] = { "A" };
+        const char* message = "No matching items are available for this search.";
+        JBro::Int32 current = 0;
+        JBro::Bool edge = false;
+        JBro::Float messageWidth = 0.0f;
+        ImRect trigger;
+        const auto frame = [&]() {
+            ImGui::NewFrame();
+            ImGui::SetNextWindowPos(ImVec2(edge ? 650.0f : 40.0f, 30.0f), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(400.0f, 300.0f));
+            ImGui::Begin("Stage");
+            messageWidth = ImGui::CalcTextSize(message).x;
+            JBro::Widget::FilterCombo("##empty_results", items, current)
+                .NoItemsText(message).Width(70.0f).Draw();
+            trigger = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            stage.End();
+        };
+        stage.Settle();
+        frame();
+        frame();
+        auto& io = ImGui::GetIO();
+        io.AddMousePosEvent(trigger.GetCenter().x, trigger.GetCenter().y);
+        frame();
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        frame();
+        io.AddInputCharactersUTF8("zzz");
+        frame();
+        frame();
+        frame();
+        auto* popup = FindComboPopup();
+        Check(popup != nullptr, "a search without matches keeps its popup open");
+        Check(popup->WorkRect.GetWidth() >= messageWidth,
+            "a narrow selector reserves enough popup width for its empty result message");
+        const JBro::Float singleLineHeight = popup->ContentSize.y;
+        edge = true;
+        for (JBro::UInt32 i = 0; i < 5; ++i)
+        {
+            frame();
+        }
+        popup = FindComboPopup();
+        Check(popup != nullptr, "moving the selector to the screen edge keeps its search popup open");
+        const JBro::String widthFailure = JBro::String("screen edge should constrain the popup: content=")
+            + std::to_string(popup->WorkRect.GetWidth()) + ", message=" + std::to_string(messageWidth.Value)
+            + ", trigger=" + std::to_string(trigger.Min.x) + ", viewport=" + std::to_string(ImGui::GetMainViewport()->WorkSize.x);
+        Check(popup->WorkRect.GetWidth() < messageWidth, widthFailure.c_str());
+        Check(popup->ContentSize.y > singleLineHeight && popup->ContentSize.x <= popup->WorkRect.GetWidth() + 1.0f,
+            "the empty message wraps vertically instead of clipping or overflowing horizontally");
+        Check(current == 0, "an empty search never replaces the selected value");
     }
 
     // **갈래로 묶고, 못 고르는 것은 회색으로 둔다**(D-180, 기존 컴포넌트 갈래 메뉴).
@@ -1532,6 +1765,48 @@ namespace
         Check(value == 9 && changedFrames == before, "a click on the middle of the field is not an arrow");
     }
 
+    // **좁은 색 칸은 채널을 접는다**(D-348). 넓으면 R·G·B·A 네 칸, 넷이 들어가지 않으면 16 진수 한 칸, 그것도 들어가지 않으면 견본만이다.
+    // 칸의 왼쪽 끝을 가리켜 그 자리에 선 것이 무엇인지 본다 - 네 칸이면 첫 채널, 16 진수면 글자 칸, 견본뿐이면 견본이다.
+    void TestANarrowColorFieldFoldsItsChannels()
+    {
+        Stage stage;
+        JBro::EditorTheme::ApplyLayout();
+        ImGuiIO& io = ImGui::GetIO();
+        JBro::Float rgba[4] = {1.0f, 0.5f, 0.25f, 1.0f};
+        const auto hoveredPart = [&](JBro::Float width) {
+            ImVec2 fieldMin;
+            ImGuiID hovered = 0;
+            ImGuiID channel = 0;
+            ImGuiID hex = 0;
+            ImGuiID swatch = 0;
+            JBro::Float fieldWidth = 0.0f;
+            const auto frame = [&]() {
+                stage.Begin();
+                ImGui::SetNextItemWidth(width);
+                JBro::Widget::ColorField("##tint", rgba);
+                fieldMin = ImGui::GetItemRectMin();
+                fieldWidth = ImGui::GetItemRectMax().x - fieldMin.x;
+                hovered = ImGui::GetHoveredID();
+                ImGui::PushID("##tint");
+                channel = ImGui::GetID("##X");
+                hex = ImGui::GetID("##Text");
+                swatch = ImGui::GetID("##ColorButton");
+                ImGui::PopID();
+                stage.End();
+            };
+            stage.Settle();
+            frame();
+            io.AddMousePosEvent(fieldMin.x + 3.0f, fieldMin.y + ImGui::GetFrameHeight() * 0.5f);
+            frame();
+            frame();
+            Check(fieldWidth <= width + 1.0f, "the colour field keeps to the width it is given");
+            return hovered == channel ? 4 : hovered == hex ? 1 : hovered == swatch ? 0 : -1;
+        };
+        Check(hoveredPart(320.0f) == 4, "a wide colour field shows the four channels");
+        Check(hoveredPart(130.0f) == 1, "a narrow colour field folds the channels into one hex field");
+        Check(hoveredPart(60.0f) == 0, "a very narrow colour field keeps only the swatch");
+    }
+
     // **실수·부호 없는 정수·64 비트 칸도 같은 ▲▼ 다**(D-290). 실수는 `Step` 만큼, 부호 없는 값은 0 아래로 감기지 않고,
     // 64 비트 정수는 32 비트를 넘는 값도 그대로 한 칸씩 움직인다. 슬라이더도 엔진 타입을 바로 잡는다.
     void TestEveryNumberTypeSpinsTheSameWay()
@@ -1687,6 +1962,8 @@ JBro::Int32 RunEditorWidgetTests()
 {
     JBRO_CASE(TestTheGuideScrollsAHalfHiddenTargetIntoView());
     JBRO_CASE(TestScopesUnwindThemselves());
+    JBRO_CASE(TestPlainListsClipRowsWithoutOwningTheirStorage());
+    JBRO_CASE(TestIconActionButtonsReportGuideAvailability());
     JBRO_CASE(TestTheFormLayoutOpensAndClosesCleanly());
     JBRO_CASE(TestTheListAsksItsCallbacksForEverything());
     JBRO_CASE(TestAListRowIsAsTallAsWhatItDraws());
@@ -1697,7 +1974,11 @@ JBro::Int32 RunEditorWidgetTests()
     JBRO_CASE(TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind());
     JBRO_CASE(TestTheTreeHandsBackItsRowAndContent());
     JBRO_CASE(TestTheTextFieldLeavesUntouchedValuesAlone());
+    JBRO_CASE(TestABoundedMultilineFieldKeepsItsActionsReachable());
+    JBRO_CASE(TestWrappedInputReflowsWithoutChangingItsText());
+    JBRO_CASE(TestMultilineEnterSubmissionIsOptIn());
     JBRO_CASE(TestTheFilterComboPicksByTypingAndEnter());
+    JBRO_CASE(TestFilterComboEmptyResultsFitAndWrapAtTheScreenEdge());
     JBRO_CASE(TestTheFilterComboGroupsItemsAndSkipsTheDisabled());
     JBRO_CASE(TestAnEmptyFilterComboDrawsAndChangesNothing());
     JBRO_CASE(TestTheLayerMaskFieldTogglesNamedBits());
@@ -1709,6 +1990,7 @@ JBro::Int32 RunEditorWidgetTests()
     JBRO_CASE(TestSeverityColoursDiffer());
     JBRO_CASE(TestATooltipWaitsForTheMouseToRest());
     JBRO_CASE(TestTheNumberFieldSpinsWithStackedArrowsInsideIt());
+    JBRO_CASE(TestANarrowColorFieldFoldsItsChannels());
     JBRO_CASE(TestEveryNumberTypeSpinsTheSameWay());
     std::cout << "Editor widget tests passed.\n";
     return 0;

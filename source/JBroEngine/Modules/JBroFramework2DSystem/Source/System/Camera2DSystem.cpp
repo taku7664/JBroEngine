@@ -66,6 +66,16 @@ namespace JBro::System
         {
             m_renderWorld->SetCamera(camera);
         }
+        // 그릴 카메라 모두(D-359). 주 카메라와 같은 셈으로 채우고, `depth` 차례로 든다.
+        m_renderWorld->ClearCameras();
+        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& each)
+        {
+            RenderCamera2D item;
+            if (FillCamera(canvas, each, item))
+            {
+                m_renderWorld->AddCamera(item);
+            }
+        });
         m_renderWorld->SetUnusableCameraCount(unusable);
         if (unusable > m_warnedUnusable)
         {
@@ -74,6 +84,58 @@ namespace JBro::System
                 unusable);
         }
         m_warnedUnusable = unusable;
+    }
+
+    Bool Camera2DSystem::FillCamera(Canvas& canvas, Component::Camera2D& camera, RenderCamera2D& item)
+    {
+        if (false == camera.IsActiveComponent())
+        {
+            return false;
+        }
+        Object::GameObject* owner = Internal::CanvasAccess::GetOwner(camera);
+        const auto* world = canvas.FindComponentRaw<Component::Transform2D>(owner);
+        if (world == nullptr || false == world->IsActiveComponent() || false == world->worldValid || false == TryInvert(world->world, item.view))
+        {
+            return false;
+        }
+        item.owner = owner;
+        item.orthographicSize = camera.orthographicSize;
+        item.pixelsPerUnit = camera.pixelsPerUnit;
+        item.projection = camera.projection;
+        item.nearPlane = camera.nearPlane;
+        item.farPlane = camera.farPlane;
+        item.clearColor = camera.clearColor;
+        item.postProcessProfile = camera.postProcessProfile;
+        item.position = world->worldPosition;
+        item.viewportOrigin = camera.viewportOrigin;
+        item.viewportSize = camera.viewportSize;
+        item.depth = camera.depth;
+        item.clearViewport = camera.clearViewport;
+        item.renderTexture = camera.renderTexture;
+        return IsDrawableCamera2D(item) && HasDrawableViewport(item);
+    }
+
+    Bool Camera2DSystem::SelectCameraAt(Canvas& canvas, const ScreenSpaceFrame& frame, Float pixelX, Float pixelY, RenderCamera2D& result)
+    {
+        Bool found = false;
+        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& each)
+        {
+            RenderCamera2D item;
+            // 렌더 텍스처에 그리는 카메라는 화면에 없다 - 포인터의 카메라가 아니다(D-362).
+            if (false == FillCamera(canvas, each, item) || item.renderTexture.generation != 0 || (found && item.depth <= result.depth))
+            {
+                return;
+            }
+            ScreenSpaceFrame own = frame;
+            ApplyCameraViewport(item, own);
+            ScreenArea area;
+            if (GetScreenArea(own, area) && pixelX >= area.x && pixelX < area.x + area.width && pixelY >= area.y && pixelY < area.y + area.height)
+            {
+                result = item;
+                found = true;
+            }
+        });
+        return found || SelectCamera(canvas, result);
     }
 
     Bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result, UInt32* unusable)
@@ -111,13 +173,25 @@ namespace JBro::System
             item.nearPlane = camera.nearPlane;
             item.farPlane = camera.farPlane;
             item.clearColor = camera.clearColor;
-            // 그릴 수 없는 값이면 고르지 않는다(D-239). 그 전에는 뽑힌 뒤 렌더 브리지가 거절해 프레임이 실패했고, 에디터가 꺼졌다.
-            if (false == IsDrawableCamera2D(item))
+            item.postProcessProfile = camera.postProcessProfile;
+            item.position = world->worldPosition;
+            item.viewportOrigin = camera.viewportOrigin;
+            item.viewportSize = camera.viewportSize;
+            item.depth = camera.depth;
+            item.clearViewport = camera.clearViewport;
+            item.renderTexture = camera.renderTexture;
+            // 그릴 수 없는 값이면 고르지 않는다(D-239). 그 전에는 뽑힌 뒤 렌더 브리지가 거절해 프레임이 실패했고, 에디터가 꺼졌다. 빈 뷰포트도 같다(D-359).
+            if (false == IsDrawableCamera2D(item) || false == HasDrawableViewport(item))
             {
                 if (unusable != nullptr)
                 {
                     ++*unusable;
                 }
+                return;
+            }
+            // 렌더 텍스처에 그리는 카메라는 화면의 주 카메라가 아니다(D-362).
+            if (camera.renderTexture.generation != 0)
+            {
                 return;
             }
             if (camera.primary)

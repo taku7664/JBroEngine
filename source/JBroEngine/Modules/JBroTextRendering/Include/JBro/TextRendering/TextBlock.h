@@ -102,6 +102,14 @@ namespace JBro
         Float GetFittedSize() const;
         // 블록 사각형(글자 픽셀, 정렬 기준점 원점, y 위쪽)이다. 레이아웃이 없으면 거짓이다.
         Bool GetBounds(Float& minX, Float& minY, Float& maxX, Float& maxY) const;
+        // UTF-8 바이트 위치 앞의 커서 자리(글자 픽셀, 정렬 기준점 원점)다(D-354). 세로는 그 줄의 가운데다.
+        Bool GetCaret(UInt32 byteOffset, Float& x, Float& y) const;
+        // 줄 높이까지 준다(D-355).
+        Bool GetCaret(UInt32 byteOffset, Float& x, Float& y, Float& lineHeight) const;
+        // 자리(레이아웃 픽셀) → 커서의 바이트 위치다(D-355). 레이아웃이 없으면 거짓이다.
+        Bool HitCaret(Float x, Float y, UInt32& byteOffset) const;
+        // 바이트 구간의 줄마다 사각형(글자 픽셀)이다(D-362). 레이아웃이 없으면 0 이다.
+        UInt32 GetRangeRects(UInt32 begin, UInt32 end, Text::RangeRect* out, UInt32 capacity) const;
 
         static UInt64 MakeOptionsKey(const TextBlockSettings& settings);
 

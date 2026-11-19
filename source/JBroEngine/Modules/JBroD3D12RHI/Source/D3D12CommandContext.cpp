@@ -367,7 +367,138 @@ namespace JBro::Internal
             m_commandList->ResourceBarrier(barrierCount, barriers);
         }
         m_commandList->CopyResource(to.resource, from.resource);
+        // **셰이더가 읽을 수 있는 것은 읽기 상태로 돌려 둔다** - "패스 밖의 텍스처는 늘 읽기 상태" 이고 `CopyTexture` 의 계약도 다음 패스가
+        // 곧바로 읽는 것이다. 렌더 패스 안에서는 배리어를 걸 수 없어, 복사 상태로 남기면 다음 패스의 읽기가 `COPY_DEST` 를 읽는다
+        // (GPU 검증 942, 렌더 그래프 시험이 찾았다 - 레이어의 아래 그림 사본이 이 길이다). Vulkan 은 같은 자리에서 돌려 왔다.
+        barrierCount = 0;
+        if (from.sampled)
+        {
+            transition(from, ShaderReadState);
+        }
+        if (to.sampled)
+        {
+            transition(to, ShaderReadState);
+        }
+        if (barrierCount != 0)
+        {
+            m_commandList->ResourceBarrier(barrierCount, barriers);
+        }
         return true;
+    }
+
+    Bool D3D12CommandContext::Barrier(JArrayView<TextureBarrier> barriers)
+    {
+        if (m_device == nullptr || m_commandList == nullptr || m_renderPassActive || (barriers.size != 0 && barriers.data == nullptr))
+        {
+            return false;
+        }
+        // 다 맞는지 먼저 본다. 하나라도 틀리면 아무것도 기록하지 않는다.
+        for (UInt32 index = 0; index < barriers.size; ++index)
+        {
+            ID3D12Resource* resource = nullptr;
+            D3D12_RESOURCE_STATES* states = nullptr;
+            TextureDesc desc;
+            if (false == m_device->ResolveBarrierTexture(barriers.data[index].texture, resource, states, desc)
+                || false == IsTextureBarrierValid(desc, barriers.data[index]))
+            {
+                return false;
+            }
+        }
+        constexpr UInt32 BatchCapacity = 32;
+        D3D12_RESOURCE_BARRIER batch[BatchCapacity] = {};
+        UInt32 batchCount = 0;
+        for (UInt32 index = 0; index < barriers.size; ++index)
+        {
+            const TextureBarrier& wanted = barriers.data[index];
+            ID3D12Resource* resource = nullptr;
+            D3D12_RESOURCE_STATES* states = nullptr;
+            TextureDesc desc;
+            m_device->ResolveBarrierTexture(wanted.texture, resource, states, desc);
+            D3D12_RESOURCE_STATES after = ShaderReadState;
+            switch (wanted.access)
+            {
+            case TextureAccess::ShaderRead:
+                after = ShaderReadState;
+                break;
+            case TextureAccess::RenderTarget:
+                after = D3D12_RESOURCE_STATE_RENDER_TARGET;
+                break;
+            case TextureAccess::DepthWrite:
+                after = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+                break;
+            case TextureAccess::CopySource:
+                after = D3D12_RESOURCE_STATE_COPY_SOURCE;
+                break;
+            case TextureAccess::CopyDestination:
+                after = D3D12_RESOURCE_STATE_COPY_DEST;
+                break;
+            case TextureAccess::Storage:
+                after = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+                break;
+            }
+            const UInt32 firstMip = wanted.mipLevel == AllTextureMips ? UInt32(0) : wanted.mipLevel;
+            const UInt32 endMip = wanted.mipLevel == AllTextureMips ? desc.mipLevels : wanted.mipLevel + 1;
+            for (UInt32 mip = firstMip; mip < endMip; ++mip)
+            {
+                if (states[mip.Get()] == after)
+                {
+                    continue;
+                }
+                // 같은 묶음에서 이 mip 을 이미 옮겼으면 그 배리어의 도착만 바꾼다. 한 번의 `ResourceBarrier` 에 같은 서브리소스가 둘이면
+                // 검증 레이어가 경고한다. 처음 상태로 돌아오면 그 배리어를 뺀다.
+                Bool merged = false;
+                for (UInt32 earlier = 0; earlier < batchCount; ++earlier)
+                {
+                    D3D12_RESOURCE_BARRIER& existing = batch[earlier.Get()];
+                    if (existing.Transition.pResource == resource && existing.Transition.Subresource == mip.Get())
+                    {
+                        existing.Transition.StateAfter = after;
+                        if (existing.Transition.StateBefore == after)
+                        {
+                            existing = batch[(batchCount - 1).Get()];
+                            --batchCount;
+                        }
+                        merged = true;
+                        break;
+                    }
+                }
+                if (merged)
+                {
+                    states[mip.Get()] = after;
+                    continue;
+                }
+                if (batchCount == BatchCapacity)
+                {
+                    m_commandList->ResourceBarrier(batchCount, batch);
+                    batchCount = 0;
+                }
+                D3D12_RESOURCE_BARRIER& barrier = batch[batchCount++];
+                barrier = {};
+                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+                barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+                barrier.Transition.pResource = resource;
+                // 배열은 받지 않으므로(`depthOrLayers == 1`, 3D 는 mip 하나) 서브리소스 번호가 곧 mip 이다.
+                barrier.Transition.Subresource = mip.Get();
+                barrier.Transition.StateBefore = states[mip.Get()];
+                barrier.Transition.StateAfter = after;
+                states[mip.Get()] = after;
+            }
+        }
+        if (batchCount != 0)
+        {
+            m_commandList->ResourceBarrier(batchCount, batch);
+        }
+        return true;
+    }
+
+    Bool D3D12CommandContext::WriteTimestamp(UInt32 index)
+    {
+        // 렌더 패스 밖에서만이다(D-341) - 세 백엔드가 같은 자리에서 받도록 맞춘다.
+        if (m_device == nullptr || m_renderPassActive)
+        {
+            return false;
+        }
+        return m_device->RecordTimestamp(index);
     }
 
     void D3D12CommandContext::EndRenderPass()

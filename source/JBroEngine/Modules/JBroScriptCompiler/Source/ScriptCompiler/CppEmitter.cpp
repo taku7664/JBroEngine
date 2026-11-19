@@ -1,9 +1,11 @@
 #include <JBro/ScriptCompiler/CppEmitter.h>
 #include <JBro/ScriptCompiler/Analysis.h>
+#include <JBro/ScriptCompiler/Summary.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Types/Table.h>
 #include "CppIdentifier.h"
 #include "CppEmitterParts.h"
+#include "QualifiedName.h"
 
 #include <algorithm>
 #include <cctype>
@@ -12,31 +14,62 @@
 
 namespace JBro::ScriptCompiler
 {
+    Bool CanEmitOutputProjection(const ApiMember& member) noexcept
+    {
+        if (false == member.HasOutputProjection)
+        {
+            return true;
+        }
+        // 출력 인자 없이 찾은 값의 포인터를 돌려주는 꼴(`Table.Find`).
+        if (member.NativeOutputParameters.IsEmpty())
+        {
+            return member.Projection == ApiProjectionKind::NullableReturn;
+        }
+        // 출력 하나를 성공 여부나 모음으로 받는 꼴. 버퍼와 길이(`Count`)·반환값의 필드를 섞는 꼴은 아직 내리지 못한다.
+        if (member.NativeOutputParameters.Size() != 1 || false == member.NativeReturnField.IsEmpty() || member.NativeOutputDiffers
+            || (member.Projection != ApiProjectionKind::NullableReturn && member.Projection != ApiProjectionKind::CollectionReturn))
+        {
+            return false;
+        }
+        std::size_t next = 0;
+        for (std::size_t index = 0; index < member.NativeParameterNames.Size(); ++index)
+        {
+            const Bool output = member.NativeOutputParameters[0] == index;
+            const Bool input = next < member.Parameters.Size() && member.Parameters[next].Name == member.NativeParameterNames[index];
+            if (false == output && false == input)
+            {
+                return false;
+            }
+            next += output ? 0 : 1;
+        }
+        return true;
+    }
+
     namespace
     {
         struct Type
         {
             String name;
-            bool ref = false;
+            Bool ref = false;
         };
 
         struct VariableBinding
         {
             Type type;
-            bool field = false;
+            Bool field = false;
 
             VariableBinding() = default;
-            VariableBinding(const Type& value, bool isField = false) : type(value), field(isField) {}
+            VariableBinding(const Type& value, Bool isField = false) : type(value), field(isField) {}
         };
 
         struct Expression
         {
             String code;
             Type type;
-            bool lvalue = false;
-            bool property = false;
+            Bool lvalue = false;
+            Bool property = false;
             String setter;
-            bool isType = false;
+            Bool isType = false;
         };
 
         struct DeclarationRef
@@ -84,8 +117,14 @@ namespace JBro::ScriptCompiler
 
         String Trim(std::string_view value)
         {
-            while (!value.empty() && value.front() == ' ') value.remove_prefix(1);
-            while (!value.empty() && value.back() == ' ') value.remove_suffix(1);
+            while (!value.empty() && value.front() == ' ')
+            {
+                value.remove_prefix(1);
+            }
+            while (!value.empty() && value.back() == ' ')
+            {
+                value.remove_suffix(1);
+            }
             return String(value);
         }
 
@@ -95,7 +134,7 @@ namespace JBro::ScriptCompiler
             {
                 value.remove_prefix(6);
             }
-            bool ref = false;
+            Bool ref = false;
             if (value.rfind("ref ", 0) == 0)
             {
                 value.remove_prefix(4);
@@ -111,15 +150,24 @@ namespace JBro::ScriptCompiler
         Array<String> TypeArguments(std::string_view name)
         {
             const std::size_t open = name.find('<');
-            if (open == std::string_view::npos || name.back() != '>') return {};
+            if (open == std::string_view::npos || name.back() != '>')
+            {
+                return {};
+            }
             name = name.substr(open + 1, name.size() - open - 2);
             Array<String> result;
-            int depth = 0;
+            Int32 depth = 0;
             std::size_t start = 0;
             for (std::size_t at = 0; at < name.size(); ++at)
             {
-                if (name[at] == '<') ++depth;
-                else if (name[at] == '>') --depth;
+                if (name[at] == '<')
+                {
+                    ++depth;
+                }
+                else if (name[at] == '>')
+                {
+                    --depth;
+                }
                 else if (name[at] == ',' && depth == 0)
                 {
                     result.Add(Trim(name.substr(start, at - start)));
@@ -134,7 +182,7 @@ namespace JBro::ScriptCompiler
         {
         public:
             Generator(ArrayView<const CppSource> sources, const ApiCatalog& api,
-                bool emitModuleEntry, const AnalysisResult* analysis, const CppSource* unit = nullptr)
+                Bool emitModuleEntry, const AnalysisResult* analysis, const CppSource* unit = nullptr)
                 : m_sources(sources), m_api(api), m_emitModuleEntry(emitModuleEntry), m_analysis(analysis), m_unit(unit)
             {
             }
@@ -178,16 +226,25 @@ namespace JBro::ScriptCompiler
                     m_tree = source.Tree;
                     IndexDeclarations(m_tree->GetRoot());
                 }
+                for (const auto& item : m_declarations)
+                {
+                    m_source = item.MappedValue.source;
+                    m_tree = item.MappedValue.tree;
+                    m_owner = item.KeyValue;
+                    for (NodeIndex member : m_tree->GetChildren(item.MappedValue.index))
+                    {
+                        if (member != InvalidNode && Node(member).Kind == SyntaxKind::FieldDeclaration)
+                        {
+                            m_fields[m_owner][String(Node(member).Text)] = ParseType(Child(member, 1));
+                        }
+                    }
+                }
                 Array<DeclarationRef> declarations;
                 for (const CppSource& source : m_sources)
                 {
                     m_source = source.Source;
                     m_tree = source.Tree;
-                    for (NodeIndex child : m_tree->GetChildren(m_tree->GetRoot()))
-                    {
-                        if (child != InvalidNode
-                            && !OrderDeclaration(String(Node(child).Text), declarations)) break;
-                    }
+                    OrderTree(m_tree->GetRoot(), declarations);
                 }
                 if (false == m_errors.IsEmpty())
                 {
@@ -207,7 +264,7 @@ namespace JBro::ScriptCompiler
                     const SyntaxNode& declaration = item.tree->Get(item.index);
                     m_code += String(declaration.Kind == SyntaxKind::EnumDeclaration ? "enum class "
                         : declaration.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
-                        + CppIdentifier(declaration.Text)
+                        + CppIdentifier(DeclarationName(item.tree, item.index))
                         + (declaration.Kind == SyntaxKind::EnumDeclaration ? " : std::int64_t;\n" : ";\n");
                 }
                 m_code += '\n';
@@ -237,7 +294,7 @@ namespace JBro::ScriptCompiler
                     Declaration(item.index);
                     if (m_unit != nullptr)
                     {
-                        m_parts.Add({String(Node(item.index).Text), std::move(m_code)});
+                        m_parts.Add({DeclarationName(item.tree, item.index), std::move(m_code)});
                         m_code.Clear();
                     }
                 }
@@ -249,14 +306,14 @@ namespace JBro::ScriptCompiler
                 {
                     m_source = item.source;
                     m_tree = item.tree;
-                    m_owner = String(Node(item.index).Text);
+                    m_owner = DeclarationName(item.tree, item.index);
                     StaticFields(item.index);
                 }
                 for (const DeclarationRef& item : m_defaultConstructors)
                 {
                     m_source = item.source;
                     m_tree = item.tree;
-                    m_owner = String(Node(item.index).Text);
+                    m_owner = DeclarationName(item.tree, item.index);
                     const String owner = CppIdentifier(m_owner);
                     m_code += owner + "::" + owner + "() try";
                     ConstructorInitializers(item.index);
@@ -267,7 +324,7 @@ namespace JBro::ScriptCompiler
                 {
                     m_source = item.owner.source;
                     m_tree = item.owner.tree;
-                    m_owner = String(Node(item.owner.index).Text);
+                    m_owner = DeclarationName(item.owner.tree, item.owner.index);
                     Function(item.index, item.owner.kind == SyntaxKind::ScriptDeclaration, false);
                 }
                 for (const String& script : m_scripts)
@@ -288,7 +345,7 @@ namespace JBro::ScriptCompiler
                 }
                 if (!m_scripts.IsEmpty() || m_unit != nullptr)
                 {
-                    m_code += "namespace { const bool jbro_gen_script_2d_marker = "
+                    m_code += "namespace { const JBro::Bool jbro_gen_script_2d_marker = "
                         "JBro::Internal::MarkGeneratedScript2D(); }\n";
                     if (m_emitModuleEntry)
                     {
@@ -312,6 +369,80 @@ namespace JBro::ScriptCompiler
             const SyntaxNode& Node(NodeIndex index) const { return m_tree->Get(index); }
             NodeIndex Child(NodeIndex index, std::size_t slot) const { return m_tree->GetChild(index, slot); }
 
+            String DeclarationName(const SyntaxTree* tree, NodeIndex index) const
+            {
+                for (const auto& declaration : m_declarations)
+                {
+                    if (declaration.MappedValue.tree == tree && declaration.MappedValue.index == index)
+                    {
+                        return declaration.KeyValue;
+                    }
+                }
+                return String(tree->Get(index).Text);
+            }
+
+            static String SimpleName(const String& name)
+            {
+                const std::size_t dot = name.rfind('.');
+                return dot == String::npos ? name : name.Substr(dot + 1);
+            }
+
+            String ResolveTypeName(std::string_view spelling, const String* owner = nullptr) const
+            {
+                const String name = Internal::QualifiedName(spelling);
+                for (String scope = owner == nullptr ? m_owner : *owner; false == scope.IsEmpty();)
+                {
+                    const String candidate = scope + "." + name;
+                    if (m_declarations.Contains(candidate))
+                    {
+                        return candidate;
+                    }
+                    const std::size_t dot = scope.rfind('.');
+                    if (dot == String::npos)
+                    {
+                        break;
+                    }
+                    scope.resize(dot);
+                }
+                return name;
+            }
+
+            const Symbol* AnalyzedSymbol(NodeIndex index) const
+            {
+                if (m_analysis == nullptr || Node(index).Text.empty())
+                {
+                    return nullptr;
+                }
+                for (const auto& document : m_analysis->Documents)
+                {
+                    if (&document->Tree != m_tree)
+                    {
+                        continue;
+                    }
+                    const UInt32 begin = static_cast<UInt32>(Node(index).Text.data() - document->Source.GetText().data());
+                    const UInt32 end = begin + static_cast<UInt32>(Node(index).Text.size());
+                    const Symbol* found = nullptr;
+                    UInt32 latest = 0;
+                    for (const Occurrence& occurrence : document->Occurrences)
+                    {
+                        if (occurrence.Range.Begin.Offset >= begin && occurrence.Range.End.Offset <= end
+                            && (found == nullptr || occurrence.Range.Begin.Offset >= latest))
+                        {
+                            found = FindSymbol(*m_analysis, occurrence.Target);
+                            latest = occurrence.Range.Begin.Offset;
+                        }
+                    }
+                    return found;
+                }
+                return nullptr;
+            }
+
+            String BaseTypeName(const DeclarationRef& declaration, NodeIndex base) const
+            {
+                const String owner = DeclarationName(declaration.tree, declaration.index);
+                return ResolveTypeName(declaration.tree->Get(base).Text, &owner);
+            }
+
             CppEmitResult Finish()
             {
                 CppEmitResult result;
@@ -320,8 +451,17 @@ namespace JBro::ScriptCompiler
                 return result;
             }
 
+            // 생성 단계의 오류에도 원본 파일과 줄·열을 붙인다 - 전에는 위치 없는 영어 한 줄이라 고칠 곳을 알 수 없었다(Script QA 결함 4).
+            // 자리는 마지막으로 들어간 선언·필드·함수·문장·식이다.
             void Error(std::string_view message)
             {
+                if (m_source != nullptr && m_tree != nullptr && m_errorNode != InvalidNode && m_errorNode < m_tree->GetNodeCount())
+                {
+                    const auto& at = m_tree->Get(m_errorNode).Range.Begin;
+                    m_errors.Add(String(m_source->GetPath()).Append("(").Append(std::to_string(at.Line.Get())).Append(",")
+                        .Append(std::to_string(CharacterColumn(m_source->GetText(), at).Get())).Append("): ").Append(message));
+                    return;
+                }
                 m_errors.Add(String(message));
             }
 
@@ -332,7 +472,8 @@ namespace JBro::ScriptCompiler
                     return {"Void", false};
                 }
                 const SyntaxNode& node = Node(index);
-                Type result{String(node.Text), (node.Flags & SyntaxFlagRef) != 0};
+                const Symbol* analyzed = AnalyzedSymbol(index);
+                Type result{analyzed != nullptr ? analyzed->Type : ResolveTypeName(node.Text), (node.Flags & SyntaxFlagRef) != 0};
                 for (NodeIndex child : m_tree->GetChildren(index))
                 {
                     if (child == InvalidNode)
@@ -364,7 +505,10 @@ namespace JBro::ScriptCompiler
             const ApiType* Api(std::string_view name) const
             {
                 const std::size_t generic = name.find('<');
-                if (generic != std::string_view::npos) name = name.substr(0, generic);
+                if (generic != std::string_view::npos)
+                {
+                    name = name.substr(0, generic);
+                }
                 for (const ApiType& type : m_api.Types)
                 {
                     if (type.Name.View() == name)
@@ -375,15 +519,33 @@ namespace JBro::ScriptCompiler
                 return nullptr;
             }
 
+            const ApiMember* ApiFunction(const String& name) const
+            {
+                for (const ApiMember& function : m_api.Functions)
+                {
+                    if (function.Name.View() == name.View())
+                    {
+                        return &function;
+                    }
+                }
+                return nullptr;
+            }
+
             const ApiMember* ApiMemberInHierarchy(std::string_view typeName,
                 std::string_view memberName, std::size_t depth = 0) const
             {
-                if (depth > 32) return nullptr;
+                if (depth > 32)
+                {
+                    return nullptr;
+                }
                 if (const ApiType* api = Api(typeName))
                 {
                     for (const ApiMember& member : api->Members)
                     {
-                        if (member.Name.View() == memberName) return &member;
+                        if (member.Name.View() == memberName)
+                        {
+                            return &member;
+                        }
                     }
                     for (const String& base : api->Bases)
                     {
@@ -401,7 +563,7 @@ namespace JBro::ScriptCompiler
                         for (NodeIndex base : declaration->tree->GetChildren(bases))
                         {
                             if (const ApiMember* inherited = ApiMemberInHierarchy(
-                                declaration->tree->Get(base).Text, memberName, depth + 1))
+                                BaseTypeName(*declaration, base).View(), memberName, depth + 1))
                             {
                                 return inherited;
                             }
@@ -415,13 +577,13 @@ namespace JBro::ScriptCompiler
                 return nullptr;
             }
 
-            bool IsHandle(const Type& type) const
+            Bool IsHandle(const Type& type) const
             {
                 const ApiType* api = Api(type.name);
                 return api != nullptr && api->Kind == ApiTypeKind::Handle;
             }
 
-            bool IsScript(const Type& type) const
+            Bool IsScript(const Type& type) const
             {
                 const DeclarationRef* found = m_declarations.Find(type.name);
                 return found != nullptr && found->kind == SyntaxKind::ScriptDeclaration;
@@ -440,7 +602,10 @@ namespace JBro::ScriptCompiler
                     String native = "JBro::" + type.name.substr(0, generic) + "<";
                     for (std::size_t index = 0; index < arguments.Size(); ++index)
                     {
-                        if (index != 0) native += ", ";
+                        if (index != 0)
+                        {
+                            native += ", ";
+                        }
                         native += NativeType(TextType(arguments[index]));
                     }
                     native += '>';
@@ -470,10 +635,14 @@ namespace JBro::ScriptCompiler
                 return "JBro::Nullable<" + bare + ">";
             }
 
-            void IndexDeclarations(NodeIndex root)
+            void IndexDeclarations(NodeIndex root, const String& parent = {})
             {
                 for (NodeIndex child : m_tree->GetChildren(root))
                 {
+                    if (child == InvalidNode)
+                    {
+                        continue;
+                    }
                     const SyntaxNode& node = Node(child);
                     if (node.Kind != SyntaxKind::ScriptDeclaration
                         && node.Kind != SyntaxKind::ClassDeclaration
@@ -483,20 +652,32 @@ namespace JBro::ScriptCompiler
                     {
                         continue;
                     }
-                    const String name(node.Text);
+                    const String name = parent.IsEmpty() ? String(node.Text) : String(parent + "." + String(node.Text));
                     if (m_declarations.Contains(name))
                     {
                         Error("duplicate C++ declaration across files: " + name);
                         continue;
                     }
                     m_declarations[name] = {m_source, m_tree, child, node.Kind};
-                    auto& fields = m_fields[name];
-                    for (NodeIndex member : m_tree->GetChildren(child))
+                    IndexDeclarations(child, name);
+                }
+            }
+
+            void OrderTree(NodeIndex root, Array<DeclarationRef>& declarations)
+            {
+                for (NodeIndex child : m_tree->GetChildren(root))
+                {
+                    if (child == InvalidNode)
                     {
-                        if (member != InvalidNode && Node(member).Kind == SyntaxKind::FieldDeclaration)
-                        {
-                            fields[String(Node(member).Text)] = ParseType(Child(member, 1));
-                        }
+                        continue;
+                    }
+                    const String name = DeclarationName(m_tree, child);
+                    const SyntaxKind kind = Node(child).Kind;
+                    if (kind == SyntaxKind::ScriptDeclaration || kind == SyntaxKind::ClassDeclaration
+                        || kind == SyntaxKind::StructDeclaration || kind == SyntaxKind::InterfaceDeclaration || kind == SyntaxKind::EnumDeclaration)
+                    {
+                        OrderDeclaration(name, declarations);
+                        OrderTree(child, declarations);
                     }
                 }
             }
@@ -504,13 +685,16 @@ namespace JBro::ScriptCompiler
             void AddFieldsFromBases(const String& name, Table<String, VariableBinding>& fields)
             {
                 const DeclarationRef* declaration = m_declarations.Find(name);
-                if (declaration == nullptr) return;
+                if (declaration == nullptr)
+                {
+                    return;
+                }
                 const NodeIndex bases = declaration->tree->GetChild(declaration->index, 0);
                 if (bases != InvalidNode && declaration->tree->Get(bases).Kind == SyntaxKind::BaseList)
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        AddFieldsFromBases(String(declaration->tree->Get(base).Text), fields);
+                        AddFieldsFromBases(BaseTypeName(*declaration, base), fields);
                     }
                 }
                 if (const auto* owned = m_fields.Find(name))
@@ -525,14 +709,23 @@ namespace JBro::ScriptCompiler
             Type MemberTypeInHierarchy(const String& name, std::string_view memberName)
             {
                 const DeclarationRef* declaration = m_declarations.Find(name);
-                if (declaration == nullptr) return {};
+                if (declaration == nullptr)
+                {
+                    return {};
+                }
                 if (const auto* fields = m_fields.Find(name))
                 {
-                    if (const Type* field = fields->Find(String(memberName))) return *field;
+                    if (const Type* field = fields->Find(String(memberName)))
+                    {
+                        return *field;
+                    }
                 }
                 for (NodeIndex member : declaration->tree->GetChildren(declaration->index))
                 {
-                    if (member == InvalidNode) continue;
+                    if (member == InvalidNode)
+                    {
+                        continue;
+                    }
                     const SyntaxNode& item = declaration->tree->Get(member);
                     if (item.Kind == SyntaxKind::FunctionDeclaration && item.Text == memberName)
                     {
@@ -548,8 +741,11 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        const Type result = MemberTypeInHierarchy(String(declaration->tree->Get(base).Text), memberName);
-                        if (!result.name.empty()) return result;
+                        const Type result = MemberTypeInHierarchy(BaseTypeName(*declaration, base), memberName);
+                        if (!result.name.empty())
+                        {
+                            return result;
+                        }
                     }
                 }
                 return {};
@@ -592,7 +788,7 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        const FieldRef field = FindField(String(declaration->tree->Get(base).Text), name);
+                        const FieldRef field = FindField(BaseTypeName(*declaration, base), name);
                         if (field.Owner != nullptr)
                         {
                             return field;
@@ -613,7 +809,7 @@ namespace JBro::ScriptCompiler
                 {
                     return access;
                 }
-                const String owner(field.Owner->tree->Get(field.Owner->index).Text);
+                const String owner = DeclarationName(field.Owner->tree, field.Owner->index);
                 const String key = SiteKey(Node(site));
                 if (field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic)
                 {
@@ -629,14 +825,17 @@ namespace JBro::ScriptCompiler
             std::size_t ReflectedFieldCount(const String& name) const
             {
                 const DeclarationRef* declaration = m_declarations.Find(name);
-                if (declaration == nullptr || declaration->kind == SyntaxKind::InterfaceDeclaration) return 0;
+                if (declaration == nullptr || declaration->kind == SyntaxKind::InterfaceDeclaration)
+                {
+                    return 0;
+                }
                 std::size_t count = 0;
                 const NodeIndex bases = declaration->tree->GetChild(declaration->index, 0);
                 if (bases != InvalidNode && declaration->tree->Get(bases).Kind == SyntaxKind::BaseList)
                 {
                     for (NodeIndex base : declaration->tree->GetChildren(bases))
                     {
-                        count += ReflectedFieldCount(String(declaration->tree->Get(base).Text));
+                        count += ReflectedFieldCount(BaseTypeName(*declaration, base));
                     }
                 }
                 for (NodeIndex field : declaration->tree->GetChildren(declaration->index))
@@ -664,11 +863,11 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : m_tree->GetChildren(bases))
                     {
-                        inherited += ReflectedFieldCount(String(Node(base).Text));
+                        inherited += ReflectedFieldCount(ResolveTypeName(Node(base).Text));
                     }
                 }
-                const String name = CppIdentifier(declaration.Text);
-                const String scriptName(declaration.Text);
+                const String scriptName = DeclarationName(m_tree, index);
+                const String name = CppIdentifier(scriptName);
                 const std::size_t total = ReflectedFieldCount(scriptName);
                 const std::size_t own = total - inherited;
                 if (total == 0)
@@ -693,7 +892,7 @@ namespace JBro::ScriptCompiler
                 {
                     for (NodeIndex base : m_tree->GetChildren(bases))
                     {
-                        const String baseName(Node(base).Text);
+                        const String baseName = ResolveTypeName(Node(base).Text);
                         const std::size_t count = ReflectedFieldCount(baseName);
                         if (count != 0)
                         {
@@ -726,7 +925,7 @@ namespace JBro::ScriptCompiler
                     + "::jbro_gen_initialize_properties);\n\n";
             }
 
-            bool OrderDeclaration(const String& name, Array<DeclarationRef>& ordered)
+            Bool OrderDeclaration(const String& name, Array<DeclarationRef>& ordered)
             {
                 const DeclarationRef* found = m_declarations.Find(name);
                 if (found == nullptr)
@@ -734,20 +933,28 @@ namespace JBro::ScriptCompiler
                     Error("C++ emitter does not support this declaration yet");
                     return false;
                 }
-                int& state = m_declarationState[name];
-                if (state == 2) return true;
+                // 표 원소의 참조를 쥔 채 재귀하지 않는다. 재귀가 새 이름을 넣어 표가 다시 잡히면 참조가 끊겨, 끝의 "다 했음" 이
+                // 엉뚱한 곳에 쓰이고 다이아몬드 상속이 순환으로 보였다(Script QA, 선언 수에 따라 나타남).
+                const Int32 state = m_declarationState[name];
+                if (state == 2)
+                {
+                    return true;
+                }
                 if (state == 1)
                 {
                     Error("owned field cycle cannot be represented in C++: " + name);
                     return false;
                 }
-                state = 1;
+                m_declarationState[name] = 1;
                 const NodeIndex bases = found->tree->GetChild(found->index, 0);
                 if (bases != InvalidNode && found->tree->Get(bases).Kind == SyntaxKind::BaseList)
                 {
                     for (NodeIndex base : found->tree->GetChildren(bases))
                     {
-                        const String baseName(found->tree->Get(base).Text);
+                        const String previousOwner = m_owner;
+                        m_owner = name;
+                        const String baseName = ResolveTypeName(found->tree->Get(base).Text);
+                        m_owner = previousOwner;
                         if (m_declarations.Contains(baseName) && !OrderDeclaration(baseName, ordered))
                         {
                             return false;
@@ -768,7 +975,7 @@ namespace JBro::ScriptCompiler
                         return false;
                     }
                 }
-                state = 2;
+                m_declarationState[name] = 2;
                 ordered.Add(*found);
                 return true;
             }
@@ -779,6 +986,7 @@ namespace JBro::ScriptCompiler
                 {
                     return;
                 }
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 if (node.Kind != SyntaxKind::ScriptDeclaration
                     && node.Kind != SyntaxKind::ClassDeclaration
@@ -789,20 +997,36 @@ namespace JBro::ScriptCompiler
                     Error("C++ emitter does not support this declaration yet");
                     return;
                 }
-                m_owner = String(node.Text);
+                m_owner = DeclarationName(m_tree, index);
                 const String nativeOwner = CppIdentifier(m_owner);
                 if (node.Kind == SyntaxKind::EnumDeclaration)
                 {
                     if (node.ChildCount == 0)
                     {
-                        Error("C++ emitter cannot reflect an enum without members: " + m_owner);
+                        // 멤버 없는 enum 은 C++ 처럼 받는다(D-377). 이름 붙은 값이 없는 설명서를 낸다.
+                        m_code += "enum class " + nativeOwner + " : std::int64_t\n{\n};\n";
+                        if (m_unit != nullptr)
+                        {
+                            m_code.swap(m_implementation);
+                            m_code += "const JBro::TypeDescriptor& JBro::TypeDescriptorOf<" + nativeOwner
+                                + ">::Get()\n{\n    return JBro::DefineEmptyEnumTypeDescriptor<" + nativeOwner + ">("
+                                + Escape(m_owner) + ");\n}\n\n";
+                            m_code.swap(m_implementation);
+                            return;
+                        }
+                        m_code += "namespace JBro { template <> struct TypeDescriptorOf<::" + nativeOwner
+                            + "> { static const TypeDescriptor& Get() { return ::JBro::DefineEmptyEnumTypeDescriptor<::" + nativeOwner
+                            + ">(" + Escape(m_owner) + "); } }; }\n\n";
                         return;
                     }
                     m_code += "enum class " + nativeOwner + " : std::int64_t\n{\n";
                     std::size_t memberCount = 0;
                     for (NodeIndex member : m_tree->GetChildren(index))
                     {
-                        if (memberCount++ != 0) m_code += ",\n";
+                        if (memberCount++ != 0)
+                        {
+                            m_code += ",\n";
+                        }
                         m_code += "    " + CppIdentifier(Node(member).Text);
                     }
                     m_code += "\n};\n";
@@ -817,7 +1041,10 @@ namespace JBro::ScriptCompiler
                     memberCount = 0;
                     for (NodeIndex member : m_tree->GetChildren(index))
                     {
-                        if (memberCount++ != 0) m_code += ", ";
+                        if (memberCount++ != 0)
+                        {
+                            m_code += ", ";
+                        }
                         const String name(Node(member).Text);
                         m_code += "{::" + nativeOwner + "::" + CppIdentifier(name)
                             + ", " + Escape(name) + "}";
@@ -832,14 +1059,14 @@ namespace JBro::ScriptCompiler
                     }
                     return;
                 }
-                const bool script = node.Kind == SyntaxKind::ScriptDeclaration;
-                const bool interfaceType = node.Kind == SyntaxKind::InterfaceDeclaration;
+                const Bool script = node.Kind == SyntaxKind::ScriptDeclaration;
+                const Bool interfaceType = node.Kind == SyntaxKind::InterfaceDeclaration;
                 if (script)
                 {
                     m_scripts.Add(nativeOwner);
                 }
                 String bases;
-                bool hasScriptBase = false;
+                Bool hasScriptBase = false;
                 const NodeIndex baseList = Child(index, 0);
                 if (baseList != InvalidNode && Node(baseList).Kind == SyntaxKind::BaseList)
                 {
@@ -853,20 +1080,34 @@ namespace JBro::ScriptCompiler
                         }
                     }
                 }
-                if (script && !hasScriptBase) bases = "public JBro::GameScript2D";
+                if (script && !hasScriptBase)
+                {
+                    bases = "public JBro::GameScript2D";
+                }
                 if (baseList != InvalidNode && Node(baseList).Kind == SyntaxKind::BaseList)
                 {
                     for (NodeIndex base : m_tree->GetChildren(baseList))
                     {
                         const Type type = ParseType(base);
                         const DeclarationRef* declared = m_declarations.Find(type.name);
-                        if (!bases.empty()) bases += ", ";
+                        if (!bases.empty())
+                        {
+                            bases += ", ";
+                        }
                         bases += String(declared != nullptr && declared->kind == SyntaxKind::InterfaceDeclaration
                             ? "virtual public " : "public ") + NativeType(type);
                     }
                 }
                 m_code += String(node.Kind == SyntaxKind::StructDeclaration ? "struct " : "class ")
                     + nativeOwner + (bases.empty() ? "\n" : " : " + bases + "\n") + "{\npublic:\n";
+                for (const auto& nested : m_declarations)
+                {
+                    if (nested.KeyValue.StartsWith(m_owner + ".") && nested.MappedValue.kind != SyntaxKind::EnumDeclaration)
+                    {
+                        m_code += String(nested.MappedValue.kind == SyntaxKind::StructDeclaration ? "    friend struct " : "    friend class ")
+                            + CppIdentifier(nested.KeyValue) + ";\n";
+                    }
+                }
                 if (script)
                 {
                     m_code += "    static constexpr const char* StaticTypeName() { return "
@@ -874,9 +1115,12 @@ namespace JBro::ScriptCompiler
                         "    JBro::ComponentTypeId GetTypeId() const override\n"
                         "    { return JBro::MakeStableTypeId(StaticTypeName()); }\n";
                 }
-                else if (interfaceType) m_code += "    virtual ~" + nativeOwner + "() = default;\n";
+                else if (interfaceType)
+                {
+                    m_code += "    virtual ~" + nativeOwner + "() = default;\n";
+                }
                 std::size_t reflectedIndex = 0;
-                bool hasConstructor = false;
+                Bool hasConstructor = false;
                 for (NodeIndex member : m_tree->GetChildren(index))
                 {
                     if (member == InvalidNode)
@@ -896,7 +1140,7 @@ namespace JBro::ScriptCompiler
                     }
                     else if (Node(member).Kind == SyntaxKind::FunctionDeclaration)
                     {
-                        hasConstructor = hasConstructor || FunctionName(Node(member)) == m_owner;
+                        hasConstructor = hasConstructor || FunctionName(Node(member)) == SimpleName(m_owner);
                         MemberAccess(member, node.Kind);
                         Function(member, script, true);
                         if (Child(member, 3) != InvalidNode)
@@ -907,6 +1151,13 @@ namespace JBro::ScriptCompiler
                     else if (Node(member).Kind == SyntaxKind::BaseList)
                     {
                         continue;
+                    }
+                    else if (Node(member).Kind == SyntaxKind::ClassDeclaration || Node(member).Kind == SyntaxKind::StructDeclaration
+                        || Node(member).Kind == SyntaxKind::InterfaceDeclaration || Node(member).Kind == SyntaxKind::EnumDeclaration)
+                    {
+                        MemberAccess(member, node.Kind);
+                        m_code += "    using " + CppIdentifier(Node(member).Text) + " = ::"
+                            + CppIdentifier(DeclarationName(m_tree, member)) + ";\n";
                     }
                     else
                     {
@@ -937,7 +1188,10 @@ namespace JBro::ScriptCompiler
                 {
                     m_code.swap(m_implementation);
                 }
-                if (!interfaceType) EmitPropertyTable(index);
+                if (!interfaceType)
+                {
+                    EmitPropertyTable(index);
+                }
                 if (!script && !interfaceType)
                 {
                     m_code += (m_unit != nullptr
@@ -958,7 +1212,7 @@ namespace JBro::ScriptCompiler
             void MemberAccess(NodeIndex index, SyntaxKind ownerKind)
             {
                 const std::uint16_t flags = Node(index).Flags;
-                const bool publicDefault = ownerKind == SyntaxKind::StructDeclaration
+                const Bool publicDefault = ownerKind == SyntaxKind::StructDeclaration
                     || ownerKind == SyntaxKind::InterfaceDeclaration;
                 const char* access = (flags & SyntaxFlagPublic) ? "public"
                     : (flags & SyntaxFlagProtected) ? "protected"
@@ -972,7 +1226,7 @@ namespace JBro::ScriptCompiler
                 return "jbro_gen_static_" + CppIdentifier(name);
             }
 
-            bool HasStaticFields(NodeIndex owner) const
+            Bool HasStaticFields(NodeIndex owner) const
             {
                 for (NodeIndex field : m_tree->GetChildren(owner))
                 {
@@ -985,7 +1239,7 @@ namespace JBro::ScriptCompiler
                 return false;
             }
 
-            String FieldDeclaration(NodeIndex index, bool constant, bool reflected) const
+            String FieldDeclaration(NodeIndex index, Bool constant, Bool reflected) const
             {
                 const SyntaxNode& node = Node(index);
                 const String native = NativeType(ParseType(Child(index, 1)));
@@ -999,56 +1253,68 @@ namespace JBro::ScriptCompiler
                 return String(constant && !reflected ? "const " : "") + native + " " + CppIdentifier(node.Text);
             }
 
-            void Field(NodeIndex index, bool isStruct, std::size_t reflectedIndex)
+            void Field(NodeIndex index, Bool isStruct, std::size_t reflectedIndex)
             {
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 const NodeIndex typeNode = Child(index, 1);
-                const bool constant = typeNode != InvalidNode && (Node(typeNode).Flags & SyntaxFlagConst);
-                const bool staticField = (node.Flags & SyntaxFlagStatic) != 0;
+                const Bool constant = typeNode != InvalidNode && (Node(typeNode).Flags & SyntaxFlagConst);
+                const Bool staticField = (node.Flags & SyntaxFlagStatic) != 0;
                 const String name = CppIdentifier(node.Text);
                 const NodeIndex attributes = Child(index, 0);
-                const bool reflected = isStruct || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
+                const Bool reflected = isStruct || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
                 String attributeCode;
-                bool explicitNoSerialize = false;
+                Bool explicitNoSerialize = false;
                 if (attributes != InvalidNode)
                 {
                     for (NodeIndex attribute : m_tree->GetChildren(attributes))
                     {
-                        if (attribute == InvalidNode) continue;
+                        if (attribute == InvalidNode)
+                        {
+                            continue;
+                        }
                         const SyntaxNode& declaration = Node(attribute);
                         const std::string_view text = declaration.Text;
                         if (text == "prop")
                         {
-                            if (declaration.ChildCount != 0) Error("prop attribute takes no arguments");
+                            if (declaration.ChildCount != 0)
+                            {
+                                Error("prop attribute takes no arguments");
+                            }
                             continue;
                         }
-                        String native;
-                        std::size_t arity = 0;
-                        if (text == "range") { native = "Range"; arity = 2; }
-                        else if (text == "clamp") { native = "Clamp"; arity = 2; }
-                        else if (text == "name") { native = "Name"; arity = 1; }
-                        else if (text == "tooltip") { native = "Tooltip"; arity = 1; }
-                        else if (text == "category") { native = "Category"; arity = 1; }
-                        else if (text == "visiblewhen") { native = "VisibleWhen"; arity = 1; }
-                        else if (text == "readonly") native = "ReadOnly";
-                        else if (text == "noserialize") { native = "NoSerialize"; explicitNoSerialize = true; }
-                        else if (text == "hidden") native = "Hidden";
-                        else
+                        const FieldAttributeDefinition* definition = FindFieldAttributeDefinition(text);
+                        if (nullptr == definition)
                         {
                             Error("unknown reflected field attribute: " + String(text));
                             continue;
+                        }
+                        const String native = definition->NativeName;
+                        const std::size_t arity = definition->ArgumentCount;
+                        if (text == "noserialize")
+                        {
+                            explicitNoSerialize = true;
                         }
                         if (declaration.ChildCount != arity)
                         {
                             Error("reflected field attribute argument count: " + String(text));
                             continue;
                         }
-                        if (!attributeCode.empty()) attributeCode += " | ";
+                        if (!attributeCode.empty())
+                        {
+                            attributeCode += " | ";
+                        }
                         attributeCode += native + "(";
+                        // `Range`·`Clamp` 는 `Float` 둘을 받는다. `[range(1, 100)]` 의 정수는 `Float` 로 저절로 바뀌지 않으므로(D-290) 명시해 넘긴다.
+                        const Bool floatArguments = text == "range" || text == "clamp";
                         for (std::size_t argument = 0; argument < arity; ++argument)
                         {
-                            if (argument != 0) attributeCode += ", ";
-                            attributeCode += Expr(Child(attribute, argument)).code;
+                            if (argument != 0)
+                            {
+                                attributeCode += ", ";
+                            }
+                            const String value = Expr(Child(attribute, argument)).code;
+                            attributeCode += floatArguments ? String(NativeType({"Float", false}) + "(" + value + ")") : value;
                         }
                         attributeCode += ")";
                     }
@@ -1057,18 +1323,24 @@ namespace JBro::ScriptCompiler
                 {
                     if (constant)
                     {
-                        if (!attributeCode.empty()) attributeCode += " | ";
+                        if (!attributeCode.empty())
+                        {
+                            attributeCode += " | ";
+                        }
                         attributeCode += "ReadOnly()";
                     }
                     if (!explicitNoSerialize)
                     {
-                        if (!attributeCode.empty()) attributeCode += " | ";
+                        if (!attributeCode.empty())
+                        {
+                            attributeCode += " | ";
+                        }
                         attributeCode += "NoSerialize()";
                     }
                 }
                 if (reflected)
                 {
-                    const bool privateField = (node.Flags & SyntaxFlagPrivate)
+                    const Bool privateField = (node.Flags & SyntaxFlagPrivate)
                         || (!isStruct && 0 == (node.Flags & SyntaxFlagPublic));
                     const String memberAccess = node.Flags & SyntaxFlagProtected ? "protected"
                         : privateField ? "private" : "public";
@@ -1127,7 +1399,7 @@ namespace JBro::ScriptCompiler
                 m_variables.Clear();
                 AddFieldsFromBases(m_owner, m_variables);
                 m_fieldInitializer = true;
-                bool first = true;
+                Bool first = true;
                 std::size_t ordinal = 0;
                 for (NodeIndex field : m_tree->GetChildren(owner))
                 {
@@ -1221,9 +1493,9 @@ namespace JBro::ScriptCompiler
                 for (NodeIndex field : fields)
                 {
                     const NodeIndex attributes = Child(field, 0);
-                    const bool reflected = Node(owner).Kind == SyntaxKind::StructDeclaration
+                    const Bool reflected = Node(owner).Kind == SyntaxKind::StructDeclaration
                         || (attributes != InvalidNode && Node(attributes).ChildCount != 0);
-                    const bool constant = (Node(Child(field, 1)).Flags & SyntaxFlagConst) && !reflected;
+                    const Bool constant = (Node(Child(field, 1)).Flags & SyntaxFlagConst) && !reflected;
                     const String key = SiteKey(Node(field));
                     m_code += String(constant ? "const " : "") + NativeType(ParseType(Child(field, 1))) + "& "
                         + nativeOwner + "::" + StaticAccessor(Node(field).Text) + "(const char* key, const char* message)\n{\n"
@@ -1237,18 +1509,19 @@ namespace JBro::ScriptCompiler
                 m_staticInitializer = false;
             }
 
-            void Function(NodeIndex index, bool script, bool declaration)
+            void Function(NodeIndex index, Bool script, Bool declaration)
             {
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
-                const bool constructor = FunctionName(node) == m_owner;
-                const bool staticMethod = (node.Flags & SyntaxFlagStatic) != 0;
+                const Bool constructor = FunctionName(node) == SimpleName(m_owner);
+                const Bool staticMethod = (node.Flags & SyntaxFlagStatic) != 0;
                 const DeclarationRef* owner = m_declarations.Find(m_owner);
-                const bool abstractMethod = (node.Flags & SyntaxFlagRequire) != 0
+                const Bool abstractMethod = (node.Flags & SyntaxFlagRequire) != 0
                     || (owner != nullptr && owner->kind == SyntaxKind::InterfaceDeclaration);
                 const Type returns = ParseType(Child(index, 2));
                 m_returnType = returns;
                 const ApiMember* apiMember = script ? ApiMemberInHierarchy(m_owner.View(), FunctionName(node)) : nullptr;
-                const bool callback = script && ((node.Flags & SyntaxFlagCallback) != 0
+                const Bool callback = script && ((node.Flags & SyntaxFlagCallback) != 0
                     || (apiMember != nullptr && apiMember->IsCallback));
                 const String nativeFunction = constructor ? CppIdentifier(m_owner)
                     : (node.Flags & (SyntaxFlagOperatorEqual | SyntaxFlagOperatorNotEqual))
@@ -1266,9 +1539,12 @@ namespace JBro::ScriptCompiler
                     std::size_t count = 0;
                     for (NodeIndex parameter : m_tree->GetChildren(parameters))
                     {
-                        if (count++ != 0) m_code += ", ";
+                        if (count++ != 0)
+                        {
+                            m_code += ", ";
+                        }
                         const Type type = ParseType(Child(parameter, 0));
-                        const bool constant = (Node(Child(parameter, 0)).Flags & SyntaxFlagConst) != 0;
+                        const Bool constant = (Node(Child(parameter, 0)).Flags & SyntaxFlagConst) != 0;
                         m_variables[String(Node(parameter).Text)] = type.ref
                             ? Type{type.name, false} : type;
                         m_code += "[[maybe_unused]] " + String(constant ? "const " : "")
@@ -1277,12 +1553,21 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 m_code += ")";
-                if (declaration && node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride)) m_code += " override";
-                if (declaration && abstractMethod) m_code += " = 0";
+                if (declaration && node.Flags & (SyntaxFlagCallback | SyntaxFlagOverride))
+                {
+                    m_code += " override";
+                }
+                if (declaration && abstractMethod)
+                {
+                    m_code += " = 0";
+                }
                 const NodeIndex body = Child(index, 3);
                 if (body == InvalidNode)
                 {
-                    if (!declaration && !abstractMethod) Error("C++ emitter does not support methods without a body yet");
+                    if (!declaration && !abstractMethod)
+                    {
+                        Error("C++ emitter does not support methods without a body yet");
+                    }
                     m_code += ";\n";
                     return;
                 }
@@ -1301,7 +1586,10 @@ namespace JBro::ScriptCompiler
                 {
                     m_code += "    " + FinishInitializationCode() + ";\n";
                 }
-                if (callback) m_code += "    try\n    {\n";
+                if (callback)
+                {
+                    m_code += "    try\n    {\n";
+                }
                 for (NodeIndex statement : m_tree->GetChildren(body))
                 {
                     Statement(statement, callback ? 8 : 4);
@@ -1328,7 +1616,10 @@ namespace JBro::ScriptCompiler
 
             String AccessPath(NodeIndex index) const
             {
-                if (index == InvalidNode) return "<expression>";
+                if (index == InvalidNode)
+                {
+                    return "<expression>";
+                }
                 const SyntaxNode& node = Node(index);
                 if (node.Kind == SyntaxKind::NameExpression
                     || node.Kind == SyntaxKind::GenericNameExpression)
@@ -1401,7 +1692,10 @@ namespace JBro::ScriptCompiler
 
             Type AnalyzedType(NodeIndex index) const
             {
-                if (m_analysis == nullptr) return {};
+                if (m_analysis == nullptr)
+                {
+                    return {};
+                }
                 for (const auto& document : m_analysis->Documents)
                 {
                     if (&document->Tree == m_tree)
@@ -1410,6 +1704,97 @@ namespace JBro::ScriptCompiler
                     }
                 }
                 return {};
+            }
+
+            // `a?.b.c` 에서 `?.` 는 뒤의 `.c` 까지 건너뛴다 - 분석이 받는 쪽의 null 건너뛰기를 사슬 끝까지 넘기는 것과 같게 본다
+            // (`Analysis.cpp` 의 `receiver.NullSafe`). 넘기지 않으면 `.c` 가 `Require` 로 내려가 `a` 가 없을 때 콜백을 멈추고, 결과가 값이 되어
+            // 이어지는 `??` 가 값에 `IsPresent` 를 불렀다.
+            // 받는 쪽(첫 자식)으로만 내려가므로 반드시 끝난다. 상한은 두지 않는다 - 식은 100 겹을 넘지 않고(D-374), 상한이 있으면
+            // 그 너머의 `?.` 를 놓쳐 `Require` 로 떨어진다(REVIEW R2-3).
+            Bool InNullSafeChain(NodeIndex index) const
+            {
+                while (index != InvalidNode)
+                {
+                    const SyntaxNode& node = Node(index);
+                    if (node.Kind == SyntaxKind::MemberAccessExpression)
+                    {
+                        if (node.Flags & SyntaxFlagNullSafe)
+                        {
+                            return true;
+                        }
+                        index = Child(index, 0);
+                    }
+                    else if (node.Kind == SyntaxKind::CallExpression && Node(Child(index, 0)).Kind == SyntaxKind::MemberAccessExpression)
+                    {
+                        index = Child(index, 0);
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                return false;
+            }
+
+            // 출력 인자로 투영한 엔진 함수(lsp-plan §5 - 스크립트는 반환값으로 받는다)를 원래 C++ 호출로 되돌린다. `target` 은 받는 쪽과
+            // 구분자까지(`(x).`·`T::`)이고, 돌려주는 글자는 `callType` 을 돌려주는 람다의 몸이다. 출력 하나를 성공 여부나 모음으로 받는 모양과
+            // 찾은 값의 포인터를 돌려주는 모양을 내린다. 버퍼와 길이(`Count`)·반환값의 필드를 섞는 모양은 아직 내리지 못한다고 알린다.
+            String ProjectedCallBody(const ApiMember& member, const String& target, const String& method,
+                const Array<String>& arguments, const Type& callType)
+            {
+                const String result = NativeType(callType);
+                String joined;
+                for (std::size_t index = 0; index < arguments.Size(); ++index)
+                {
+                    joined += index == 0 ? "" : ", ";
+                    joined += arguments[index];
+                }
+                if (member.NativeOutputParameters.IsEmpty())
+                {
+                    if (member.Projection != ApiProjectionKind::NullableReturn)
+                    {
+                        Error("C++ emitter does not support the output projection of " + String(member.Name));
+                        return {};
+                    }
+                    return "auto* jbro_gen_found = " + target + method + "(" + joined + "); if (jbro_gen_found == nullptr) { return {}; } "
+                        "return " + result + "(*jbro_gen_found);";
+                }
+                const Bool supported = CanEmitOutputProjection(member);
+                String native;
+                std::size_t next = 0;
+                Bool outputPlaced = false;
+                Bool countParameter = false;
+                for (std::size_t index = 0; supported && index < member.NativeParameterNames.Size(); ++index)
+                {
+                    const Bool output = member.NativeOutputParameters[0] == index;
+                    const Bool input = next < member.Parameters.Size() && member.Parameters[next].Name == member.NativeParameterNames[index];
+                    if (!output && !input)
+                    {
+                        countParameter = true;
+                        break;
+                    }
+                    if (input && next >= arguments.Size())
+                    {
+                        // 뒤의 입력은 C++ 기본 인자로 둔다. 출력이 아직 뒤에 있으면 그 자리를 채울 수 없다.
+                        break;
+                    }
+                    native += native.empty() ? "" : ", ";
+                    native += output ? String("jbro_gen_out") : arguments[next];
+                    next += output ? 0 : 1;
+                    outputPlaced = outputPlaced || output;
+                }
+                if (!supported || countParameter || !outputPlaced)
+                {
+                    Error("C++ emitter does not support the output projection of " + String(member.Name));
+                    return {};
+                }
+                const String call = target + method + "(" + native + ")";
+                const String body = NativeType({callType.name, false}) + " jbro_gen_out{}; ";
+                if (member.Projection == ApiProjectionKind::NullableReturn && member.SuccessFromNativeReturn)
+                {
+                    return body + "if (" + call + ") { return " + result + "(std::move(jbro_gen_out)); } return {};";
+                }
+                return body + call + "; return " + result + "(std::move(jbro_gen_out));";
             }
 
             const CallSite* AnalyzedCall(NodeIndex index) const
@@ -1441,14 +1826,37 @@ namespace JBro::ScriptCompiler
 
             Expression Expr(NodeIndex index)
             {
-                if (index == InvalidNode) return {};
+                if (index == InvalidNode)
+                {
+                    return {};
+                }
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 switch (node.Kind)
                 {
                 case SyntaxKind::NameExpression:
                 {
                     const String name(node.Text);
-                    if (name == "this") return {"(*this)", {m_owner, false}, true};
+                    if (name == "this")
+                    {
+                        return {"(*this)", {m_owner, false}, true};
+                    }
+                    if (const Symbol* symbol = AnalyzedSymbol(index); symbol != nullptr)
+                    {
+                        if (symbol->Kind == SymbolKind::Class || symbol->Kind == SymbolKind::Struct
+                            || symbol->Kind == SymbolKind::Interface || symbol->Kind == SymbolKind::Enum || symbol->Kind == SymbolKind::Type)
+                        {
+                            const String type = ResolveTypeName(symbol->Type.View());
+                            return {NativeType({type, false}), {type, false}, false, false, {}, true};
+                        }
+                        if (!symbol->Api && symbol->Parent != InvalidSymbol && symbol->IsStatic
+                            && m_analysis->Symbols[symbol->Parent].Type != m_owner)
+                        {
+                            const String owner = m_analysis->Symbols[symbol->Parent].Type;
+                            const String code = CppIdentifier(owner) + "::" + CppIdentifier(name);
+                            return {GuardField(FindField(owner, name), {}, code, index), TextType(symbol->Type), true};
+                        }
+                    }
                     const VariableBinding* found = m_variables.Find(name);
                     if (found != nullptr)
                     {
@@ -1476,9 +1884,10 @@ namespace JBro::ScriptCompiler
                         }
                     }
                     if (name == "Int" || name == "Float" || name == "Bool" || name == "String"
-                        || Api(name) != nullptr || m_declarations.Contains(name))
+                        || Api(name) != nullptr || m_declarations.Contains(ResolveTypeName(name.View())))
                     {
-                        return {NativeType({name, false}), {name, false}, false, false, {}, true};
+                        const String type = ResolveTypeName(name.View());
+                        return {NativeType({type, false}), {type, false}, false, false, {}, true};
                     }
                     if (IsScript({m_owner, false}))
                     {
@@ -1493,6 +1902,12 @@ namespace JBro::ScriptCompiler
                                 }
                             }
                         }
+                    }
+                    // 카탈로그의 자유 함수(`GetKeyName`·`FindKeyByName`)다. 전에는 이름을 풀지 못해 빌드에서야 멈췄다(Script QA, D-382).
+                    if (const ApiMember* function = ApiFunction(name))
+                    {
+                        return {"JBro::" + (function->NativeName.empty() ? name : String(function->NativeName.c_str())),
+                            TextType(function->Type.c_str())};
                     }
                     Error("unresolved name in C++ emitter: " + name);
                     return {name, {}, true};
@@ -1529,6 +1944,26 @@ namespace JBro::ScriptCompiler
                 case SyntaxKind::MemberAccessExpression:
                 {
                     Expression receiver = Expr(Child(index, 0));
+                    if (receiver.isType)
+                    {
+                        const Symbol* symbol = AnalyzedSymbol(index);
+                        const String nested = symbol != nullptr && (symbol->Kind == SymbolKind::Class || symbol->Kind == SymbolKind::Struct
+                            || symbol->Kind == SymbolKind::Interface || symbol->Kind == SymbolKind::Enum)
+                            ? symbol->Type : String(receiver.type.name + "." + String(node.Text));
+                        if (m_declarations.Contains(nested))
+                        {
+                            return {NativeType({nested, false}), {nested, false}, false, false, {}, true};
+                        }
+                    }
+                    // 엔진 enum 의 멤버(`Key.A`)다. 전에는 사용자 enum 만 풀어 `unresolved member` 로 멈췄다(Script QA, D-382).
+                    if (receiver.isType)
+                    {
+                        if (const ApiType* apiEnum = Api(receiver.type.name);
+                            apiEnum != nullptr && apiEnum->Kind == ApiTypeKind::Enum && apiEnum->EnumValues.Contains(String(node.Text)))
+                        {
+                            return {receiver.code + "::" + String(node.Text), receiver.type};
+                        }
+                    }
                     if (const DeclarationRef* declaration = m_declarations.Find(receiver.type.name);
                         declaration != nullptr && declaration->kind == SyntaxKind::EnumDeclaration)
                     {
@@ -1543,7 +1978,7 @@ namespace JBro::ScriptCompiler
                         return {};
                     }
                     Type memberType;
-                    bool property = false;
+                    Bool property = false;
                     String nativeMember = CppIdentifier(node.Text);
                     String setter;
                     memberType = MemberTypeInHierarchy(receiver.type.name, node.Text);
@@ -1557,7 +1992,10 @@ namespace JBro::ScriptCompiler
                             {
                                 const Array<String> arguments = TypeArguments(receiver.type.name);
                                 const std::size_t slot = memberType.name == "V" ? 1 : 0;
-                                if (slot < arguments.Size()) memberType.name = TextType(arguments[slot]).name;
+                                if (slot < arguments.Size())
+                                {
+                                    memberType.name = TextType(arguments[slot]).name;
+                                }
                             }
                             if (memberType.name == "T" && node.ChildCount > 1)
                             {
@@ -1589,11 +2027,14 @@ namespace JBro::ScriptCompiler
                     {
                         return {GuardField(field, String(), receiver.code + access, index), memberType, field.Owner != nullptr};
                     }
-                    if (node.Flags & SyntaxFlagNullSafe)
+                    if ((node.Flags & SyntaxFlagNullSafe) || (receiver.type.ref && InNullSafeChain(Child(index, 0))))
                     {
-                        if (memberType.name.empty()) return {};
+                        if (memberType.name.empty())
+                        {
+                            return {};
+                        }
                         const String bare = NativeType({memberType.name, false});
-                        const bool alreadyNullable = memberType.ref || IsHandle(memberType);
+                        const Bool alreadyNullable = memberType.ref || IsHandle(memberType);
                         const String resultType = alreadyNullable
                             ? NativeType(memberType) : "JBro::Nullable<" + bare + ">";
                         const String code = WithReceiver(receiver.code, resultType,
@@ -1617,7 +2058,7 @@ namespace JBro::ScriptCompiler
                     }
                     if (field.Owner != nullptr && !receiver.isType)
                     {
-                        const bool lvalue = receiver.lvalue || (field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic);
+                        const Bool lvalue = receiver.lvalue || (field.Owner->tree->Get(field.Index).Flags & SyntaxFlagStatic);
                         const String code = WithReceiver(receiver.code, "decltype(auto)", "return ("
                             + GuardField(field, "(jbro_gen_receiver)",
                                 "(std::forward<decltype(jbro_gen_receiver)>(jbro_gen_receiver))" + access, index) + ");");
@@ -1628,7 +2069,10 @@ namespace JBro::ScriptCompiler
                 case SyntaxKind::NullAssertExpression:
                 {
                     Expression receiver = Expr(Child(index, 0));
-                    if (!receiver.type.ref && !IsHandle(receiver.type)) return receiver;
+                    if (!receiver.type.ref && !IsHandle(receiver.type))
+                    {
+                        return receiver;
+                    }
                     const String key = Escape(SiteKey(node));
                     const String message = Escape(SiteKey(node) + " invalid ref assertion: " + AccessPath(index));
                     receiver.code = WithReceiver(receiver.code, "decltype(auto)",
@@ -1640,7 +2084,7 @@ namespace JBro::ScriptCompiler
                 case SyntaxKind::IsNullExpression:
                 {
                     const Expression value = Expr(Child(index, 0));
-                    const bool negated = (node.Flags & SyntaxFlagNegated) != 0;
+                    const Bool negated = (node.Flags & SyntaxFlagNegated) != 0;
                     return {String(negated ? "JBro::ScriptGuard::IsPresent(" : "!JBro::ScriptGuard::IsPresent(")
                         + value.code + ")", {"Bool", false}};
                 }
@@ -1652,11 +2096,20 @@ namespace JBro::ScriptCompiler
                 }
                 case SyntaxKind::BinaryExpression:
                 {
-                    const Expression left = Expr(Child(index, 0));
+                    Expression left = Expr(Child(index, 0));
+                    // A string literal stays a raw C++ literal, so "a" + "b" added two pointers (C2110) and "a" == "a" compared them.
+                    // As the left operand it becomes a String first (Script QA, D-386).
+                    if (left.type.name == "String" && SyntaxKind::StringLiteral == Node(Child(index, 0)).Kind)
+                    {
+                        left.code = "JBro::String(" + left.code + ")";
+                    }
                     const Expression right = Expr(Child(index, 1));
                     if (node.Text == "??")
                     {
-                        if (left.type.name == "Null") return right;
+                        if (left.type.name == "Null")
+                        {
+                            return right;
+                        }
                         const String bare = NativeType({left.type.name, false});
                         const String code = WithReceiver(left.code, bare, "if (JBro::ScriptGuard::IsPresent(jbro_gen_left)) return "
                             + GuardValueCopy({left.type.name, false}, "JBro::ScriptGuard::UnwrapPresent(jbro_gen_left)", Child(index, 0))
@@ -1665,8 +2118,8 @@ namespace JBro::ScriptCompiler
                     }
                     if (node.Text == "==" || node.Text == "!=")
                     {
-                        const bool leftNull = left.type.name == "Null";
-                        const bool rightNull = right.type.name == "Null";
+                        const Bool leftNull = left.type.name == "Null";
+                        const Bool rightNull = right.type.name == "Null";
                         if (leftNull && rightNull)
                         {
                             return {node.Text == "==" ? "true" : "false", {"Bool", false}};
@@ -1694,11 +2147,11 @@ namespace JBro::ScriptCompiler
                                 + AdaptValue(TextType(call->ParameterTypes[0]), right, Child(index, 1)) + ")", {"Bool", false}};
                         }
                     }
-                    const bool vectorPair = left.type.name == "Vector2" && right.type.name == "Vector2"
+                    const Bool vectorPair = left.type.name == "Vector2" && right.type.name == "Vector2"
                         && (node.Text == "+" || node.Text == "-");
-                    const bool vectorScale = left.type.name == "Vector2" && right.type.name == "Float"
+                    const Bool vectorScale = left.type.name == "Vector2" && right.type.name == "Float"
                         && (node.Text == "*" || node.Text == "/");
-                    const bool reverseVectorScale = left.type.name == "Float" && right.type.name == "Vector2"
+                    const Bool reverseVectorScale = left.type.name == "Float" && right.type.name == "Vector2"
                         && node.Text == "*";
                     if (vectorPair || vectorScale || reverseVectorScale)
                     {
@@ -1714,7 +2167,7 @@ namespace JBro::ScriptCompiler
                         return {code, {"Vector2", false}};
                     }
                     const String op = node.Text == "and" ? "&&" : node.Text == "or" ? "||" : String(node.Text);
-                    const bool booleanResult = node.Text == "==" || node.Text == "!=" || node.Text == "<"
+                    const Bool booleanResult = node.Text == "==" || node.Text == "!=" || node.Text == "<"
                         || node.Text == "<=" || node.Text == ">" || node.Text == ">="
                         || node.Text == "and" || node.Text == "or";
                     return {"(" + left.code + " " + op + " " + right.code + ")",
@@ -1729,31 +2182,71 @@ namespace JBro::ScriptCompiler
                     const SyntaxNode& calleeNode = Node(calleeIndex);
                     const CallSite* analyzedCall = AnalyzedCall(index);
                     String arguments;
+                    Array<String> argumentList;
                     for (std::size_t slot = 1; slot < node.ChildCount; ++slot)
                     {
-                        if (slot != 1) arguments += ", ";
+                        if (slot != 1)
+                        {
+                            arguments += ", ";
+                        }
                         const NodeIndex argumentIndex = Child(index, slot);
                         const Expression argument = Expr(argumentIndex);
-                        arguments += analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
+                        argumentList.Add(analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
                             ? AdaptValue(TextType(analyzedCall->ParameterTypes[slot - 1]), argument, argumentIndex)
-                            : argument.code;
+                            : argument.code);
+                        // 엔진 함수의 `String`·`Int` 매개변수는 엔진 쪽 타입이 다를 수 있다(`const char*`·`UInt32`·`NameId`). 대리자로 감싸
+                        // C++ 이 실제 매개변수로 바꾸게 한다(D-383).
+                        if (analyzedCall != nullptr && slot - 1 < analyzedCall->ParameterTypes.Size()
+                            && analyzedCall->Resolved != InvalidSymbol && m_analysis->Symbols[analyzedCall->Resolved].Api
+                            && slot - 1 < m_analysis->Symbols[analyzedCall->Resolved].Parameters.Size()
+                            && (m_analysis->Symbols[analyzedCall->Resolved].Parameters[slot - 1].Type == "String"
+                                || m_analysis->Symbols[analyzedCall->Resolved].Parameters[slot - 1].Type == "Int"))
+                        {
+                            argumentList.Last() = "JBro::ScriptGuard::Argument(" + argumentList.Last() + ")";
+                        }
+                        arguments += argumentList.Last();
                     }
                     if (calleeNode.Kind == SyntaxKind::MemberAccessExpression)
                     {
                         const Expression receiver = Expr(Child(calleeIndex, 0));
                         String method = CppIdentifier(calleeNode.Text);
-                        if (const ApiMember* member = ApiMemberInHierarchy(receiver.type.name, calleeNode.Text))
+                        const ApiMember* apiMember = ApiMemberInHierarchy(receiver.type.name, calleeNode.Text);
+                        if (apiMember != nullptr)
                         {
-                            method = member->NativeName.empty() ? Pascal(calleeNode.Text)
-                                : String(member->NativeName.c_str());
+                            method = apiMember->NativeName.empty() ? Pascal(calleeNode.Text)
+                                : String(apiMember->NativeName.c_str());
                         }
                         for (std::size_t slot = 1; slot < calleeNode.ChildCount; ++slot)
                         {
                             method += slot == 1 ? "<" : ", ";
                             method += NativeType(ParseType(Child(calleeIndex, slot)));
                         }
-                        if (calleeNode.ChildCount > 1) method += '>';
-                        if (calleeNode.Flags & SyntaxFlagNullSafe)
+                        if (calleeNode.ChildCount > 1)
+                        {
+                            method += '>';
+                        }
+                        const Bool nullSafe = (calleeNode.Flags & SyntaxFlagNullSafe) || (receiver.type.ref && InNullSafeChain(Child(calleeIndex, 0)));
+                        if (apiMember != nullptr && apiMember->HasOutputProjection)
+                        {
+                            const String resultType = NativeType(callType);
+                            if (nullSafe)
+                            {
+                                return {WithReceiver(receiver.code, resultType, "if (!JBro::ScriptGuard::IsPresent(jbro_gen_receiver)) return {}; "
+                                    + ProjectedCallBody(*apiMember, "JBro::ScriptGuard::UnwrapPresent(jbro_gen_receiver).", method, argumentList, callType)),
+                                    callType};
+                            }
+                            if (receiver.type.ref || IsHandle(receiver.type))
+                            {
+                                const String site = SiteKey(calleeNode);
+                                return {WithReceiver(receiver.code, resultType, "auto&& jbro_gen_target = JBro::ScriptGuard::Require(jbro_gen_receiver, "
+                                    + Escape(site) + ", " + Escape(site + " invalid ref access: " + AccessPath(calleeIndex)) + "); "
+                                    + ProjectedCallBody(*apiMember, "jbro_gen_target.", method, argumentList, callType)), callType};
+                            }
+                            const String target = receiver.isType ? receiver.code + "::" : "(" + receiver.code + ").";
+                            return {"[&]() -> " + resultType + " { " + ProjectedCallBody(*apiMember, target, method, argumentList, callType) + " }()",
+                                callType};
+                        }
+                        if (nullSafe)
                         {
                             if (callType.name == "Void")
                             {
@@ -1782,6 +2275,17 @@ namespace JBro::ScriptCompiler
                         return {receiver.isType ? receiver.code + "::" + method + "(" + arguments + ")"
                             : "(" + receiver.code + ")." + method + "(" + arguments + ")", callType};
                     }
+                    if (calleeNode.Kind == SyntaxKind::NameExpression)
+                    {
+                        const ApiMember* function = ApiFunction(String(calleeNode.Text));
+                        if (function != nullptr && function->HasOutputProjection && callee.code.rfind("JBro::", 0) == 0)
+                        {
+                            const String resultType = NativeType(callType);
+                            const String method = callee.code.substr(6);
+                            return {"[&]() -> " + resultType + " { " + ProjectedCallBody(*function, "JBro::", method, argumentList, callType) + " }()",
+                                callType};
+                        }
+                    }
                     return {callee.code + "(" + arguments + ")", callType};
                 }
                 case SyntaxKind::RefArgument:
@@ -1804,7 +2308,7 @@ namespace JBro::ScriptCompiler
                     const Expression key = Expr(Child(index, 1));
                     const Array<String> arguments = TypeArguments(receiver.type.name);
                     const Type element = arguments.IsEmpty() ? Type{} : TextType(arguments[arguments.Size() - 1]);
-                    const bool table = receiver.type.name.rfind("Table<", 0) == 0;
+                    const Bool table = receiver.type.name.rfind("Table<", 0) == 0;
                     const String nativeKey = table && arguments.Size() == 2
                         ? NativeType(TextType(arguments[0])) + "(" + key.code + ")"
                         : "static_cast<std::size_t>(" + key.code + ")";
@@ -1825,8 +2329,9 @@ namespace JBro::ScriptCompiler
                 }
             }
 
-            void Statement(NodeIndex index, int indent)
+            void Statement(NodeIndex index, Int32 indent)
             {
+                m_errorNode = index;
                 const SyntaxNode& node = Node(index);
                 const String pad(static_cast<std::size_t>(indent), ' ');
                 m_code += "#line " + std::to_string(node.Range.Begin.Line.Get()) + " "
@@ -1835,7 +2340,10 @@ namespace JBro::ScriptCompiler
                 {
                     const auto saved = m_variables;
                     m_code += pad + "{\n";
-                    for (NodeIndex child : m_tree->GetChildren(index)) Statement(child, indent + 4);
+                    for (NodeIndex child : m_tree->GetChildren(index))
+                    {
+                        Statement(child, indent + 4);
+                    }
                     m_code += pad + "}\n";
                     m_variables = saved;
                     return;
@@ -1844,7 +2352,7 @@ namespace JBro::ScriptCompiler
                 {
                     const NodeIndex typeIndex = Child(index, 0);
                     const Type type = ParseType(typeIndex);
-                    const bool constant = typeIndex != InvalidNode
+                    const Bool constant = typeIndex != InvalidNode
                         && (Node(typeIndex).Flags & SyntaxFlagConst) != 0;
                     m_variables[String(node.Text)] = type;
                     m_code += pad + (constant ? "const " : "")
@@ -2040,18 +2548,22 @@ namespace JBro::ScriptCompiler
                     const String switchValue = "jbro_gen_switch_value_" + suffix;
                     const String branch = "jbro_gen_switch_branch_" + suffix;
                     m_code += pad + "{\n" + pad + "    const auto " + switchValue + " = (" + compared + ");\n"
-                        + pad + "    std::int64_t " + branch + " = -1;\n";
-                    bool firstCase = true;
+                        + pad + "    JBro::Int64 " + branch + " = -1;\n";
+                    Bool firstCase = true;
                     for (std::size_t clauseSlot = 1; clauseSlot < node.ChildCount; ++clauseSlot)
                     {
                         const NodeIndex clause = Child(index, clauseSlot);
                         const SyntaxNode& clauseNode = Node(clause);
-                        if (clauseNode.Kind != SyntaxKind::CaseClause) continue;
+                        if (clauseNode.Kind != SyntaxKind::CaseClause)
+                        {
+                            continue;
+                        }
                         for (std::size_t caseSlot = 0; caseSlot + 1 < clauseNode.ChildCount; ++caseSlot)
                         {
                             m_code += pad + "    " + String(firstCase ? "if (" : "else if (")
-                                + switchValue + " == (" + Expr(Child(clause, caseSlot)).code + ")) "
-                                + branch + " = " + std::to_string(clauseSlot - 1) + ";\n";
+                                + switchValue + " == (" + Expr(Child(clause, caseSlot)).code + "))\n"
+                                + pad + "    {\n" + pad + "        " + branch + " = "
+                                + std::to_string(clauseSlot - 1) + ";\n" + pad + "    }\n";
                             firstCase = false;
                         }
                     }
@@ -2106,8 +2618,9 @@ namespace JBro::ScriptCompiler
             ArrayView<const CppSource> m_sources;
             const SourceText* m_source = nullptr;
             const SyntaxTree* m_tree = nullptr;
+            NodeIndex m_errorNode = InvalidNode;
             const ApiCatalog& m_api;
-            bool m_emitModuleEntry;
+            Bool m_emitModuleEntry;
             const AnalysisResult* m_analysis;
             const CppSource* m_unit;
             String m_implementation;
@@ -2115,15 +2628,15 @@ namespace JBro::ScriptCompiler
             String m_code;
             Array<String> m_errors;
             Table<String, DeclarationRef> m_declarations;
-            Table<String, int> m_declarationState;
+            Table<String, Int32> m_declarationState;
             Table<String, Table<String, Type>> m_fields;
             Table<String, VariableBinding> m_variables;
             Array<String> m_scripts;
             Array<FunctionRef> m_functions;
             Array<DeclarationRef> m_initializationOwners;
             Array<DeclarationRef> m_defaultConstructors;
-            bool m_fieldInitializer = false;
-            bool m_staticInitializer = false;
+            Bool m_fieldInitializer = false;
+            Bool m_staticInitializer = false;
             std::size_t m_temporary = 0;
             String m_owner;
             Type m_returnType;
@@ -2131,20 +2644,20 @@ namespace JBro::ScriptCompiler
     }
 
     CppEmitResult EmitCpp(const SourceText& source, const SyntaxTree& tree,
-        const ApiCatalog& api, bool emitModuleEntry, const AnalysisResult* analysis)
+        const ApiCatalog& api, Bool emitModuleEntry, const AnalysisResult* analysis)
     {
         const CppSource one{&source, &tree};
         return Generator(ArrayView<const CppSource>(&one, 1), api, emitModuleEntry, analysis).Run();
     }
 
     CppEmitResult EmitCpp(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        bool emitModuleEntry, const AnalysisResult* analysis)
+        Bool emitModuleEntry, const AnalysisResult* analysis)
     {
         return Generator(sources, api, emitModuleEntry, analysis).Run();
     }
 
     Internal::CppUnitParts Internal::EmitCppParts(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        const CppSource& unit, bool emitModuleEntry, const AnalysisResult* analysis)
+        const CppSource& unit, Bool emitModuleEntry, const AnalysisResult* analysis)
     {
         return Generator(sources, api, emitModuleEntry, analysis, &unit).RunParts();
     }

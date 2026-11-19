@@ -548,6 +548,41 @@ namespace JBro
         const DepthStencilAttachmentDesc* depthStencilAttachment = nullptr;
     };
 
+    // 텍스처를 어떤 쓰임의 상태로 옮길지다(`IRHICommandContext::Barrier`, D-339).
+    enum class TextureAccess : std::uint8_t
+    {
+        ShaderRead,
+        RenderTarget,
+        DepthWrite,
+        CopySource,
+        CopyDestination,
+        Storage
+    };
+
+    // `TextureBarrier::mipLevel` 에 넣으면 그 텍스처의 모든 mip 이다.
+    inline constexpr UInt32 AllTextureMips = 0xFFFFFFFFu;
+
+    // 한 프레임에 적을 수 있는 GPU 시각의 수다(`IRHICommandContext::WriteTimestamp`, D-341).
+    inline constexpr UInt32 MaxTimestampsPerFrame = 512;
+
+    // 끝난 프레임의 GPU 시각을 읽은 결과다(`IRHIDevice::ReadFrameTimestamps`).
+    struct TimestampReadback
+    {
+        // 그 시각들을 적은 프레임(`FrameContext::serial`)이다.
+        UInt64 frameSerial = 0;
+        // 적힌 자리의 수다 - 그 프레임에 적은 가장 큰 자리 + 1.
+        UInt32 count = 0;
+        // 시각 한 칸이 몇 분의 1 초인가. 두 시각의 차를 이것으로 나누면 초다.
+        UInt64 ticksPerSecond = 0;
+    };
+
+    struct TextureBarrier
+    {
+        TextureHandle texture;
+        UInt32 mipLevel = AllTextureMips;
+        TextureAccess access = TextureAccess::ShaderRead;
+    };
+
     class IRHICommandContext
     {
     public:
@@ -601,9 +636,27 @@ namespace JBro
             UInt32 firstInstance) = 0;
         // **렌더 타깃 하나를 다른 렌더 타깃으로 통째로 복사한다**(D-283). 레이어 합성이 아래 그림을 읽는 블렌드(오버레이 등)에서 쓴다.
         // 둘은 같은 크기·같은 포맷이어야 하고 패스 밖에서만 부른다. 원본은 백버퍼여도 되고, 대상은 `RenderTarget` 으로 만든 텍스처다.
-        // 상태(배리어·레이아웃)는 백엔드가 맞춘다 - `Sampled` 로 만든 대상은 다음 패스에서 곧바로 읽을 수 있다. 조건이 맞지 않으면 거짓이고
+        // 상태(배리어·레이아웃)는 백엔드가 맞춘다 - `Sampled` 로 만든 원본·대상은 복사 뒤 읽기 상태로 돌아가 다음 패스에서 곧바로 읽을 수 있다(D3D12 는 D-339 전까지 복사 상태로 남겼다). 조건이 맞지 않으면 거짓이고
         // 아무것도 기록하지 않는다.
         virtual Bool CopyTexture(TextureHandle source, TextureHandle destination) = 0;
+        // **텍스처들을 한 번에 그 쓰임의 상태로 옮긴다**(D-339). 렌더 그래프가 패스 앞에서 그 패스가 쓰는 텍스처를 모아 부른다.
+        // 렌더 패스 밖에서만 부르고, 백버퍼는 받지 않는다. 쓰임마다 텍스처가 그렇게 만들어졌어야 한다(`IsTextureBarrierValid`).
+        // 하나라도 맞지 않으면 거짓이고 아무것도 기록하지 않는다. 이미 그 상태인 mip 은 건너뛴다.
+        //
+        // **"패스 밖의 텍스처는 늘 읽기 상태" 라는 계약은 그대로다.** 이것은 뒤따르는 패스·복사·디스패치가 할 전이를 앞당겨 묶을 뿐이고,
+        // 그것들이 끝난 뒤에 RHI 가 되돌리는 것도 그대로다. 그래서 읽기 밖으로 옮긴 텍스처는 그 쓰임으로 곧바로 써야 한다 -
+        // 옮겨 두고 다른 패스에서 읽으면 그 패스는 읽기 상태가 아닌 것을 읽는다. 복사가 남긴 상태(D3D12 의 복사 원본 등)를 읽기 전에
+        // 읽기로 돌려 두는 길도 이것이다. D3D11 은 상태가 없어 검사만 한다.
+        virtual Bool Barrier(JArrayView<TextureBarrier> barriers) = 0;
+        // **GPU 가 이 자리에 이르렀을 때의 시각을 적는다**(D-341, 렌더 그래프 창의 패스별 GPU 시간). 자리는 프레임마다 0 부터
+        // `DeviceCaps::maxTimestampsPerFrame` 앞까지이고 **0 부터 빈틈없이** 쓴다 - 사이를 비우면 그 자리의 값은 정해지지 않는다(D3D12 는 검증 오류).
+        // 렌더 패스 밖에서만 부른다. 시각은 프레임이 GPU 에서 끝난 뒤 `IRHIDevice::ReadFrameTimestamps` 로 읽는다.
+        // 백엔드가 못 하면(능력이 0) 거짓이고 아무것도 기록하지 않는다.
+        virtual Bool WriteTimestamp(UInt32 index)
+        {
+            (void)index;
+            return false;
+        }
 
         // ── 컴퓨트(postprocess-plan §2.1) ──
         // 컴퓨트 파이프라인을 건다. **렌더 패스 밖에서만이다** - 패스 안에서는 거절한다. 거는 동안 `SetConstantBuffer`·`SetTexture`·
@@ -665,6 +718,8 @@ namespace JBro
         UInt32 maxTextureMipLevels = MaxTextureMipLevels;
         // 3D 텍스처 한 변의 상한이다. D3D 는 2048 이고 Vulkan 은 장치의 `maxImageDimension3D` 다(명세의 최소는 256).
         UInt32 maxTexture3DSize = 2048;
+        // 한 프레임에 적을 수 있는 GPU 시각의 수다(`WriteTimestamp`). 0 이면 시각을 적지 못한다.
+        UInt32 maxTimestampsPerFrame = 0;
     };
 
     // 텍스처의 차원 규칙이다. 세 백엔드가 같은 것을 거절하도록 한 자리에 둔다(포맷·쓰임의 나머지 검사는 백엔드가 한다).
@@ -684,6 +739,37 @@ namespace JBro
             && desc.mipLevels == 1
             && (static_cast<std::uint32_t>(desc.usage) & ~readOnly) == 0
             && desc.format != TextureFormat::D32Float;
+    }
+
+    // 배리어 하나가 그 텍스처에 맞는지 본다(D-339). 세 백엔드가 같은 것을 거절하도록 한 자리에 둔다.
+    //   mip   `AllTextureMips` 이거나 텍스처의 mip 안이다.
+    //   쓰임  `ShaderRead` 는 `Sampled`, `RenderTarget` 은 `RenderTarget`, `DepthWrite` 는 `DepthStencil`, `Storage` 는 `Storage` 로 만든 것이다.
+    //         복사 둘은 색 텍스처면 된다 - `CopyTexture` 가 쓰임 플래그를 보지 않고 받는 것과 같다.
+    constexpr Bool IsTextureBarrierValid(const TextureDesc& desc, const TextureBarrier& barrier) noexcept
+    {
+        if (barrier.mipLevel != AllTextureMips && barrier.mipLevel >= desc.mipLevels)
+        {
+            return false;
+        }
+        const std::uint32_t usage = static_cast<std::uint32_t>(desc.usage);
+        const auto has = [usage](TextureUsage flag) {
+            return (usage & static_cast<std::uint32_t>(flag)) != 0;
+        };
+        switch (barrier.access)
+        {
+        case TextureAccess::ShaderRead:
+            return has(TextureUsage::Sampled);
+        case TextureAccess::RenderTarget:
+            return has(TextureUsage::RenderTarget);
+        case TextureAccess::DepthWrite:
+            return has(TextureUsage::DepthStencil);
+        case TextureAccess::CopySource:
+        case TextureAccess::CopyDestination:
+            return desc.format != TextureFormat::D32Float;
+        case TextureAccess::Storage:
+            return has(TextureUsage::Storage);
+        }
+        return false;
     }
 
     // 자리표가 장치의 상한 안이고, 쓰는 종류마다 읽는 단계를 말했는지 본다. 백엔드가 파이프라인을 만들기 전에 부른다.
@@ -805,6 +891,17 @@ namespace JBro
             (void)texture;
             (void)destination;
             (void)destinationSize;
+            (void)result;
+            return false;
+        }
+
+        // **GPU 가 끝낸 가장 최근 프레임의 시각들이다**(D-341). 그 프레임에 `WriteTimestamp` 로 적은 자리 수만큼 `destination` 에
+        // 적는다(`capacity` 를 넘으면 앞쪽만). 기다리지 않는다 - 프레임 슬롯을 다시 쓸 때(`BeginFrame`) 그 슬롯의 앞 프레임이 끝났으므로
+        // 그때 받아 둔 것을 준다. 그래서 시각은 떠 있는 프레임 수만큼 늦게 온다. 아직 끝난 프레임에 적힌 시각이 없으면 거짓이다.
+        virtual Bool ReadFrameTimestamps(UInt64* destination, UInt32 capacity, TimestampReadback& result)
+        {
+            (void)destination;
+            (void)capacity;
             (void)result;
             return false;
         }

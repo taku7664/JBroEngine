@@ -9,6 +9,7 @@
 #include <JBro/ScriptCompiler/Analysis.h>
 #include <JBro/ScriptCompiler/DiagnosticMessages.h>
 #include <JBro/ScriptCompiler/Parser.h>
+#include "../Modules/JBroc/Source/StackGuard.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -49,6 +50,7 @@ namespace
         "jbroc.cli.missing_option_value",
         "jbroc.cli.unknown_locale",
         "jbroc.cli.cannot_read_file",
+        "jbroc.emit.unsupported",
     };
 
     std::string ToUtf8(const std::wstring& text)
@@ -158,7 +160,7 @@ namespace
         DiagnosticList diagnostics;
         Parse(source, diagnostics);
         Check(1 == diagnostics.GetCount(), "the bad probe has exactly one error");
-        return FormatDiagnosticLine(path, diagnostics.GetItems()[0], messages).Std() + "\n";
+        return FormatDiagnosticLine(path, source.GetText(), diagnostics.GetItems()[0], messages).Std() + "\n";
     }
 
     void TestNumbersAreStableAndUnique()
@@ -208,19 +210,33 @@ namespace
                 std::cout << "  missing translation: " << key << '\n';
             }
             Check(nullptr != ko && nullptr != en, "every command line key is in both tables");
-            Check(std::string(ko) != std::string(en), "the Korean and English command line messages differ");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English command line messages differ");
         }
         for (const char* key : GetSemanticDiagnosticKeys())
         {
             const char* ko = korean.Find(key);
             const char* en = english.Find(key);
             Check(nullptr != ko && nullptr != en, "every semantic diagnostic key is in both tables");
-            Check(std::string(ko) != std::string(en), "the Korean and English semantic messages differ");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English semantic messages differ");
+        }
+        const char* summaryKeys[] = {
+            "jbroc.summary.syntax_errors", "jbroc.summary.field_required", "jbroc.summary.invalid_attribute",
+            "jbroc.summary.invalid_attribute_argument", "jbroc.summary.invalid_initializer", "jbroc.summary.unsafe_edit",
+            "jbroc.summary.changes_required", "jbroc.summary.unsupported_change", "jbroc.summary.initializer_type",
+            "jbroc.summary.attributes_type", "jbroc.summary.attribute_shape", "jbroc.summary.attribute_argument_type",
+            "jbroc.summary.version_required", "jbroc.summary.stale_version", "jbroc.summary.selection_required"
+        };
+        for (const char* key : summaryKeys)
+        {
+            const char* ko = korean.Find(key);
+            const char* en = english.Find(key);
+            Check(nullptr != ko && nullptr != en, "every summary editing message key is in both tables");
+            Check(JBro::String(ko) != JBro::String(en), "the Korean and English summary editing messages differ");
         }
         const std::size_t expected = static_cast<std::size_t>(DiagnosticCode::Count)
-            + std::size(CommandLineKeys) + GetSemanticDiagnosticKeys().Size();
+            + std::size(CommandLineKeys) + GetSemanticDiagnosticKeys().Size() + std::size(summaryKeys);
         Check(korean.GetCount() == expected && english.GetCount() == expected,
-            "the tables hold exactly the parser, lexer, semantic and command line keys");
+            "the tables hold exactly the parser, lexer, semantic, command line and summary keys");
     }
 
     void TestProjectOutputPreservesUnchangedFiles()
@@ -248,7 +264,7 @@ namespace
         fs::path secondHeader;
         for (const auto& file : fs::directory_iterator(output))
         {
-            const std::string contents = ReadBytes(file.path());
+            const JBro::String contents = ReadBytes(file.path());
             if (file.path().extension() == L".h")
             {
                 if (contents.find("class First :") != std::string::npos)
@@ -442,14 +458,372 @@ namespace
 
         std::filesystem::remove_all(scratch);
     }
+
+    // **식의 깊이는 언어 규칙이다(D-374).** 뿌리에서 잎까지 식 노드가 `MaxExpressionDepth` 겹이면 지나고 하나 더면 `JBC2015` 로
+    // 거절한다. 전에는 상한이 없어 깊이 24 에서 `jbroc` 이 말없이 죽었고(Script QA 결함 3), 큰 스택으로 고친 뒤에는 MSVC 가
+    // `??` 사슬 약 122 겹에서 C1061 로 멈췄다. 모양마다 경계를 재는 까닭은 파서가 겹을 두 길(노드 깊이·파서 재귀)로 세기 때문이다.
+    std::string RepeatJoined(const char* piece, const char* separator, JBro::Int32 count)
+    {
+        std::string text;
+        for (JBro::Int32 index = 0; index < count; ++index)
+        {
+            text += index == 0 ? "" : separator;
+            text += piece;
+        }
+        return text;
+    }
+
+    std::string Nested(const char* open, const char* leaf, const char* close, JBro::Int32 count)
+    {
+        std::string text;
+        for (JBro::Int32 index = 0; index < count; ++index)
+        {
+            text += open;
+        }
+        text += leaf;
+        for (JBro::Int32 index = 0; index < count; ++index)
+        {
+            text += close;
+        }
+        return text;
+    }
+
+    // 깊이 `depth` 의 식을 모양마다 만든다. 셈은 식 노드의 수다: `1 + 1` 은 2, `(1)` 은 2, `-1` 은 2, `Id(1)` 은 2, `maybe ?? 0` 은 2.
+    struct DepthShape
+    {
+        const char* Name;
+        const char* Return;
+        std::string (*Make)(JBro::Int32 depth);
+    };
+
+    const DepthShape DepthShapes[] = {
+        {"plus", "Int", [](JBro::Int32 depth) { return RepeatJoined("1", " + ", depth); }},
+        {"and", "Bool", [](JBro::Int32 depth) { return RepeatJoined("flag", " and ", depth); }},
+        {"concat", "String", [](JBro::Int32 depth) { return RepeatJoined("text", " + ", depth); }},
+        {"multiply", "Float", [](JBro::Int32 depth) { return RepeatJoined("1.0", " * ", depth); }},
+        {"paren", "Int", [](JBro::Int32 depth) { return Nested("(", "1", ")", depth - 1); }},
+        {"negate", "Int", [](JBro::Int32 depth) { return Nested("-", "1", "", depth - 1); }},
+        {"not", "Bool", [](JBro::Int32 depth) { return Nested("not ", "flag", "", depth - 1); }},
+        {"call", "Int", [](JBro::Int32 depth) { return Nested("Id(", "1", ")", depth - 1); }},
+        {"coalesce", "Int", [](JBro::Int32 depth) { return RepeatJoined("maybe", " ?? ", depth - 1) + " ?? 0"; }},
+    };
+
+    void TestDeepExpressionsAreRejectedWithAPosition()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_deep_expression_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const JBro::Int32 limit = static_cast<JBro::Int32>(JBro::ScriptCompiler::MaxExpressionDepth.Get());
+        Check(limit == 100, "the expression depth limit is the number the documents name");
+        const auto run = [&](const DepthShape& shape, JBro::Int32 depth) {
+            const fs::path source = scratch / (std::string(shape.Name) + std::to_string(depth) + ".jscript");
+            WriteBytes(source, std::string("script Deep\n{\n    Bool flag = true\n    String text = \"a\"\n    ref Int maybe\n"
+                "    fn Id(Int v) -> Int\n    {\n        return v\n    }\n    fn F() -> ") + shape.Return
+                + "\n    {\n        return " + shape.Make(depth) + "\n    }\n}\n");
+            return Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" --locale en-US " + Quote(source), scratch);
+        };
+        for (const DepthShape& shape : DepthShapes)
+        {
+            const RunResult atLimit = run(shape, limit);
+            if (atLimit.ExitCode != 0)
+            {
+                std::cout << "  shape " << shape.Name << " depth " << limit << std::endl;
+                Print(atLimit);
+            }
+            Check(atLimit.ExitCode == 0, "an expression exactly at the depth limit is analyzed and emitted");
+            const JBro::Int32 overDepths[] = { limit + 1, JBro::Int32(60000) };
+            for (const JBro::Int32 depth : overDepths)
+            {
+                const RunResult over = run(shape, depth);
+                const Bool rejected = over.ExitCode == 1 && over.Out.find(".jscript(12,") != std::string::npos
+                    && over.Out.find("error JBC2015: This expression nests too deeply. An expression can nest up to 100 levels.") != std::string::npos
+                    && over.Err.find("internal error") == std::string::npos
+                    && over.Out.find("error JBC") == over.Out.rfind("error JBC");
+                if (false == rejected)
+                {
+                    std::cout << "  shape " << shape.Name << " depth " << depth << std::endl;
+                    Print(over);
+                }
+                Check(rejected, "an expression one level past the limit, or far past it, is one JBC2015 on its source line and nothing else");
+            }
+        }
+        // 빈 오른쪽을 가진 `??`·`and` 는 구문 오류 하나로 끝난다. 전에는 분석이 빈 자리의 노드를 읽어 Debug 에서 단언으로 죽었다.
+        for (const char* broken : { "maybe ?? maybe ?? ", "flag and " })
+        {
+            const fs::path source = scratch / L"broken.jscript";
+            WriteBytes(source, std::string("script Broken\n{\n    Bool flag = true\n    ref Int maybe\n    fn F() -> Int\n    {\n        return ")
+                + broken + "\n    }\n}\n");
+            const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
+            if (result.ExitCode != 1)
+            {
+                Print(result);
+            }
+            Check(result.ExitCode == 1 && result.Out.find("error JBC2005") != std::string::npos,
+                "a binary operator with nothing on its right is one syntax error, not a crash");
+        }
+        fs::remove_all(scratch);
+    }
+
+    // **블록은 함수 하나에서 32 겹까지다(D-376).** 함수 몸이 1 이고 `if`·`while`·`for`·`case` 몸이 하나씩 더한다. 한 겹 더면 `{` 자리에
+    // `JBC2016` 하나다. 수만 겹도 파서가 재귀하지 않고 건너뛰어 곧바로 끝난다. `else if` 사슬은 겹으로 세지 않는다.
+    void TestDeepBlocksAreRejectedWithAPosition()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_deep_block_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const JBro::Int32 limit = static_cast<JBro::Int32>(JBro::ScriptCompiler::MaxBlockDepth.Get());
+        Check(limit == 32, "the block depth limit is the number the documents name");
+        struct BlockShape
+        {
+            const char* Name;
+            const char* Open;
+            const char* Close;
+        };
+        const BlockShape shapes[] = {
+            {"if", "if (flag) {\n", "}\n"},
+            {"while", "while (count < 0) {\n", "}\n"},
+            {"for", "for (item in items) {\n", "}\n"},
+            {"switch", "switch (count) {\ncase 0 {\n", "}\n}\n"},
+        };
+        // 함수 몸 `{` 은 6 줄에 있고 겹 하나가 한 줄(switch 는 두 줄)이다. 32 번째 안쪽 블록의 `{` 가 진단 자리다.
+        const auto run = [&](const BlockShape& shape, JBro::Int32 inner) {
+            std::string body;
+            for (JBro::Int32 index = 0; index < inner; ++index)
+            {
+                body += shape.Open;
+            }
+            body += "count += 1\n";
+            for (JBro::Int32 index = 0; index < inner; ++index)
+            {
+                body += shape.Close;
+            }
+            const fs::path source = scratch / (std::string(shape.Name) + std::to_string(inner) + ".jscript");
+            WriteBytes(source, "script Blocks\n{\n    Bool flag = true\n    Int count = 0\n    Array<Int> items\n    fn F()\n    {\n"
+                + body + "    }\n}\n");
+            return Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" --locale en-US " + Quote(source), scratch);
+        };
+        for (const BlockShape& shape : shapes)
+        {
+            const RunResult atLimit = run(shape, limit - 1);
+            if (atLimit.ExitCode != 0)
+            {
+                std::cout << "  shape " << shape.Name << " at the limit" << std::endl;
+                Print(atLimit);
+            }
+            Check(atLimit.ExitCode == 0, "blocks exactly at the depth limit (the body and 31 more) are analyzed and emitted");
+            const JBro::Int32 overDepths[] = { limit, JBro::Int32(60000) };
+            for (const JBro::Int32 inner : overDepths)
+            {
+                const RunResult over = run(shape, inner);
+                const Bool rejected = over.ExitCode == 1
+                    && over.Out.find("error JBC2016: These blocks nest too deeply. A function can nest blocks up to 32 levels.") != std::string::npos
+                    && over.Out.find("error JBC") == over.Out.rfind("error JBC")
+                    && over.Err.find("internal error") == std::string::npos;
+                if (false == rejected)
+                {
+                    std::cout << "  shape " << shape.Name << " inner " << inner << std::endl;
+                    Print(over);
+                }
+                Check(rejected, "one block past the limit, or far past it, is one JBC2016 and nothing else");
+            }
+        }
+        // 위치: 함수 몸이 7 줄, 안쪽 블록 i 번째가 7 + i 줄이다. 32 번째 블록의 `{` 는 if 모양에서 39 줄 11 열이다.
+        const RunResult placed = run(shapes[0], limit);
+        Check(placed.Out.find("if32.jscript(39,11): error JBC2016") != std::string::npos, "JBC2016 points at the brace of the first block past the limit");
+        // `else if` 는 사슬이라 겹이 아니다. 40 개도 지난다(D-376 - 사슬 길이는 사용자 결정 대기).
+        std::string chain = "if (count == 0) {\ncount = 1\n}\n";
+        for (JBro::Int32 index = 1; index < 40; ++index)
+        {
+            chain += "else if (count == " + std::to_string(index.Get()) + ") {\ncount = " + std::to_string(index.Get() + 1) + "\n}\n";
+        }
+        const fs::path chained = scratch / L"chain.jscript";
+        WriteBytes(chained, "script Chain\n{\n    Int count = 0\n    fn F()\n    {\n" + chain + "    }\n}\n");
+        const RunResult chainResult = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(chained), scratch);
+        if (chainResult.ExitCode != 0)
+        {
+            Print(chainResult);
+        }
+        Check(chainResult.ExitCode == 0, "an else-if chain of 40 is not counted as nested blocks");
+        fs::remove_all(scratch);
+    }
+
+    // **넘침을 받는 길은 구성과 무관하게 지난다**(REVIEW R3-1). 식(D-374)과 블록(D-376)은 이제 상한으로 막히므로 `jbroc` 을 넘치게 하는
+    // 입력은 `else if` 수만 개 같은 것뿐이고, Debug 도 1 분이 넘게 걸린다. 그래서 `jbroc` 진입점이 쓰는 그 함수를 작은 스택으로 부른다.
+    // `stop` 에 닿으면 돌아온다. 닿지 않는 `stop`(음수)이면 스택이 넘칠 때까지 들어간다. 프레임마다 지역 배열을 두고 돌아온 뒤에 더해
+    // 최적화가 재귀를 반복문으로 바꾸지 못하게 한다.
+    JBro::Int32 RecurseUntil(JBro::Int32 depth, JBro::Int32 stop)
+    {
+        volatile char frame[256];
+        frame[0] = static_cast<char>(depth.Get());
+        if (stop == depth)
+        {
+            return frame[0];
+        }
+        return RecurseUntil(depth + 1, stop) + frame[0];
+    }
+
+    void TestTheStackGuardCatchesOverflow()
+    {
+        using JBro::CompilerOutput::GuardedRun;
+        using JBro::CompilerOutput::RunOnLargeStack;
+        const GuardedRun overflow = RunOnLargeStack([](void*) -> JBro::Int32 { return RecurseUntil(1, -1); }, nullptr,
+            1024u * 1024u, 3);
+        Check(overflow.StackOverflow && overflow.Result == 3, "a stack overflow inside the guard returns the internal error result");
+        const GuardedRun deep = RunOnLargeStack([](void*) -> JBro::Int32 { RecurseUntil(1, 10000); return 42; }, nullptr,
+            256u * 1024u * 1024u, 3);
+        Check(false == deep.StackOverflow && deep.Result == 42, "10,000 frames fit in the reserved stack and return the body's result");
+    }
+}
+
+namespace
+{
+    // **생성 단계의 오류도 자리를 말한다**(Script QA 결함 4). 전에는 `jbroc: C++ emit error: …` 한 줄이라 어느 파일 몇 줄인지 몰랐다.
+    void TestEmitErrorsNameTheSourcePosition()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_emit_error_position_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        // 생성기만 알던 마지막 꼴(버퍼와 길이를 받는 투영)도 이제 분석이 막는다(D-382). 생성기까지 가지 않고 그 호출 자리에 `JBC3050` 이다.
+        const fs::path source = scratch / L"Copy.jscript";
+        WriteBytes(source, "script Copy\n{\n    ref Text2D label\n    fn F() -> String\n    {\n        return Text.CopyText(label!)\n    }\n}\n");
+        const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
+        if (result.ExitCode != 1)
+        {
+            Print(result);
+        }
+        Check(result.ExitCode == 1 && result.Out.find("Copy.jscript(6,21): error JBC3050") != std::string::npos
+                && result.Err.find("emit") == std::string::npos,
+            "a projection the emitter cannot lower is an analysis diagnostic at the call, not an emitter error");
+        fs::remove_all(scratch);
+    }
+}
+
+namespace
+{
+    // **빈 enum 은 C++ 처럼 받고, 값으로 담는 필드가 돌아 자기 타입을 담으면 `JBC3048` 이다(D-377).** 전에는 둘 다 생성기만 알아서
+    // 빌드에서야 위치 없는 영어 한 줄로 멈췄다(Script QA 결함 4). 순환은 자기 자신·두 타입·부모를 거치는 꼴을 보고,
+    // `Array`·script 핸들·정적 필드는 사슬을 끊으므로 진단이 없어야 한다.
+    void TestEmptyEnumsAndOwnedCycles()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_owned_cycle_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const auto run = [&](const char* name, const std::string& text) {
+            const fs::path source = scratch / name;
+            WriteBytes(source, text);
+            return Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" --locale en-US " + Quote(source), scratch);
+        };
+        const RunResult empty = run("Empty.jscript",
+            "enum Nothing\n{\n}\n\nscript UsesNothing\n{\n    Nothing value\n    fn Same(Nothing other) -> Bool\n    {\n        return value == other\n    }\n}\n");
+        if (empty.ExitCode != 0)
+        {
+            Print(empty);
+        }
+        Check(empty.ExitCode == 0 && empty.Err.find("emit error") == std::string::npos, "an enum without members is analyzed and emitted");
+
+        struct Cycle
+        {
+            const char* Name;
+            const char* Text;
+            const char* Expected;
+        };
+        const Cycle cycles[] = {
+            {"Self.jscript", "class Node\n{\n    Node next\n}\n", "Self.jscript(3,10): error JBC3048: A field held by value leads back to its own type: Node.next -> Node."},
+            {"Pair.jscript", "struct Left\n{\n    Right right\n}\n\nstruct Right\n{\n    ref Left left\n}\n",
+                "Pair.jscript(3,11): error JBC3048: A field held by value leads back to its own type: Left.right -> Right."},
+            {"Base.jscript", "class Base\n{\n    Derived child\n}\n\nclass Derived : Base\n{\n}\n",
+                "Base.jscript(3,13): error JBC3048: A field held by value leads back to its own type: Base.child -> Derived."},
+        };
+        for (const Cycle& cycle : cycles)
+        {
+            const RunResult result = run(cycle.Name, cycle.Text);
+            const Bool reported = result.ExitCode == 1 && result.Out.find(cycle.Expected) != std::string::npos
+                && result.Err.find("emit error") == std::string::npos;
+            if (false == reported)
+            {
+                std::cout << "  " << cycle.Name << std::endl;
+                Print(result);
+            }
+            Check(reported, "an owned field cycle is JBC3048 at the field, in the analysis");
+        }
+        const RunResult pair = run("Pair.jscript", cycles[1].Text);
+        Check(pair.Out.find("Pair.jscript(8,14): error JBC3048") != std::string::npos, "every field on the cycle is reported, the ref value one too");
+
+        const RunResult broken = run("Broken.jscript",
+            "class Tree\n{\n    Array<Tree> children\n    static Tree shared\n}\n\nscript Holder\n{\n    ref Holder other\n    Tree root\n}\n");
+        if (broken.ExitCode != 0)
+        {
+            Print(broken);
+        }
+        Check(broken.ExitCode == 0, "an Array, a static field and a script handle do not make an owned cycle");
+        fs::remove_all(scratch);
+    }
+}
+
+namespace
+{
+    // **명령줄 진단의 열은 글자 단위다(D-379).** 전에는 UTF-8 바이트 열이라 한글 뒤의 자리가 편집기·빌드 결과와 어긋났다
+    // (한글 셋 뒤의 이름이 글자로 24 열인데 30 열). 구문 진단·의미 진단·생성기 오류가 같은 단위다. BOM 은 열에 들지 않는다.
+    void TestColumnsCountCharacters()
+    {
+        namespace fs = std::filesystem;
+        const fs::path executable = TestExecutableDirectory() / L"JBroc.exe";
+        const fs::path scratch = fs::temp_directory_path() / L"JBroc_column_probe";
+        fs::remove_all(scratch);
+        fs::create_directories(scratch);
+        const std::string korean = "\xea\xb0\x80\xeb\x82\x98\xeb\x8b\xa4";
+        struct Case
+        {
+            const char* Name;
+            std::string Text;
+            const char* Expected;
+        };
+        const Case cases[] = {
+            {"Semantic.jscript", "script A\n{\n    fn F() -> String\n    {\n        return \"" + korean + "\" + missingName\n    }\n}\n",
+                "Semantic.jscript(5,24): error JBC3004"},
+            {"Syntax.jscript", "script B\n{\n    fn F() -> String\n    {\n        return \"" + korean + "\" + )\n    }\n}\n",
+                "Syntax.jscript(5,24): error JBC2005"},
+            {"Bom.jscript", "\xef\xbb\xbfscript C\n{\n    Int hp = \"" + korean + "\"\n}\n", "Bom.jscript(3,14): error JBC3003"},
+            {"Projection.jscript", "script D\n{\n    ref Text2D label\n    fn F() -> String\n    {\n        return \"" + korean + "\" + Text.CopyText(label!)\n    }\n}\n",
+                "Projection.jscript(6,29): error JBC3050"},
+        };
+        for (const Case& item : cases)
+        {
+            const fs::path source = scratch / item.Name;
+            WriteBytes(source, item.Text);
+            const RunResult result = Run(executable, L"--emit-project " + Quote(scratch / L"out") + L" " + Quote(source), scratch);
+            const Bool placed = (result.Out + result.Err).find(item.Expected) != std::string::npos;
+            if (false == placed)
+            {
+                std::cout << "  " << item.Name << " expected " << item.Expected << std::endl;
+                Print(result);
+            }
+            Check(placed, "a diagnostic after Korean text names the character column");
+        }
+        fs::remove_all(scratch);
+    }
 }
 
 JBro::Int32 RunScriptCompilerCommandLineTests()
 {
+    JBRO_CASE(TestEmitErrorsNameTheSourcePosition());
+    JBRO_CASE(TestEmptyEnumsAndOwnedCycles());
+    JBRO_CASE(TestColumnsCountCharacters());
     JBRO_CASE(TestNumbersAreStableAndUnique());
     JBRO_CASE(TestTranslationTablesHoldDiagnosticAndCommandLineKeys());
     JBRO_CASE(TestTheExecutable());
     JBRO_CASE(TestProjectOutputPreservesUnchangedFiles());
+    JBRO_CASE(TestDeepExpressionsAreRejectedWithAPosition());
+    JBRO_CASE(TestDeepBlocksAreRejectedWithAPosition());
+    JBRO_CASE(TestTheStackGuardCatchesOverflow());
     std::cout << "Script compiler command line tests passed.\n";
     return 0;
 }

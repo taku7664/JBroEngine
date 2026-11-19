@@ -14,10 +14,10 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Handle/Text2D.h>
 #include <JBro/Framework2D/ServiceContext.h>
-#include <JBro/Framework2DSystem/System/Button2DSystem.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
-#include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/ScreenUi/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
@@ -1839,6 +1839,101 @@ namespace
         project.Close();
     }
 
+    // **강조 범위**(D-362). 흰 바탕에 가운데 정렬 검은 `AA` 두 줄(`AA\nAA`)이고, 범위 [1, 4) 는 윗줄의 둘째 A 와 아랫줄의 첫 A 다 - 파랑 사각형이 윗줄은
+    // 가운데 오른쪽에만, 아랫줄은 가운데 왼쪽에만 깔린다(한 사각형이 둘을 둘러싸면 윗줄 왼쪽과 아랫줄 오른쪽에도 파랑이 생긴다). 글자는 사각형 위에 검다.
+    void TestHighlightRangesPaintEachLine()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; highlight ranges not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            Object::GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 20.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            label->highlightColor = {0.0f, 0.0f, 1.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "AA\nAA", 5);
+            framework.BindCanvasAssets();
+            // 파랑(B 높고 R 낮음) 픽셀을 윗·아랫 절반, 왼·오른 절반으로 센다.
+            JBro::UInt32 blue[2][2] = {};
+            const auto count = [&]() {
+                blue[0][0] = blue[0][1] = blue[1][0] = blue[1][1] = 0;
+                for (JBro::UInt32 y = 0; y < 64; ++y)
+                {
+                    for (JBro::UInt32 x = 0; x < 64; ++x)
+                    {
+                        if (gpu.Blue(x, y) > 0.8f && gpu.Red(x, y) < 0.3f)
+                        {
+                            ++blue[y < 32 ? 0 : 1][x < 32 ? 0 : 1];
+                        }
+                    }
+                }
+            };
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            count();
+            Check(blue[0][0] + blue[0][1] + blue[1][0] + blue[1][1] == 0, "without a range nothing is blue");
+            label->highlightBegin = 1;
+            label->highlightEnd = 4;
+            gpu.Paint(framework);
+            count();
+            Check(blue[0][1] > 20 && blue[1][0] > 20, "the second A of the top line and the first A of the bottom line are highlighted");
+            Check(blue[0][0] < 4 && blue[1][1] < 4, "but not the top-left or bottom-right - each line is its own rectangle");
+            JBro::UInt32 dark = 0;
+            for (JBro::UInt32 y = 0; y < 32; ++y)
+            {
+                for (JBro::UInt32 x = 32; x < 64; ++x)
+                {
+                    dark += gpu.Red(x, y) < 0.3f && gpu.Blue(x, y) < 0.3f ? 1u : 0u;
+                }
+            }
+            Check(dark > 10, "the letter is drawn over its highlight");
+            label->richText = true;
+            gpu.Paint(framework);
+            count();
+            Check(blue[0][1] == 0 && blue[1][0] == 0, "rich text does not highlight - the indices would not match what shows");
+            label->richText = false;
+            label->highlightBegin = 3;
+            label->highlightEnd = 1;
+            gpu.Paint(framework);
+            count();
+            Check(blue[0][1] == 0 && blue[1][0] == 0, "a reversed range is nothing");
+            label->highlightBegin = -5;
+            label->highlightEnd = 999;
+            gpu.Paint(framework);
+            count();
+            Check(blue[0][0] > 20 && blue[1][1] > 20, "an out-of-range range clamps to the whole text");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     // **3D 텍스트**(D-222). 카메라(z=3, 세로 60 도)가 64 x 64 백버퍼를 본다. 원점의 검은 `A`(40 px, PPU 32 라 1.25 유닛)가 그려진다.
     // - 앞(z=1.5)에 상자를 두면 가려진다(월드 텍스트는 메시 뒤에 깊이를 본다). 상자를 치우면 다시 보인다.
     // - Y 로 90 도 돌리면 판이 옆을 보아 사라지고, `Billboard` 면 회전과 무관하게 카메라를 봐 다시 보인다.
@@ -2644,6 +2739,7 @@ JBro::Int32 RunTextRenderTests()
         JBRO_CASE(TestBakedAtlasesRestoreFromAPackage());
         JBRO_CASE(TestPixelSnapLandsGlyphsOnWholePixels());
         JBRO_CASE(TestRichTextDrawsTaggedColourAndSize());
+        JBRO_CASE(TestHighlightRangesPaintEachLine());
         JBRO_CASE(TestText3DDrawsInTheWorld());
         JBRO_CASE(TestScreenExtentsFollowTheirScaleMode());
         JBRO_CASE(TestScreenLayersDrawOverTheWorld());

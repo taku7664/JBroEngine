@@ -11,7 +11,9 @@
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -791,6 +793,57 @@ namespace
                 canvas, ids, id, TypeNameOf(JBro::Component::SpriteRenderer2D::StaticTypeName()))),
             "a second sprite renderer must still go on");
         Check(CountComponents(*object, spriteType) == 2, "making two of them");
+    }
+
+    // **월드 레이어의 픽셀 기본값**(D-354). 맨 위젯을 월드 레이어의 오브젝트에 붙이면 `Pixels()` 필드의 기본값이 PPU(100)로 나뉘고,
+    // 화면 레이어에서는 픽셀 그대로다. 다시 하기도 같은 길이고, 값을 들고 붙이면(붙여넣기) 그 값이다.
+    void TestPixelDefaultsShrinkOnAWorldLayer()
+    {
+        RegisterOnce();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+        const auto close = [](JBro::Float value, float expected) {
+            return value > expected - 1.0e-4f && value < expected + 1.0e-4f;
+        };
+
+        JBro::Object::GameObject* world = canvas.CreateObject("World");
+        JBro::Object::GameObject* screen = canvas.CreateObject("Screen");
+        JBro::Layer& hud = canvas.CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        Check(canvas.SetObjectLayer(screen, hud.GetId()), "the second object goes to the screen layer");
+        Check(world->GetLayer() != nullptr && world->GetLayer()->GetSpace() == JBro::LayerSpace::World, "the first stays on the world layer");
+        const JBro::EditorObjectId worldId = ids.Track(world);
+        const JBro::EditorObjectId screenId = ids.Track(screen);
+        const JBro::NameId buttonType = TypeNameOf(JBro::Component::Button2D::StaticTypeName());
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(canvas, ids, worldId, buttonType)), "a button goes on the world object");
+        JBro::Component::Button2D* worldButton = world->GetComponent<JBro::Component::Button2D>().Get();
+        Check(worldButton != nullptr && close(worldButton->size.x, 1.6f) && close(worldButton->size.y, 0.48f),
+            "on a world layer the 160 x 48 pixel default becomes 1.6 x 0.48 units");
+        Check(worldButton != nullptr && close(worldButton->offset.x, 0.0f) && worldButton->interactable && close(worldButton->normalTint.A, 1.0f),
+            "the other fields are untouched");
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(canvas, ids, screenId, buttonType)), "a button goes on the screen object");
+        JBro::Component::Button2D* screenButton = screen->GetComponent<JBro::Component::Button2D>().Get();
+        Check(screenButton != nullptr && close(screenButton->size.x, 160.0f) && close(screenButton->size.y, 48.0f),
+            "on a screen layer the pixel default stays");
+
+        Check(commands.Undo() && commands.Undo(), "both adds undo");
+        Check(commands.Redo(), "the world add redoes");
+        worldButton = world->GetComponent<JBro::Component::Button2D>().Get();
+        Check(worldButton != nullptr && close(worldButton->size.x, 1.6f), "redo attaches the scaled default again");
+
+        // 값을 들고 붙이는 길은 나누지 않는다 - 화면 버튼의 값을 월드 레이어의 다른 오브젝트에 붙여넣으면 160 그대로다(버튼은 하나만 붙는다).
+        Check(commands.Redo(), "the screen add redoes");
+        screenButton = screen->GetComponent<JBro::Component::Button2D>().Get();
+        JBro::ComponentSnapshot values;
+        Check(screenButton != nullptr && JBro::CaptureComponent(*screenButton, values), "the screen button's values are captured");
+        JBro::Object::GameObject* pasteTarget = canvas.CreateObject("Paste");
+        const JBro::EditorObjectId pasteId = ids.Track(pasteTarget);
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(canvas, ids, pasteId, buttonType, values)), "and pasted on another world object");
+        JBro::Component::Button2D* pastedButton = pasteTarget->GetComponent<JBro::Component::Button2D>().Get();
+        Check(pastedButton != nullptr && close(pastedButton->size.x, 160.0f) && close(pastedButton->size.y, 48.0f),
+            "a pasted button keeps the values it came with");
     }
 
     // 뗀 것을 되돌리면 **값까지** 돌아와야 한다. 껍데기만 다시 붙이면 되돌린 것이
@@ -2606,6 +2659,7 @@ JBro::Int32 RunEditorObjectCommandTests()
     JBRO_CASE(TestDeletingNothingIsRefused());
     JBRO_CASE(TestRestoringBringsBackWhatWasSwitchedOff());
     JBRO_CASE(TestAddingAComponentCanBeUndone());
+    JBRO_CASE(TestPixelDefaultsShrinkOnAWorldLayer());
     JBRO_CASE(TestRemovingAComponentBringsBackItsValues());
     JBRO_CASE(TestRemovingPicksTheRightOneOfTwoOfAKind());
     JBRO_CASE(TestComponentSlotsCanBeRearranged());

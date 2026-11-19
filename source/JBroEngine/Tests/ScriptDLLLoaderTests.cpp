@@ -1,4 +1,5 @@
 ﻿#include "TestCases.h"
+#include "JBroScriptGeneratedProbe/ProbeExports.h"
 #include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Host/RandomSystem.h>
 #include <JBro/Core/StableTypeId.h>
@@ -7,7 +8,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
-#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>
@@ -850,8 +851,10 @@ namespace
             loader.GetSymbol("JBroScriptProbe_GetRevision"));
         Check(getReloadedRevision != nullptr && getReloadedRevision() == 2,
             "reload must execute code from the replacement script DLL");
-        Check(JBro::PropertyRegistry::ScriptLocal().GetCount() == 1
-                && JBro::PropertyRegistry::Lookup("ProbeRegisteredScript") != nullptr,
+        // 프로브는 스크립트 둘을 등록한다 - 필드 표를 보는 `ProbeRegisteredScript` 와 네트워크 예시 `ProbeNetworkedScript` 다.
+        Check(JBro::PropertyRegistry::ScriptLocal().GetCount() == 2
+                && JBro::PropertyRegistry::Lookup("ProbeRegisteredScript") != nullptr
+                && JBro::PropertyRegistry::Lookup("ProbeNetworkedScript") != nullptr,
             "reload must clear the old property tables and take the replacement's");
         Check(CountShadowLibraries(files) == 1,
             "reload must delete the old shadow DLL before retaining its replacement");
@@ -1213,7 +1216,7 @@ namespace
                 && std::strcmp(JBro::NameTable::Get().Resolve(childProperties->properties[1].name), "extra") == 0,
             "inherited and own property names remain distinct in the derived script table");
         const JBro::ScriptTypeInfo* keywordType = JBro::ScriptRegistry::Local().Find("template");
-        const auto requiredRead = reinterpret_cast<std::int64_t (*)(JBro::GameScriptBase*)>(
+        const auto requiredRead = reinterpret_cast<decltype(&JBroGeneratedProbe_RequiredRead)>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_RequiredRead"));
         Check(JBro::ScriptRegistry::Local().Find("RequiredScript") == nullptr
                 && JBro::ScriptRegistry::Local().Find("InheritedRequiredScript") == nullptr
@@ -1258,8 +1261,8 @@ namespace
                 && !attributeProperties->properties[12].serialize
                 && !attributeProperties->properties[12].edit->editable,
             "noserialize, tooltip, visiblewhen, hidden, readonly and clamp retain their semantics");
-        using DerivedRead = std::int64_t (*)();
-        using ChildResult = std::int64_t (*)(JBro::GameScriptBase*);
+        using DerivedRead = decltype(&JBroGeneratedProbe_DerivedRead);
+        using ChildResult = decltype(&JBroGeneratedProbe_ChildResult);
         const auto derivedRead = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_DerivedRead"));
         const auto multipleBaseProperties = reinterpret_cast<DerivedRead>(
@@ -1288,7 +1291,7 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticStartup"));
         Check(staticStartup != nullptr && staticStartup() == 16,
             "own-type static storage and static initializer dependencies are ready before a script callback");
-        using StaticService = float (*)();
+        using StaticService = decltype(&JBroGeneratedProbe_StaticService);
         const auto staticService = reinterpret_cast<StaticService>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StaticService"));
         Check(staticService != nullptr && staticService() == 2.25f,
             "static initializers observe the bound host service instead of a DLL-local default context");
@@ -1302,6 +1305,38 @@ namespace
         Check(nullableFailure != nullptr && nullableFailure() == 20
             && JBro::Log::GetGroupCount() == 1 && JBro::Log::GetGroupAt(0)->count == 2,
             "an absent nullable payload construction failure aborts each callback and never terminates the process");
+        // **C++ 핸들의 무효 접근 경고는 호스트 로그로 간다**(D-380). 전에는 DLL 의 `stderr` 로만 가서 에디터 로그 창에 보이지 않았다.
+        // 같은 연산은 한 묶음이라 매 프레임 같은 자리에서 나도 줄이 쌓이지 않는다.
+        const auto invalidHandle = reinterpret_cast<DerivedRead>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InvalidHandleWarnings"));
+        JBro::Log::Clear();
+        Check(invalidHandle != nullptr && invalidHandle() == 0, "an invalid handle inside the game DLL ignores the write and reads the default");
+        const JBro::LogGroup* setActive = nullptr;
+        const JBro::LogGroup* isActive = nullptr;
+        for (std::size_t index = 0; index < JBro::Log::GetGroupCount(); ++index)
+        {
+            const JBro::LogGroup* group = JBro::Log::GetGroupAt(index);
+            setActive = group->key == "handle.GameObject.SetActive" ? group : setActive;
+            isActive = group->key == "handle.GameObject.IsActive" ? group : isActive;
+        }
+        Check(setActive != nullptr && setActive->count == 2 && setActive->latestLevel == JBro::LogLevel::Warning
+                && std::string(setActive->display).find("GameObject::SetActive on invalid handle") != std::string::npos,
+            "two invalid writes from the game DLL are one grouped host warning with the operation");
+        Check(isActive != nullptr && isActive->count == 1, "a different operation is its own group");
+        // **`a?.b.c` 는 `a` 가 없으면 사슬 끝까지 건너뛰고 콜백은 끝까지 돈다**(D-381, REVIEW R2-1). 결함 2 전에는 `.c` 가
+        // `Require` 로 내려가 콜백의 나머지를 멈추고 오류를 남겼다. 없을 때: 건너뛴 셋(값 끝·`??`·메서드 뒤)과 마지막 문장까지 실행,
+        // 있을 때: 값 7. 어느 쪽도 오류 로그가 없다.
+        const auto nullSafeChain = reinterpret_cast<DerivedRead>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_NullSafeChain"));
+        JBro::Log::Clear();
+        const JBro::Int64 chainResult = nullSafeChain != nullptr ? nullSafeChain() : JBro::Int64(-1);
+        if (chainResult != 210701)
+        {
+            std::cout << "  null-safe chain probe returned " << chainResult.Get() << std::endl;
+        }
+        Check(chainResult == 210701 && JBro::Log::GetGroupCount() == 0,
+            "a?.b.c, a?.b.c ?? d and a?.Method().x skip an absent a and the rest of the callback still runs, without an error log");
+        const auto stringLiterals = reinterpret_cast<DerivedRead>(engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_StringLiterals"));
+        Check(stringLiterals != nullptr && stringLiterals() == 11,
+            "string literals join into a String and compare by their text in the game DLL (D-386)");
         const auto customOverrides = reinterpret_cast<DerivedRead>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_CustomOverrides"));
         JBro::Log::Clear();
@@ -1319,8 +1354,8 @@ namespace
             "indirect field reads and incomplete object copies reach the host engine log before copying");
         Check(JBro::Log::GetGroupAt(0)->count == 2,
             "nested construction failure reuses the field read log and leaves no construction tracking behind");
-        using InitializationCallback = std::int64_t (*)(JBro::GameScriptBase*);
-        using InitializationMode = void (*)(std::int64_t);
+        using InitializationCallback = decltype(&JBroGeneratedProbe_InitializationCallback);
+        using InitializationMode = decltype(&JBroGeneratedProbe_InitializationMode);
         const auto initializationCallback = reinterpret_cast<InitializationCallback>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_InitializationCallback"));
         const auto initializationMode = reinterpret_cast<InitializationMode>(
@@ -1353,10 +1388,10 @@ namespace
                 "the failed script pool slot and construction state permit a later successful attachment");
         }
         JBro::Log::Clear();
-        using ControlCount = std::int64_t (*)(JBro::GameScriptBase*) noexcept;
+        using ControlCount = decltype(&JBroGeneratedProbe_ControlCount);
         using ControlActive = void (*)(JBro::GameScriptBase*) noexcept;
         using ControlAddScore = void (*)(JBro::GameScriptBase*);
-        using ControlHasOwner = bool (*)(JBro::GameScriptBase*);
+        using ControlHasOwner = decltype(&JBroGeneratedProbe_ControlHasOwner);
         const auto controlCount = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlCount"));
         const auto controlRhsCount = reinterpret_cast<ControlCount>(
@@ -1396,7 +1431,7 @@ namespace
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlOwnCount"));
         const auto controlScoreByName = reinterpret_cast<ControlCount>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlScoreByName"));
-        using ControlBrighten = float (*)(JBro::GameScriptBase*);
+        using ControlBrighten = decltype(&JBroGeneratedProbe_ControlBrighten);
         const auto controlBrighten = reinterpret_cast<ControlBrighten>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_ControlBrighten"));
         using ControlRenameOwner = void (*)(JBro::GameScriptBase*);
@@ -1589,12 +1624,12 @@ namespace
         using CopyGeneratedCounts = void (*)(const JBro::GameScriptBase*, JBro::Int*, JBro::Int*,
             JBro::Int*, JBro::Int*, JBro::Int*) noexcept;
         using AddGeneratedValue = void (*)(JBro::GameScriptBase*, JBro::Int);
-        using ReadGeneratedValue = std::int64_t (*)(const JBro::GameScriptBase*) noexcept;
+        using ReadGeneratedValue = decltype(&JBroGeneratedProbe_FirstValue);
         using CopyIndexCounts = void (*)(const JBro::GameScriptBase*, JBro::Int*, JBro::Int*) noexcept;
         using SetOptionalNumbers = void (*)(JBro::GameScriptBase*);
         const auto setFirstValid = reinterpret_cast<SetFirstValid>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_SetFirstValid"));
-        using TouchFirst = std::int64_t (*)(JBro::GameScriptBase*);
+        using TouchFirst = decltype(&JBroGeneratedProbe_TouchFirst);
         const auto touchFirst = reinterpret_cast<TouchFirst>(
             engine.GetScriptModule().GetSymbol("JBroGeneratedProbe_TouchFirst"));
         const auto touchFirstSafe = reinterpret_cast<TouchFirst>(

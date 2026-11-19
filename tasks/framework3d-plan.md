@@ -296,3 +296,13 @@
   의 잔여 직접 호출이다 - 기즈모는 위젯(`Widget::Gizmo`)을 거친다.
 - `[열림]` 게임 호스트·에디터 호스트는 설정(`EngineConfig::graphicsApi`)으로 백엔드를 고르지만 그 값을 명령줄이나
   프로젝트 파일에서 읽는 길은 없다. 지금은 코드 기본값 D3D12 다.
+
+## 4. 메시 에셋과 3D 라이트 (2026-11-03, D-366·D-367)
+
+- ~~메시 에셋: `<JBro/Asset/MeshFile.h>` 의 `ParseGltfMesh`(결정은 D-366).~~ → 2026-11-19 main 통합(D-406)에서 원격의 모델 임포트(D-391, `model-import-plan.md`)로 대신하고 `MeshFile`·시험 묶음 `MeshAsset` 을 뺐다. 아래 줄은 그때의 기록이다. 쿡은 `WriteCookedMesh`, 게임은 `ReadCookedMesh`. 시험 묶음 `MeshAsset`: 임베드·GLB·바깥 버퍼(이름에 공백)·노드 변환·거울·회전한 면의 법선·깨진 파일 일곱·폴더 밖 URI 거절·다시 읽기의 세대·원본을 지운 패키지.
+- 라이트: `PostProcessPixel` 의 `TestLight3DLightsAMesh`(세 백엔드, 빌트인과 머티리얼 둘 다): 라이트 없음은 고정 방향광, 정면은 제 색, 60 도는 반, 뒤는 0(고정 방향광으로 돌아가지 않는다), 환경광, 점광의 제곱 감쇠, 17 번째부터 버리고 셈. `Framework3DSystem`: 켜진 라이트만 뜨고 방향은 -Z.
+- 3D 시나리오 `TestAMeshMaterialDrawsInA3DProject`: 머티리얼 정육면체 → 라이트가 뷰까지 → glTF 로 바꿔도 떨어지는 메시 없음 → 셰이더 그래프의 `.hlsl` 을 머티리얼이 씀.
+- 뮤테이션 넷이 겨냥한 검사에서 죽었다: glTF 감김을 뒤집지 않음, 머티리얼의 빛이 각과 거리를 보지 않음, 오브젝트 값이 에셋 전체에 얹힘(이웃의 초록 검사), 그래프 라벨을 버림. 다시 읽은 메시를 올리지 않는 뮤테이션은 처음에 살아남아 3D 시나리오에 재업로드 검사를 넣었고 다시 돌리니 죽었다.
+- 실제 에디터(`JBroEditorHost`): 3D 프로젝트에 glTF 피라미드 둘(왼쪽 머티리얼, 오른쪽 빌트인)·방향광·빨간 점광을 두니 캔버스 뷰와 시뮬레이션 뷰 모두 바깥면이 보이고(감김), 왼쪽은 파랑, 오른쪽은 흰색이며 점광 쪽 면이 붉었다.
+- 전체 시험(Debug, `77650e7e`, Codex 가 돌림): 119 묶음이 지났다(`EditorApplication`·`PostProcessPixel`·`Material`·`MeshAsset` 포함). 실패 9 묶음 가운데 8 묶음(`PlatformContract`·`SourceDebugger`·`NestedScriptType`·`ScriptProject`·`ScriptBuild`·`DebugAdapter`·`ScriptBreak`·`UserScenario`)은 전과 같이 샌드박스 안에서만 실패했고 Claude 가 밖에서 다시 돌리니 지났다.
+  나머지 `ScriptApiCatalog` 는 이 작업과 무관하게 main 에서 이미 어긋나 있었다 - 네트워크 커밋 `0270d84b` 가 `Types.h` 에 주석 한 줄을 넣으며 위치표의 그 헤더 행을 2 줄 옮겼다. 위치표 1945 행을 모두 재어 틀린 17 행을 고쳤고(`NetworkService::HasAuthority` 포함), 그 뒤 main 을 다시 합친 판에서 `ScriptApiCatalog`·`ScriptApiPrelude`·`ScriptCompilerAnalysis`·`ScriptCompilerCommandLine`·`ScriptLanguageServer`·`NetworkHost`·`MeshAsset`·`Material` 을 돌려 지났다. 다시 합친 판의 전체 시험은 돌리지 않았다.

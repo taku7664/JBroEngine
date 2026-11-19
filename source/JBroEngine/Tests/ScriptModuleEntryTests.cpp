@@ -28,7 +28,7 @@ namespace
         }
     }
 
-    class EntryProbe3D final : public JBro::GameScriptBase
+    class EntryProbe3D final : public JBro::GameScript3D
     {
         JBRO_SCRIPT_BODY(EntryProbe3D)
     public:
@@ -77,7 +77,7 @@ namespace
     {
         struct SinkState
         {
-            int calls = 0;
+            JBro::Int32 calls = 0;
             const char* key = nullptr;
         } state;
         JBro::ScriptErrorContext context;
@@ -93,13 +93,13 @@ namespace
         };
         JBro::BindScriptErrorContext(context);
 
-        int before = 0;
-        int after = 0;
+        JBro::Int32 before = 0;
+        JBro::Int32 after = 0;
         auto callback = [&] {
             try
             {
                 ++before;
-                JBro::Nullable<int> missing;
+                JBro::Nullable<JBro::Int32> missing;
                 JBro::ScriptGuard::Require(missing, "enemy:7:target", "invalid target");
                 ++after;
             }
@@ -115,11 +115,11 @@ namespace
 
         struct HandleProbe
         {
-            int* checks;
+            JBro::Int32* checks;
             JBro::Bool IsValid() const { ++*checks; return false; }
         };
-        int evaluations = 0;
-        int validityChecks = 0;
+        JBro::Int32 evaluations = 0;
+        JBro::Int32 validityChecks = 0;
         try
         {
             auto produce = [&]() {

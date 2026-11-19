@@ -3,6 +3,9 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetSource.h>
+#include <JBro/Asset/ColorLutFile.h>
+#include <JBro/Asset/RenderTextureFile.h>
+#include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -121,7 +124,40 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
-    // 로드된 메시다(D-338, model-import-plan 4 단계). 모델의 하위 `Mesh` 레코드 하나 - 모델 파일을 읽어 그 이름의 메시를 꺼낸 것이다.
+    // 로드된 3D LUT(`.cube`, D-343)다. `dataGeneration` 은 in-place 재로드마다 오른다 - 후처리 라이브러리가 그것을 보고 텍스처를 다시 올린다.
+    struct ColorLutData
+    {
+        ColorLut lut;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 렌더 텍스처(`.jrt`, D-362)의 크기와 샘플러다. `dataGeneration` 은 in-place 재로드마다 오른다 - 스프라이트 라이브러리가 그것을 보고 타깃을 다시 만든다.
+    struct RenderTextureData
+    {
+        RenderTextureSettings settings;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 후처리 프로필(`.jpost`, D-344)의 본문 글자다. 풀어 쓰는 것은 그래픽 모듈의 `PostProcessLibrary` 다(효과 종류 표가 거기 있다).
+    struct PostProcessProfileData
+    {
+        String text;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 셰이더(`.hlsl`, D-347)다. 느슨한 에셋 폴더면 본문 글자(`source`)를 들고 머티리얼 라이브러리가 자리마다 굽는다. 게임 패키지면
+    // 빌드가 구운 묶음(`compiled`)만 든다 - 원본은 싣지 않는다. `dataGeneration` 은 in-place 재로드마다 오른다.
+    struct ShaderAssetData
+    {
+        // 에셋 폴더 기준 경로다. 컴파일 오류가 이 이름으로 줄을 말한다.
+        String path;
+        String source;
+        CompiledShaderSet compiled;
+        Bool hasCompiled = false;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 메시다(D-391, model-import-plan 4 단계). 모델의 하위 `Mesh` 레코드 하나 - 모델 파일을 읽어 그 이름의 메시를 꺼낸 것이다.
     // **CPU 자료만이다** - GPU 메시는 `MeshLibrary`(Framework3DSystem)가 든다(스프라이트와 같은 자리, asset-plan §2.5). 정점은 엔진 좌표·엔진 감김이다
     // (`ModelDecoder`). `dataGeneration` 은 in-place 재로드마다 오른다 - 라이브러리가 이것을 보고 다시 올린다.
     struct MeshData
@@ -129,18 +165,21 @@ namespace JBro
         Array<ModelVertex> vertices;
         Array<UInt32> indices;
         Bool hasUvs = false;
-        // 파일에 탄젠트가 있었는가. 없으면 노멀맵을 읽지 않는다(D-346 (5)).
+        // 파일에 탄젠트가 있었는가. 없으면 노멀맵을 읽지 않는다(D-399 (5)).
         Bool hasTangents = false;
-        // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-346 (3)).
+        // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-399 (3)).
         AssetId material;
         UInt32 dataGeneration = 1;
     };
 
-    // 로드된 재질이다(D-346, material-plan 2 단계). 사용자의 `.jmat` 이거나 모델의 하위 Material 이다 - 둘이 같은 값(`MaterialDesc`)이다.
-    // **값만이다** - 그림 칸은 아이디이고 GPU 자원은 `MaterialLibrary`(Framework3DSystem, 3 단계)가 든다. `dataGeneration` 은 in-place 재로드마다 오른다.
+    // 로드된 머티리얼이다. `.jmat` 은 두 갈래다(2026-11-19 main 통합, `IsStandardMaterialText`): 표준 머티리얼(D-399 - `desc`, 모델의 하위 Material 도 이것이다)과
+    // 셰이더 머티리얼(D-347 - 본문 글자 `text`, 그래픽 모듈의 `MaterialLibrary` 가 셰이더를 굽고 렌더러에 올린다). `standard` 가 어느 쪽인지 말한다.
+    // **값만이다** - 그림 칸은 아이디이고 GPU 자원은 라이브러리가 든다. `dataGeneration` 은 in-place 재로드마다 오른다.
     struct MaterialData
     {
+        Bool standard = false;
         MaterialDesc desc;
+        String text;
         UInt32 dataGeneration = 1;
     };
 
@@ -234,6 +273,10 @@ namespace JBro
         const FontFamilyData* GetFontFamily(AssetHandle handle) const;
         const StringTableData* GetStringTable(AssetHandle handle) const;
         const AudioEffectData* GetAudioEffect(AssetHandle handle) const;
+        const ColorLutData* GetColorLut(AssetHandle handle) const;
+        const PostProcessProfileData* GetPostProcessProfile(AssetHandle handle) const;
+        const RenderTextureData* GetRenderTexture(AssetHandle handle) const;
+        const ShaderAssetData* GetShader(AssetHandle handle) const;
         const MeshData* GetMesh(AssetHandle handle) const;
         const MaterialData* GetMaterial(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
@@ -304,6 +347,10 @@ namespace JBro
         void ReleaseFamilyFonts(FontFamilyData& data);
         Bool ReadStringTable(const AssetRecord& record, StringTableData& data);
         Bool ReadAudioEffect(const AssetRecord& record, AudioEffectData& data);
+        Bool ReadColorLut(const AssetRecord& record, ColorLutData& data);
+        Bool ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data);
+        Bool ReadRenderTexture(const AssetRecord& record, RenderTextureData& data);
+        Bool ReadShader(const AssetRecord& record, ShaderAssetData& data);
         // 모델의 하위 메시 하나를 읽는다. 같은 모델의 메시를 연달아 읽는 일이 흔해 마지막으로 읽은 모델 하나를 들고 있는다.
         Bool ReadMesh(const AssetRecord& record, MeshData& data);
         // 재질 하나를 읽는다: 빌드가 옮겨 둔 것(`CookedMaterial`), 모델의 하위 Material(모델을 읽어 옮김), `.jmat` 파일 차례다.
@@ -348,6 +395,10 @@ namespace JBro
         Pool<FontFamilyData> m_fontFamilies;
         Pool<StringTableData> m_stringTables;
         Pool<AudioEffectData> m_audioEffects;
+        Pool<ColorLutData> m_colorLuts;
+        Pool<PostProcessProfileData> m_postProcessProfiles;
+        Pool<RenderTextureData> m_renderTextures;
+        Pool<ShaderAssetData> m_shaders;
         Pool<MeshData> m_meshes;
         Pool<MaterialData> m_materials;
         AudioReleaseCallback m_audioRelease = nullptr;

@@ -141,7 +141,7 @@ namespace
         Check(std::string(JBro::LightGizmoModel::HandleId(Handle::OuterAngle)) != JBro::LightGizmoModel::HandleId(Handle::OuterAngleMirror),
             "but the twins are separate items");
     }
-    // **3D 라이트 기즈모의 모델**(D-353 3 단계). 손잡이는 월드에 놓이고, 끌기는 화면 좌표로 잰다.
+    // **3D 라이트 기즈모의 모델**(D-407 3 단계). 손잡이는 월드에 놓이고, 끌기는 화면 좌표로 잰다.
     void TestThe3DLightHandles()
     {
         using JBro::LightGizmo3DModel::Handle;

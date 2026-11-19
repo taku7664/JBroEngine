@@ -41,11 +41,43 @@ Entries:
   menu.debug_log: 로그
   menu.debug_start: 디버그 실행
   menu.debug_stop: 디버그 중지
-  notify.debug_started: 디버그를 시작했습니다 - 스크립트 편집기에서 붙어 중단점을 거세요
+  notify.debug_started: 디버그를 시작했습니다.
   notify.debug_channel_failed: 디버그 통로를 열지 못했습니다
+  debug_client.queue_full: "디버거 요청 대기열이 가득 찼습니다."
+  debug_client.input_unavailable: "디버거와 통신할 수 없습니다."
+  debug_client.rejected: "디버그 어댑터가 요청을 거부했습니다."
+  debug_client.breakpoint_response_invalid: "디버거의 중단점 설정 응답이 올바르지 않습니다."
+  debug_client.session_closing: "이전 디버그 세션을 종료하고 있습니다."
+  debug_client.invalid_target: "올바른 디버그 어댑터 경로와 에디터 프로세스가 필요합니다."
+  debug_client.start_failed: "JBroDebugAdapter.exe를 실행하지 못했습니다."
+  debug_client.output_limit: "디버거 응답 크기가 허용 범위를 넘었습니다."
+  debug_client.header_invalid: "디버거 응답의 DAP 헤더가 올바르지 않습니다."
+  debug_client.length_invalid: "디버거 응답의 DAP 메시지 길이가 올바르지 않습니다."
+  debug_client.message_invalid: "디버거의 DAP 메시지가 올바르지 않습니다."
+  debug_client.response_malformed: "디버거 응답 형식이 올바르지 않습니다."
+  debug_client.stopped: "디버그 어댑터가 예기치 않게 종료되었습니다."
+  debug_client.startup_timeout: "중단점 설치 대기 시간이 초과되었습니다."
+  language_client.input_unavailable: "언어 서버와 통신할 수 없습니다."
+  language_client.initialization_failed: "언어 서버를 초기화하지 못했습니다."
+  language_client.edit_source_changed: "필드 수정을 확인하는 동안 소스가 변경되었습니다."
+  language_client.edit_rejected: "필드 수정을 적용하지 못했습니다."
+  language_client.edit_version_mismatch: "필드 수정 결과가 현재 소스 버전과 일치하지 않습니다."
+  language_client.semantic_tokens_invalid: "언어 서버의 문법 강조 정보가 올바르지 않습니다."
+  language_client.start_failed: "JBroc.exe를 실행하지 못했습니다."
+  language_client.disconnected: "언어 서버 연결이 끊겼습니다."
+  language_client.header_invalid: "언어 서버 응답의 헤더가 올바르지 않습니다."
+  language_client.length_invalid: "언어 서버 응답의 메시지 길이가 올바르지 않습니다."
+  language_client.message_invalid: "언어 서버의 JSON-RPC 메시지가 올바르지 않습니다."
+  language_client.response_malformed: "언어 서버 응답 형식이 올바르지 않습니다."
+  language_client.stopped: "언어 서버가 종료되었습니다. 다시 연결하면 분석을 재개합니다."
+  language_client.startup_timeout: "언어 서버 초기화 대기 시간이 초과되었습니다."
   menu.exit: 종료
   menu.undo: 실행 취소
   menu.redo: 다시 실행
+  menu.cut: 잘라내기
+  menu.copy: 복사
+  menu.paste: 붙여넣기
+  menu.select_all: 전체 선택
   menu.unsaved: 저장되지 않음
   dialog.save_canvas_title: 캔버스 저장
   dialog.canvas_filter: JBro 캔버스 파일
@@ -65,6 +97,37 @@ Entries:
   canvas_view.colliders_tooltip: 콜라이더 모양을 보이거나 감춥니다
   canvas_view.lighting: 라이팅
   canvas_view.lighting_tooltip: 2D 라이트로 비춰 보거나, 빛 없이 원래 색으로 봅니다
+  canvas_view.post_process: "후처리"
+  canvas_view.post_process_tooltip: "게임 카메라의 후처리 프로필을 걸어 보거나, 끄고 봅니다"
+  assets.new_post_process_profile: "새 후처리 프로필"
+  assets.new_render_texture: "새 렌더 텍스처"
+  inspector.post_process_effects: "후처리 효과"
+  inspector.post_process_empty: "효과가 없습니다"
+  inspector.post_process_add: "효과 추가"
+  inspector.post_process_remove: "효과 제거"
+  inspector.post_process_menu: "효과 메뉴"
+  inspector.post_process_unknown: "이 엔진에 없는 효과입니다. 읽은 그대로 둡니다"
+  inspector.post_process_override_tooltip: "켜면 이 값을 프로필에 적습니다. 끄면 효과의 기본값을 씁니다"
+  inspector.post_process_unreadable: "프로필을 읽지 못했습니다"
+  inspector.post_process_broken: "프로필 글자가 깨져 있습니다. 파일을 고친 뒤에 여기서 고칠 수 있습니다"
+  assets.new_material: "새 머티리얼"
+  assets.new_shader: "새 셰이더"
+  inspector.material_parameters: "파라미터"
+  inspector.material_textures: "텍스처"
+  inspector.material_no_shader: "셰이더를 고르면 파라미터와 텍스처가 나옵니다"
+  inspector.material_shader_error: "셰이더를 굽지 못했습니다"
+  inspector.material_no_parameters: "셰이더에 파라미터가 없습니다"
+  inspector.material_override_tooltip: "켜면 이 값을 머티리얼에 적습니다. 끄면 셰이더의 초기값을 씁니다"
+  inspector.material_unreadable: "머티리얼을 읽지 못했습니다"
+  inspector.render_texture_unreadable: "렌더 텍스처를 읽지 못했습니다"
+  inspector.render_texture_hint: "카메라의 renderTextureId 에 걸면 거기에 그리고, 스프라이트의 renderTextureId 에 걸면 그 그림을 보입니다"
+  inspector.render_texture_width: width
+  inspector.render_texture_height: height
+  inspector.render_texture_filter: filter
+  inspector.material_broken: "머티리얼 글자가 깨져 있습니다. 파일을 고친 뒤에 여기서 고칠 수 있습니다"
+  inspector.shader_open: 편집기에서 열기
+  inspector.shader_domain_error: "이 자리로는 굽지 못했습니다"
+  inspector.shader_empty: "파라미터와 텍스처가 없습니다"
   canvas_view.edit_collider: 콜라이더 편집
   canvas_view.edit_collider_tooltip: 고른 오브젝트의 폴리곤 콜라이더를 고칩니다. 포인트를 끌어 옮기고, 변을 누르면 포인트가 생기고, 포인트를 우클릭하면 지울 수 있습니다
   canvas_view.point_delete: 포인트 삭제
@@ -177,6 +240,7 @@ Entries:
   component_category.Physics: 물리
   component_category.Audio: 오디오
   component_category.UI: UI
+  component_category.UiLayout: UI 배치
   component_category.Components: 컴포넌트
   component_category.Scripts: 스크립트
   asset.none: (없음)
@@ -190,8 +254,8 @@ Entries:
   inspector.string_table: "문자열 표"
   inspector.model_import_options: "모델 임포트 옵션"
   inspector.same_image: "같은 그림"
-  inspector.material: "재질"
-  inspector.model_material_read_only: "모델 파일에서 온 재질이라 여기서 고칠 수 없습니다"
+  inspector.material: "머티리얼"
+  inspector.model_material_read_only: "모델 파일에서 온 머티리얼이라 여기서 고칠 수 없습니다"
   inspector.same_image_split_note: "옵션을 바꾸면 이 그림은 같은 그림들과 따로 읽힙니다"
   inspector.owner_model: "모델"
   inspector.no_string_key: "(없음)"
@@ -325,6 +389,8 @@ Entries:
   layer_asset.load_failed: 레이어 에셋을 읽지 못했습니다
   inspector.layer_parallax: 패럴랙스 계수
   inspector.layer_parallax_tooltip: 카메라가 움직일 때 이 레이어가 움직이는 비율입니다. 1 은 카메라와 같이, 0.5 는 절반 빠르기의 원경이고 0 은 월드에 고정됩니다. 게임 화면에서만 보이고 캔버스 뷰에는 적용되지 않습니다
+  inspector.layer_post_process: 후처리 프로필
+  inspector.layer_post_process_tooltip: 레이어를 한 장으로 그린 뒤, 아래에 얹기 전에 프로필의 레이어 효과(블러·외곽선·그림자·기본 조정·LUT)를 겁니다. 노출·블룸·톤맵은 카메라에서 거는 효과라 여기서는 건너뜁니다
   inspector.layer_lit: 라이팅 사용
   inspector.layer_lit_tooltip: 이 레이어의 오브젝트가 캔버스의 라이트를 받습니다. 끄면 라이트와 상관없이 원래 색으로 그립니다
   inspector.layer_space: 공간
@@ -449,6 +515,9 @@ Entries:
   file_window.save_and_close: 저장하고 닫기
   file_window.close_without_saving: 저장하지 않고 닫기
   assets.new_node_graph: 새 노드 그래프
+  assets.new_shader_graph: 새 셰이더 그래프
+  node_graph.node_label: 이름
+  node_graph.shader_failed: 셰이더 파일을 만들지 못했습니다
   node_graph.save: 저장
   node_graph.nothing_to_save: 바뀐 것이 없습니다
   node_graph.reload: 디스크에서 다시 읽기
@@ -560,7 +629,7 @@ Entries:
   assets.list_view: 목록
   assets.expand: 하위 에셋 펼치기
   assets.collapse: 하위 에셋 접기
-  assets.new_material: 새 재질
+  assets.new_standard_material: 새 표준 머티리얼
   assets.same_image_tooltip: 같은 그림이 여기에도 들어 있습니다
   assets.view_tooltip: 목록과 아이콘 보기를 오갑니다
   menu.new_project: 새 프로젝트
@@ -584,6 +653,8 @@ Entries:
   sprite_viewer.pick_hint: 시트에서 칸을 누르면 그 프레임이 스프라이트에 들어갑니다
   inspector.pick_frame: 프레임 고르기
   inspector.pick_frame_no_sprite: 스프라이트를 먼저 지정하세요
+  inspector.fit_sprite: 스프라이트에 맞추기
+  inspector.fit_sprite_no_sprite: 맞출 스프라이트가 없습니다
   inspector.text_no_font: "쓸 수 있는 폰트가 없어 이 텍스트는 그려지지 않습니다. fontId 를 지정하거나 프로젝트 설정에서 폰트를 추가하세요."
   inspector.camera_size_unused: "PixelPerfect 에서는 쓰지 않습니다. 보이는 범위는 기준 해상도와 pixelsPerUnit 으로 정해집니다."
   inspector.camera_ppu_unused: PixelPerfect 에서만 씁니다.
@@ -603,6 +674,9 @@ Entries:
   notify.scripts_reload_failed: 스크립트를 다시 불러오지 못했습니다
   notify.scripts_reload_kept: 스크립트의 값은 캔버스에 그대로 있습니다. 빌드를 고친 뒤 다시 시도하세요
   notify.scripts_reload_pending: 실행을 멈추면 새 스크립트를 불러옵니다
+  notify.script_fields_not_read: "저장된 스크립트 필드 값 %zu개를 불러오지 못했습니다"
+  notify.script_fields_not_read_why: 코드에서 지운 필드의 값은 버렸고, 타입이 바뀐 필드는 기본값으로 두었습니다. 필드별 내용은 로그에 있습니다. 저장하면 이 값은 파일에서 빠집니다
+  notify.script_fields_not_read_inserted: 코드에서 지운 필드의 값은 버렸고, 타입이 바뀐 필드는 기본값으로 두었습니다. 필드별 내용은 로그에 있습니다
   editor_settings.search_hint: 이름이나 키로 검색
   editor_settings.press_key: 키를 누르세요
   editor_settings.capture_hint: Esc 를 누르면 취소합니다
@@ -646,3 +720,262 @@ Entries:
   guide.build_game_title: 게임 빌드하기
   guide.build_game_step_title: 게임 빌드
   guide.build_game_step_body: 파일 메뉴를 열고 게임 빌드를 누르면 프로젝트를 실행할 수 있는 게임으로 묶습니다.
+
+  # Embedded code editor
+  code_editor.title: "코드 편집기"
+  code_editor.save: "저장"
+  code_editor.reload: "디스크에서 다시 읽기"
+  code_editor.close: "닫기"
+  code_editor.external: "외부 편집기로 열기"
+  code_editor.unsaved: "이 파일에 저장하지 않은 변경 내용이 있습니다."
+  code_editor.read_failed: "코드 파일을 읽을 수 없습니다. UTF-8 텍스트 파일인지 확인하세요."
+  code_editor.save_failed: "코드 파일을 저장하지 못했습니다."
+  code_editor.conflict: "다른 프로그램에서 파일을 변경했습니다. 다시 읽은 뒤 저장하세요."
+  code_editor.server_starting: "JBroScript 분석 연결 중…"
+  code_editor.server_ready: "JBroScript 분석 연결됨"
+  code_editor.server_failed: "JBroScript 분석 연결이 끊겼습니다."
+  code_editor.reconnect: "언어 서버 다시 연결"
+  code_editor.cursor: "%u줄, %u열 | 진단 %u개"
+
+  # Source script summary
+  script_summary.title: "스크립트 요약"
+  script_summary.no_document: "JBroScript 파일을 열면 요약을 볼 수 있습니다"
+  script_summary.waiting: "분석 결과를 기다리고 있습니다."
+  script_summary.unavailable: "언어 서버에 연결할 수 없어 요약을 갱신하지 못했습니다."
+  script_summary.locked: "읽기 전용"
+  script_summary.applying: "수정 내용 확인 중…"
+  script_summary.changed: "소스가 변경되었습니다. 요약이 갱신되면 다시 수정하세요."
+  script_summary.empty: "이 파일에 선언된 타입이 없습니다."
+  script_summary.callback: "콜백"
+  script_summary.property: "프로퍼티"
+  script_summary.range: "표시 범위"
+  script_summary.clamp: "값 제한"
+  script_summary.name: "표시 이름"
+  script_summary.tooltip: "설명"
+  script_summary.category: "분류"
+  script_summary.visible_when: "표시 조건"
+  script_summary.read_only: "읽기 전용"
+  script_summary.no_serialize: "저장"
+  script_summary.hidden: "숨김"
+  script_summary.expression: "표현식"
+  script_summary.minimum: "최솟값"
+  script_summary.maximum: "최댓값"
+  script_summary.default: "저장"
+  script_summary.excluded: "저장 제외"
+
+  # Native script debugger
+  editor.code_editor.debug_build_failed: "스크립트 빌드에 실패해 디버그를 시작하지 못했습니다."
+  editor.code_editor.debug_source_mismatch: "소스와 실행 중인 빌드가 다릅니다. 다시 빌드한 뒤 디버그를 시작하세요."
+  editor.code_editor.debug_busy: "다른 디버거가 연결되어 있습니다. 연결을 종료한 뒤 다시 시작하세요."
+  editor.code_editor.breakpoint_pending: "중단점 설치 대기"
+  editor.code_editor.breakpoint_add: "클릭하여 중단점 추가"
+  editor.code_editor.breakpoint_remove: "클릭하여 중단점 제거"
+  editor.code_editor.read_only: "이 파일은 읽기 전용입니다."
+  editor.code_editor.finish_input: "입력란의 편집을 먼저 마치세요."
+  editor.code_editor.no_changes: "저장할 변경 사항이 없습니다."
+  editor.code_editor.no_selection: "선택한 텍스트가 없습니다."
+  editor.code_editor.empty_document: "문서가 비어 있습니다."
+  editor.code_editor.debug_inactive: "실행 중인 디버깅이 없습니다."
+  editor.code_editor.debug_not_stopped: "스크립트가 중단점에서 멈춘 상태가 아닙니다."
+  editor.code_editor.debug_already_active: "디버깅이 이미 실행 중입니다."
+  editor.code_editor.start_debugging: "디버그 시작"
+  editor.code_editor.continue_debugging: "계속 실행"
+  editor.code_editor.stop_debugging: "디버그 종료"
+
+  script_summary.counts: "멤버 %u개  ·  함수 %u개"
+  script_summary.select_member: "항목을 선택하면 설정을 볼 수 있습니다."
+  script_summary.initializer: "초기값"
+  script_summary.add_initializer: "초기값 추가"
+  script_summary.remove_initializer: "초기값 제거"
+  script_summary.advanced: "범위 및 표시 설정"
+  script_summary.const_rule: "const 필드는 읽기 전용이며 저장에서 제외됩니다."
+  script_summary.static_rule: "static 값은 공유되며 인스턴스 저장에서 제외됩니다."
+  script_summary.implicit_property: "다른 속성이나 타입 규칙으로도 프로퍼티가 표시됩니다."
+  script_summary.automatic_readonly: "자동 적용 (const)"
+  script_summary.explicit_readonly: "직접 지정 [readonly]"
+  script_summary.automatic_exclude: "자동 제외"
+  script_summary.explicit_exclude: "저장 제외 명시"
+  script_summary.edit_rejected: "설정을 적용하지 못했습니다. 입력한 표현식을 확인해 주세요."
+
+  markdown.title: 문서
+  markdown.open: Markdown 문서 열기...
+  markdown.reload: 디스크에서 다시 읽기
+  markdown.find: 문서에서 찾기
+  markdown.previous: 이전
+  markdown.next: 다음
+  markdown.closefind: 찾기 닫기
+  markdown.loading: 문서를 읽는 중...
+  markdown.readfailed: 문서를 읽지 못했습니다. 마지막으로 읽은 내용을 유지합니다.
+  markdown.imageunavailable: 로컬 이미지를 읽지 못했거나 지원하지 않는 형식입니다.
+  markdown.unsupportedlink: 지원하지 않는 링크입니다.
+  panel.agent: AI 에이전트
+  agent.executable: Codex 실행 파일
+  agent.connect: 연결
+  agent.connecting: Codex에 연결하는 중...
+  agent.project_required: 프로젝트를 먼저 열어야 합니다.
+  agent.install: Codex 설치 안내
+  agent.login_chatgpt: ChatGPT로 로그인
+  agent.api_key: API 키
+  agent.login_key: API 키로 로그인
+  agent.stop: 중단
+  agent.disconnect: 연결 해제
+  agent.resume_guide: 가이드 재개
+  guide.open_panel: 강조된 탭 또는 창 메뉴를 눌러 패널을 여세요.
+  agent.start_guide: 가이드 시작
+  agent.guide_ready: 시작을 누르면 직접 따라 할 수 있는 안내가 열립니다.
+  agent.open_chat: AI에게 질문
+  agent.new_chat: 새 대화
+  agent.send: 전송
+  agent.not_ready: 연결과 로그인을 마친 뒤 메시지를 전송할 수 있습니다.
+  agent.communication_failed: Codex 통신이 끊겼습니다. 다시 연결해야 합니다. 변경 작업은 재실행하지 않습니다.
+  agent.invalid_protocol: Codex에서 올바르지 않은 응답을 받았습니다.
+  agent.login_failed: Codex 로그인에 실패했습니다. 다시 로그인해야 합니다.
+  agent.connected: Codex에 연결했습니다. 이전 대화의 대상은 다시 확인합니다.
+  agent.login_cancelled: Codex 로그인이 취소되었거나 실패했습니다.
+  agent.turn_stopped: 작업을 중단했습니다. 이미 반영한 변경은 유지되며 다시 실행하지 않습니다.
+  agent.turn_failed: AI 작업이 실패했습니다. 반영된 변경을 확인해야 합니다. 완료 여부는 확인되지 않았습니다.
+  agent.server_error: Codex에서 오류가 발생했습니다. 연결 상태와 계정 사용 권한을 확인해야 합니다.
+  agent.executable_missing: Codex 실행 파일을 찾지 못했습니다. Codex를 설치하거나 codex.exe 경로를 지정해야 합니다.
+  agent.startup_timeout: Codex 연결 준비가 끝나지 않았습니다. 설치 상태와 네트워크, 버전 호환성을 확인해야 합니다.
+  agent.message_limit: Codex 응답이 허용 크기를 넘었습니다.
+  agent.incompatible: Codex 통신 형식이 맞지 않습니다. Codex를 업데이트하고 다시 연결해야 합니다.
+  agent.path_invalid: 프로젝트 또는 엔진 스킬 폴더의 절대 경로를 구할 수 없습니다. 경로를 확인하고 다시 연결해 주세요.
+  agent.exited: Codex가 종료되었습니다. 다시 연결해야 합니다. 변경 작업은 재실행하지 않습니다.
+  agent.rpc_rejected: Codex가 요청을 거절했습니다. 로그인 상태와 버전을 확인한 뒤 다시 연결해야 합니다.
+  agent.tool_running: 에디터에서 작업하는 중...
+  agent.tool_done: 에디터 작업을 처리했습니다.
+  agent.tool_failed: 에디터가 작업을 거절했습니다. AI에 원인을 전달했습니다.
+  agent.no_models: Codex에서 모델 목록을 받지 못했습니다. 계정 사용 권한을 확인해야 합니다.
+  agent.invalid_target: 이 대상 참조는 더 이상 유효하지 않습니다.
+  agent.attachments: 참조 %u개
+  agent.asset: 에셋
+  agent.object: 오브젝트
+  agent.component: 컴포넌트
+  agent.remove_attachment: 제거
+  agent.attachment_limit: 한 번에 16개까지 첨부할 수 있습니다.
+  agent.guide_target_lost: 가이드 대상이 변경되어 중단되었습니다. 새 가이드를 요청해야 합니다.
+  agent.isolation_failed: 외부 도구를 차단하지 못했습니다. Codex 설정과 버전을 확인해야 합니다.
+  agent.restored_incomplete: 이전 작업이 완료되지 않았습니다. 반영된 변경을 확인한 뒤 계속해야 합니다. 작업은 재실행하지 않습니다.
+
+  agent.settings: 연결 설정
+  agent.back: 대화로 돌아가기
+  agent.connected_short: Codex 연결됨
+  agent.disconnected_short: 연결 끊김
+  agent.sign_in_required: 로그인 필요
+  agent.welcome: 무엇을 만들어 볼까요?
+  agent.welcome_hint: 작업을 요청하거나 사용법을 물어보세요. 대상을 끌어 놓으면 함께 참조합니다.
+  agent.prompt_focus: 오브젝트 포커스 모드는 어떻게 들어가?
+  agent.prompt_order: Z 값을 바꾸지 않고 스프라이트 순서를 조절하려면?
+  agent.prompt_script: 스크립트는 어떻게 만들어?
+  agent.input_hint: 요청을 입력하세요…
+  agent.drop_hint: 오브젝트·컴포넌트·에셋 끌어 놓기
+  agent.executable_hint: 설치된 Codex를 사용합니다.
+  agent.auth_managed: 계정 인증은 Codex에서 관리합니다.
+  agent.guide: 가이드
+  agent.guide_paused: 대화 중에는 가이드가 일시정지됩니다.
+  agent.guide_target: 대상
+  agent.prompt_focus_label: 오브젝트 포커스 모드 진입
+  agent.prompt_order_label: Z 값 없이 스프라이트 순서 조절
+  agent.prompt_script_label: 새 스크립트 만들기
+  agent.connect_hint: Codex에 연결해 대화를 시작하세요.
+  agent.model_placeholder: 모델 선택
+  agent.model_after_connect: 모델 · 연결 후 선택
+  agent.shortcut_hint: Enter 전송 · Shift + Enter 줄바꿈
+  agent.attach_file: 파일 첨부
+  agent.attachment_filter: 프로젝트 에셋
+  agent.attachment_unsupported: 현재는 등록된 프로젝트 에셋만 파일로 첨부할 수 있습니다.
+  panel.render_graph: 렌더 그래프
+  menu.debug_render_graph: 렌더 그래프
+  render_graph.empty: 아직 기록한 렌더 그래프가 없습니다
+  render_graph.pause_tooltip: 지금 그래프를 멈춰 두고 봅니다. 게임은 계속 돕니다
+  render_graph.step_tooltip: 다음 프레임의 그래프를 하나 받습니다
+  render_graph.step_disabled: 그래프를 멈췄을 때만 씁니다
+  render_graph.show_skipped: 건너뛴 패스
+  render_graph.search: 패스·텍스처 찾기
+  render_graph.held: 멈춤
+  render_graph.frame: 프레임
+  render_graph.passes_ran: 돈 패스
+  render_graph.texture_count: 텍스처
+  render_graph.physical_count: 실제 텍스처
+  render_graph.barrier_count: 배리어
+  render_graph.kind_raster: 래스터
+  render_graph.kind_copy: 복사
+  render_graph.kind_compute: 컴퓨트
+  render_graph.status_ran: 돌았음
+  render_graph.status_ran_tip: 이 프레임에 기록한 패스입니다.
+  render_graph.skip_missing: 텍스처 없음
+  render_graph.skip_missing_tip: 이 패스에 꼭 있어야 하는 텍스처가 이 프레임에 없어 돌지 않았습니다. 그 텍스처는 다음 프레임 전에 만듭니다.
+  render_graph.skip_present: 필요 없음
+  render_graph.skip_present_tip: 텍스처가 없을 때만 대신 그리는 패스입니다. 텍스처가 있어 본래 패스가 돌았습니다.
+  render_graph.skip_input: 입력 없음
+  render_graph.skip_input_tip: 꼭 읽어야 하는 텍스처를 쓰는 앞 패스가 돌지 않았습니다.
+  render_graph.skip_unused: 쓰이지 않음
+  render_graph.skip_unused_tip: 이 패스가 그린 것을 읽는 패스가 없어 뺐습니다.
+  render_graph.view: 뷰
+  render_graph.view_frame: 게임 화면
+  render_graph.view_other: 편집용 그림
+  render_graph.view_not_recorded: 이 프레임에는 그리지 않았습니다
+  render_graph.column_pass: 패스
+  render_graph.column_kind: 종류
+  render_graph.column_status: 상태
+  render_graph.column_barriers: 배리어
+  render_graph.column_texture: 텍스처
+  render_graph.column_use: 쓰임
+  render_graph.column_actual: 실제 텍스처
+  render_graph.column_state: 옮길 상태
+  render_graph.column_shape: 모양
+  render_graph.column_source: 출처
+  render_graph.column_lifetime: 수명
+  render_graph.column_slot: 칸
+  render_graph.column_this_frame: 이번 프레임
+  render_graph.column_idle: 안 쓴 프레임
+  render_graph.tab_pass: 패스
+  render_graph.tab_textures: 텍스처
+  render_graph.tab_pool: 풀
+  render_graph.select_pass_hint: 왼쪽에서 패스를 고르세요
+  render_graph.condition: 조건
+  render_graph.condition_available: 있을 때만
+  render_graph.condition_missing: 없을 때만(대신 그리기)
+  render_graph.accesses: 이 패스가 쓰는 텍스처
+  render_graph.access_color: 색 첨부
+  render_graph.access_depth: 깊이 첨부
+  render_graph.access_read: 읽기
+  render_graph.access_read_optional: 읽기(없어도 됨)
+  render_graph.access_copy_source: 복사 원본
+  render_graph.access_copy_destination: 복사 대상
+  render_graph.access_storage: 읽고 쓰기
+  render_graph.optional_suffix: "(없어도 됨)"
+  render_graph.load_load: 이어 그림
+  render_graph.load_clear: 지우고 그림
+  render_graph.load_discard: 버리고 그림
+  render_graph.actual_none: 이번 프레임 없음
+  render_graph.actual_none_tip: 풀에 비어 있는 이 모양의 텍스처가 없었습니다. 이것이 필요한 패스는 대신 그리기로 갔고, 텍스처는 다음 프레임 전에 만듭니다.
+  render_graph.barriers_header: 이 패스 앞의 배리어
+  render_graph.no_barriers: 배리어가 없습니다
+  render_graph.state_shader_read: 셰이더 읽기
+  render_graph.state_render_target: 렌더 타깃
+  render_graph.state_depth_write: 깊이 쓰기
+  render_graph.state_copy_source: 복사 원본
+  render_graph.state_copy_destination: 복사 대상
+  render_graph.state_storage: 읽고 쓰기
+  render_graph.source_transient: 그래프
+  render_graph.source_imported: 가져옴
+  render_graph.source_back_buffer: 백버퍼
+  render_graph.shared_hint: 색이 같은 막대는 실제 텍스처 하나를 나눠 씁니다.
+  render_graph.lifetime_tip: 이 텍스처를 쓰는 첫 패스부터 마지막 패스까지 삽니다
+  render_graph.pool_slots: 쓰는 칸
+  render_graph.pool_hint: 300 프레임 동안 쓰지 않은 텍스처는 놓습니다. 그래프에 모자랐던 모양은 다음 프레임 전에 만듭니다.
+  render_graph.slot_empty: 빈 칸
+  render_graph.slot_used: 씀
+  render_graph.wants: 다음 프레임 전에 만들 것
+  render_graph.wants_none: 만들 것이 없습니다
+  render_graph.column_gpu: GPU ms
+  render_graph.gpu_unsupported: GPU 시간 없음
+  render_graph.gpu_unsupported_tip: 이 장치는 GPU 시각을 적지 못합니다.
+  render_graph.gpu_pending: GPU 시간 재는 중
+  render_graph.gpu_tip: 잰 패스들이 GPU 에서 걸린 시간입니다. 시각은 GPU 가 프레임을 끝낸 뒤 오므로 몇 프레임 늦습니다.
+  render_graph.preview: 미리보기
+  render_graph.preview_hint: 위 표에서 텍스처를 고르면 이 패스 직후의 내용을 봅니다
+  render_graph.preview_waiting: 사본을 만드는 중입니다
+  render_graph.preview_not_found: 이번 프레임에는 이 패스가 돌지 않았습니다
+  render_graph.preview_unsupported: 깊이 텍스처는 미리보기가 없습니다

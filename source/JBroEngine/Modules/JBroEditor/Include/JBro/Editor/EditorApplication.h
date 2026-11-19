@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/Command/ComponentAddress.h>
@@ -16,6 +17,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorUI.h>
+#include <JBro/Editor/Code/LanguageClient.h>
 #include <JBro/Platform/Input.h>
 #include <JBro/Types/Math3D.h>
 #include <JBro/Types/Array.h>
@@ -34,6 +36,8 @@
 
 namespace JBro
 {
+    class MaterialLibrary;
+    class ShaderCompiler;
     struct RenderCamera2D;
     namespace System
     {
@@ -70,6 +74,7 @@ namespace JBro
     class IFramework;
     class IPlatform;
     class ScriptDebugServer;
+    namespace Code { class SourceDebugger; }
     struct AudioDeviceInfo;
     class AssetRegistry;
     namespace NodeGraph
@@ -79,6 +84,7 @@ namespace JBro
     class AssetSystem;
     struct AssetMetaFile;
     struct AssetFileTarget;
+    struct AssetSourceTarget;
 
     // `FrameworkKind` 는 `JBro/Host/ProjectFile.h` 에 있다(D-99). 프로젝트 파일이 그 값을
     // 적는 자리이므로 형식과 같이 둔다.
@@ -148,7 +154,7 @@ namespace JBro
         // **제어 포트**(D-270, `EditorControlPort`). 0 이 아니면 이 번호로 루프백에 열어 밖의 프로세스가 가이드를 켜게 한다.
         // 실제 에디터가 `EditorControlPort::DefaultPort` 를 준다. 테스트는 열지 않는 것이 기본이다 - 에디터 여럿이 한 포트를 다툰다.
         std::uint16_t controlPort = 0;
-        // **`.jproject` 연결을 쓸 자리**(D-336, `FileTypeAssociation::classesKey`). 널이면 현재 사용자의 진짜 자리다.
+        // **`.jproject` 연결을 쓸 자리**(D-389, `FileTypeAssociation::classesKey`). 널이면 현재 사용자의 진짜 자리다.
         // 테스트는 사람의 연결을 덮지 않으려고 제 자리를 준다.
         const char* fileTypeClassesKey = nullptr;
         JMemoryContext memory;
@@ -180,6 +186,13 @@ namespace JBro
         const ProjectFile& GetProjectFile() const;
         // 그 파일의 경로다. 파일로 열지 않았으면 비어 있다.
         const String& GetProjectFilePath() const { return m_projectFilePath; }
+        IPlatform& GetPlatform() { return *m_platform; }
+        Bool OpenMarkdownFile(const String& path, const String& anchor = {});
+        Bool OpenCodeFile(const String& path, UInt32 line = 1, UInt32 column = 0);
+        Bool OpenCodeFileExternally(const String& path, UInt32 line = 1);
+        Code::LanguageClient& GetCodeLanguageClient();
+        void ReconnectCodeLanguageClient();
+        Code::SourceDebugger& GetSourceDebugger();
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         Bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
@@ -236,6 +249,9 @@ namespace JBro
         // `.jfx` 의 본문을 읽고 쓴다(D-306). 쓰면 실린 에셋을 제자리에서 다시 읽는다 - 재생 중인 소스의 사슬이 다시 시작하지 않고 바뀐다.
         Bool ReadSoundEffect(AssetId asset, AudioEffectSettings& settings) const;
         Bool WriteSoundEffect(AssetId asset, const AudioEffectSettings& settings);
+        // 에셋 본문 파일의 자리와 글자다(D-344, 인스펙터의 후처리 프로필). 글자는 실린 에셋이 있으면 그것을, 없으면 디스크를 읽는다.
+        Bool DescribeAssetSource(AssetId asset, AssetSourceTarget& target) const;
+        Bool ReadAssetSourceText(AssetId asset, String& text) const;
         // **노드 그래프 창**에서 연다(D-323). 뿌리의 "노드 그래프" 도크에 `.jgraph` 마다 탭이 하나다. 이미 열려 있으면 그 탭을 앞으로 가져온다.
         // `.jgraph` 가 아니거나, 읽지 못하거나, 그래프의 도메인을 모르면 거짓이다.
         Bool OpenNodeGraphEditor(AssetId asset);
@@ -382,7 +398,7 @@ namespace JBro
         // 고른 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다. 고른 것이 없으면 거짓이다.
         Bool DescribeSelectedAssetMeta(AssetFileTarget& target) const;
         // **고른 재질**(material-plan 4 단계). 고른 에셋이 재질이면 그 값이다 - `.jmat` 은 파일을 읽은 것이고, 모델의 하위 Material 은
-        // 모델의 재질을 옮긴 것이라 읽기 전용이다(D-346 (2)). 재질이 아니거나 읽히지 않으면 nullptr. 커맨드가 돈 뒤 디스크에서 다시 읽는다.
+        // 모델의 재질을 옮긴 것이라 읽기 전용이다(D-399 (2)). 재질이 아니거나 읽히지 않으면 nullptr. 커맨드가 돈 뒤 디스크에서 다시 읽는다.
         const MaterialDesc* GetSelectedMaterial() const;
         Bool IsSelectedMaterialReadOnly() const;
         // 고른 `.jmat` 을 고치는 커맨드의 대상과 지금 파일의 글자(되돌릴 값)다. 고른 것이 고칠 수 있는 재질 파일이 아니면 거짓.
@@ -490,8 +506,17 @@ namespace JBro
         // **글자로 적힌 가이드를 켠다**(D-267). 에이전트가 사용자의 물음에 맞춰 지은 가이드를 이것으로 넘긴다 - 에디터 안에서는
         // 곧장 부르고, 밖의 프로세스는 제어 포트(D-270)의 `guide.start` 로 부른다. 형식은 `EditorGuides::Parse` 다. 읽지 못하면 까닭을 `error` 에
         // 적고 거짓이며, 이미 돌던 가이드는 그대로 둔다. 읽었으면 돌던 가이드를 멈추고 이것을 켠다.
-        Bool StartGuideFromText(const char* text, std::size_t length, String& error);
+        // AI는 prepareOnly로 준비만 한다. 단계 진입·선택·포커스 변경은 사용자가 시작할 때 수행한다.
+        Bool StartGuideFromText(const char* text, std::size_t length, String& error, Bool prepareOnly = false);
         EditorGuide& GetGuide();
+        const Guide* GetAgentGuide() const;
+        Bool IsAgentGuideReady() const { return m_agentGuideReady; }
+        void ResumeAgentGuide();
+        void StopAgentGuide();
+        void SetAgentGuidePaused(Bool paused);
+        Bool IsAgentGuidePaused() const { return m_agentGuidePaused; }
+        UInt64 GetAgentContextRevision() const { return m_agentContextRevision; }
+        String GetAgentSkillsRoot() const;
         // 제어 포트가 열렸는가(D-270). `controlPort` 를 주었어도 다른 에디터가 그 번호를 쓰고 있으면 열리지 않는다.
         Bool IsControlPortOpen() const;
         // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
@@ -527,6 +552,11 @@ namespace JBro
         UInt32 GetUnusableGameCameraCount() const;
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetSimulationViewExtent() const;
+        // 창 클라이언트 픽셀 → 게임 화면 픽셀의 매핑이다(D-214). 시험이 게임 화면의 한 점을 창 어디에서 눌러야 하는지 거꾸로 센다.
+        const InputSurfaceMapping& GetSimulationViewMapping() const
+        {
+            return m_simulationViewMapping;
+        }
         // 시뮬레이션 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
         // 그 패널이 포커스를 가졌는지다. 게임 입력의 마우스를 게임 화면 픽셀로 옮기는 데 쓴다(D-214).
         void ReportSimulationView(Bool focused, Float left, Float top, Float width, Float height);
@@ -601,6 +631,9 @@ namespace JBro
         Bool IsSimulationViewDebugDrawVisible() const;
         void SetCanvasViewDebugDraw(Bool visible);
         Bool IsCanvasViewDebugDrawVisible() const;
+        // 캔버스 뷰에 게임 카메라의 후처리를 걸지다(D-344). 처음에는 켜져 있다.
+        void SetCanvasViewPostProcess(Bool enabled);
+        Bool IsCanvasViewPostProcessEnabled() const;
         // 엔진의 시계·디버그 선·난수 씨앗이다(D-242, D-243). 통계 창과 시험이 읽는다. 엔진이 없으면 null·0 이다.
         const FrameTime* GetFrameTime() const;
         const System::DebugDrawSystem* GetDebugDraw() const;
@@ -742,17 +775,37 @@ namespace JBro
         // **새 폰트 패밀리를 만든다**(D-225). 에셋 폴더 아래 `folder` 에 겹치지 않는 이름의 `.jfontfamily` 를 쓰고 등록한 뒤
         // 고르고 에셋 브라우저에서 보인다 - 네 칸은 인스펙터의 에셋 옵션으로 채운다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateFontFamilyAsset(const char* folder);
-        // **새 재질**(material-plan 4 단계). 기본값(`Standard`, 흰색, roughness 1)의 `.jmat` 을 만들고 브라우저에서 고른다 - 값은 인스펙터에서 고친다.
-        String CreateMaterialAsset(const char* folder);
+        // **새 표준 머티리얼**(material-plan 4 단계, D-403). 기본값(`Standard`, 흰색, roughness 1)의 `.jmat` 을 만들고 브라우저에서 고른다 - 값은 인스펙터에서 고친다.
+        // 셰이더 머티리얼(D-347)은 `CreateMaterialAsset` 이다.
+        String CreateStandardMaterialAsset(const char* folder);
         // **새 문자열 표를 만든다**(D-226). `.jstrings` 를 쓰고, 프로젝트에 기본 언어(없으면 첫 언어)가 있으면 메타의 로케일로 적는다.
         // 고르고 에셋 브라우저에서 보인다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateStringTableAsset(const char* folder);
         // **새 사운드 이펙트를 만든다**(D-306, 기존 `에셋 추가 ▸ Sound Effect`). `NewEffect.jfx`(잔향 기본값)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 편집 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateSoundEffectAsset(const char* folder);
+        // 빈 후처리 프로필(`.jpost`, D-344)을 만들고 고른다. 효과는 인스펙터에서 더한다.
+        String CreatePostProcessProfileAsset(const char* folder);
+        // **새 렌더 텍스처**(`NewRenderTexture.jrt`, D-362)를 256 x 256 으로 쓰고 고른다. 만든 파일의 경로이고 실패하면 빈 글자다.
+        String CreateRenderTextureAsset(const char* folder);
+        // **새 셰이더**(`NewShader.hlsl`, D-347)를 머티리얼 셰이더의 틀로 쓰고 고른다. **새 머티리얼**(`NewMaterial.jmat`)은 셰이더 없이 쓰고 고른다 -
+        // 셰이더는 인스펙터에서 고른다. 만든 파일의 경로이고 실패하면 빈 글자다.
+        String CreateShaderAsset(const char* folder);
+        String CreateMaterialAsset(const char* folder);
+        // **머티리얼 인스펙터가 보는 셰이더**(D-347). 셰이더 에셋을 그 자리로 구운 것(파라미터·텍스처 이름)이다. 에디터의 컴파일러로 굽고 본문이
+        // 바뀌면 다시 굽는다. 실패하면 nullptr 이고 `error` 가 까닭이다(컴파일러가 없으면 그 까닭도).
+        const CompiledMaterialShader* GetMaterialShader(AssetId shader, MaterialDomain domain, const String** error);
+        // 에디터가 든 셰이더 컴파일러다. 열지 못했으면 null 이다.
+        IShaderCompiler* GetShaderCompiler();
         // **새 노드 그래프를 만든다**(D-323). `NewGraph.jgraph`(샘플 도메인 `Math`, 결과 노드 하나)를 겹치지 않는 이름으로 쓰고
         // 등록한 뒤 고르고 노드 그래프 창을 연다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateNodeGraphAsset(const char* folder);
+        // 셰이더 그래프(도메인 `Shader`, D-369)를 만들어 연다. 저장하면 옆에 `.hlsl` 이 생긴다.
+        String CreateShaderGraphAsset(const char* folder);
+        // 그래프 에셋 옆(`이름.hlsl`)에 만든 셰이더를 쓴다. 처음이면 레지스트리에 들이고, 실려 있으면 제자리에서 다시 읽는다.
+        Bool WriteGeneratedShader(AssetId graph, const String& hlsl);
+        // 디스크의 셰이더 그래프를 읽어 옆의 `.hlsl` 을 다시 만든다. 셰이더 그래프가 아니면 할 일이 없어 참이다. 못 만들면 거짓이고 까닭은 `why` 다.
+        Bool RegenerateShaderFromGraph(AssetId graph, String* why = nullptr);
         // **레이어를 레이어 에셋(`.jlayer`)으로 저장한다**(D-287, 기존 `SaveLayerAsAssetInFolder`). 에셋 폴더 아래 `folder` 에 레이어 이름으로 겹치지 않게 쓰고,
         // 그 레이어를 그 에셋에서 온 것으로 표시한다(커맨드 - 되돌리면 표시만 빠진다). 만든 파일의 경로이고 실패하면 빈 글자다.
         String SaveLayerAsAsset(LayerId layer, const char* folder);
@@ -808,9 +861,11 @@ namespace JBro
         void NotifyScriptCreated(const String& headerPath, const char* className);
         // 캔버스에 모르는 스크립트(타입이 스크립트 DLL 에 없는 것)가 있으면 경고 알림을 띄운다. 그 스크립트는 저장된 그대로 남고 돌지 않는다.
         void NotifyUnresolvedScripts();
+        // 레이어 에셋·클립보드에서 넣은 스크립트의 필드를 잇지 못했다고 알린다(D-364). 필드마다 로그에 적는다. 없으면 아무것도 하지 않는다.
+        void NotifyScriptFieldsNotRead(const Array<ScriptResolveNote>& notes);
         // 새 프로젝트 이름을 검사한다(`CheckProjectName`). 새 프로젝트 팝업이 치는 동안 묻는다.
         ProjectCreateFailure CheckProjectName(const char* parentFolder, const char* name);
-        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 3D 는 원점의 큐브 하나를 더 둔다(D-335). 비어 있지 않으면 아무것도 하지 않는다.
+        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 3D 는 원점의 큐브 하나를 더 둔다(D-388). 비어 있지 않으면 아무것도 하지 않는다.
         void AddStarterObjects();
         // 오류 줄을 여는 편집기다(D-299). 에디터 설정에 저장된다.
         ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
@@ -850,20 +905,20 @@ namespace JBro
         // 연 것" 으로 적어 두면 다음에 열 때 그 파일이 없거나 옛 것이다.
         void RequestSaveProject();
         // 프로젝트를 골라 연다. 대화상자는 프레임 밖에서 뜬다.
-        // **파일로 연 프로젝트가 있으면 아무것도 하지 않는다**(D-336) - 다른 프로젝트는 그 파일을 두 번 눌러 새 에디터로 연다.
+        // **파일로 연 프로젝트가 있으면 아무것도 하지 않는다**(D-389) - 다른 프로젝트는 그 파일을 두 번 눌러 새 에디터로 연다.
         void RequestOpenProject();
         // **새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 프레임 밖에서 폴더를 고르고,
-        // 이름과 프레임워크를 받는 팝업을 띄운다. 프로젝트 열기와 같이 파일로 연 프로젝트가 있으면 아무것도 하지 않는다(D-336).
+        // 이름과 프레임워크를 받는 팝업을 띄운다. 프로젝트 열기와 같이 파일로 연 프로젝트가 있으면 아무것도 하지 않는다(D-389).
         void RequestNewProject();
-        // **다른 프로젝트를 열거나 만들 수 있는가**(D-336). 파일로 연 프로젝트가 없을 때만 참이다 - 파일 메뉴의 `새 프로젝트`·`프로젝트 열기` 가
+        // **다른 프로젝트를 열거나 만들 수 있는가**(D-389). 파일로 연 프로젝트가 없을 때만 참이다 - 파일 메뉴의 `새 프로젝트`·`프로젝트 열기` 가
         // 이때만 보인다. 열린 프로젝트를 다른 것으로 바꾸는 길을 두지 않는다.
         Bool CanSwitchProject() const;
-        // **`.jproject` 를 이 에디터와 잇는다**(D-336). 탐색기에서 두 번 누르면 이 실행 파일이 그 프로젝트를 연다.
+        // **`.jproject` 를 이 에디터와 잇는다**(D-389). 탐색기에서 두 번 누르면 이 실행 파일이 그 프로젝트를 연다.
         // 현재 사용자의 자리에만 쓴다. 결과는 팝업으로 알린다.
         Bool RegisterProjectFileType();
         // `<parentFolder>/<name>/` 에 프로젝트를 세우고, 이 프레임이 끝나면 그 프로젝트로 넘어간다.
         // 실패하면 거짓이고 `failure` 에 까닭이 온다. 팝업이 그것으로 번역된 문장을 고른다.
-        // 파일로 연 프로젝트가 있으면 아무것도 쓰지 않고 거짓이다(D-336, `failure` 는 그대로다).
+        // 파일로 연 프로젝트가 있으면 아무것도 쓰지 않고 거짓이다(D-389, `failure` 는 그대로다).
         Bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
             ProjectCreateFailure* failure = nullptr);
         // ── 스프라이트 프레임 고르기(D-165, 기존 `SpriteFramePick`) ─────────────────────────────
@@ -897,6 +952,8 @@ namespace JBro
         // 아니다. 프레임을 여닫는 것은 여전히 엔진의 일이다.
         Renderer* GetRenderer();
         const Renderer* GetRenderer() const;
+        // Keep UI-owned images alive until this frame's draw data has been submitted.
+        void RetireUiTexture(TextureHandle texture);
 
         Bool IsInitialized() const;
         Bool HasOpenProject() const;
@@ -919,6 +976,8 @@ namespace JBro
         void DrawRootDock(const Extent2D& display);
         // 패널 하나를 여닫는 메뉴 항목이다. 설정·디버그 메뉴가 같은 모양으로 쓴다.
         void DrawPanelMenuItem(const char* panelTitle, const char* label);
+        // 방금 연 패널의 도크 칸이 그 패널이 바라는 높이보다 낮으면 넓힌다(D-341, `EditorPanel::GetPreferredDockHeight`).
+        void GrowDockForPanel(const EditorPanel& panel);
         // 도구 창들이 붙는 안쪽 도크. 자기 메뉴 막대를 가진다.
         void DrawMainDock();
         // 메인 도크가 아닌 도크들(D-284). 열린 패널이 있는 것만 뿌리에 선다. 패널보다 먼저 그려 도크 공간을 낸다.
@@ -984,7 +1043,16 @@ namespace JBro
         void ReleaseProcessResources();
 
         OwnerPtr<IPlatform> m_platform;
+        OwnerPtr<Code::LanguageClient> m_codeLanguage;
+        OwnerPtr<Code::SourceDebugger> m_sourceDebugger;
         OwnerPtr<IRHIModule> m_rhiModule;
+        // 머티리얼 셰이더 컴파일러(D-347)다. 엔진보다 먼저 서고 늦게 내려간다 - 엔진의 프레임워크가 빌려 쓴다.
+        OwnerPtr<ShaderCompiler> m_shaderCompiler;
+        // 머티리얼 인스펙터가 셰이더를 굽는 자리다(렌더러 없이 컴파일만). 인스펙터가 보는 셰이더 에셋을 하나 잡는다.
+        OwnerPtr<MaterialLibrary> m_materialInspection;
+        AssetSystem* m_materialInspectionAssets = nullptr;
+        AssetId m_inspectedShaderId;
+        AssetHandle m_inspectedShader;
         OwnerPtr<EngineInstance> m_engine;
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;
@@ -1012,6 +1080,7 @@ namespace JBro
         EditorGuide m_guide;
         // 글자로 받은 가이드다. `m_guide` 가 가리키므로 다음 가이드를 받을 때까지 들고 있는다.
         OwnerPtr<LoadedGuide> m_textGuide;
+        Bool m_agentGuideReady = false;
         // 제어 포트와 그 소켓을 내준 provider 다(D-270). 포트가 먼저 사라져야 하므로 provider 를 앞에 둔다.
         OwnerPtr<Network::ISocketProvider> m_socketProvider;
         OwnerPtr<EditorControlPort> m_controlPort;
@@ -1116,8 +1185,7 @@ namespace JBro
         // 썸네일 텍스처를 놓는다. **이 프레임의 UI 가 이미 그 텍스처를 그리기 목록에 얹었을 수 있으므로** 곧바로 지우지 않고 다음
         // `FlushLayerThumbnails` 에서 지운다(`now` 면 곧바로 - UI 를 끌 때다).
         void ReleaseLayerThumbnails(Bool now = false);
-        void RetireLayerThumbnail(TextureHandle texture);
-        void DestroyRetiredLayerThumbnails();
+        void DestroyRetiredUiTextures(Bool force = false);
         struct LayerThumbnailSlot
         {
             LayerId layer = InvalidLayerId;
@@ -1125,7 +1193,12 @@ namespace JBro
             Bool drawn = false;
         };
         Array<LayerThumbnailSlot> m_layerThumbnails;
-        Array<TextureHandle> m_retiredLayerThumbnails;
+        struct RetiredUiTexture
+        {
+            TextureHandle texture;
+            UInt64 frame = 0;
+        };
+        Array<RetiredUiTexture> m_retiredUiTextures;
         Extent2D m_layerThumbnailExtent;
         // 이 프레임에 계층 창이 바란 높이다. 0 이면 바라지 않았다.
         UInt32 m_layerThumbnailHeight = 0;
@@ -1144,6 +1217,7 @@ namespace JBro
         Bool m_simulationPaused = false;
         Bool m_simulationViewDebugDraw = true;
         Bool m_canvasViewDebugDraw = true;
+        Bool m_canvasViewPostProcess = true;
         // 게임 입력(D-214). 시뮬레이션 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
         // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(시뮬레이션 뷰를 누르면 포커스부터 온다).
         Bool m_simulationViewFocused = false;
@@ -1229,6 +1303,9 @@ namespace JBro
         // 글자 표가 사는 곳과 지금 언어·폴백이다(D-146). 언어를 바꾸려면 다시 읽어야 하고,
         // 다시 읽으려면 처음에 어디서 읽었는지를 들고 있어야 한다.
         String m_localizationDirectory;
+        Bool m_agentGuidePaused = false;
+        Array<SafePtr<Object::GameObject>> m_agentGuideSelection;
+        UInt64 m_agentContextRevision = 1;
         // 아이콘 글꼴의 경로다. 실행 파일 기준으로 풀어 둔 값이다(D-176).
         String m_iconFontPath;
         String m_locale;

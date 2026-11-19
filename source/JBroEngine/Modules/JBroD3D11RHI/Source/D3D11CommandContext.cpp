@@ -132,6 +132,35 @@ namespace JBro::Internal
         return true;
     }
 
+    Bool D3D11CommandContext::Barrier(JArrayView<TextureBarrier> barriers)
+    {
+        // D3D11 은 자원 상태가 없다 - 런타임이 묶을 때 맞춘다. 다른 두 백엔드가 거절하는 것을 똑같이 거절하도록 검사만 한다.
+        if (m_device == nullptr || m_context == nullptr || m_renderPassActive || (barriers.size != 0 && barriers.data == nullptr))
+        {
+            return false;
+        }
+        for (UInt32 index = 0; index < barriers.size; ++index)
+        {
+            TextureDesc desc;
+            if (false == m_device->ResolveTextureDesc(barriers.data[index].texture, desc)
+                || false == IsTextureBarrierValid(desc, barriers.data[index]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    Bool D3D11CommandContext::WriteTimestamp(UInt32 index)
+    {
+        // 렌더 패스 밖에서만이다(D-341) - 세 백엔드가 같은 자리에서 받도록 맞춘다.
+        if (m_device == nullptr || m_renderPassActive)
+        {
+            return false;
+        }
+        return m_device->RecordTimestamp(index);
+    }
+
     Bool D3D11CommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
     {
         ID3D11RenderTargetView* fromView = nullptr;

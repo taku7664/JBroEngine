@@ -30,6 +30,13 @@ namespace JBro::Network
             UInt32 protocolVersion = 0;
         };
 
+        // 서버 → 클라이언트. 버전과 **그 연결의 번호**다(프로토콜 2).
+        struct HelloAckPayload
+        {
+            UInt32 protocolVersion = 0;
+            ConnectionId connection = InvalidConnectionId;
+        };
+
         struct ByePayload
         {
             std::uint8_t reason = 0;
@@ -55,7 +62,7 @@ namespace JBro::Network
             return channel == NetChannel::ReliableOrdered || channel == NetChannel::ReliableUnordered;
         }
 
-        // `ws://` 접두를 벗긴다. `wss://` 는 아직 받지 않는다(TLS 는 §3-7).
+        // `ws://` 접두를 벗긴다. `wss://` 는 아직 받지 않는다(TLS 는 §3-11).
         const char* StripScheme(const char* host)
         {
             if (0 == std::strncmp(host, "ws://", 5))
@@ -163,6 +170,16 @@ namespace JBro::Network
 
     Bool Transport::Listen(std::uint16_t port)
     {
+        return ListenOn(port, false);
+    }
+
+    Bool Transport::ListenLoopback(std::uint16_t port)
+    {
+        return ListenOn(port, true);
+    }
+
+    Bool Transport::ListenOn(std::uint16_t port, Bool loopbackOnly)
+    {
         if (m_role != NetworkRole::None)
         {
             return false;
@@ -172,14 +189,14 @@ namespace JBro::Network
         {
             return false;
         }
-        if (false == listener->Listen(port))
+        if (false == (loopbackOnly ? listener->ListenLoopback(port) : listener->Listen(port)))
         {
             return false;
         }
         EnsureBuffers();
         m_listener = std::move(listener);
         m_role = NetworkRole::Server;
-        OpenServerUdp(port);
+        OpenServerUdp(port, loopbackOnly);
         return true;
     }
 
@@ -241,6 +258,7 @@ namespace JBro::Network
             m_udpSocket = nullptr;
         }
         m_role = NetworkRole::None;
+        m_localConnectionId = InvalidConnectionId;
         m_udpUnavailable = false;
         m_nextClientId = ServerConnectionId + 1;
         // 꺼낸 적 없는 메시지 뷰는 여기서 무효가 된다 - `Update` 가 무효로 만드는 것과 같은 규약이다.
@@ -337,6 +355,11 @@ namespace JBro::Network
     NetworkRole Transport::GetRole() const
     {
         return m_role;
+    }
+
+    ConnectionId Transport::GetLocalConnectionId() const
+    {
+        return m_role == NetworkRole::Client ? m_localConnectionId : InvalidConnectionId;
     }
 
     Bool Transport::IsListening() const
@@ -1152,8 +1175,9 @@ namespace JBro::Network
                 SendSystem(connection, SystemBye, bye);
                 return;
             }
-            HelloPayload ack;
+            HelloAckPayload ack;
             ack.protocolVersion = m_config.protocolVersion;
+            ack.connection = connection.id;
             SendSystem(connection, SystemHelloAck, ack);
             PromoteToReady(connection);
             return;
@@ -1164,6 +1188,12 @@ namespace JBro::Network
             {
                 RequestClose(connection, DisconnectReason::Error);
                 return;
+            }
+            if (sizeof(HelloAckPayload) == size)
+            {
+                HelloAckPayload ack;
+                std::memcpy(&ack, payload, sizeof(ack));
+                m_localConnectionId = ack.connection;
             }
             PromoteToReady(connection);
             return;
@@ -1433,6 +1463,7 @@ namespace JBro::Network
         if (m_role == NetworkRole::Client && m_connections.IsEmpty())
         {
             m_role = NetworkRole::None;
+            m_localConnectionId = InvalidConnectionId;
             if (nullptr != m_udpSocket.Get())
             {
                 m_udpSocket->Close();
@@ -1443,7 +1474,7 @@ namespace JBro::Network
 
     // ── UDP ─────────────────────────────────────────────────────────────────────────────────────
 
-    void Transport::OpenServerUdp(std::uint16_t port)
+    void Transport::OpenServerUdp(std::uint16_t port, Bool loopbackOnly)
     {
         if (false == m_config.udpEnabled)
         {
@@ -1455,7 +1486,12 @@ namespace JBro::Network
             return;
         }
         // WS 와 같은 번호다. 포트 이름 공간이 다르니 겹치지 않고, 방화벽에는 둘 다 열어야 한다. 못 잡으면 UDP 없이 간다.
-        if (false == socket->Open() || false == socket->Bind(port))
+        // WS 를 루프백에만 열었으면 UDP 도 루프백에만 연다 - 한쪽만 망에 열리면 루프백 전용이라는 말이 거짓이 된다.
+        if (false == socket->Open())
+        {
+            return;
+        }
+        if (false == (loopbackOnly ? socket->BindLoopback(port) : socket->Bind(port)))
         {
             return;
         }

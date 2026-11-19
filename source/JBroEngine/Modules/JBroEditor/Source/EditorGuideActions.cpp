@@ -46,7 +46,8 @@ namespace JBro
             CanvasView,
             EditMenu,
             Inspector,
-            MainMenu
+            MainMenu,
+            AssetBrowser
         };
 
         const char* RouteName(GuideRoute route)
@@ -63,6 +64,8 @@ namespace JBro
                 return "inspector";
             case GuideRoute::MainMenu:
                 return "main_menu";
+            case GuideRoute::AssetBrowser:
+                return "asset_browser";
             }
             return "";
         }
@@ -79,6 +82,7 @@ namespace JBro
             // 메뉴 막대의 `파일`.
             FileMenu = 1 << 3,
             // 인스펙터의 컴포넌트 추가 칸. 컴포넌트를 적었으면 목록의 그 항목까지 가고, 아니면 칸이 끝이다(반례 ④).
+            ComponentMenu = 1 << 5,
             InspectorAdd = 1 << 4
         };
 
@@ -102,6 +106,7 @@ namespace JBro
         // 인스펙터 칸이 맨 앞이다 - 그 칸을 쓰는 행동(컴포넌트 추가)은 오브젝트 메뉴에도 있지만, 붙인 것이 바로 보이는 칸이 먼저다.
         constexpr MenuRoute MenuRoutes[] = {
             { InspectorAdd, GuideRoute::Inspector, MenuObject::Optional },
+            { ComponentMenu, GuideRoute::Inspector, MenuObject::Optional },
             { ObjectMenu, GuideRoute::Hierarchy, MenuObject::Required },
             { ObjectMenu, GuideRoute::CanvasView, MenuObject::Required },
             { BackgroundMenu, GuideRoute::Hierarchy, MenuObject::Forbidden },
@@ -244,6 +249,7 @@ namespace JBro
             UInt32 routeCount = 0;
             GuideStepEnd end = GuideStepEnd::NextButton;
             Bool (*build)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&) = nullptr;
+            Bool (*retry)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&) = nullptr;
             void (*enter)(GuideStepBinding&, EditorApplication&, GuideStepMemo&) = nullptr;
             Bool (*done)(GuideStepBinding&, EditorApplication&, GuideStepMemo&) = nullptr;
             const char* (*blocked)(GuideStepBinding&, EditorApplication&) = nullptr;
@@ -286,7 +292,7 @@ namespace JBro
         // ── 메뉴의 길 ─────────────────────────────────────────────
 
         // 메뉴를 여는 데까지의 경로다. 끝의 항목은 부르는 쪽이 붙인다.
-        Bool BuildMenuEntry(const MenuRoute& entry, EditorApplication& editor, Object::GameObject* target, GuideFocusPath& path)
+        Bool BuildMenuEntry(const MenuRoute& entry, EditorApplication& editor, Object::GameObject* target, GuideFocusPath& path, const char* actionName)
         {
             switch (entry.menu)
             {
@@ -325,6 +331,20 @@ namespace JBro
                 return path.Push(GuideFocusTargets::Menu("menu.edit"), GuideFocusOpen::User);
             case FileMenu:
                 return path.Push(GuideFocusTargets::Menu("menu.file"), GuideFocusOpen::User);
+            case ComponentMenu:
+            {
+                const auto* action = EditorActionRegistry::Get().Find(actionName);
+                target = target != nullptr ? target : editor.GetSelectedObject();
+                if (target == nullptr || action == nullptr || action->componentType == InvalidComponentTypeId
+                    || FindComponentAt(*target, action->componentType, 0) == nullptr)
+                {
+                    return false;
+                }
+                editor.SetSelectedObject(target);
+                return path.Push(GuideFocusTargets::Panel("Inspector"))
+                    && path.Push(GuideFocusTargets::InspectorComponent(action->componentType))
+                    && path.Push(GuideFocusTargets::InspectorComponentMenu(action->componentType), GuideFocusOpen::User);
+            }
             case InspectorAdd:
                 if (target != nullptr)
                 {
@@ -354,6 +374,54 @@ namespace JBro
                 return false;
             }
             return target == nullptr || path.Push(GuideFocusTargets::CanvasViewObject(TrackedId(editor, target)));
+        }
+
+        Bool BuildFocus(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        {
+            return BuildSelect(binding, editor, GuideRoute::CanvasView, path);
+        }
+
+        Bool DoneFocus(GuideStepBinding& binding, EditorApplication& editor, GuideStepMemo& memo)
+        {
+            auto* focused = editor.GetCanvasViewFocus();
+            if (binding.objectRef != GuideStepBinding::ObjectRef::None && binding.object == nullptr)
+            {
+                return false;
+            }
+            return focused != nullptr && (binding.object != nullptr ? focused == binding.object.TryGet()
+                : TrackedId(editor, focused) != memo.values[0]);
+        }
+
+        void EnterFocus(GuideStepBinding&, EditorApplication& editor, GuideStepMemo& memo)
+        {
+            memo.values[0] = TrackedId(editor, editor.GetCanvasViewFocus());
+        }
+
+        Bool BuildScriptCreate(GuideStepBinding&, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        {
+            return !editor.GetScriptRoot().empty() && path.Push(GuideFocusTargets::Panel("Assets"))
+                && path.Push(GuideFocusTargets::ScriptsRootMenu(), GuideFocusOpen::User)
+                && path.Push(GuideFocusTargets::Action("script.create"));
+        }
+
+        void EnterScriptCreate(GuideStepBinding&, EditorApplication& editor, GuideStepMemo& memo)
+        {
+            Array<String> folders, files;
+            editor.CollectScriptFiles(folders, files);
+            memo.values[0] = static_cast<UInt64>(files.Size());
+            memo.values[1] = editor.GetScriptFilesRevision();
+        }
+
+        Bool DoneScriptCreate(GuideStepBinding&, EditorApplication& editor, GuideStepMemo& memo)
+        {
+            if (memo.values[1] == editor.GetScriptFilesRevision())
+            {
+                return false;
+            }
+            memo.values[1] = editor.GetScriptFilesRevision();
+            Array<String> folders, files;
+            editor.CollectScriptFiles(folders, files);
+            return files.Size() > memo.values[0];
         }
 
         // [0] 들어설 때 선택되어 있던 오브젝트.
@@ -604,6 +672,10 @@ namespace JBro
         Bool FieldHoldsValue(GuideStepBinding& binding, EditorApplication& editor)
         {
             Object::GameObject* object = editor.GetSelectedObject();
+            if (binding.objectRef != GuideStepBinding::ObjectRef::None && object != binding.object.TryGet())
+            {
+                return false;
+            }
             if (object == nullptr || object->GetComponents().Size() == 0)
             {
                 return false;
@@ -629,6 +701,10 @@ namespace JBro
 
         const char* BlockedField(GuideStepBinding& binding, EditorApplication& editor)
         {
+            if (binding.objectRef != GuideStepBinding::ObjectRef::None && editor.GetSelectedObject() != binding.object.TryGet())
+            {
+                return Loc::TextOr(LocKeys::GuideNeedTargetObject, "select the highlighted object first");
+            }
             if (editor.GetSelectedObject() == nullptr)
             {
                 return NeedSelectedObject();
@@ -761,6 +837,10 @@ namespace JBro
             {
                 menus |= EditMenu;
             }
+            if ((action->menus & EditorActionMenu::Component) != 0)
+            {
+                menus |= ComponentMenu;
+            }
             if ((action->menus & EditorActionMenu::File) != 0)
             {
                 menus |= FileMenu;
@@ -818,6 +898,41 @@ namespace JBro
                     info.takesComponent = true;
                     info.pointsAtListItem = true;
                     info.keyboard = true;
+                    return info;
+                }(),
+                MenuAction("object.bring_forward", "In the SpriteRenderer2D component menu choose Bring Forward. Reorders within the same layer and renderOrder without changing Z/renderOrder.",
+                    0, nullptr, Subject::Same, ObjectParam::Optional),
+                MenuAction("object.bring_to_front", "In the SpriteRenderer2D component menu choose Bring to Front. Preserves Z/renderOrder; requires another eligible sprite behind/in front.",
+                    0, nullptr, Subject::Same, ObjectParam::Optional),
+                MenuAction("object.send_backward", "In the SpriteRenderer2D component menu choose Send Backward. Changes drawSequence, not Z/renderOrder.",
+                    0, nullptr, Subject::Same, ObjectParam::Optional),
+                MenuAction("object.send_to_back", "In the SpriteRenderer2D component menu choose Send to Back. Changes drawSequence within the same layer and renderOrder.",
+                    0, nullptr, Subject::Same, ObjectParam::Optional),
+                [] {
+                    GuideActionInfo info;
+                    info.name = "object.focus";
+                    info.summary = "Enter object focus mode by double-clicking the highlighted object in Canvas. Direct children become selectable; double-click empty Canvas to exit one level. This is not camera framing. Ends only when that object is the Canvas focus.";
+                    info.object = ObjectParam::Optional;
+                    info.routes[0] = GuideRoute::CanvasView;
+                    info.routeCount = 1;
+                    info.end = GuideStepEnd::Condition;
+                    info.build = &BuildFocus;
+                    info.enter = &EnterFocus;
+                    info.done = &DoneFocus;
+                    return info;
+                }(),
+                [] {
+                    GuideActionInfo info;
+                    info.name = "script.create";
+                    info.summary = "In Asset Browser right-click the Scripts root and choose New Script. In the dialog enter the class name, choose C++ or JBroScript, optionally add fields, then Create. The dialog is interactive while guide focus pauses. Ends only when a new source file is created; opening/cancelling the dialog is not completion.";
+                    info.routes[0] = GuideRoute::AssetBrowser;
+                    info.routeCount = 1;
+                    info.end = GuideStepEnd::Condition;
+                    info.keyboard = true;
+                    info.build = &BuildScriptCreate;
+                    info.retry = &BuildScriptCreate;
+                    info.enter = &EnterScriptCreate;
+                    info.done = &DoneScriptCreate;
                     return info;
                 }(),
                 // ── 메뉴 항목이 아닌 것 ──
@@ -1018,7 +1133,7 @@ namespace JBro
             {
                 return false;
             }
-            if (false == BuildMenuEntry(*entry, editor, target, path))
+            if (false == BuildMenuEntry(*entry, editor, target, path, action->name))
             {
                 return false;
             }
@@ -1071,6 +1186,11 @@ namespace JBro
 
     JBro::Bool GuideStepBinding::NextRoute(EditorApplication& editor, GuideFocusPath& path)
     {
+        if (action->retry != nullptr)
+        {
+            path = {};
+            return action->retry(*this, editor, GuideRoute::AssetBrowser, path);
+        }
         for (JBro::UInt32 index = routeIndex + 1; index < RouteCount(*action); ++index)
         {
             if (TryRoute(editor, index, path))
@@ -1470,7 +1590,7 @@ namespace JBro
             {
                 JBro::Bool found = false;
                 for (GuideRoute route : { GuideRoute::Hierarchy, GuideRoute::CanvasView, GuideRoute::EditMenu,
-                         GuideRoute::Inspector, GuideRoute::MainMenu })
+                         GuideRoute::Inspector, GuideRoute::MainMenu, GuideRoute::AssetBrowser })
                 {
                     if (value == RouteName(route) && CanGoBy(*action, route))
                     {

@@ -1,4 +1,4 @@
-#include "CatalogBuilder.h"
+﻿#include "CatalogBuilder.h"
 namespace JBro::ScriptApiCatalog2D::Internal
 {
 void AddEnums(ApiCatalog& catalog)
@@ -22,6 +22,78 @@ void AddEnums(ApiCatalog& catalog)
     {
     auto& type = AddType(catalog, "SpritePivotMode", "JBro::Component::SpritePivotMode", ApiTypeKind::Enum);
     const auto& descriptor = TypeDescriptorOf<Component::SpritePivotMode>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "SpriteDrawMode", "JBro::Component::SpriteDrawMode", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::SpriteDrawMode>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "SpriteFillOrigin", "JBro::Component::SpriteFillOrigin", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::SpriteFillOrigin>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "LayoutMode", "JBro::Component::LayoutMode", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::LayoutMode>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "SliderDirection", "JBro::Component::SliderDirection", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::SliderDirection>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "ButtonTransition", "JBro::Component::ButtonTransition", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::ButtonTransition>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "TweenTarget", "JBro::Component::TweenTarget", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::TweenTarget>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "TweenLoop", "JBro::Component::TweenLoop", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::TweenLoop>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "EaseKind", "JBro::EaseKind", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<EaseKind>::Get();
+    for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
+    {
+        type.EnumValues.Add(descriptor.enumNames->names[index]);
+    }
+    }
+    {
+    auto& type = AddType(catalog, "AspectMode", "JBro::Component::AspectMode", ApiTypeKind::Enum);
+    const auto& descriptor = TypeDescriptorOf<Component::AspectMode>::Get();
     for (UInt32 index = 0; index < descriptor.enumNames->count; ++index)
     {
         type.EnumValues.Add(descriptor.enumNames->names[index]);

@@ -160,6 +160,11 @@ namespace JBro::Network::Testing
 
         Bool Open() override;
         Bool Bind(std::uint16_t port) override;
+        // 한 프로세스 안의 가짜 망이라 루프백과 다를 것이 없다. 같은 자리로 보낸다.
+        Bool BindLoopback(std::uint16_t port) override
+        {
+            return Bind(port);
+        }
         Bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) override;
         SocketIo SendTo(const Endpoint& to, const void* data, std::size_t size) override;
         SocketIo ReceiveFrom(void* buffer, std::size_t capacity, std::size_t& outReceived, Endpoint& outFrom) override;

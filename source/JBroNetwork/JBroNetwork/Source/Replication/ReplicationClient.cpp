@@ -14,6 +14,7 @@ namespace JBro::Network
         constexpr UInt32 SpawnMessageBytes = static_cast<JBro::UInt32>(4 + sizeof(SpawnDesc));
         constexpr UInt32 DespawnMessageBytes = 4;
         constexpr UInt32 AckMessageBytes = 4;
+        constexpr UInt32 OwnerMessageBytes = 12;
     }
 
     ReplicationClient::ReplicationClient(Transport& transport, IReplicationHost& host, const ReplicationConfig& config)
@@ -27,6 +28,7 @@ namespace JBro::Network
         m_history.Reset(m_config.historyTicks, m_config.maxEntriesPerSnapshot, m_config.snapshotBytes);
         m_removals.Resize(m_config.maxEntriesPerSnapshot);
         m_changedScratch.Resize(m_config.maxEntriesPerSnapshot);
+        m_uploadBuffer.Resize(m_config.maxOwnedUploadBytes);
     }
 
     std::uint8_t ReplicationClient::RegisterPool(IReplicatedPool& pool)
@@ -63,6 +65,11 @@ namespace JBro::Network
             HandleDelta(view);
             return true;
         }
+        case ReplicationOwnerMessage:
+        {
+            HandleOwner(view);
+            return true;
+        }
         default:
         {
             return true;
@@ -89,9 +96,131 @@ namespace JBro::Network
             return;
         }
         m_objects.InsertOrAssign(id, local);
+        // 스폰이 소유자를 들고 온다. 뒤에 바뀌면 `ReplicationOwnerMessage` 가 온다.
+        m_owners.InsertOrAssign(local, desc.owner);
         // 델타가 먼저 와 있었을 수 있다. 최신 스냅숏의 것을 바로 입힌다.
         ApplyObjectFromLatest(id, local);
         m_diagnostics.objects = static_cast<JBro::UInt32>(m_objects.Size());
+    }
+
+    void ReplicationClient::HandleOwner(const MessageView& view)
+    {
+        if (view.size != OwnerMessageBytes)
+        {
+            return;
+        }
+        const NetworkObjectId id = UdpProto::ReadU32(view.data);
+        const ConnectionId owner = UdpProto::ReadU64(view.data + 4);
+        const InstanceId* local = m_objects.Find(id);
+        if (nullptr == local)
+        {
+            // 아직 스폰을 못 받았다. 스폰이 오면 `SpawnDesc::owner` 가 그 값을 들고 온다.
+            return;
+        }
+        m_owners.InsertOrAssign(*local, owner);
+    }
+
+    Bool ReplicationClient::OwnsLocal(InstanceId local) const
+    {
+        return HasAuthority(local);
+    }
+
+    // 내 것의 값을 서버에 올린다. 풀을 훑어 내 오브젝트만 골라 담는다 - 한 사람이 가진 것은 몇 개뿐이므로
+    // 훑는 비용은 이미 내는 것(적용)과 같은 차수다. 담을 자리를 넘기면 거기서 끊는다(다음 스텝에 다시 보낸다).
+    void ReplicationClient::StepOwned()
+    {
+        if (m_owners.IsEmpty() || m_uploadBuffer.IsEmpty())
+        {
+            return;
+        }
+        class Collector final : public IReplicatedPoolVisitor
+        {
+        public:
+            Collector(ReplicationClient& client, std::uint8_t type, UInt32 elementBytes, std::uint8_t* out, UInt32 capacity,
+                UInt32& written)
+                : m_client(client)
+                , m_type(type)
+                , m_elementBytes(elementBytes)
+                , m_out(out)
+                , m_capacity(capacity)
+                , m_written(written)
+            {
+            }
+
+            void Element(InstanceId object, const std::uint8_t* bytes) override
+            {
+                if (false == m_client.OwnsLocal(object))
+                {
+                    return;
+                }
+                const NetworkObjectId id = m_client.FindNetworkIdOfLocal(object);
+                if (InvalidNetworkObjectId == id)
+                {
+                    return;
+                }
+                const UInt32 entry = 5 + m_elementBytes;
+                if (m_capacity - m_written < entry)
+                {
+                    return;
+                }
+                UdpProto::WriteU32(m_out + m_written, id);
+                m_out[m_written + 4] = m_type;
+                std::memcpy(m_out + m_written + 5, bytes, m_elementBytes);
+                m_written += entry;
+            }
+
+        private:
+            ReplicationClient& m_client;
+            std::uint8_t m_type;
+            UInt32 m_elementBytes;
+            std::uint8_t* m_out;
+            UInt32 m_capacity;
+            UInt32& m_written;
+        };
+
+        UInt32 written = 0;
+        const UInt32 capacity = static_cast<UInt32>(m_uploadBuffer.Size());
+        for (std::size_t type = 0; type < m_pools.Size(); ++type)
+        {
+            Collector collector(*this, static_cast<std::uint8_t>(type), m_typeSizes[type], m_uploadBuffer.Data(),
+                capacity, written);
+            m_pools[type]->Visit(collector);
+        }
+        if (0 == written)
+        {
+            return;
+        }
+        m_transport.Send(ServerConnectionId, ReplicationOwnedStateMessage, m_uploadBuffer.Data(), written,
+            NetChannel::UnreliableSequenced);
+    }
+
+    NetworkObjectId ReplicationClient::FindNetworkIdOfLocal(InstanceId local) const
+    {
+        // 표는 네트워크 번호 → 지역 번호다. 올릴 것은 몇 개뿐이라 거꾸로 훑어도 된다.
+        for (const auto& entry : m_objects)
+        {
+            if (entry.MappedValue == local)
+            {
+                return entry.KeyValue;
+            }
+        }
+        return InvalidNetworkObjectId;
+    }
+
+    Bool ReplicationClient::HasAuthority(InstanceId local) const
+    {
+        const ConnectionId owner = GetOwner(local);
+        if (InvalidConnectionId == owner)
+        {
+            return false;
+        }
+        return owner == m_transport.GetLocalConnectionId();
+    }
+
+    ConnectionId ReplicationClient::GetOwner(InstanceId local) const
+    {
+        const ConnectionId* owner = m_owners.Find(local);
+        return nullptr != owner ? *owner : InvalidConnectionId;
     }
 
     void ReplicationClient::HandleDespawn(const MessageView& view)
@@ -107,6 +236,7 @@ namespace JBro::Network
             return;
         }
         m_host.DespawnObject(*local);
+        m_owners.Remove(*local);
         m_objects.Remove(id);
         m_diagnostics.objects = static_cast<JBro::UInt32>(m_objects.Size());
     }
@@ -231,6 +361,11 @@ namespace JBro::Network
             const InstanceId* local = m_objects.Find(entry.object);
             if (nullptr == local || entry.type >= m_pools.Size())
             {
+                continue;
+            }
+            if (OwnsLocal(*local))
+            {
+                // 내 것이다. 서버가 되돌려 준 내 값으로 내 것을 덮으면 한 스텝 뒤의 값으로 튄다.
                 continue;
             }
             const std::uint8_t* from = nullptr;

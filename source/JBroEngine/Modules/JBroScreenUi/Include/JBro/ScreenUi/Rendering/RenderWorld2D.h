@@ -1,0 +1,270 @@
+﻿#pragma once
+
+#include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Canvas/ScreenSpace.h>
+#include <JBro/Core/Core.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Graphics/PostProcess.h>
+#include <JBro/RHI/RHI.h>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/Math2D.h>
+
+#include <cstdint>
+#include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
+#include <JBro/Types/Int.h>
+#include <JBro/Types/UInt.h>
+
+namespace JBro
+{
+    namespace Object
+    {
+        class GameObject;
+    }
+
+    struct RenderCamera2D
+    {
+        Object::GameObject* owner            = nullptr;
+        Matrix3x2   view;
+        Float       orthographicSize = 10.0f;
+        Float       pixelsPerUnit = 100.0f;
+        Component::CameraProjection2D projection = Component::CameraProjection2D::Orthographic;
+        Float       nearPlane = -100.0f;
+        Float       farPlane = 100.0f;
+        Color       clearColor{ 1.0f, 1.0f, 1.0f, 1.0f };
+        // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld2D::SetPostProcess` 로 건다.
+        AssetHandle postProcessProfile;
+        // 카메라의 월드 위치다. 후처리 볼륨(D-346)의 무게를 이 자리에서 잰다.
+        Vector2 position;
+        // 뷰포트(D-359): 대상 안의 사각형(왼쪽 위 원점, 0..1)과 그리는 차례다.
+        Vector2 viewportOrigin;
+        Vector2 viewportSize{ 1.0f, 1.0f };
+        Int32 depth = 0;
+        // 앞 뷰가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
+        Bool clearViewport = true;
+        // **렌더 텍스처**(D-362). 에셋이 있으면 이 카메라는 화면이 아니라 그 텍스처에 그린다 - 프레임워크가 `target`·`targetExtent` 를 채우고, 브리지는 화면의 카메라보다 먼저 그린다.
+        // 그런 카메라는 주 카메라·포인터의 카메라가 아니다.
+        AssetHandle renderTexture;
+        TextureHandle target;
+        Extent2D targetExtent;
+        // 그 렌더 타깃의 스프라이트 텍스처 핸들이다 - 이 카메라의 뷰는 이것을 쓰는 스프라이트를 그리지 않는다(제 대상을 읽을 수 없다).
+        AssetHandle targetSprite;
+    };
+
+    struct SpriteRenderItem
+    {
+        Object::GameObject*   owner = nullptr;
+        InstanceId    sourceId = InvalidInstanceId;
+        // 레이어 합성 순서. 정렬 키의 최상위다(D-46).
+        std::uint16_t layerOrder = 0;
+        Matrix3x2     world;
+        // 렌더러가 발급한 텍스처와 그 안의 칸이다(D-113). 추출 단계에서 `SpriteLibrary` 가 스프라이트 에셋에서 풀어 넣는다.
+        // 텍스처가 비어 있으면 흰색이라 틴트만 보인다.
+        AssetHandle   texture;
+        Float         uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
+        // 텍스처의 샘플러다(D-117). 텍스처가 없으면 뜻이 없다.
+        TextureFilter filter = TextureFilter::Nearest;
+        AssetHandle   material;
+        Color         tint{ 1.0f, 1.0f, 1.0f, 1.0f };
+        Vector2          pivot;
+        Vector2          size;
+        // 펴 그리는 방식이다(D-351). 브리지가 `Simple` 이 아닌 아이템을 조각 여럿의 제출로 편다 - 아이템 수·정렬은 그대로다.
+        // 테두리(왼쪽·위·오른쪽·아래)와 칸의 자연 크기는 `size` 와 같은 단위다(화면 레이어는 픽셀, 월드는 유닛).
+        Component::SpriteDrawMode drawMode = Component::SpriteDrawMode::Simple;
+        Float            fillAmount = 1.0f;
+        Component::SpriteFillOrigin fillOrigin = Component::SpriteFillOrigin::Left;
+        Float            border[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        Float            tileWidth = 0.0f;
+        Float            tileHeight = 0.0f;
+        // 마스크가 자르는 사각형이다(D-351 3 단계, `ComputeClipRect2D`). `world` 와 같은 공간의 {minX, minY, maxX, maxY} 이고 `clipped` 가 거짓이면 없다.
+        Bool             clipped = false;
+        Float            clip[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        Int32  renderOrder = 0;
+        // 같은 레이어·같은 `renderOrder` 끼리의 차례다(D-296). 키에 넣지 않고 키가 같을 때 견준다 - 키의 예약 16 비트로는 스크립트가 준 값이 넘친다.
+        Int32  drawSequence = 0;
+        // 텍스처 알파를 거리장으로 읽는 SDF 글자다(4 단계). 참이면 외곽선 색과 외곽선이 끝나는 거리값을 쓴다. 렌더러 패킷과 같은 정규화
+        // 정수다(`SpriteSubmit`) - 아이템을 정렬 뒤 옮기는 비용을 스프라이트에 물리지 않는다.
+        Bool          sdfText = false;
+        std::uint16_t outlineEdge = 32768; // 0..1 을 65535 로. 32768 은 0.5(외곽선 없음)
+        std::uint8_t  outlineColor[4] = { 0, 0, 0, 0 };
+        // 화면 레이어의 것이다(D-237). 참이면 좌표는 기준 해상도의 픽셀이고 월드 뷰 뒤의 화면 뷰에 그려진다.
+        Bool          screenSpace = false;
+        ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
+        // 레이어를 얹는 방식이다(D-279). `Normal` 이 아니거나 불투명도가 1 보다 작으면 브리지가 그 레이어를 렌더러의 묶음으로 낸다.
+        LayerBlend    layerBlend = LayerBlend::Normal;
+        Float         layerOpacity = 1.0f;
+        // 레이어의 패럴랙스 계수다(D-286). 게임 화면을 그릴 때 브리지가 이 아이템을 `카메라 위치 x (1 - 계수)` 만큼 옮긴다.
+        Float         layerParallax = 1.0f;
+        // 레이어가 빛을 받는가(D-291). 브리지가 이 아이템을 렌더러의 빛을 받는 구간에 낸다. 화면 레이어는 보지 않는다.
+        Bool          layerLit = true;
+    };
+
+    // 2D 라이트 하나다(D-291). 위치·방향은 월드다. 브리지가 렌더러의 `Light2DSubmit` 으로 옮긴다.
+    struct Light2DRenderItem
+    {
+        Object::GameObject* owner = nullptr;
+        Component::Light2DType type = Component::Light2DType::Point;
+        Vector2 position;
+        // 오브젝트의 +x 다(길이 1). `Spot` 만 본다.
+        Vector2 direction{ 1.0f, 0.0f };
+        Color color{ 1.0f, 1.0f, 1.0f, 1.0f };
+        Float intensity = 1.0f;
+        Float innerRadius = 0.0f;
+        Float outerRadius = 5.0f;
+        Degree innerAngle = 30.0f;
+        Degree outerAngle = 60.0f;
+        // 라이트가 놓인 레이어의 패럴랙스다(D-286) - 그 레이어의 스프라이트와 함께 옮겨야 제 자리를 비춘다.
+        Float layerParallax = 1.0f;
+        Bool castShadows = false;
+        Float shadowSoftness = 0.0f;
+    };
+
+    // 그림자를 드리우는 변 하나다(D-291 3 단계). 월드이고, 닫힌 모양은 시계 반대 방향으로 감겼다(렌더러의 `ShadowEdge2D` 와 같은 뜻).
+    struct ShadowEdge2DItem
+    {
+        Vector2 from;
+        Vector2 to;
+        Bool selfShadow = false;
+        // 가림막이 놓인 레이어의 패럴랙스다 - 그 레이어의 스프라이트와 함께 옮겨야 그림이 있는 자리를 가린다.
+        Float layerParallax = 1.0f;
+    };
+
+    // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).
+    struct SpriteSortKey
+    {
+        // [63:48] layerOrder | [47:16] 부호 없는 순서로 옮긴 renderOrder | [15:0] 예약
+        UInt64 key = 0;
+        UInt32 index = 0;
+    };
+
+    class RenderWorld2D
+    {
+    public:
+        Bool ReserveSprites(std::size_t capacity);
+        void BeginFrame();
+        void SetCamera(const RenderCamera2D& camera);
+        // **이번 프레임에 그릴 카메라 모두**(D-359, 분할 화면). `depth` 차례다. 비어 있으면 브리지는 `GetCamera` 하나를 그린다(카메라를 직접 건 시험).
+        void ClearCameras();
+        void AddCamera(const RenderCamera2D& camera);
+        ArrayView<const RenderCamera2D> GetCameras() const;
+        // 카메라의 렌더 텍스처 대상을 채운다(D-362). 프레임워크가 추출 뒤 렌더러 프레임 밖에서 부른다. 자리 밖이면 아무것도 하지 않는다.
+        void SetCameraTarget(std::size_t index, TextureHandle target, const Extent2D& extent, AssetHandle targetSprite);
+        // **이번 카메라의 후처리**(D-344). 프레임워크가 카메라의 프로필을 풀어 건다 - 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다.
+        // `BeginFrame` 이 비우지 않는다: 멈춘 동안의 추출(중단점)에서도 지난 값이 그대로 산다.
+        void SetPostProcess(const PostProcessStack& stack)
+        {
+            m_postProcess = stack;
+        }
+        const PostProcessStack& GetPostProcess() const
+        {
+            return m_postProcess;
+        }
+        // **카메라마다의 후처리**(D-361). `GetCameras` 의 차례와 같다. 자리가 없는 카메라(목록이 비었거나 더 많다)는 `GetPostProcess` 다.
+        void SetCameraPostProcessCount(std::size_t count)
+        {
+            if (m_cameraPostProcess.Size() < count)
+            {
+                m_cameraPostProcess.Resize(count);
+            }
+            while (m_cameraPostProcess.Size() > count)
+            {
+                m_cameraPostProcess.RemoveAt(m_cameraPostProcess.Size() - 1);
+            }
+        }
+        void SetCameraPostProcess(std::size_t index, const PostProcessStack& stack)
+        {
+            if (index < m_cameraPostProcess.Size())
+            {
+                m_cameraPostProcess[index] = stack;
+            }
+        }
+        const PostProcessStack& GetCameraPostProcess(std::size_t index) const
+        {
+            return index < m_cameraPostProcess.Size() ? m_cameraPostProcess[index] : m_postProcess;
+        }
+        // **레이어 차례마다의 후처리**(D-345). 프레임워크가 레이어의 프로필을 풀어 차례(`LayerOrder`) 자리에 건다. 프로필이 없는 레이어는 빈 목록이다.
+        // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리는 프레임워크를 세울 때 잡고(`ReserveLayerPostProcess`), 레이어가 그보다 많아질 때만
+        // 늘린다 - 프레임 밖(추출 뒤)에서 부른다.
+        void ReserveLayerPostProcess(std::size_t capacity)
+        {
+            m_layerPostProcess.Reserve(capacity);
+        }
+        void SetLayerPostProcessCount(std::size_t count)
+        {
+            if (m_layerPostProcess.Size() < count)
+            {
+                m_layerPostProcess.Resize(count);
+            }
+            for (std::size_t at = 0; at < m_layerPostProcess.Size(); ++at)
+            {
+                m_layerPostProcess[at] = {};
+            }
+        }
+        void SetLayerPostProcess(std::size_t order, const PostProcessStack& stack)
+        {
+            if (order < m_layerPostProcess.Size())
+            {
+                m_layerPostProcess[order] = stack;
+            }
+        }
+        const PostProcessStack& GetLayerPostProcess(std::size_t order) const
+        {
+            static const PostProcessStack Empty{};
+            return order < m_layerPostProcess.Size() ? m_layerPostProcess[order] : Empty;
+        }
+        // 켜져 있지만 값이 잘못되어 건너뛴 카메라 수다(D-239). 시뮬레이션 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
+        void SetUnusableCameraCount(UInt32 count);
+        UInt32 GetUnusableCameraCount() const;
+        // 화면 레이어의 기준이다(D-237). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.
+        void SetScreenSpace(const ScreenSpaceFrame& frame);
+        const ScreenSpaceFrame& GetScreenSpace() const;
+        std::size_t GetScreenSpriteCount() const;
+        // Reserve outside frame processing. Full storage rejects submissions without allocation.
+        Bool SubmitSprite(const SpriteRenderItem& item);
+        // 라이트 저장소다(D-291). 스프라이트처럼 프레임 밖에서 잡고, 차면 버리고 센다.
+        Bool ReserveLights(std::size_t capacity);
+        Bool SubmitLight(const Light2DRenderItem& item);
+        std::size_t GetLightCount() const;
+        std::size_t GetDroppedLightCount() const;
+        const Light2DRenderItem& GetLight(std::size_t index) const;
+        // 그림자 변 저장소다(D-291). 라이트처럼 프레임 밖에서 잡고, 차면 버리고 센다.
+        Bool ReserveShadowEdges(std::size_t capacity);
+        Bool SubmitShadowEdge(const ShadowEdge2DItem& edge);
+        std::size_t GetShadowEdgeCount() const;
+        std::size_t GetDroppedShadowEdgeCount() const;
+        const ShadowEdge2DItem& GetShadowEdge(std::size_t index) const;
+        void Sort();
+        void EndFrame();
+
+        const RenderCamera2D*   GetCamera()      const;
+        std::size_t             GetSpriteCount() const;
+        std::size_t             GetSpriteCapacity() const;
+        std::size_t             GetDroppedSpriteCount() const;
+
+        // 그리는 순서다. Sort 가 만든 순열을 거쳐 나간다.
+        const SpriteRenderItem& GetSprite(std::size_t drawIndex) const;
+        // 제출된 순서 그대로다. 정렬 결과가 아니므로 렌더 제출에 쓰지 않는다.
+        const SpriteRenderItem* GetSubmittedSprites() const;
+
+    private:
+        static UInt64 MakeSortKey(const SpriteRenderItem& item);
+
+        RenderCamera2D          m_camera;
+        Array<RenderCamera2D>   m_cameras;
+        PostProcessStack        m_postProcess;
+        Array<PostProcessStack> m_cameraPostProcess;
+        Array<PostProcessStack> m_layerPostProcess;
+        Bool                    m_hasCamera = false;
+        UInt32           m_unusableCameras = 0;
+        ScreenSpaceFrame        m_screen;
+        std::size_t             m_screenSprites = 0;
+        Array<SpriteRenderItem> m_sprites;
+        Array<SpriteSortKey>    m_order;
+        std::size_t             m_droppedSpriteCount = 0;
+        Array<Light2DRenderItem> m_lights;
+        std::size_t             m_droppedLightCount = 0;
+        Array<ShadowEdge2DItem> m_shadowEdges;
+        std::size_t             m_droppedShadowEdgeCount = 0;
+    };
+}

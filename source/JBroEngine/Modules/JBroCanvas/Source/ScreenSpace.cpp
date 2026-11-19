@@ -137,6 +137,25 @@ namespace JBro
         y = -extent.halfHeight + 2.0f * extent.halfHeight * anchorY;
     }
 
+    void ComputeSafeAnchorPoint(const ScreenExtent& extent, const ScreenSpaceFrame& frame, Bool horizontal, Bool vertical, Float anchorX, Float anchorY, Float& x, Float& y)
+    {
+        ScreenArea drawn;
+        if (false == frame.safeArea.IsAny() || false == GetScreenArea(frame, drawn) || drawn.width <= 0.0f || drawn.height <= 0.0f)
+        {
+            ComputeAnchorPoint(extent, anchorX, anchorY, x, y);
+            return;
+        }
+        // 대상 픽셀 하나가 기준 픽셀 몇인가 - 보이는 반폭·반높이가 그려지는 영역을 채운다.
+        const Float perPixelX = 2.0f * extent.halfWidth / drawn.width;
+        const Float perPixelY = 2.0f * extent.halfHeight / drawn.height;
+        const Float left = -extent.halfWidth + (horizontal ? frame.safeArea.left * perPixelX : Float(0.0f));
+        const Float right = extent.halfWidth - (horizontal ? frame.safeArea.right * perPixelX : Float(0.0f));
+        const Float bottom = -extent.halfHeight + (vertical ? frame.safeArea.bottom * perPixelY : Float(0.0f));
+        const Float top = extent.halfHeight - (vertical ? frame.safeArea.top * perPixelY : Float(0.0f));
+        x = left + (right - left) * anchorX;
+        y = bottom + (top - bottom) * anchorY;
+    }
+
     Bool ScreenPixelToNormalized(const ScreenSpaceFrame& frame, Float pixelX, Float pixelY, Float& x, Float& y)
     {
         ScreenArea area;

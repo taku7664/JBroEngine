@@ -2,6 +2,11 @@
 
 namespace JBro::Icons
 {
+    inline constexpr const char* Agent = "\xF3\xB0\x99\xB4"; // F0674 creation
+    inline constexpr const char* Settings = "\xF3\xB0\x92\x93"; // F0493 cog
+    inline constexpr const char* Back = "\xF3\xB0\x81\x8D"; // F004D arrow-left
+    inline constexpr const char* Attachment = "\xF3\xB0\x8F\xA2"; // F03E2 paperclip
+    inline constexpr const char* Send = "\xF3\xB0\x92\x8A"; // F048A send - AI message submission
     // 에디터가 쓰는 Material Design Icons 글리프다(D-277). UTF-8 로 적어 두어 글자와 이어 붙일 수 있다.
     // 아이콘 글꼴이 없는 기계에서는 네모로 나온다 - 그때도 에디터는 뜬다.
     //
@@ -25,6 +30,11 @@ namespace JBro::Icons
     inline constexpr const char* GridSnap     = "\xF3\xB0\x8D\x87"; // F0347 magnet - 격자 스냅
     inline constexpr const char* Colliders    = "\xF3\xB0\x80\x81"; // F0001 vector-square - 콜라이더 보이기
     inline constexpr const char* Lighting     = "\xF3\xB0\x8C\xB6"; // F0336 lightbulb-outline - 캔버스 뷰의 2D 라이팅
+    inline constexpr const char* PostProcess  = "\xF3\xB0\x8B\xB5"; // F02F5 image-filter-hdr - 후처리(캔버스 뷰 단추·프로필 에셋)
+    inline constexpr const char* ColorLut     = "\xF3\xB0\x8F\x98"; // F03D8 palette - 컬러 LUT 에셋
+    inline constexpr const char* Material     = "\xF3\xB1\xA5\x94"; // F1954 sphere - 머티리얼 에셋
+    inline constexpr const char* Shader       = "\xF3\xB1\x80\xAB"; // F102B file-code-outline - 셰이더 에셋
+    inline constexpr const char* Mesh         = "\xF3\xB0\x86\xA7"; // F01A7 cube-outline - 메시 에셋
     inline constexpr const char* Frame        = "\xF3\xB1\xA3\xB5"; // F18F5 fit-to-screen-outline - 선택에 맞추기
     inline constexpr const char* ViewWorld    = "\xF3\xB0\xA6\x82"; // F0982 map-outline - 월드 레이어 보기
     inline constexpr const char* ViewScreen   = "\xF3\xB0\xA8\x87"; // F0A07 monitor-dashboard - 화면(UI) 레이어 보기·UI 태그
@@ -55,9 +65,9 @@ namespace JBro::Icons
     inline constexpr const char* Menu         = "\xF3\xB0\x87\x99"; // F01D9 dots-vertical - 컴포넌트 메뉴
     inline constexpr const char* ArrowUp      = "\xF3\xB0\x81\x9D"; // F005D arrow-up - 위로
     inline constexpr const char* ArrowDown    = "\xF3\xB0\x81\x85"; // F0045 arrow-down - 아래로
-    inline constexpr const char* ChevronRight = "\xF3\xB0\x85\x82"; // F0142 chevron-right - 에셋 브라우저 아이콘 칸의 하위 에셋 펼치기(D-338)
+    inline constexpr const char* ChevronRight = "\xF3\xB0\x85\x82"; // F0142 chevron-right - 에셋 브라우저 아이콘 칸의 하위 에셋 펼치기(D-391)
     inline constexpr const char* ChevronLeft  = "\xF3\xB0\x85\x81"; // F0141 chevron-left - 그 접기
-    inline constexpr const char* FileModel    = "\xF3\xB0\x86\xA6"; // F01A6 cube - 모델 에셋(D-338)
+    inline constexpr const char* FileModel    = "\xF3\xB0\x86\xA6"; // F01A6 cube - 모델 에셋(D-391)
     inline constexpr const char* FileMesh     = "\xF3\xB0\x94\xB7"; // F0537 triangle-outline - 모델의 하위 메시
     inline constexpr const char* FileMaterial = "\xF3\xB0\x8F\x98"; // F03D8 palette - 재질
     inline constexpr const char* SameImage    = "\xF3\xB0\x8C\xB9"; // F0339 link-variant - 다른 모델에도 든 같은 내장 그림(model-import-plan §2.5)
@@ -75,14 +85,24 @@ namespace JBro::Icons
     inline constexpr const char* Solo         = "\xF3\xB0\x8B\x8B"; // F02CB headphones - 혼자 듣기
     inline constexpr const char* LightMarker  = "\xF3\xB0\x8C\xB5"; // F0335 lightbulb - 캔버스 뷰의 라이트 표시(D-298)
     inline constexpr const char* CameraMarker = "\xF3\xB0\x95\xA7"; // F0567 video - 캔버스 뷰의 카메라 표시(D-298)
+    inline constexpr const char* ScriptFunction = "\xF3\xB0\x8A\x95"; // F0295 function - 스크립트 함수
+    inline constexpr const char* ScriptVariable = "\xF3\xB0\xAB\xA7"; // F0AE7 variable - 스크립트 멤버 변수
+
+    inline constexpr const char* Undo = "\xF3\xB0\x95\x8C"; // F054C undo - 코드 편집 실행 취소
+    inline constexpr const char* Redo = "\xF3\xB0\x91\x8E"; // F044E redo - 코드 편집 다시 실행
+    inline constexpr const char* Cut = "\xF3\xB0\x86\x90"; // F0190 content-cut - 코드 잘라내기
+    inline constexpr const char* Paste = "\xF3\xB0\x86\x92"; // F0192 content-paste - 코드 붙여넣기
+    inline constexpr const char* SelectAll = "\xF3\xB0\x92\x86"; // F0486 select-all - 코드 전체 선택
 
     // 위의 글리프 전부다. 시험이 이것을 돌며 모두 글꼴 안에 있는지 본다 - 글리프를 더하면 여기에도 더한다.
     inline constexpr const char* All[] = {
+        Agent, Settings, Back, Attachment, Send,
         GripLines, Xmark, Eye, EyeSlash, Search, FolderOpen, Move, Rotate, Scale, SpaceLocal, SpaceWorld, Grid, GridSnap,
         Colliders, Lighting, Frame, ViewWorld, ViewScreen, Language, Ruler, EditCollider, Success, Warning, Error, Info, Plus,
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,
-        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, ChevronRight, ChevronLeft, FileModel, FileMesh, FileMaterial, SameImage, Copy, Play, Stop, Pause, StepFrame,
-        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker
+        Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, ChevronRight, ChevronLeft, FileModel, FileMesh, FileMaterial, SameImage,
+        Copy, Cut, Paste, SelectAll, Undo, Redo, Play, Stop, Pause, StepFrame,
+        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker, ScriptFunction, ScriptVariable
     };
 
     // 아이콘 글꼴이 덮는 유니코드 범위다. 글꼴을 합칠 때 이 범위만 아이콘 글꼴에서 가져온다.

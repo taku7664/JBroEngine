@@ -352,7 +352,7 @@ namespace JBro
         target.session = m_session.c_str();
         Array<Object::GameObject*> roots;
         CanvasFileError error;
-        if (false == ReadObjectsText(*m_canvas, m_text.c_str(), m_text.size(), target, roots, error))
+        if (false == ReadObjectsText(*m_canvas, m_text.c_str(), m_text.size(), target, roots, error, &m_scriptNotes))
         {
             m_error = error.message;
             return false;

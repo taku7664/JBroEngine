@@ -192,14 +192,18 @@ namespace JBro::Widget
             ImGui::SetNextItemWidth(m_width);
         }
         // 트리거가 좁아도 팝업은 가장 긴 이름과 검색 칸이 잘리지 않는 폭을 갖는다. 트리거보다 좁아지지는 않는다.
-        // **가장 긴 이름은 항목 수가 바뀔 때만 잰다.** 팝업이 닫혀 있는 프레임에도 이 함수는 불리는데, 에셋 수천
+        // **가장 긴 이름은 항목 수나 글꼴·배율이 바뀔 때만 잰다.** 팝업이 닫혀 있는 프레임에도 이 함수는 불리는데, 에셋 수천
         // 개를 칸마다 프레임마다 재면 그것이 인스펙터의 비용이 된다. 창의 상태 저장소에 둔다.
         const char* id = m_id != nullptr ? m_id : "##filter_combo";
         ImGuiStorage* storage = ImGui::GetStateStorage();
         const ImGuiID comboId = ImGui::GetID(id);
         const ImGuiID widestKey = ImHashStr("##widest", 0, comboId);
         const ImGuiID countKey = ImHashStr("##count", 0, comboId);
-        if (storage->GetInt(countKey, -1) != itemCount)
+        const ImGuiID fontKey = ImHashStr("##font", 0, comboId);
+        const ImGuiID fontSizeKey = ImHashStr("##font_size", 0, comboId);
+        if (storage->GetInt(countKey, -1) != itemCount
+            || storage->GetVoidPtr(fontKey) != ImGui::GetFont()
+            || storage->GetFloat(fontSizeKey, -1.0f) != ImGui::GetFontSize())
         {
             Float widest = 0.0f;
             for (const char* item : m_items)
@@ -211,8 +215,22 @@ namespace JBro::Widget
             }
             storage->SetFloat(widestKey, widest);
             storage->SetInt(countKey, itemCount);
+            storage->SetVoidPtr(fontKey, ImGui::GetFont());
+            storage->SetFloat(fontSizeKey, ImGui::GetFontSize());
         }
+        const char* noItemsText = m_noItemsText != nullptr
+            ? m_noItemsText : Loc::TextOr(LocKeys::CommonNoMatches, "No matches");
+        const char* filterHint = m_filterHint != nullptr
+            ? m_filterHint : Loc::TextOr(LocKeys::CommonSearch, "Search");
         Float popupWidth = std::max(ImGui::CalcTextSize(preview).x, storage->GetFloat(widestKey, 0.0f));
+        if (m_showFilter || itemCount == 0)
+        {
+            popupWidth = JBro::Max(popupWidth, ImGui::CalcTextSize(noItemsText).x);
+        }
+        if (m_showFilter)
+        {
+            popupWidth = JBro::Max(popupWidth, ImGui::CalcTextSize(filterHint).x);
+        }
         popupWidth = JBro::Max(
             popupWidth + style.FramePadding.x * 4.0f + style.ScrollbarSize,
             ImGui::CalcItemWidth());
@@ -270,11 +288,7 @@ namespace JBro::Widget
                 ImGui::SetKeyboardFocusHere();
             }
             ImGui::SetNextItemWidth(-FLT_MIN);
-            ImGui::InputTextWithHint("##filter",
-                m_filterHint != nullptr
-                    ? m_filterHint
-                    : Loc::TextOr(LocKeys::CommonSearch, "Search"),
-                g_filter, sizeof(g_filter));
+            ImGui::InputTextWithHint("##filter", filterHint, g_filter, sizeof(g_filter));
             // Enter 는 글자 칸을 비활성으로 만든다. 그 프레임에 Enter 가 눌려 있었으면
             // 보이는 첫 항목을 고른다. Escape·다른 곳 누르기로 나간 것과 구분한다.
             enterPressed = ImGui::IsItemDeactivated()
@@ -339,10 +353,11 @@ namespace JBro::Widget
         }
         if (false == drewAny)
         {
-            ImGui::TextDisabled("%s",
-                m_noItemsText != nullptr
-                    ? m_noItemsText
-                    : Loc::TextOr(LocKeys::CommonNoMatches, "No matches"));
+            StyleScope emptyStyle;
+            emptyStyle.PushColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextUnformatted(noItemsText);
+            ImGui::PopTextWrapPos();
         }
         // Enter 는 **고를 수 있는** 첫 항목을 고른다. 회색 항목이 맨 위에 있다고 해서
         // Enter 가 아무 일도 하지 않으면, 왜 안 되는지 알 수 없다.

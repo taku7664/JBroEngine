@@ -41,6 +41,9 @@ namespace JBro::Handle
         AssetId GetMaterialId() const;
         AssetHandle GetMaterial() const;
         void SetMaterial(AssetHandle value);
+        // 보이는 렌더 텍스처(D-362)다. 있으면 스프라이트 대신 그 텍스처를 그린다.
+        AssetHandle GetRenderTexture() const;
+        void SetRenderTexture(AssetHandle value);
         Color GetTint() const;
         void SetTint(Color value);
         Component::SpriteSizeMode GetSizeMode() const;
@@ -65,6 +68,13 @@ namespace JBro::Handle
         void SetRenderOrder(Int32 value);
         Bool GetVisible() const;
         void SetVisible(Bool value);
+        // 펴 그리는 방식과 `Filled` 의 비율·시작 변이다(D-351).
+        Component::SpriteDrawMode GetDrawMode() const;
+        void SetDrawMode(Component::SpriteDrawMode value);
+        Float GetFillAmount() const;
+        void SetFillAmount(Float value);
+        Component::SpriteFillOrigin GetFillOrigin() const;
+        void SetFillOrigin(Component::SpriteFillOrigin value);
 
     private:
         Component::SpriteRenderer2D* Resolve(const char* operation) const;

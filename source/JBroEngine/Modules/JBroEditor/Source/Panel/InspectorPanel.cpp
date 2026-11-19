@@ -33,6 +33,10 @@
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Editor/Widget/Waveform.h>
 #include <JBro/Editor/Widget/DragDrop.h>
+#include <JBro/Editor/Widget/ComponentDrag.h>
+#include <JBro/Editor/Command/SetAssetSourceCommand.h>
+#include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/Asset/RenderTextureFile.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioMixer.h>
@@ -78,14 +82,6 @@ namespace JBro
 
     namespace
     {
-        // 컴포넌트 머리를 끌 때 싣는 꾸러미다(D-294). 주소가 아니라 에디터 번호와 슬롯 번호다(D-72).
-        struct ComponentDragPayload
-        {
-            EditorObjectId object = InvalidEditorObjectId;
-            UInt64 slot = 0;
-            AttachedKind kind = AttachedKind::Component;
-        };
-
         // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
         // 그리지 않는다 - 그림이 창을 다 먹으면 정작 고칠 값들이 스크롤 밖으로 나간다.
         constexpr Float PreviewMaxSide = 160.0f;
@@ -414,6 +410,11 @@ namespace JBro
         // (머리)에 붙으므로, 단추를 먼저 그리면 머리의 우클릭이 단추로 옮겨 간다.
         const ImVec2 headerMin = ImGui::GetItemRectMin();
         const ImVec2 headerMax = ImGui::GetItemRectMax();
+        if (firstOfType)
+        {
+            Widget::ReportGuideTarget(GuideFocusTargets::InspectorComponentMenu(typeId), headerMin, headerMax,
+                ImGui::IsPopupOpen("##ComponentMenu"), false);
+        }
         // **머리를 끌어 순서를 바꾼다**(D-294). 메뉴의 위로·아래로와 같은 커맨드다. 끌기·받기는 직전 항목(머리)에 붙고,
         // 툴팁 창을 닫으면 직전 항목이 머리로 돌아오므로 아래 우클릭 메뉴도 그대로 머리에 붙는다.
         if (DrawComponentDrag(object, kind, index, typeName, headerMin, headerMax))
@@ -642,6 +643,22 @@ namespace JBro
                         MakeOwnerPtr<SetLayerCompositeCommand>(*canvas, layerId, layer->GetBlend(), opacity));
                 }
             });
+        // **레이어의 후처리 프로필**(D-345). 프로필 에셋 중에서 고른다 - 효과는 그 프로필 에셋을 고르면 인스펙터가 고친다.
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerPostProcess, "Post-Process Profile"))
+                .Tooltip(Loc::TextOr(LocKeys::InspectorLayerPostProcessTooltip,
+                    "the profile's layer effects are applied before the layer is laid onto what is below")),
+            [&]() {
+                const AssetChoices& choices = ChoicesFor(AssetType::PostProcessProfile);
+                AssetId profile = layer->GetPostProcessProfile();
+                if (Widget::AssetField("##layerPostProcess",
+                        ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
+                        ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()), profile)
+                        .Draw())
+                {
+                    m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerPostProcessProfileCommand>(*canvas, layerId, profile));
+                }
+            });
         // 패럴랙스는 월드 레이어에만 뜻이 있다(D-286). 끄는 동안 커맨드가 합쳐진다.
         if (layer->GetSpace() == LayerSpace::World)
         {
@@ -720,7 +737,7 @@ namespace JBro
         // 목록은 오브젝트 메뉴와 **같은 것**을 쓴다(D-180). 갈래로 묶이고, 이미 붙어 있어
         // 더 붙일 수 없는 것은 회색으로 남는다 - 목록에서 빼 버리면 찾던 이름이 사라진다.
         EditorActions::AddComponentList list;
-        EditorActions::BuildAddComponentList(object, list);
+        EditorActions::BuildAddComponentList(*m_editor, object, list);
         Int32 chosen = -1;
         // + 는 버튼 **안에** 선다(D-308, 기존 `+ 컴포넌트 추가`). 밖에 두면 버튼과 따로 노는 글자처럼 보인다.
         Widget::SetNextItemTarget(GuideFocusTargets::InspectorAddComponent());
@@ -752,11 +769,19 @@ namespace JBro
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
         if (Widget::BeginDragSource())
         {
-            ComponentDragPayload payload;
+            Widget::ComponentDragPayload payload;
             payload.object = objectId;
             payload.slot = static_cast<JBro::UInt64>(index);
             payload.kind = kind;
-            Widget::SetDragValue(Widget::DragKind::InspectorComponent, payload);
+            if (kind == AttachedKind::Component && index < object.GetComponents().Size())
+            {
+                payload.instance = object.GetComponents()[index].reference->GetInstanceId();
+            }
+            else if (kind == AttachedKind::Script && index < object.GetScripts().Size())
+            {
+                payload.instance = object.GetScripts()[index].reference->GetInstanceId();
+            }
+            Widget::SetComponentDragPayload(payload);
             Widget::Text(typeName != nullptr ? typeName
                                              : Loc::TextOr(LocKeys::InspectorUnknownComponent, "(unknown component)"));
             Widget::EndDragSource();
@@ -768,7 +793,7 @@ namespace JBro
         Bool moved = false;
         const Widget::DropPayload drop =
             Widget::AcceptDrop(Widget::DragKind::InspectorComponent, Widget::DropFeedback::None);
-        ComponentDragPayload dragged;
+        Widget::ComponentDragPayload dragged;
         // 다른 오브젝트나 다른 목록의 머리에서 온 것은 받지 않는다 - 옮기기는 한 목록 안의 순서다(D-302).
         if (Widget::ReadDropValue(drop, dragged) && dragged.object == objectId && dragged.kind == kind)
         {
@@ -776,6 +801,14 @@ namespace JBro
             const Float height = (std::max)(1.0f, headerMax.y - headerMin.y);
             const Bool above = (ImGui::GetIO().MousePos.y - headerMin.y) / height < 0.5f;
             const std::size_t from = static_cast<std::size_t>(dragged.slot.Get());
+            const Bool matches = kind == AttachedKind::Component
+                ? from < object.GetComponents().Size() && object.GetComponents()[from].reference->GetInstanceId() == dragged.instance
+                : from < object.GetScripts().Size() && object.GetScripts()[from].reference->GetInstanceId() == dragged.instance;
+            if (!matches)
+            {
+                Widget::EndDropTarget();
+                return false;
+            }
             const std::size_t to = ComponentDropSlot(from, index, above);
             if (to != from)
             {
@@ -942,7 +975,7 @@ namespace JBro
         choices->revision = registry.GetRevision();
         choices->names.Clear();
         choices->ids.Clear();
-        // **빌트인 도형이 메시 목록의 앞에 선다**(D-335 우선순위 2). 레지스트리에 없는 아이디라, 넣지 않으면 새 프로젝트의 큐브가
+        // **빌트인 도형이 메시 목록의 앞에 선다**(D-388 우선순위 2). 레지스트리에 없는 아이디라, 넣지 않으면 새 프로젝트의 큐브가
         // `(없는 에셋)` 으로 보였다(시나리오 D). 파일 에셋과 겹치지 않게 이름에 경로가 없다.
         if (type == AssetType::Mesh || also == AssetType::Mesh)
         {
@@ -960,7 +993,7 @@ namespace JBro
             {
                 continue;
             }
-            // 모델의 하위 에셋(D-338)은 경로가 모델과 같다. 이름을 붙여야 칸에서 갈린다.
+            // 모델의 하위 에셋(D-391)은 경로가 모델과 같다. 이름을 붙여야 칸에서 갈린다.
             if (record.name.empty())
             {
                 choices->names.Add(record.relativePath);
@@ -1645,6 +1678,28 @@ namespace JBro
             }
             ImGui::Spacing();
         }
+        if (meta.type == AssetType::PostProcessProfile)
+        {
+            DrawPostProcessProfile(meta);
+            ImGui::Spacing();
+        }
+        // `.jmat` 은 두 갈래다(2026-11-19 main 통합). 표준 머티리얼(D-399)은 아래 `DrawAssetOptions` 의 머티리얼 블록이 그리고,
+        // 셰이더 머티리얼(D-347)은 여기서 셰이더·파라미터·텍스처를 그린다. 에디터가 표준 머티리얼로 읽지 못한 것이 셰이더 머티리얼이다.
+        if (meta.type == AssetType::Material && m_editor->GetSelectedMaterial() == nullptr)
+        {
+            DrawMaterial(meta);
+            ImGui::Spacing();
+        }
+        if (meta.type == AssetType::Shader)
+        {
+            DrawShader(meta);
+            ImGui::Spacing();
+        }
+        if (meta.type == AssetType::RenderTexture)
+        {
+            DrawRenderTexture(meta);
+            ImGui::Spacing();
+        }
         if (AssetTypeRules::IsImageType(meta.type))
         {
             if (Widget::IconButton("##open_in_viewer", Icons::OpenExternal)
@@ -1674,7 +1729,7 @@ namespace JBro
                 subIndex = index;
             }
         }
-        // **모델의 재질은 보이되 고치지 않는다**(D-346 (2)). 파일에서 온 값이라 여기서 고쳐도 다시 가져오면 사라진다 - 고치려면 재질을 꺼내야 한다(뒤).
+        // **모델의 재질은 보이되 고치지 않는다**(D-399 (2)). 파일에서 온 값이라 여기서 고쳐도 다시 가져오면 사라진다 - 고치려면 재질을 꺼내야 한다(뒤).
         if (record.type == AssetType::Material)
         {
             const MaterialDesc* shown = m_editor->GetSelectedMaterial();
@@ -1827,7 +1882,7 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorMaterial, "Material"),
                 TypeDescriptorOf<MaterialDesc>::Get(), &material, Block::Material);
         }
-        // 모델의 임포트 옵션(D-339). 고치면 하위 목록을 새 옵션으로 다시 맞춰 같은 커맨드에 담는다 - `importMaterials` 를 끄면 재질 하위 에셋이 빠지고, 되돌리면 같은 아이디로 돌아온다.
+        // 모델의 임포트 옵션(D-392). 고치면 하위 목록을 새 옵션으로 다시 맞춰 같은 커맨드에 담는다 - `importMaterials` 를 끄면 재질 하위 에셋이 빠지고, 되돌리면 같은 아이디로 돌아온다.
         if (meta.type == AssetType::Model)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorModelImportOptions, "Model Import Options"),
@@ -1835,8 +1890,550 @@ namespace JBro
         }
     }
 
+    void InspectorPanel::DrawPostProcessProfile(const AssetMetaFile& meta)
+    {
+        // **후처리 프로필은 인스펙터에서 고친다**(D-344, 사용자 결정 "인스펙터"). 고치면 바로 파일에 적고 실린 에셋을 제자리에서 다시 읽는다 -
+        // 그 프로필을 쓰는 카메라가 다음 프레임에 바뀐다. 되돌리기는 에디터의 것이다.
+        String text;
+        if (false == m_editor->ReadAssetSourceText(meta.id, text))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessUnreadable, "This profile could not be read"));
+            return;
+        }
+        if (m_profileAsset != meta.id || m_profileText != text)
+        {
+            m_profileAsset = meta.id;
+            m_profileText = text;
+            m_profileError.clear();
+            if (false == ParsePostProcessProfile(text.data(), text.size(), m_profileDocument, &m_profileError))
+            {
+                m_profileDocument = {};
+            }
+        }
+        if (false == m_profileError.empty())
+        {
+            // 깨진 YAML 을 덮어쓰면 손으로 고친 것을 잃는다. 고칠 때까지 손대지 않는다.
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessBroken, "The profile's text is broken. Fix the file to edit it here"));
+            Widget::WrappedText(m_profileError.c_str());
+            return;
+        }
+
+        // 편집본이다. 위젯이 고친 값은 커밋이 파일에 쓰고, 다음 프레임에 그 글자를 다시 읽는다 - 쓰는 길이 하나다.
+        PostProcessProfileDocument scratch = m_profileDocument;
+        AssetEditScope scope;
+        scope.profile = &scratch;
+        Context context;
+        context.asset = &scope;
+        const Bool editable = false == m_editor->IsAtScriptBreak();
+
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorPostProcessEffects, "Post-Process Effects")).Draw();
+        if (scratch.entries.IsEmpty())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessEmpty, "No effects yet"));
+        }
+        const ImGuiID listOwner = ImGui::GetID("##post_effects");
+        for (std::size_t index = 0; index < scratch.entries.Size(); ++index)
+        {
+            PostProcessProfileEntry& entry = scratch.entries[index];
+            ImGui::PushID(static_cast<JBro::Int32>(index));
+            // 종류 이름은 번역하지 않는다(컴포넌트 이름과 같다).
+            const Bool opened = Widget::CollapsingSection(entry.typeName.c_str(), true, true);
+            const ImVec2 headerMin = ImGui::GetItemRectMin();
+            const ImVec2 headerMax = ImGui::GetItemRectMax();
+            // **머리를 끌어 순서를 바꾼다**(컴포넌트 머리와 같은 손짓, D-307). 같은 지점의 효과끼리만 차례가 뜻이 있다.
+            if (editable && Widget::BeginDragSource())
+            {
+                Widget::ListReorderPayload payload;
+                payload.owner = listOwner;
+                payload.index = static_cast<JBro::Int32>(index);
+                Widget::SetDragValue(Widget::DragKind::ListReorder, payload);
+                Widget::Text(entry.typeName.c_str());
+                Widget::EndDragSource();
+            }
+            if (editable && Widget::BeginDropTarget())
+            {
+                const Widget::DropPayload drop = Widget::AcceptDrop(Widget::DragKind::ListReorder, Widget::DropFeedback::None);
+                Widget::ListReorderPayload dragged;
+                if (Widget::ReadDropValue(drop, dragged) && dragged.owner == listOwner && dragged.index >= 0
+                    && static_cast<std::size_t>(dragged.index.Get()) < scratch.entries.Size())
+                {
+                    const Float height = (std::max)(1.0f, headerMax.y - headerMin.y);
+                    const Bool above = (ImGui::GetIO().MousePos.y - headerMin.y) / height < 0.5f;
+                    const std::size_t from = static_cast<std::size_t>(dragged.index.Get());
+                    const std::size_t to = ComponentDropSlot(from, index, above);
+                    if (to != from)
+                    {
+                        Widget::DrawDropLine(headerMin.x, headerMax.x, above ? headerMin.y : headerMax.y);
+                    }
+                    if (drop.delivered && to != from)
+                    {
+                        PostProcessProfileEntry moved = std::move(scratch.entries[from]);
+                        scratch.entries.RemoveAt(from);
+                        scratch.entries.Insert(to, std::move(moved));
+                        Widget::EndDropTarget();
+                        ImGui::PopID();
+                        CommitProfile(meta.id, scratch);
+                        return;
+                    }
+                }
+                Widget::EndDropTarget();
+            }
+            Bool removed = false;
+            if (Widget::BeginContextMenu("##PostEffectMenu"))
+            {
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPostProcessRemove, "Remove Effect"), nullptr, editable, nullptr, Icons::Delete))
+                {
+                    removed = true;
+                }
+                Widget::EndContextMenu();
+            }
+            {
+                const ImVec2 cursor = ImGui::GetCursorScreenPos();
+                const Float side = headerMax.y - headerMin.y;
+                ImGui::SetCursorScreenPos(ImVec2(headerMax.x - side, headerMin.y));
+                if (Widget::IconButton("##post_effect_menu", Icons::Menu)
+                        .Size(ImVec2(side, side))
+                        .Flat()
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorPostProcessMenu, "Effect menu"))
+                        .Draw())
+                {
+                    Widget::OpenContextMenu("##PostEffectMenu");
+                }
+                ImGui::SetCursorScreenPos(cursor);
+            }
+            if (removed)
+            {
+                scratch.entries.RemoveAt(index);
+                ImGui::PopID();
+                CommitProfile(meta.id, scratch);
+                return;
+            }
+            if (opened)
+            {
+                Widget::FormLayout layout("##post_effect");
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled")), [&]() {
+                    Widget::DisableScope locked(false == editable);
+                    Bool enabled = entry.enabled;
+                    if (Widget::Checkbox("##enabled", enabled))
+                    {
+                        entry.enabled = enabled;
+                        CommitProfile(meta.id, scratch);
+                    }
+                });
+                const PostProcessEffectType* type = PostProcessEffectRegistry::Get(entry.type);
+                if (type == nullptr || type->parameters == nullptr)
+                {
+                    if (type == nullptr)
+                    {
+                        layout.FullRow([&]() {
+                            Widget::HintText(Loc::TextOr(LocKeys::InspectorPostProcessUnknown,
+                                "This engine does not know this effect. It is kept as it was read"));
+                        });
+                    }
+                }
+                else
+                {
+                    const PropertyTable& table = *type->parameters;
+                    for (UInt32 field = 0; field < table.count; ++field)
+                    {
+                        const PropertyInfo& property = table.properties[field.Get()];
+                        if (false == IsPostProcessFieldEditable(entry.type, field)
+                            || (property.edit != nullptr && false == property.edit->visible))
+                        {
+                            continue;
+                        }
+                        const char* label = NameTable::Get().Resolve(property.name);
+                        const Bool overridden = (entry.overrides & (UInt64(1) << field.Get())) != 0;
+                        Widget::IdScope id(static_cast<JBro::Int32>(field.Get()));
+                        // **필드 앞의 체크가 덮어쓰기다.** 켠 필드만 파일에 적히고, 끈 필드는 효과의 기본값이다 - 볼륨이 섞을 때도 켠 필드만 섞는다.
+                        layout.Row(Widget::FieldLabel(label != nullptr ? label : "?").Disabled(false == overridden), [&]() {
+                            Widget::DisableScope locked(false == editable);
+                            Bool on = overridden;
+                            if (Widget::Checkbox("##override", on))
+                            {
+                                SetPostProcessOverride(entry, field, on);
+                                CommitProfile(meta.id, scratch);
+                                return;
+                            }
+                            Widget::HoveredTooltip(Loc::TextOr(LocKeys::InspectorPostProcessOverrideTooltip,
+                                "Write this value into the profile. Off uses the effect's default"));
+                            ImGui::SameLine();
+                            Widget::DisableScope unset(false == overridden);
+                            scope.profileEntry = static_cast<JBro::UInt32>(index);
+                            scope.profileField = field;
+                            DrawValue(label != nullptr ? label : "?", *property.type, property.Address(entry.block.Data()), property.edit, context);
+                        });
+                    }
+                }
+            }
+            ImGui::PopID();
+        }
+
+        // **효과 추가**(컴포넌트 추가와 같은 자리). 종류는 효과 종류 표의 것이다 - 사용자 효과도 표에 들면 여기 나온다.
+        ImGui::Spacing();
+        Widget::DisableScope locked(false == editable);
+        if (Widget::IconButton("##add_post_effect", Icons::Plus)
+                .Caption(Loc::TextOr(LocKeys::InspectorPostProcessAdd, "Add Effect"))
+                .Draw())
+        {
+            Widget::OpenContextMenu("##AddPostEffect");
+        }
+        if (Widget::BeginContextMenu("##AddPostEffect"))
+        {
+            for (UInt32 type = 0; type < PostProcessEffectRegistry::GetCount(); ++type)
+            {
+                const PostProcessEffectType* effect = PostProcessEffectRegistry::Get(type);
+                if (effect != nullptr && Widget::MenuItem(effect->name))
+                {
+                    scratch.entries.Add(MakePostProcessProfileEntry(type));
+                    CommitProfile(meta.id, scratch);
+                }
+            }
+            Widget::EndContextMenu();
+        }
+    }
+
+    void InspectorPanel::CommitProfile(AssetId asset, const PostProcessProfileDocument& document)
+    {
+        AssetSourceTarget target;
+        if (false == m_editor->DescribeAssetSource(asset, target))
+        {
+            return;
+        }
+        const String after = WritePostProcessProfile(document);
+        if (after == m_profileText)
+        {
+            return;
+        }
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, m_profileText, after, "Edit Post-Process Profile"));
+    }
+
+    void InspectorPanel::DrawRenderTexture(const AssetMetaFile& meta)
+    {
+        String text;
+        RenderTextureSettings settings;
+        if (false == m_editor->ReadAssetSourceText(meta.id, text) || false == ParseRenderTexture(text.data(), text.size(), settings))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorRenderTextureUnreadable, "This render texture could not be read"));
+            return;
+        }
+        Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorRenderTextureHint, "Set it as a camera's renderTextureId to draw into it, and as a sprite's renderTextureId to show it"));
+        Bool changed = false;
+        {
+            Widget::FormLayout layout("##render_texture");
+            // 필드 이름 그대로 보인다(컴포넌트 필드와 같다).
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorRenderTextureWidth, "width")), [&]() {
+                changed = Widget::DragField<UInt32>("##width", settings.width).Range(1u, RenderTextureSettings::MaxSide).Draw() || changed;
+            });
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorRenderTextureHeight, "height")), [&]() {
+                changed = Widget::DragField<UInt32>("##height", settings.height).Range(1u, RenderTextureSettings::MaxSide).Draw() || changed;
+            });
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorRenderTextureFilter, "filter")), [&]() {
+                changed = Widget::EnumCombo("##filter", *TypeDescriptorOf<TextureFilter>::Get().enumNames, &settings.filter) || changed;
+            });
+        }
+        if (false == changed)
+        {
+            return;
+        }
+        AssetSourceTarget target;
+        if (false == m_editor->DescribeAssetSource(meta.id, target))
+        {
+            return;
+        }
+        const String after = WriteRenderTexture(settings);
+        if (after != text)
+        {
+            m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, text, after, "Edit Render Texture"));
+        }
+    }
+
+    void InspectorPanel::DrawMaterial(const AssetMetaFile& meta)
+    {
+        // **머티리얼은 인스펙터에서 고친다**(D-347, 프로필과 같은 길). 고치면 바로 파일에 적고 실린 에셋을 제자리에서 다시 읽는다 - 그 머티리얼을 쓰는
+        // 스프라이트·효과가 다음 프레임에 바뀐다.
+        String text;
+        if (false == m_editor->ReadAssetSourceText(meta.id, text))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialUnreadable, "This material could not be read"));
+            return;
+        }
+        if (m_materialAsset != meta.id || m_materialText != text)
+        {
+            m_materialAsset = meta.id;
+            m_materialText = text;
+            m_materialError.clear();
+            if (false == ParseMaterial(text.data(), text.size(), m_materialDocument, &m_materialError))
+            {
+                m_materialDocument = {};
+            }
+        }
+        if (false == m_materialError.empty())
+        {
+            // 깨진 YAML 을 덮어쓰면 손으로 고친 것을 잃는다. 고칠 때까지 손대지 않는다.
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialBroken, "The material's text is broken. Fix the file to edit it here"));
+            Widget::WrappedText(m_materialError.c_str());
+            return;
+        }
+
+        // 편집본이다. 위젯이 고친 값은 커밋이 파일에 쓰고, 다음 프레임에 그 글자를 다시 읽는다 - 쓰는 길이 하나다.
+        MaterialDocument scratch = m_materialDocument;
+        const Bool editable = false == m_editor->IsAtScriptBreak();
+        // 줄 이름은 파일의 키다(필드 이름처럼 번역하지 않는다).
+        {
+            Widget::FormLayout layout("##material");
+            layout.Row(Widget::FieldLabel("Shader"), [&]() {
+                Widget::DisableScope locked(false == editable);
+                const AssetChoices& choices = ChoicesFor(AssetType::Shader);
+                AssetId shader = scratch.shader;
+                if (Widget::AssetField("##shader", ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
+                        ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()), shader)
+                        .Draw())
+                {
+                    scratch.shader = shader;
+                    CommitMaterial(meta.id, scratch);
+                }
+            });
+            layout.Row(Widget::FieldLabel("Domain"), [&]() {
+                Widget::DisableScope locked(false == editable);
+                MaterialDomain domain = scratch.domain;
+                if (Widget::EnumCombo("##domain", *TypeDescriptorOf<MaterialDomain>::Get().enumNames, &domain))
+                {
+                    scratch.domain = domain;
+                    CommitMaterial(meta.id, scratch);
+                }
+            });
+        }
+        if (scratch.shader.IsNull())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialNoShader, "Pick a shader to see its parameters and textures"));
+            return;
+        }
+        const String* error = nullptr;
+        const CompiledMaterialShader* shader = m_editor->GetMaterialShader(scratch.shader, scratch.domain, &error);
+        if (shader == nullptr)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialShaderError, "The shader could not be compiled"));
+            if (error != nullptr)
+            {
+                Widget::WrappedText(error->c_str());
+            }
+            return;
+        }
+
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorMaterialParameters, "Parameters")).Draw();
+        if (shader->parameters.IsEmpty())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorMaterialNoParameters, "The shader has no parameters"));
+        }
+        else
+        {
+            Widget::FormLayout layout("##material_parameters");
+            for (std::size_t index = 0; index < shader->parameters.Size(); ++index)
+            {
+                const MaterialParameterInfo& parameter = shader->parameters[index];
+                const UInt32 components = GetMaterialParameterComponents(parameter.type);
+                const MaterialParameterValue* written = scratch.FindParameter(parameter.name.View());
+                const Bool overridden = written != nullptr;
+                Float values[4] = {parameter.defaults[0], parameter.defaults[1], parameter.defaults[2], parameter.defaults[3]};
+                if (overridden)
+                {
+                    for (UInt32 at = 0; at < 4; ++at)
+                    {
+                        values[at.Get()] = at < written->count ? written->values[at.Get()] : Float(0.0f);
+                    }
+                }
+                Widget::IdScope id(static_cast<JBro::Int32>(index));
+                // **이름 앞의 체크가 덮어쓰기다**(프로필과 같다). 켠 파라미터만 파일에 적히고, 끈 것은 셰이더의 초기값이다.
+                layout.Row(Widget::FieldLabel(parameter.name.c_str()).Disabled(false == overridden), [&]() {
+                    Widget::DisableScope locked(false == editable);
+                    Bool on = overridden;
+                    if (Widget::Checkbox("##override", on))
+                    {
+                        if (on)
+                        {
+                            scratch.SetParameter(parameter.name.View(), parameter.defaults, components);
+                        }
+                        else
+                        {
+                            scratch.RemoveParameter(parameter.name.View());
+                        }
+                        CommitMaterial(meta.id, scratch);
+                        return;
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::InspectorMaterialOverrideTooltip,
+                        "Write this value into the material. Off uses the shader's initial value"));
+                    ImGui::SameLine();
+                    Widget::DisableScope unset(false == overridden);
+                    Bool changed = false;
+                    if (parameter.color)
+                    {
+                        if (components == 3)
+                        {
+                            values[3] = 1.0f;
+                        }
+                        changed = Widget::ColorField("##value", values);
+                    }
+                    else if (parameter.type == MaterialParameterType::Bool)
+                    {
+                        Bool flag = values[0] > 0.0f;
+                        changed = Widget::Checkbox("##value", flag);
+                        values[0] = flag ? 1.0f : 0.0f;
+                    }
+                    else if (parameter.type == MaterialParameterType::Int || parameter.type == MaterialParameterType::UInt)
+                    {
+                        Int32 integer = static_cast<JBro::Int32>(values[0].Get() < 0.0f ? values[0].Get() - 0.5f : values[0].Get() + 0.5f);
+                        changed = parameter.type == MaterialParameterType::UInt
+                            ? Widget::DragField<Int32>("##value", integer).Range(0, 2147483647).Draw()
+                            : Widget::DragField<Int32>("##value", integer).Draw();
+                        values[0] = static_cast<JBro::Float>(integer.Get());
+                    }
+                    else if (components == 1)
+                    {
+                        changed = Widget::DragField<Float>("##value", values[0]).Speed(0.01f).Draw();
+                    }
+                    else
+                    {
+                        changed = Widget::ScalarRunField("##value", values, static_cast<JBro::Int32>(components.Get()), 0.01f, false, 0.0f, 0.0f);
+                    }
+                    if (changed)
+                    {
+                        scratch.SetParameter(parameter.name.View(), values, components);
+                        CommitMaterial(meta.id, scratch);
+                    }
+                });
+            }
+        }
+        if (shader->textures.IsEmpty())
+        {
+            return;
+        }
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorMaterialTextures, "Textures")).Draw();
+        Widget::FormLayout layout("##material_textures");
+        for (std::size_t index = 0; index < shader->textures.Size(); ++index)
+        {
+            const MaterialTextureInfo& slot = shader->textures[index];
+            Widget::IdScope id(static_cast<JBro::Int32>(index));
+            layout.Row(Widget::FieldLabel(slot.name.c_str()), [&]() {
+                Widget::DisableScope locked(false == editable);
+                const AssetChoices& choices = ChoicesFor(AssetType::Texture);
+                const MaterialTextureValue* written = scratch.FindTexture(slot.name.View());
+                AssetId texture = written != nullptr ? written->texture : AssetId{};
+                if (Widget::AssetField("##texture", ArrayView<const char* const>(choices.namePointers.Data(), choices.namePointers.Size()),
+                        ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()), texture)
+                        .Draw())
+                {
+                    scratch.SetTexture(slot.name.View(), texture);
+                    CommitMaterial(meta.id, scratch);
+                }
+            });
+        }
+    }
+
+    void InspectorPanel::CommitMaterial(AssetId asset, const MaterialDocument& document)
+    {
+        AssetSourceTarget target;
+        if (false == m_editor->DescribeAssetSource(asset, target))
+        {
+            return;
+        }
+        const String after = WriteMaterial(document);
+        if (after == m_materialText)
+        {
+            return;
+        }
+        m_editor->GetCommands().Execute(MakeOwnerPtr<SetAssetSourceCommand>(target, m_materialText, after, "Edit Material"));
+    }
+
+    void InspectorPanel::DrawShader(const AssetMetaFile& meta)
+    {
+        // **셰이더 에셋 자체를 본다**(D-348). 전에는 굽기 오류가 그 셰이더를 쓰는 머티리얼에서만 보여, 머티리얼을 만들기 전에는 셰이더가 되는지 알 길이 없었다.
+        // 자리마다 따로 굽는다 - 스프라이트로는 되고 후처리로는 안 되는 셰이더가 있다. 고치는 것은 편집기다(인스펙터는 글자를 고치지 않는다).
+        static const char* const TypeNames[] = {"float", "float2", "float3", "float4", "int", "uint", "bool"};
+        UInt32 errorLine = 0;
+        const EnumNames& domains = *TypeDescriptorOf<MaterialDomain>::Get().enumNames;
+        for (UInt32 domain = 0; domain < MaterialDomainCount; ++domain)
+        {
+            const char* domainName = domain < domains.count ? domains.names[domain.Get()] : nullptr;
+            Widget::IdScope id(static_cast<JBro::Int32>(domain.Get()));
+            // 자리 이름은 머티리얼 파일의 `Domain` 값 그대로다(번역하지 않는다).
+            Widget::SectionHeader(domainName != nullptr ? domainName : "?").Draw();
+            const String* error = nullptr;
+            const CompiledMaterialShader* shader = m_editor->GetMaterialShader(meta.id, static_cast<MaterialDomain>(domain.Get()), &error);
+            if (shader == nullptr)
+            {
+                Widget::HintText(Loc::TextOr(LocKeys::InspectorShaderDomainError, "Could not be compiled for this domain"));
+                if (error != nullptr)
+                {
+                    Widget::WrappedText(error->c_str());
+                    // fxc 의 오류는 `경로(줄,칸): error ...` 다. 첫 오류의 줄을 편집기에서 연다.
+                    const std::size_t open = error->find('(');
+                    if (errorLine == 0 && open != String::npos)
+                    {
+                        UInt32 line = 0;
+                        for (std::size_t at = open + 1; at < error->size() && (*error)[at] >= '0' && (*error)[at] <= '9'; ++at)
+                        {
+                            line = line * 10u + static_cast<std::uint32_t>((*error)[at] - '0');
+                        }
+                        errorLine = line;
+                    }
+                }
+                continue;
+            }
+            if (shader->parameters.IsEmpty() && shader->textures.IsEmpty())
+            {
+                Widget::HintText(Loc::TextOr(LocKeys::InspectorShaderEmpty, "No parameters or textures"));
+                continue;
+            }
+            // 이름은 셰이더의 변수 이름이고, 값은 HLSL 의 형과 초기값이다 - 머티리얼이 덮어쓰지 않으면 이 값으로 그린다.
+            Widget::FormLayout layout("##shader_reflection");
+            for (std::size_t index = 0; index < shader->parameters.Size(); ++index)
+            {
+                const MaterialParameterInfo& parameter = shader->parameters[index];
+                const UInt32 components = GetMaterialParameterComponents(parameter.type);
+                char text[160] = {};
+                JBro::Int32 written = std::snprintf(text, sizeof(text), "%s ", TypeNames[static_cast<std::size_t>(parameter.type)]);
+                for (UInt32 at = 0; at < components && written > 0 && written < static_cast<JBro::Int32>(sizeof(text)); ++at)
+                {
+                    written += std::snprintf(text + written, sizeof(text) - static_cast<std::size_t>(written), at == 0 ? "%g" : ", %g",
+                        static_cast<double>(parameter.defaults[at.Get()].Get()));
+                }
+                layout.Row(Widget::FieldLabel(parameter.name.c_str()), [&]() { Widget::Text(text); });
+            }
+            for (std::size_t index = 0; index < shader->textures.Size(); ++index)
+            {
+                const MaterialTextureInfo& slot = shader->textures[index];
+                char text[32] = {};
+                std::snprintf(text, sizeof(text), "Texture2D t%u", static_cast<unsigned>(slot.slot.Get()));
+                layout.Row(Widget::FieldLabel(slot.name.c_str()), [&]() { Widget::Text(text); });
+            }
+        }
+        AssetSourceTarget target;
+        if (m_editor->DescribeAssetSource(meta.id, target))
+        {
+            if (Widget::IconButton("##open_shader", Icons::OpenExternal)
+                    .Caption(Loc::TextOr(LocKeys::InspectorShaderOpen, "Open in Editor"))
+                    .Draw())
+            {
+                m_editor->OpenScriptAt(target.path, errorLine == 0 ? UInt32(1) : errorLine);
+            }
+        }
+    }
+
     void InspectorPanel::CommitAssetEdit(Context& context)
     {
+        // 후처리 프로필의 필드다(D-344). 값을 고친 필드는 덮어쓴 필드가 된다.
+        if (context.asset != nullptr && context.asset->profile != nullptr)
+        {
+            PostProcessProfileDocument& profile = *context.asset->profile;
+            if (context.asset->profileEntry < profile.entries.Size())
+            {
+                PostProcessProfileEntry& entry = profile.entries[context.asset->profileEntry.Get()];
+                entry.overrides = entry.overrides | (UInt64(1) << context.asset->profileField.Get());
+                CommitProfile(m_profileAsset, profile);
+            }
+            return;
+        }
         // 재질 파일은 메타가 아니라 그 파일을 쓴다. 모델의 재질(편집본이 없다)은 읽기 전용이라 아무 일도 없다.
         if (context.asset != nullptr && context.asset->block == AssetEditScope::Block::Material)
         {

@@ -7,6 +7,7 @@
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Runtime/ScriptErrorContext.h>
+#include <JBro/Runtime/ScriptLogContext.h>
 #include <JBro/Host/TimeSystem.h>
 #include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
@@ -94,6 +95,8 @@ namespace JBro
         String saveFolder;
         // 참이면 에디터에서 재생한 게임의 세이브다. 실제 게임의 세이브를 덮지 않게 다른 폴더에 쓴다. **에디터만 참이다.**
         Bool editorSaves = false;
+        // 머티리얼 셰이더를 그 자리에서 굽는 곳이다(D-347). **에디터만 준다** - 수명은 부르는 쪽이 지키고 엔진보다 오래 살아야 한다.
+        IShaderCompiler* shaderCompiler = nullptr;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -360,6 +363,8 @@ namespace JBro
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.
         ScriptDLLLoader m_scripts;
         ScriptErrorContext m_scriptErrorContext;
+        // 게임 DLL 의 엔진 코드가 호스트 로그에 쓰는 길(D-380). 핸들의 무효 접근 경고가 쓴다.
+        ScriptLogContext m_scriptLogContext;
         ProjectFile m_project;
         FrameworkContext m_frameworkContext;
         FrameTarget m_simulationViewTarget;
@@ -369,6 +374,18 @@ namespace JBro
         Bool m_hasEditorView = false;
         LayerThumbnailDesc m_layerThumbnails[MaxLayerThumbnails];
         std::size_t m_layerThumbnailCount = 0;
+        // 글자 입력(D-355). 프레임워크가 글자 칸의 커서 자리를 알린 프레임에만 IME 조합이 인라인이다.
+        class TextInputBridge final : public ITextInputHost
+        {
+        public:
+            void SetTextInputArea(Float pixelX, Float pixelY, Float lineHeight) override;
+            Bool ReadClipboardText(String& utf8) override;
+            Bool WriteClipboardText(const char* utf8, std::size_t size) override;
+            EngineInstance* engine = nullptr;
+        };
+        TextInputBridge m_textInput;
+        Bool m_textInputWanted = false;
+        Bool m_compositionInline = false;
         Bool m_inputOwnedByHost = false;
         Bool m_hostGameInputActive = false;
         Array<InputEvent> m_hostInput;

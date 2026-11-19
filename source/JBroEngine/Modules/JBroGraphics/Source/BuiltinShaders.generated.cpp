@@ -24,6 +24,21 @@
 #include "BuiltinLight2DShadowedPS.generated.h"
 #include "BuiltinShadow2DVS.generated.h"
 #include "BuiltinShadow2DPS.generated.h"
+#include "BuiltinPostVS.generated.h"
+#include "BuiltinPostCopyPS.generated.h"
+#include "BuiltinPostExposurePS.generated.h"
+#include "BuiltinPostTonemapPS.generated.h"
+#include "BuiltinBloomPrefilterPS.generated.h"
+#include "BuiltinBloomDownsamplePS.generated.h"
+#include "BuiltinBloomUpsamplePS.generated.h"
+#include "BuiltinBloomCompositePS.generated.h"
+#include "BuiltinColorAdjustPS.generated.h"
+#include "BuiltinColorLookupPS.generated.h"
+#include "BuiltinLayerBlurPS.generated.h"
+#include "BuiltinLayerOutlineDistancePS.generated.h"
+#include "BuiltinLayerOutlineCompositePS.generated.h"
+#include "BuiltinLayerShadowBlurPS.generated.h"
+#include "BuiltinLayerShadowCompositePS.generated.h"
 
 // fxc names its bytes BYTE. Give it the name without pulling in Windows.h.
 namespace JBro::BuiltinShaderSm5
@@ -50,6 +65,21 @@ namespace JBro::BuiltinShaderSm5
 #include "BuiltinLight2DShadowedPS_SM5.generated.h"
 #include "BuiltinShadow2DVS_SM5.generated.h"
 #include "BuiltinShadow2DPS_SM5.generated.h"
+#include "BuiltinPostVS_SM5.generated.h"
+#include "BuiltinPostCopyPS_SM5.generated.h"
+#include "BuiltinPostExposurePS_SM5.generated.h"
+#include "BuiltinPostTonemapPS_SM5.generated.h"
+#include "BuiltinBloomPrefilterPS_SM5.generated.h"
+#include "BuiltinBloomDownsamplePS_SM5.generated.h"
+#include "BuiltinBloomUpsamplePS_SM5.generated.h"
+#include "BuiltinBloomCompositePS_SM5.generated.h"
+#include "BuiltinColorAdjustPS_SM5.generated.h"
+#include "BuiltinColorLookupPS_SM5.generated.h"
+#include "BuiltinLayerBlurPS_SM5.generated.h"
+#include "BuiltinLayerOutlineDistancePS_SM5.generated.h"
+#include "BuiltinLayerOutlineCompositePS_SM5.generated.h"
+#include "BuiltinLayerShadowBlurPS_SM5.generated.h"
+#include "BuiltinLayerShadowCompositePS_SM5.generated.h"
 }
 
 namespace JBro::BuiltinShaderSpv
@@ -75,6 +105,21 @@ namespace JBro::BuiltinShaderSpv
 #include "BuiltinLight2DShadowedPS_SPV.generated.h"
 #include "BuiltinShadow2DVS_SPV.generated.h"
 #include "BuiltinShadow2DPS_SPV.generated.h"
+#include "BuiltinPostVS_SPV.generated.h"
+#include "BuiltinPostCopyPS_SPV.generated.h"
+#include "BuiltinPostExposurePS_SPV.generated.h"
+#include "BuiltinPostTonemapPS_SPV.generated.h"
+#include "BuiltinBloomPrefilterPS_SPV.generated.h"
+#include "BuiltinBloomDownsamplePS_SPV.generated.h"
+#include "BuiltinBloomUpsamplePS_SPV.generated.h"
+#include "BuiltinBloomCompositePS_SPV.generated.h"
+#include "BuiltinColorAdjustPS_SPV.generated.h"
+#include "BuiltinColorLookupPS_SPV.generated.h"
+#include "BuiltinLayerBlurPS_SPV.generated.h"
+#include "BuiltinLayerOutlineDistancePS_SPV.generated.h"
+#include "BuiltinLayerOutlineCompositePS_SPV.generated.h"
+#include "BuiltinLayerShadowBlurPS_SPV.generated.h"
+#include "BuiltinLayerShadowCompositePS_SPV.generated.h"
 }
 
 namespace JBro
@@ -161,6 +206,76 @@ namespace JBro
                     {View(JBroBuiltinShadow2DPS, sizeof(JBroBuiltinShadow2DPS)), View(Sm5::JBroBuiltinShadow2DPS_SM5, sizeof(Sm5::JBroBuiltinShadow2DPS_SM5)), View(Spv::JBroBuiltinShadow2DPS_SPV, sizeof(Spv::JBroBuiltinShadow2DPS_SPV))},
                     {}},
                 80, 1, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostCopy",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinPostCopyPS, sizeof(JBroBuiltinPostCopyPS)), View(Sm5::JBroBuiltinPostCopyPS_SM5, sizeof(Sm5::JBroBuiltinPostCopyPS_SM5)), View(Spv::JBroBuiltinPostCopyPS_SPV, sizeof(Spv::JBroBuiltinPostCopyPS_SPV))},
+                    {}},
+                0, 0, {0, 0}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostExposure",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinPostExposurePS, sizeof(JBroBuiltinPostExposurePS)), View(Sm5::JBroBuiltinPostExposurePS_SM5, sizeof(Sm5::JBroBuiltinPostExposurePS_SM5)), View(Spv::JBroBuiltinPostExposurePS_SPV, sizeof(Spv::JBroBuiltinPostExposurePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostTonemap",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinPostTonemapPS, sizeof(JBroBuiltinPostTonemapPS)), View(Sm5::JBroBuiltinPostTonemapPS_SM5, sizeof(Sm5::JBroBuiltinPostTonemapPS_SM5)), View(Spv::JBroBuiltinPostTonemapPS_SPV, sizeof(Spv::JBroBuiltinPostTonemapPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostBloomPrefilter",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinBloomPrefilterPS, sizeof(JBroBuiltinBloomPrefilterPS)), View(Sm5::JBroBuiltinBloomPrefilterPS_SM5, sizeof(Sm5::JBroBuiltinBloomPrefilterPS_SM5)), View(Spv::JBroBuiltinBloomPrefilterPS_SPV, sizeof(Spv::JBroBuiltinBloomPrefilterPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {1, 2}, {0, 0}, {0, 0}},
+            {"PostBloomDownsample",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinBloomDownsamplePS, sizeof(JBroBuiltinBloomDownsamplePS)), View(Sm5::JBroBuiltinBloomDownsamplePS_SM5, sizeof(Sm5::JBroBuiltinBloomDownsamplePS_SM5)), View(Spv::JBroBuiltinBloomDownsamplePS_SPV, sizeof(Spv::JBroBuiltinBloomDownsamplePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {1, 2}, {0, 0}, {0, 0}},
+            {"PostBloomUpsample",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinBloomUpsamplePS, sizeof(JBroBuiltinBloomUpsamplePS)), View(Sm5::JBroBuiltinBloomUpsamplePS_SM5, sizeof(Sm5::JBroBuiltinBloomUpsamplePS_SM5)), View(Spv::JBroBuiltinBloomUpsamplePS_SPV, sizeof(Spv::JBroBuiltinBloomUpsamplePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {2, 2}, {1, 2}, {0, 0}, {0, 0}},
+            {"PostBloomComposite",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinBloomCompositePS, sizeof(JBroBuiltinBloomCompositePS)), View(Sm5::JBroBuiltinBloomCompositePS_SM5, sizeof(Sm5::JBroBuiltinBloomCompositePS_SM5)), View(Spv::JBroBuiltinBloomCompositePS_SPV, sizeof(Spv::JBroBuiltinBloomCompositePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {2, 2}, {1, 2}, {0, 0}, {0, 0}},
+            {"PostColorAdjust",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinColorAdjustPS, sizeof(JBroBuiltinColorAdjustPS)), View(Sm5::JBroBuiltinColorAdjustPS_SM5, sizeof(Sm5::JBroBuiltinColorAdjustPS_SM5)), View(Spv::JBroBuiltinColorAdjustPS_SPV, sizeof(Spv::JBroBuiltinColorAdjustPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostColorLookup",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinColorLookupPS, sizeof(JBroBuiltinColorLookupPS)), View(Sm5::JBroBuiltinColorLookupPS_SM5, sizeof(Sm5::JBroBuiltinColorLookupPS_SM5)), View(Spv::JBroBuiltinColorLookupPS_SPV, sizeof(Spv::JBroBuiltinColorLookupPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {2, 2}, {1, 2}, {0, 0}, {0, 0}},
+            {"PostLayerBlur",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerBlurPS, sizeof(JBroBuiltinLayerBlurPS)), View(Sm5::JBroBuiltinLayerBlurPS_SM5, sizeof(Sm5::JBroBuiltinLayerBlurPS_SM5)), View(Spv::JBroBuiltinLayerBlurPS_SPV, sizeof(Spv::JBroBuiltinLayerBlurPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerOutlineDistance",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerOutlineDistancePS, sizeof(JBroBuiltinLayerOutlineDistancePS)), View(Sm5::JBroBuiltinLayerOutlineDistancePS_SM5, sizeof(Sm5::JBroBuiltinLayerOutlineDistancePS_SM5)), View(Spv::JBroBuiltinLayerOutlineDistancePS_SPV, sizeof(Spv::JBroBuiltinLayerOutlineDistancePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerOutlineComposite",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerOutlineCompositePS, sizeof(JBroBuiltinLayerOutlineCompositePS)), View(Sm5::JBroBuiltinLayerOutlineCompositePS_SM5, sizeof(Sm5::JBroBuiltinLayerOutlineCompositePS_SM5)), View(Spv::JBroBuiltinLayerOutlineCompositePS_SPV, sizeof(Spv::JBroBuiltinLayerOutlineCompositePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerShadowBlur",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerShadowBlurPS, sizeof(JBroBuiltinLayerShadowBlurPS)), View(Sm5::JBroBuiltinLayerShadowBlurPS_SM5, sizeof(Sm5::JBroBuiltinLayerShadowBlurPS_SM5)), View(Spv::JBroBuiltinLayerShadowBlurPS_SPV, sizeof(Spv::JBroBuiltinLayerShadowBlurPS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {1, 2}, {0, 0}, {0, 0}, {0, 0}},
+            {"PostLayerShadowComposite",
+                {{View(JBroBuiltinPostVS, sizeof(JBroBuiltinPostVS)), View(Sm5::JBroBuiltinPostVS_SM5, sizeof(Sm5::JBroBuiltinPostVS_SM5)), View(Spv::JBroBuiltinPostVS_SPV, sizeof(Spv::JBroBuiltinPostVS_SPV))},
+                    {View(JBroBuiltinLayerShadowCompositePS, sizeof(JBroBuiltinLayerShadowCompositePS)), View(Sm5::JBroBuiltinLayerShadowCompositePS_SM5, sizeof(Sm5::JBroBuiltinLayerShadowCompositePS_SM5)), View(Spv::JBroBuiltinLayerShadowCompositePS_SPV, sizeof(Spv::JBroBuiltinLayerShadowCompositePS_SPV))},
+                    {}},
+                0, 0, {1, 2}, {2, 2}, {0, 0}, {0, 0}, {0, 0}},
         };
 
         static_assert(sizeof(Programs) / sizeof(Programs[0]) == static_cast<std::size_t>(BuiltinShader::Count),

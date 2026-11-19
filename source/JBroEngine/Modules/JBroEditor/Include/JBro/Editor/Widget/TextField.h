@@ -20,10 +20,14 @@ namespace JBro::Widget
 
         TextField& Hint(const char* text);
         TextField& MaxLength(std::size_t length);
+        TextField& Password(Bool password = true);
         // 여러 줄 칸이다. `MaxLength` 를 주지 않으면 길이에 끝이 없고, 높이는 글자 줄 수를 따라 `lines` 부터 늘어난다.
-        // Enter 는 줄바꿈이라 `CommitOnEnter` 대신 `CommitOnFinish` 로 확정한다.
+        // 기본 Enter 는 줄바꿈이다. `CommitOnEnter` 를 켜면 Enter 로 확정하고 Shift+Enter 로 줄바꿈한다.
         TextField& Multiline(Bool multiline = true, Float lines = 4.5f);
-        // 참이면 Enter 를 눌러야 값이 반영된다. 거짓이면 글자마다 반영한다.
+        TextField& MaxVisibleLines(Float lines);
+        TextField& WordWrap(Bool wrap = true);
+        Float GetMultilineHeight(Float width) const;
+        // 참이면 Enter 로 확정할 때만 참을 돌려준다. 치는 동안 값을 읽으려면 `LiveText` 도 켠다.
         TextField& CommitOnEnter(Bool commit = true);
         // `CommitOnEnter` 칸이라도 치는 동안의 글자를 묶인 글자에 바로 옮긴다. 확정(돌려주는 참)은 그대로 Enter 다.
         // 이름을 받는 팝업처럼 치는 동안 검사하고 단추를 켜고 끄는 곳이 쓴다 - 옮기지 않으면 검사가 Enter 전의 옛 글자를 본다.
@@ -50,8 +54,11 @@ namespace JBro::Widget
         const char* m_hint = nullptr;
         std::size_t m_maxLength = 0;
         Float m_lines = 4.5f;
+        Float m_maxVisibleLines = 0.0f;
         Float m_width = 0.0f;
         Bool m_multiline = false;
+        Bool m_wordWrap = false;
+        Bool m_password = false;
         Bool m_commitOnEnter = false;
         Bool m_liveText = false;
         Bool m_commitOnFinish = false;

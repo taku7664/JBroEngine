@@ -15,7 +15,7 @@
 
 namespace JBro
 {
-    // **모델 파일을 읽은 CPU 자료**다(D-338, model-import-plan §2.2). 디코더는 ufbx(FBX·OBJ)와 cgltf(glTF)이고 결과는 엔진 값 타입이다 -
+    // **모델 파일을 읽은 CPU 자료**다(D-391, model-import-plan §2.2). 디코더는 ufbx(FBX·OBJ)와 cgltf(glTF)이고 결과는 엔진 값 타입이다 -
     // 서드파티의 타입은 이 헤더 밖으로 나가지 않는다. 좌표는 엔진의 것이다(오른손, Y 위, 미터, 카메라는 -Z 를 본다). UV 는 D3D 규약(왼쪽 위가 0)이다.
     // 임포트 경로의 일이고 프레임 경로가 아니다.
 
@@ -24,7 +24,7 @@ namespace JBro
         Float position[3] = {0.0f, 0.0f, 0.0f};
         Float normal[3] = {0.0f, 0.0f, 1.0f};
         Float uv[2] = {0.0f, 0.0f};
-        // 파일에 탄젠트가 있을 때만 채운다(`ModelMesh::hasTangents`). w 는 바이탄젠트의 방향(±1)이다. 계산은 남은 일이다(D-339).
+        // 파일에 탄젠트가 있을 때만 채운다(`ModelMesh::hasTangents`). w 는 바이탄젠트의 방향(±1)이다. 계산은 남은 일이다(D-392).
         Float tangent[4] = {1.0f, 0.0f, 0.0f, 1.0f};
     };
 
@@ -43,7 +43,7 @@ namespace JBro
         Bool hasTangents = false;
     };
 
-    // 재질의 그림 칸이다. 색 공간의 `Auto` 가 이것을 본다(D-339) - 기본색·발광은 sRGB, 나머지는 선형이다.
+    // 재질의 그림 칸이다. 색 공간의 `Auto` 가 이것을 본다(D-392) - 기본색·발광은 sRGB, 나머지는 선형이다.
     enum class ModelTextureSlot : std::uint8_t
     {
         BaseColor,
@@ -62,7 +62,7 @@ namespace JBro
         Float roughness = 1.0f;
         // 발광 색(그림에 곱한다). glTF 의 `emissiveFactor`, FBX 의 발광 색 × 세기다.
         Float emissive[3] = {0.0f, 0.0f, 0.0f};
-        // glTF 의 `alphaMode: MASK` 다. 문턱 아래의 알파를 버린다(D-346 (6)). `BLEND` 는 반투명이 서기 전까지 불투명으로 읽는다.
+        // glTF 의 `alphaMode: MASK` 다. 문턱 아래의 알파를 버린다(D-399 (6)). `BLEND` 는 반투명이 서기 전까지 불투명으로 읽는다.
         Bool alphaCutout = false;
         Float alphaCutoff = 0.5f;
         // 칸마다 `ModelData::images` 의 번호다. 없으면 -1.
@@ -77,7 +77,7 @@ namespace JBro
         String path;
         // 내장 그림의 원래 바이트(PNG·JPEG 따위)다. 디코드는 이미지 디코더가 한다.
         Array<std::byte> embedded;
-        // 내장 바이트의 64 비트 FNV-1a 다. 다른 모델에 든 같은 그림을 묶는 열쇠의 한 쪽이다(D-338 (4)). 바깥 그림이면 0.
+        // 내장 바이트의 64 비트 FNV-1a 다. 다른 모델에 든 같은 그림을 묶는 열쇠의 한 쪽이다(D-391 (4)). 바깥 그림이면 0.
         UInt64 contentHash = 0;
         // 처음 쓰인 칸이다. `colorSpace` 의 `Auto` 가 이것으로 정한다.
         ModelTextureSlot firstUse = ModelTextureSlot::BaseColor;

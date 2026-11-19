@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
-#include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
+#include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
+#include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
 #include <JBro/Canvas/GameSystem.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>

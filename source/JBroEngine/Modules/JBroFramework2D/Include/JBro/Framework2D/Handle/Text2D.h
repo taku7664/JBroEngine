@@ -60,6 +60,12 @@ namespace JBro::Handle
         void SetColor(Color value);
         Int32 GetRenderOrder() const;
         void SetRenderOrder(Int32 value);
+        // 강조 범위(D-362, 코드포인트 번호 [begin, end))와 색이다. 끝이 시작보다 크지 않으면 없다.
+        Int32 GetHighlightBegin() const;
+        Int32 GetHighlightEnd() const;
+        void SetHighlight(Int32 begin, Int32 end);
+        Color GetHighlightColor() const;
+        void SetHighlightColor(Color value);
         Bool GetVisible() const;
         void SetVisible(Bool value);
         Color GetOutlineColor() const;

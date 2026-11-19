@@ -896,6 +896,7 @@ namespace JBro::Text
             {
                 shift += blockWidth - line.width;
             }
+            line.shift = shift;
             for (UInt32 glyphIndex = 0; glyphIndex < line.glyphCount; ++glyphIndex)
             {
                 PositionedGlyph& glyph = m_glyphs[line.firstGlyph + glyphIndex];
@@ -1021,6 +1022,191 @@ namespace JBro::Text
     ArrayView<const LineInfo> TextLayout::GetLines() const
     {
         return ArrayView<const LineInfo>(m_lines.Data(), m_lines.Size());
+    }
+
+    Bool TextLayout::GetCaretPosition(UInt32 byteOffset, Float& x, Float& y) const
+    {
+        Float lineHeight = 0.0f;
+        return GetCaretPosition(byteOffset, x, y, lineHeight);
+    }
+
+    Bool TextLayout::GetCaretOffsetAt(Float x, Float y, UInt32& byteOffset) const
+    {
+        if (m_lines.IsEmpty() || false == std::isfinite(x.Get()) || false == std::isfinite(y.Get()))
+        {
+            return false;
+        }
+        // 줄은 블록 위에서 높이만큼씩 쌓인다 - y 가 그 줄의 아래를 넘지 않는 첫 줄이고, 다 넘으면 마지막 줄이다.
+        std::size_t lineIndex = m_lines.Size() - 1;
+        Float top = m_maxY;
+        for (std::size_t index = 0; index < m_lines.Size(); ++index)
+        {
+            const Float bottom = top - m_lines[index].height;
+            if (y >= bottom)
+            {
+                lineIndex = index;
+                break;
+            }
+            top = bottom;
+        }
+        const LineInfo& line = m_lines[lineIndex];
+        // 그 줄의 글자(개행·결합 표시는 자리가 아니다)를 차례로 보며 x 가 글자의 가운데 앞이면 그 글자 앞이다.
+        std::size_t lastInLine = m_items.Size();
+        for (std::size_t index = 0; index < m_items.Size(); ++index)
+        {
+            const Item& item = m_items[index];
+            if (item.offset.Get() < line.sourceBegin.Get() || item.offset.Get() >= line.sourceEnd.Get())
+            {
+                continue;
+            }
+            if (item.kind == ItemKind::Mark || item.kind == ItemKind::Newline)
+            {
+                continue;
+            }
+            if (x < item.x + item.advance * 0.5f + line.shift)
+            {
+                byteOffset = item.offset;
+                return true;
+            }
+            lastInLine = index;
+        }
+        // 줄 끝 뒤다. 개행이 닫은 줄은 개행 앞이고, 접힌 줄은 다음 줄의 머리(= 이 줄의 끝)이며, 마지막 줄은 글자 끝이다.
+        if (lineIndex + 1 < m_lines.Size())
+        {
+            byteOffset = line.sourceEnd;
+            return true;
+        }
+        if (lastInLine < m_items.Size())
+        {
+            const char32_t codepoint = m_items[lastInLine].codepoint;
+            const UInt32 bytes = codepoint < 0x80 ? 1u : codepoint < 0x800 ? 2u : codepoint < 0x10000 ? 3u : 4u;
+            // 받침 뒤의 결합 표시는 받침과 한 글자다 - 그 뒤로 간다.
+            UInt32 end = m_items[lastInLine].offset + bytes;
+            for (std::size_t index = lastInLine + 1; index < m_items.Size() && m_items[index].kind == ItemKind::Mark; ++index)
+            {
+                const char32_t mark = m_items[index].codepoint;
+                end = m_items[index].offset + (mark < 0x80 ? 1u : mark < 0x800 ? 2u : mark < 0x10000 ? 3u : 4u);
+            }
+            byteOffset = end;
+            return true;
+        }
+        byteOffset = line.sourceBegin;
+        return true;
+    }
+
+    Bool TextLayout::GetCaretPosition(UInt32 byteOffset, Float& x, Float& y, Float& lineHeight) const
+    {
+        if (m_lines.IsEmpty())
+        {
+            return false;
+        }
+        // 그 위치에서 시작하는(또는 그 뒤의 첫) 글자다. 없으면 글자 끝이다.
+        std::size_t at = m_items.Size();
+        for (std::size_t index = 0; index < m_items.Size(); ++index)
+        {
+            if (m_items[index].offset.Get() >= byteOffset.Get())
+            {
+                at = index;
+                break;
+            }
+        }
+        // 그 글자가 든 줄이다. 줄은 바이트 구간 [begin, end) 으로 알고, 줄을 닫은 개행 글자는 그 구간 밖(offset == end)이라 따로 본다. 글자 끝은 마지막 줄이다.
+        std::size_t lineIndex = m_lines.Size() - 1;
+        if (at < m_items.Size())
+        {
+            const Item& item = m_items[at];
+            for (std::size_t index = 0; index < m_lines.Size(); ++index)
+            {
+                const Bool inside = item.offset.Get() < m_lines[index].sourceEnd.Get();
+                const Bool closes = item.kind == ItemKind::Newline && item.offset.Get() == m_lines[index].sourceEnd.Get();
+                if (inside || closes || index + 1 == m_lines.Size())
+                {
+                    lineIndex = index;
+                    break;
+                }
+            }
+        }
+        const LineInfo& line = m_lines[lineIndex];
+        // 개행 글자는 자리를 받지 않는다 - 그 앞은 같은 줄 앞 글자의 전진 폭 끝이고, 줄의 첫 글자면 줄의 시작이다.
+        const auto endOfPrevious = [&](std::size_t index) {
+            if (index > 0 && m_items[index - 1].kind != ItemKind::Newline && m_items[index - 1].offset.Get() >= line.sourceBegin.Get())
+            {
+                return m_items[index - 1].x + m_items[index - 1].advance;
+            }
+            return Float(0.0f);
+        };
+        if (at < m_items.Size())
+        {
+            x = (m_items[at].kind == ItemKind::Newline ? endOfPrevious(at) : m_items[at].x) + line.shift;
+        }
+        else if (m_items.Size() > 0)
+        {
+            x = endOfPrevious(m_items.Size()) + line.shift;
+        }
+        else
+        {
+            x = line.shift;
+        }
+        // 줄은 블록 위에서 높이만큼씩 쌓인다 - 그 줄의 세로 가운데다.
+        Float top = m_maxY;
+        for (std::size_t index = 0; index < lineIndex; ++index)
+        {
+            top -= m_lines[index].height;
+        }
+        y = top - line.height * 0.5f;
+        lineHeight = line.height;
+        return true;
+    }
+
+    UInt32 TextLayout::GetRangeRects(UInt32 begin, UInt32 end, RangeRect* out, UInt32 capacity) const
+    {
+        if (m_lines.IsEmpty() || out == nullptr || capacity == 0 || begin >= end)
+        {
+            return 0;
+        }
+        // 줄 안에서 바이트 위치 `offset` 앞의 x 다 - 그 줄에서 offset 이상인 첫 글자의 왼쪽, 없으면 그 줄 마지막 글자의 끝.
+        const auto xInLine = [&](const LineInfo& line, UInt32 offset) -> Float {
+            Float lastEnd = 0.0f;
+            for (std::size_t index = 0; index < m_items.Size(); ++index)
+            {
+                const Item& item = m_items[index];
+                if (item.offset.Get() < line.sourceBegin.Get() || item.offset.Get() >= line.sourceEnd.Get())
+                {
+                    continue;
+                }
+                if (item.kind == ItemKind::Mark || item.kind == ItemKind::Newline)
+                {
+                    continue;
+                }
+                if (item.offset.Get() >= offset.Get())
+                {
+                    return item.x + line.shift;
+                }
+                lastEnd = item.x + item.advance;
+            }
+            return lastEnd + line.shift;
+        };
+        UInt32 count = 0;
+        Float top = m_maxY;
+        for (std::size_t index = 0; index < m_lines.Size() && count < capacity; ++index)
+        {
+            const LineInfo& line = m_lines[index];
+            const Float bottom = top - line.height;
+            const UInt32 from = begin > line.sourceBegin ? begin : line.sourceBegin;
+            const UInt32 to = end < line.sourceEnd ? end : line.sourceEnd;
+            if (from < to)
+            {
+                const Float left = xInLine(line, from);
+                const Float right = xInLine(line, to);
+                if (right > left)
+                {
+                    out[count.Get()] = {left, right, top, bottom};
+                    ++count;
+                }
+            }
+            top = bottom;
+        }
+        return count;
     }
 
     Float TextLayout::GetMinX() const

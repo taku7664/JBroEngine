@@ -11,13 +11,18 @@
 #include "Panel/InspectorPanel.h"
 #include "Panel/LogPanel.h"
 #include "Panel/ProfilerPanel.h"
+#include "Panel/RenderGraphPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
 #include "Panel/SoundEffectPanel.h"
 #include "Panel/NodeGraphPanel.h"
 #include "Panel/NodeGraphInspectorPanel.h"
 #include "Panel/SpriteViewerPanel.h"
+#include "Panel/CodeEditorPanel.h"
+#include "Panel/MarkdownPanel.h"
+#include "Panel/ScriptSummaryPanel.h"
 #include "Panel/StatsPanel.h"
+#include "Panel/AgentPanel.h"
 
 #include <cstring>
 #include <JBro/Types/Bool.h>
@@ -142,8 +147,11 @@ namespace JBro
         RegisterEditorPanelType<BuildResultsPanel>(true);
         RegisterEditorPanelType<ProjectSettingsPanel>(true);
         RegisterEditorPanelType<ProfilerPanel>(true);
+        // 렌더 그래프 창(D-340). 프로파일러처럼 닫힌 채로 서고 디버그 메뉴에서 연다.
+        RegisterEditorPanelType<RenderGraphPanel>(true);
         RegisterEditorPanelType<ShortcutPanel>(true);
         RegisterEditorPanelType<EditorSettingsPanel>(true);
+        RegisterEditorPanelType<AgentPanel>(true);
 
         // **파일을 여는 창은 뿌리에 따로 선 도크에 속한다**(D-155·D-284, 기존 `CSpriteViewerDockWindow`). 메인 도크와 나란히
         // 뿌리에 탭으로 서고, 그림마다 비고유 패널이 그 안에 열린다.
@@ -153,6 +161,23 @@ namespace JBro
         viewer.fallbackTitle = "Sprite Viewer";
         EditorPanelRegistry::Get().RegisterDockArea(viewer);
         RegisterEditorPanelType<SpriteViewerPanel>(false, SpriteViewerPanel::DockAreaName);
+        EditorDockAreaInfo code;
+        code.name = CodeEditorPanel::DockAreaName;
+        code.titleKey = LocKeys::CodeEditorTitle;
+        code.fallbackTitle = "Code Editor";
+        EditorPanelRegistry::Get().RegisterDockArea(code);
+        RegisterEditorPanelType<CodeEditorPanel>(false, CodeEditorPanel::DockAreaName);
+        RegisterEditorPanelType<ScriptSummaryPanel>(false, CodeEditorPanel::DockAreaName);
+        ScriptSummaryPanel::RegisterActions();
+        CodeEditorPanel::RegisterActions();
+        EditorDockAreaInfo documents;
+        documents.name = MarkdownPanel::DockAreaName;
+        documents.titleKey = LocKeys::MarkdownTitle;
+        documents.fallbackTitle = "Documents";
+        EditorPanelRegistry::Get().RegisterDockArea(documents);
+        RegisterEditorPanelType<MarkdownPanel>(false, MarkdownPanel::DockAreaName);
+        MarkdownPanel::RegisterActions();
+
         // 사운드 이펙트 창도 파일을 여는 창이다(D-306, 기존 `CEffectEditorWindow`). 제 도크에 `.jfx` 마다 열린다.
         EditorDockAreaInfo effects;
         effects.name = SoundEffectPanel::DockAreaName;

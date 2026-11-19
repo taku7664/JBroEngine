@@ -30,6 +30,11 @@ JBro::Int32 RunBuiltinComponentPropertyTests();
 JBro::Int32 RunScriptSchedulingTests();
 JBro::Int32 RunSpritePixelTests();
 JBro::Int32 RunLight2DPixelTests();
+JBro::Int32 RunPostProcessPixelTests();
+JBro::Int32 RunColorLutTests();
+JBro::Int32 RunPostProcessProfileTests();
+JBro::Int32 RunPostProcessMixerTests();
+JBro::Int32 RunMaterialTests();
 JBro::Int32 RunLight2DFrameworkTests();
 JBro::Int32 RunProjectFileTests();
 JBro::Int32 RunYamlTests();
@@ -49,6 +54,9 @@ JBro::Int32 RunPolygonEditModelTests();
 JBro::Int32 RunNodeGraphTests();
 JBro::Int32 RunNodeGraphViewTests();
 JBro::Int32 RunLightGizmoModelTests();
+JBro::Int32 RunButtonRectModelTests();
+JBro::Int32 RunSpriteDrawModeTests();
+JBro::Int32 RunLayout2DTests();
 JBro::Int32 RunGameHostArgumentTests();
 JBro::Int32 RunEditorHostArgumentTests();
 JBro::Int32 RunPlatformFileTests();
@@ -65,6 +73,7 @@ JBro::Int32 RunConstantBufferTests();
 JBro::Int32 RunRenderTargetFormatTests();
 JBro::Int32 RunSubresourceTests();
 JBro::Int32 RunComputeTests();
+JBro::Int32 RunRenderGraphTests();
 JBro::Int32 RunBuiltinShaderTests();
 JBro::Int32 RunReferenceSafetyTests();
 JBro::Int32 RunFramework2DSystemTests();
@@ -76,6 +85,16 @@ JBro::Int32 RunGameScriptTests();
 JBro::Int32 RunObjectServiceTests();
 JBro::Int32 RunEditorApplicationTests();
 JBro::Int32 RunEditorUITests();
+JBro::Int32 RunCodeEditorTests();
+JBro::Int32 RunAgentTests();
+JBro::Int32 RunAgentLiveTests();
+JBro::Int32 RunMarkdownTests();
+JBro::Int32 RunScriptSummaryTests();
+JBro::Int32 RunScriptSummaryPanelTests();
+JBro::Int32 RunScriptSummaryIntegrationTests();
+JBro::Int32 RunNativeDebugTests();
+JBro::Int32 RunSourceDebuggerTests();
+JBro::Int32 RunNestedScriptTypeTests();
 JBro::Int32 RunEditorCommandTests();
 JBro::Int32 RunEditorObjectCommandTests();
 JBro::Int32 RunEditorLocalizationTests();
@@ -90,6 +109,7 @@ JBro::Int32 RunGizmoModelTests();
 JBro::Int32 RunInputTests();
 JBro::Int32 RunInputSystemTests();
 JBro::Int32 RunInputChainTests();
+JBro::Int32 RunUiScenarioTests();
 JBro::Int32 RunInputActionTests();
 JBro::Int32 RunSaveStorageTests();
 JBro::Int32 RunPackageTests();
@@ -302,6 +322,18 @@ int main()
         {
             return 1;
         }
+        if (false == RunSuite("ButtonRectModel", &RunButtonRectModelTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("SpriteDrawMode", &RunSpriteDrawModeTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Layout2D", &RunLayout2DTests))
+        {
+            return 1;
+        }
         if (false == RunSuite("ScriptCompilerParser", &RunScriptCompilerParserTests))
         {
             return 1;
@@ -333,6 +365,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("InputChain", &RunInputChainTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("UiScenario", &RunUiScenarioTests))
         {
             return 1;
         }
@@ -484,6 +520,10 @@ int main()
         {
             return 1;
         }
+        if (false == RunSuite("RenderGraph", &RunRenderGraphTests))
+        {
+            return 1;
+        }
         if (false == RunSuite("BuiltinShader", &RunBuiltinShaderTests))
         {
             return 1;
@@ -497,6 +537,26 @@ int main()
             return 1;
         }
         if (false == RunSuite("Light2DPixel", &RunLight2DPixelTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("PostProcessPixel", &RunPostProcessPixelTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ColorLut", &RunColorLutTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("PostProcessProfile", &RunPostProcessProfileTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Material", &RunMaterialTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("PostProcessMixer", &RunPostProcessMixerTests))
         {
             return 1;
         }
@@ -542,6 +602,31 @@ int main()
             return 1;
         }
         if (false == RunSuite("EditorApplication", &RunEditorApplicationTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptSummary", &RunScriptSummaryTests)
+            || false == RunSuite("ScriptSummaryPanel", &RunScriptSummaryPanelTests)
+            || false == RunSuite("ScriptSummaryIntegration", &RunScriptSummaryIntegrationTests)
+            || false == RunSuite("NativeDebug", &RunNativeDebugTests)
+            || false == RunSuite("SourceDebugger", &RunSourceDebuggerTests)
+            || false == RunSuite("NestedScriptType", &RunNestedScriptTypeTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Markdown", &RunMarkdownTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("AgentLive", &RunAgentLiveTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Agent", &RunAgentTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("CodeEditor", &RunCodeEditorTests))
         {
             return 1;
         }

@@ -131,7 +131,7 @@ namespace JBro
                 result.error.append(argument);
                 return result;
             }
-            // 이름 없는 인자는 프로젝트 경로다. 사람이 손으로 열 때와 탐색기에서 두 번 눌렀을 때(D-336) 온다.
+            // 이름 없는 인자는 프로젝트 경로다. 사람이 손으로 열 때와 탐색기에서 두 번 눌렀을 때(D-389) 온다.
             if (false == result.projectFile.empty())
             {
                 result.error = "the project was given twice: ";

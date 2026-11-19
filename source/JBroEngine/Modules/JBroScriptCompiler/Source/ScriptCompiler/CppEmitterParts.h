@@ -18,5 +18,5 @@ namespace JBro::ScriptCompiler::Internal
     };
 
     CppUnitParts EmitCppParts(ArrayView<const CppSource> sources, const ApiCatalog& api,
-        const CppSource& unit, bool emitModuleEntry, const AnalysisResult* analysis);
+        const CppSource& unit, Bool emitModuleEntry, const AnalysisResult* analysis);
 }

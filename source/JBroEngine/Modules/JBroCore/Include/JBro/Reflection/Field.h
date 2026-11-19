@@ -124,6 +124,8 @@ namespace JBro
         Bool        slider      = true;
         // 같은 타입의 `Bool` 필드 이름이다. 그 필드가 거짓이면 인스펙터가 이 줄을 두지 않는다(`VisibleWhen`, D-309).
         const char* visibleWhen = nullptr;
+        // 값이 화면 레이어의 픽셀이다(`Pixels`, D-354). 에디터가 월드 레이어의 오브젝트에 맨 컴포넌트를 붙일 때 기본값을 PPU 로 나눈다.
+        Bool        pixels = false;
 
         // 편집 메타데이터가 하나라도 있는지. 없으면 PropertyInfo::edit 를 nullptr 로 두어
         // 게임 빌드가 이 필드의 표시 이름·툴팁을 통째로 건너뛴다.
@@ -135,7 +137,8 @@ namespace JBro
                 || hasRange
                 || editable == false
                 || visible == false
-                || visibleWhen != nullptr;
+                || visibleWhen != nullptr
+                || pixels;
             // `slider` 는 `hasRange` 와 함께만 뜻이 있다 - 따로 세지 않는다.
         }
     };
@@ -156,6 +159,7 @@ namespace JBro
         merged.serialize   = left.serialize && right.serialize;
         merged.visible     = left.visible   && right.visible;
         merged.visibleWhen = right.visibleWhen != nullptr ? right.visibleWhen : left.visibleWhen;
+        merged.pixels      = left.pixels || right.pixels;
         return merged;
     }
 
@@ -200,6 +204,16 @@ namespace JBro
         {
             FieldAttributes attributes = Range(minimum, maximum);
             attributes.slider = false;
+            return attributes;
+        }
+
+        // **값이 화면 레이어의 픽셀이다**(D-354). 위젯의 누름 사각형·칸 크기처럼 화면 레이어에서는 기준 해상도의 픽셀이고 월드 레이어에서는
+        // 유닛인 값에 붙인다. 에디터가 월드 레이어의 오브젝트에 맨 컴포넌트를 붙일 때 이 필드의 기본값을 `DefaultPixelsPerUnit` 으로 나눈다 -
+        // 160 픽셀짜리 버튼이 월드에서 160 유닛(수십 미터)이 되지 않게. 값을 들고 붙이는 길(붙여넣기·다시 하기)과 스크립트는 그대로다.
+        constexpr FieldAttributes Pixels()
+        {
+            FieldAttributes attributes;
+            attributes.pixels = true;
             return attributes;
         }
 
@@ -273,22 +287,6 @@ namespace JBro
         {
             return &(static_cast<const Owner*>(owner)->*MemberPointer);
         };
-        entry.attributes = attributes;
-        return entry;
-    }
-
-    template <auto StaticPointer>
-    constexpr FieldEntry MakeStaticFieldEntry(const FieldAttributes& attributes = {})
-    {
-        using Field = std::remove_pointer_t<decltype(StaticPointer)>;
-        static_assert(std::is_pointer_v<decltype(StaticPointer)> && !std::is_const_v<Field>,
-            "reflected static fields require writable backing storage");
-
-        FieldEntry entry;
-        entry.name = Detail::FieldName<StaticPointer>::Text();
-        entry.GetType = &TypeDescriptorOf<Field>::Get;
-        entry.Address = [](void*) noexcept -> void* { return StaticPointer; };
-        entry.ConstAddress = [](const void*) noexcept -> const void* { return StaticPointer; };
         entry.attributes = attributes;
         return entry;
     }
@@ -548,36 +546,3 @@ namespace JBro
         }                                                                            \
     protected:                                                                       \
         FieldType FieldName
-
-// Static fields share one address across every instance and are not instance-owned.
-#define JBRO_STATIC_FIELD(FieldType, FieldName, ...)                                 \
-    public:                                                                          \
-        static constexpr auto JBroFieldAt(                                           \
-            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
-        {                                                                            \
-            using namespace ::JBro::Attribute;                                       \
-            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
-        }                                                                            \
-        inline static FieldType FieldName
-
-#define JBRO_STATIC_FIELD_PRIVATE(FieldType, FieldName, ...)                         \
-    public:                                                                          \
-        static constexpr auto JBroFieldAt(                                           \
-            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
-        {                                                                            \
-            using namespace ::JBro::Attribute;                                       \
-            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
-        }                                                                            \
-    private:                                                                         \
-        inline static FieldType FieldName
-
-#define JBRO_STATIC_FIELD_PROTECTED(FieldType, FieldName, ...)                       \
-    public:                                                                          \
-        static constexpr auto JBroFieldAt(                                           \
-            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
-        {                                                                            \
-            using namespace ::JBro::Attribute;                                       \
-            return ::JBro::MakeStaticFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);  \
-        }                                                                            \
-    protected:                                                                       \
-        inline static FieldType FieldName

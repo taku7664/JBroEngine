@@ -64,6 +64,7 @@ namespace JBro::Network::Native
 
         Bool Open() override;
         Bool Bind(std::uint16_t port) override;
+        Bool BindLoopback(std::uint16_t port) override;
         Bool Resolve(const char* host, std::uint16_t port, Endpoint& outEndpoint) override;
         SocketIo SendTo(const Endpoint& to, const void* data, std::size_t size) override;
         SocketIo ReceiveFrom(void* buffer, std::size_t capacity, std::size_t& outReceived, Endpoint& outFrom) override;
@@ -71,6 +72,7 @@ namespace JBro::Network::Native
         Bool IsOpen() const override;
 
     private:
+        Bool BindOn(UInt32 hostAddress, std::uint16_t port);
         void SetNonBlocking();
 
         static constexpr std::uintptr_t InvalidHandle = ~static_cast<std::uintptr_t>(0);

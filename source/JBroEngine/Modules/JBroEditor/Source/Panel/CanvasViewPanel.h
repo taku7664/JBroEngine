@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
+#include <JBro/Editor/Gizmo/ButtonRectModel.h>
 #include <JBro/Editor/Gizmo/LightGizmo3DModel.h>
 #include <JBro/Editor/Gizmo/LightGizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
@@ -28,6 +29,7 @@ namespace JBro
     }
     namespace Component
     {
+        class Button2D;
         class Text2D;
     }
 
@@ -121,6 +123,8 @@ namespace JBro
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);
+        // 후처리 볼륨의 모양과 섞는 거리의 끝이다(D-346).
+        void DrawPostProcessVolumes(const ViewRect& rect);
         void DrawJoints(const ViewRect& rect);
 
         // ── 폴리곤 콜라이더 편집(physics-plan §4 의 5, 기존 `CCanvasViewTool` 의 버텍스 편집) ─────────
@@ -175,7 +179,7 @@ namespace JBro
         void DrawLightEditor(const ViewRect& rect);
         // 손잡이 하나가 고친 필드를 커맨드 하나로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값(`before`)으로 되돌린 뒤 커맨드가 쓴다.
         void CommitLightField(const ComponentAddress& address, const char* fieldName, const String& before);
-        // **3D 라이트 기즈모**(D-353 3 단계). 인스펙터에서 고른 `Light3D` 에 점광은 `range` 구, 스포트는 원뿔, 방향광은 화살표를 그리고,
+        // **3D 라이트 기즈모**(D-407 3 단계). 인스펙터에서 고른 `Light3D` 에 점광은 `range` 구, 스포트는 원뿔, 방향광은 화살표를 그리고,
         // 손잡이를 끌어 `range` 와 각을 고친다. 2D 의 것과 같은 커맨드 길이다.
         struct Light3DTarget
         {
@@ -188,8 +192,23 @@ namespace JBro
         void DrawLightEditor3D(const ViewRect& rect);
         // 라이트·카메라 오브젝트의 표시(D-298 의 3D 판). 그림이 없는 오브젝트를 캔버스 뷰에서 찾을 수 있게 한다.
         void DrawObjectMarkers3D(const ViewRect& rect);
-        // 라이트 손잡이(2D 든 3D 든)를 가리키거나 끄는 중인가. 기즈모·고르기·상자 고르기가 마우스를 양보한다.
+        // 라이트 손잡이(2D 든 3D 든)를 가리키거나 끄는 중인가. 기즈모·고르기가 마우스를 양보한다.
         Bool LightHandleHot() const;
+        // **위젯 사각형**(D-351). 인스펙터에서 고른 버튼·토글·슬라이더(`RectFieldsOf`)의 사각형을 그리고, 변과 가운데의 손잡이를 끌어
+        // `size`·`offset` 을 고친다. 라이트와 달리 UI 보기에서도 선다(위젯은 화면 레이어에 많다). 콜라이더를 고치는 동안은 없다.
+        struct ButtonTarget
+        {
+            Object::GameObject*     object = nullptr;
+            ComponentBase*          component = nullptr;
+            Vector2*                size = nullptr;
+            Vector2*                offset = nullptr;
+            ComponentAddress        address;
+            Matrix3x2               world;
+        };
+        Bool FindButtonTarget(ButtonTarget& target);
+        void DrawButtonEditor(const ViewRect& rect);
+        // 끌기 하나가 고친 `size`·`offset` 을 커맨드 하나(`CompoundCommand`)로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값으로 되돌린 뒤 커맨드가 쓴다.
+        void CommitButtonRect(const ComponentAddress& address, const String& beforeSize, const String& beforeOffset);
         void DrawGizmo(const ViewRect& rect);
         // 몸통 누르기를 무장하고, 고르지 않은 것을 눌러 끌면 그것을 고른다(D-298).
         void ArmBodyDrag(const ViewRect& rect);
@@ -299,6 +318,16 @@ namespace JBro
         ComponentAddress m_light3DDragAddress;
         String m_light3DDragBefore;
         Float m_light3DDragStart = 0.0f;
+        // 버튼 사각형 손잡이. 라이트와 같은 꼴이다 - 끄는 동안 필드에 바로 쓰고, 놓을 때 되돌린 뒤 커맨드로 쓴다.
+        ButtonRectModel::Handle m_buttonHover = ButtonRectModel::Handle::None;
+        ButtonRectModel::Handle m_buttonDragHandle = ButtonRectModel::Handle::None;
+        Bool m_buttonDragging = false;
+        ComponentAddress m_buttonDragAddress;
+        String m_buttonDragBeforeSize;
+        String m_buttonDragBeforeOffset;
+        Vector2 m_buttonDragStartOffset;
+        Vector2 m_buttonDragStartSize;
+        Vector2 m_buttonGrabLocal;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
         Array<Component::DistanceJoint2D*> m_distanceJointScratch;

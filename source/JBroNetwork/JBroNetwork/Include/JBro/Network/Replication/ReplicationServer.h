@@ -24,6 +24,9 @@ namespace JBro::Network
         UInt32 lastDeltaBytes = 0;
         // 전체 스냅숏을 보낸 횟수(기준이 없거나 이력에서 밀렸다).
         UInt32 fullSnapshotsSent = 0;
+        // 소유자가 올린 값을 받아들인 횟수와, 소유자가 아니어서 버린 횟수(후자는 거짓말이거나 뒤늦은 것이다).
+        UInt32 ownedStateApplied = 0;
+        UInt32 ownedStateRefused = 0;
         // 델타가 상한을 넘어 보내지 못한 틱 수.
         UInt32 oversizedTicks = 0;
         // 이번 스텝에 실제로 인코드한 횟수. 클라이언트 수가 아니라 **서로 다른 기준의 수**다.
@@ -46,6 +49,11 @@ namespace JBro::Network
         void Step(ReplicationTick tick);
         // 트랜스포트에서 꺼낸 메시지 가운데 복제 것이면 처리하고 참을 돌려준다.
         Bool HandleMessage(const MessageView& view);
+
+        // **이 오브젝트를 어느 연결이 갖는가.** `InvalidConnectionId` 면 서버다. 복제 표에 없는 오브젝트는 거짓이다
+        // (아직 스냅숏에 들지 않았다 - 다음 스텝에 들어온 뒤 다시 부른다). 바뀌면 모든 클라이언트에 알린다.
+        Bool SetOwner(InstanceId object, ConnectionId owner);
+        ConnectionId GetOwner(InstanceId object) const;
 
         const ReplicationServerDiagnostics& GetDiagnostics() const;
         NetworkObjectId FindNetworkId(InstanceId object) const;
@@ -84,6 +92,8 @@ namespace JBro::Network
         };
 
         ObjectRecord* FindRecord(InstanceId instance);
+        void SendOwner(ConnectionId connection, const ObjectRecord& record);
+        void HandleOwnedState(const MessageView& view);
         ObjectRecord* FindRecordByNetworkId(NetworkObjectId id);
         ObjectRecord* AddRecord(InstanceId instance, const SpawnDesc& desc);
         void RemoveRecordAt(std::size_t index);

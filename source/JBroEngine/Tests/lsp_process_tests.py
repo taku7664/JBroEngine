@@ -270,6 +270,117 @@ class ProcessTests(unittest.TestCase):
                 self.assertEqual(response["error"]["code"], -32602)
                 self.assertIn(expected, response["error"]["message"])
 
+    def test_field_attribute_diagnostics_match_command_line(self):
+        # The emitter used to be the only place that rejected these, as an English line with no position,
+        # while the server showed nothing. Both now report the analysis diagnostic at the attribute name.
+        cases = {
+            "UnknownAttribute.jscript": ("script A\n{\n    [rnage(0, 1)]\n    Int value = 0\n}\n", "JBC3045"),
+            "ArgumentCount.jscript": ("script B\n{\n    [range(1)]\n    Int value = 0\n}\n", "JBC3046"),
+            "PropArguments.jscript": ("script C\n{\n    [prop(1)]\n    Int value = 0\n}\n", "JBC3046"),
+        }
+        # D-385 (review R4-3): the attributes are C++ constexpr arguments, so range/clamp take number literals and the
+        # text attributes take string literals. The diagnostic sits on the argument.
+        typed = {
+            "RangeText.jscript": ("script D\n{\n    [range(\"a\", 1)]\n    Int value = 0\n}\n", [("JBC3051", 3, 12)]),
+            "RangeField.jscript": ("script E\n{\n    Int top = 9\n    [range(0, top)]\n    Int value = 0\n}\n", [("JBC3051", 4, 15)]),
+            "TooltipNumber.jscript": ("script F\n{\n    [tooltip(5)]\n    Int value = 0\n}\n", [("JBC3051", 3, 14)]),
+            "Fine.jscript": ("script G\n{\n    [range(-1, 2.5), category(\"Stats\")]\n    Float value = 0.0\n}\n", []),
+        }
+        session = self.start()
+        for name, (source, code) in cases.items():
+            with self.subTest(name=name):
+                uri = self.document(name, source)
+                served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                          for item in self.open(session, uri, source)]
+                self.assertEqual(served, [(code, 3, 6)])
+                output = self.root / "emit" / name
+                process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(output),
+                                          str(self.scripts / name)], capture_output=True, timeout=30)
+                self.assertEqual(process.returncode, 1, process.stderr)
+                printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                           re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+                self.assertEqual(printed, served)
+                self.assertNotIn(b"C++ emit error", process.stderr)
+        for name, (source, expected) in typed.items():
+            with self.subTest(name=name):
+                uri = self.document(name, source)
+                served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                          for item in self.open(session, uri, source)]
+                self.assertEqual(served, expected)
+                output = self.root / "emit" / name
+                process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(output),
+                                          str(self.scripts / name)], capture_output=True, timeout=30)
+                printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                           re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+                self.assertEqual(printed, served)
+                self.assertEqual(process.returncode, 1 if expected else 0, process.stdout)
+
+    def test_expression_depth_limit_matches_command_line(self):
+        # D-374: an expression may nest 100 levels. One more is JBC2015 at the same place for the command line and the server,
+        # and a document far past the limit (which used to take the whole server down) leaves the server answering.
+        def source(name, expression):
+            return "script " + name + "\n{\n    ref Int maybe\n    fn F() -> Int\n    {\n        return " + expression + "\n    }\n}\n"
+        cases = {
+            "Plus100.jscript": (source("Plus100", " + ".join(["1"] * 100)), []),
+            "Plus101.jscript": (source("Plus101", " + ".join(["1"] * 101)), [("JBC2015", 6, 16)]),
+            "Paren101.jscript": (source("Paren101", "(" * 100 + "1" + ")" * 100), [("JBC2015", 6, 116)]),
+            "Coalesce60000.jscript": (source("Coalesce60000", " ?? ".join(["maybe"] * 60000) + " ?? 0"), [("JBC2015", 6, 916)]),
+        }
+        session = self.start()
+        for name, (text, expected) in cases.items():
+            with self.subTest(name=name):
+                uri = self.document(name, text)
+                served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                          for item in self.open(session, uri, text)]
+                self.assertEqual(served, expected)
+                process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(self.root / "emit" / name),
+                                          str(self.scripts / name)], capture_output=True, timeout=60)
+                printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                           re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+                self.assertEqual(printed, served)
+                self.assertEqual(process.returncode, 1 if expected else 0, process.stderr)
+        self.assertIsNone(session.process.poll(), "the server is still running after the deep documents")
+
+    def test_block_depth_limit_matches_command_line(self):
+        # D-376: a function can nest blocks 32 levels (the body and 31 more). One more is JBC2016 at its brace on both sides.
+        def source(name, inner):
+            return ("script " + name + "\n{\n    Bool flag = true\n    fn F()\n    {\n" + "if (flag) {\n" * inner + "}\n" * inner
+                    + "    }\n}\n")
+        cases = {
+            "Blocks31.jscript": (source("Blocks31", 31), []),
+            "Blocks32.jscript": (source("Blocks32", 32), [("JBC2016", 37, 11)]),
+            "Blocks60000.jscript": (source("Blocks60000", 60000), [("JBC2016", 37, 11)]),
+        }
+        session = self.start()
+        for name, (text, expected) in cases.items():
+            with self.subTest(name=name):
+                uri = self.document(name, text)
+                served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                          for item in self.open(session, uri, text)]
+                self.assertEqual(served, expected)
+                process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(self.root / "emit" / name),
+                                          str(self.scripts / name)], capture_output=True, timeout=60)
+                printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                           re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+                self.assertEqual(printed, served)
+                self.assertEqual(process.returncode, 1 if expected else 0, process.stderr)
+        self.assertIsNone(session.process.poll(), "the server is still running after the deep documents")
+
+    def test_owned_field_cycle_matches_command_line(self):
+        # D-377: the cycle is an analysis diagnostic, so the server shows it while editing, at the same place as the build.
+        text = "struct Left\n{\n    Right right\n}\n\nstruct Right\n{\n    ref Left left\n}\n"
+        uri = self.document("Cycle.jscript", text)
+        session = self.start()
+        served = [(item["code"], item["range"]["start"]["line"] + 1, item["range"]["start"]["character"] + 1)
+                  for item in self.open(session, uri, text)]
+        self.assertEqual(served, [("JBC3048", 3, 11), ("JBC3048", 8, 14)])
+        process = subprocess.run([str(EXE), "--locale", "en-US", "--emit-project", str(self.root / "emit" / "cycle"),
+                                  str(self.scripts / "Cycle.jscript")], capture_output=True, timeout=60)
+        printed = [(match.group(3), int(match.group(1)), int(match.group(2))) for match in
+                   re.finditer(r"\((\d+),(\d+)\): error (JBC\d+)", process.stdout.decode("utf-8"))]
+        self.assertEqual(printed, served)
+        self.assertNotIn(b"emit error", process.stderr)
+
     def test_unsaved_diagnostics_fix_and_close(self):
         valid = "script Enemy\n{\npublic Int hp = 1\n}\n"
         uri = self.document("Enemy.jscript", valid)

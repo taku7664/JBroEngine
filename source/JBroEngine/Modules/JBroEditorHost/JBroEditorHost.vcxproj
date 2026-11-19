@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroPackage\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroScriptRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroPackage\Include;$(JBroModulesDir)JBroShaderCompiler\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <!-- 창 프로그램이다. 진입점은 그대로 `main` 이고, 터미널에서 띄우면 `ParentConsole.cpp` 가 부모 콘솔에 붙는다. -->
@@ -85,6 +85,12 @@
     <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
       <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptRuntime\JBroScriptRuntime.vcxproj">
+      <Project>{1a000058-0000-4000-8000-0000000a5c11}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScreenUi\JBroScreenUi.vcxproj">
+      <Project>{1a000057-0000-4000-8000-00000005c0e1}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
       <Project>{1a000008-0000-4000-8000-000000000f2d}</Project>
     </ProjectReference>
@@ -124,6 +130,9 @@
     <ProjectReference Include="$(JBroModulesDir)JBroText\JBroText.vcxproj">
       <Project>{1a000030-0000-4000-8000-000000007e47}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroShaderCompiler\JBroShaderCompiler.vcxproj">
+      <Project>{1a000056-0000-4000-8000-00000005ade7}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroNodeGraph\JBroNodeGraph.vcxproj">
       <Project>{1a000035-0000-4000-8000-0000000006a7}</Project>
     </ProjectReference>
@@ -152,6 +161,16 @@
       <Project>{1a000034-0000-4000-8000-00000000fa4c}</Project>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroThirdPartyDir)md4c\md4c.vcxproj"><Project>{aa8e7e65-a7d3-4e51-bc30-a32716e20c01}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)ImGuiColorTextEdit\ImGuiColorTextEdit.vcxproj"><Project>{3a97ca11-209a-48a3-8104-641ebc4bc606}</Project></ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroc\JBroc.vcxproj">
+      <Project>{1a000016-0000-4000-8000-00000000b20c}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <!--
     에디터가 읽는 파일을 실행 파일 옆에 둔다(D-99 이후의 배포 레이아웃). 로컬라이징 표와
@@ -159,12 +178,14 @@
     두고 실행해야만 글자와 아이콘이 나온다. 런처는 엔진 설치 폴더 하나만 알면 되어야 한다.
   -->
   <ItemGroup>
+    <JBroAgentSkills Include="$(JBroRoot)AgentSkills\**\*.md" />
     <JBroLocalizationFiles Include="$(JBroRoot)Localization\*.yaml" />
     <JBroIconFontFiles Include="$(JBroThirdPartyDir)MaterialDesignIcons\*.ttf" />
   </ItemGroup>
   <Target Name="JBroCopyEditorContent" AfterTargets="Build"
-          Inputs="@(JBroLocalizationFiles);@(JBroIconFontFiles)"
-          Outputs="@(JBroLocalizationFiles->'$(OutDir)Localization\%(Filename)%(Extension)');@(JBroIconFontFiles->'$(OutDir)ThirdParty\MaterialDesignIcons\%(Filename)%(Extension)')">
+          Inputs="@(JBroLocalizationFiles);@(JBroIconFontFiles);@(JBroAgentSkills)"
+          Outputs="@(JBroAgentSkills->'$(OutDir)AgentSkills\%(RecursiveDir)%(Filename)%(Extension)');@(JBroLocalizationFiles->'$(OutDir)Localization\%(Filename)%(Extension)');@(JBroIconFontFiles->'$(OutDir)ThirdParty\MaterialDesignIcons\%(Filename)%(Extension)')">
+    <Copy SourceFiles="@(JBroAgentSkills)" DestinationFiles="@(JBroAgentSkills->'$(OutDir)AgentSkills\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(JBroLocalizationFiles)" DestinationFolder="$(OutDir)Localization" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(JBroIconFontFiles)" DestinationFolder="$(OutDir)ThirdParty\MaterialDesignIcons" SkipUnchangedFiles="true" />
   </Target>

@@ -615,8 +615,8 @@ namespace
         editor.Shutdown();
     }
 
-    // **디버그 실행 메뉴**(D-330 5 단계). 통로를 열고 재생을 시작하며, 어댑터가 붙을 수 있다. 다시 누르면 재생과 통로를 함께 닫는다.
-    void TestDebugSessionOpensTheChannelAndPlays()
+    // 디버그 실행은 빌드와 중단점 준비를 마친 뒤 재생한다. 준비 실패는 통로나 실행을 남기지 않는다.
+    void TestDebugSessionWaitsForPreparation()
     {
         RegisterScriptType<BreakScript>();
         EditorApplication editor;
@@ -639,19 +639,11 @@ namespace
 
         Check(false == editor.IsDebugSessionActive(), "debugging is off at first");
         editor.StartDebugSession();
-        Check(editor.IsDebugSessionActive() && editor.IsScriptDebugServerActive(), "start debugging opens the channel");
-        Check(editor.IsSimulationPlaying(), "and starts play so scripts can hit breakpoints");
-        Check(editor.GetNotifications().GetLastLevel() == NotificationLevel::Info, "the user is told debugging is on");
-
-        // 어댑터가 붙을 수 있다 - 통로가 이 프로세스의 이름으로 열려 있다.
-        PipeClient client;
-        Check(client.Connect(GetCurrentProcessId()), "an adapter can connect while debugging");
-        Check(editor.Tick(Frame), "the editor ticks while debugging");
-        client.Close();
-
+        Check(false == editor.IsDebugSessionActive(), "a project without buildable source cannot enter debugging");
+        Check(false == editor.IsScriptDebugServerActive(), "failed preparation leaves no debug channel");
+        Check(false == editor.IsSimulationPlaying(), "play waits for a successful build and breakpoint configuration");
+        Check(editor.GetNotifications().GetLastLevel() == NotificationLevel::Error, "the preparation failure is reported");
         editor.StopDebugSession();
-        Check(false == editor.IsDebugSessionActive() && false == editor.IsScriptDebugServerActive(), "stop debugging closes the channel");
-        Check(false == editor.IsSimulationPlaying(), "and stops play");
         editor.Shutdown();
     }
 }
@@ -661,7 +653,7 @@ JBro::Int32 RunScriptBreakTests()
     JBRO_CASE(TestScriptBreakStopsOnlyTheGame());
     JBRO_CASE(TestSteppingAdvancesTheLine());
     JBRO_CASE(TestTheDebugServerRelaysAcrossThePipe());
-    JBRO_CASE(TestDebugSessionOpensTheChannelAndPlays());
+    JBRO_CASE(TestDebugSessionWaitsForPreparation());
     std::cout << "ScriptBreak tests passed.\n";
     return 0;
 }

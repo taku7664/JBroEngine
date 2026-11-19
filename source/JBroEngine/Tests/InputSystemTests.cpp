@@ -211,6 +211,60 @@ namespace
 
     // 게임 스크립트가 보는 마우스는 게임 화면 픽셀이다. 에디터의 시뮬레이션 뷰처럼 창의 일부에 그려질 때는
     // 그 사각형을 벗겨야 월드를 집을 수 있다(기존 엔진 `bc0bb4df`).
+    // IME 조합(D-355)은 프레임을 넘어 남는다 - 조합 글자가 바뀌면 처음부터 다시 오고, 끝 이벤트와 포커스 잃음이 비운다.
+    void TestCompositionPersistsUntilItEnds()
+    {
+        System::InputSystem input;
+        InputEvent begin;
+        begin.kind = InputEventKind::CompositionBegin;
+        InputEvent first;
+        first.kind = InputEventKind::Composition;
+        first.codePoint = 0x3131;
+        InputEvent second;
+        second.kind = InputEventKind::Composition;
+        second.codePoint = 0xAC00;
+        InputEvent end;
+        end.kind = InputEventKind::CompositionEnd;
+        {
+            const InputEvent events[] = { begin, first, second };
+            input.BeginFrame(View(events));
+        }
+        const KeyboardState& keyboard = input.GetFrame().keyboard;
+        Check(keyboard.GetCompositionLength() == 2 && keyboard.GetComposition(0) == 0x3131 && keyboard.GetComposition(1) == 0xAC00,
+            "the composition holds its code points in order");
+        Check(keyboard.GetTextLength() == 0, "composing is not typing");
+        input.BeginFrame({});
+        Check(input.GetFrame().keyboard.GetCompositionLength() == 2, "the composition stays across frames");
+        {
+            const InputEvent events[] = { begin, second };
+            input.BeginFrame(View(events));
+        }
+        Check(input.GetFrame().keyboard.GetCompositionLength() == 1 && input.GetFrame().keyboard.GetComposition(0) == 0xAC00,
+            "a new begin replaces the composition");
+        Check(input.GetFrame().keyboard.GetComposition(1) == 0, "past the end reads zero");
+        {
+            const InputEvent events[] = { end, TextEvent(0xAC00) };
+            input.BeginFrame(View(events));
+        }
+        Check(input.GetFrame().keyboard.GetCompositionLength() == 0 && input.GetFrame().keyboard.GetTextLength() == 1,
+            "the end clears the composition and the result arrives as text");
+        {
+            const InputEvent events[] = { begin, first, FocusEvent(InputEventKind::FocusLost) };
+            input.BeginFrame(View(events));
+        }
+        Check(input.GetFrame().keyboard.GetCompositionLength() == 0, "losing focus drops the composition");
+        {
+            InputEvent events[MaxTextPerFrame + 4];
+            events[0] = begin;
+            for (std::size_t index = 1; index < MaxTextPerFrame + 4; ++index)
+            {
+                events[index] = first;
+            }
+            input.BeginFrame(View(events));
+        }
+        Check(input.GetFrame().keyboard.GetCompositionLength() == MaxTextPerFrame, "a composition is capped like text");
+    }
+
     void TestTheMouseIsMappedToTheGameSurface()
     {
         System::InputSystem input;
@@ -354,6 +408,7 @@ JBro::Int32 RunInputSystemTests()
     JBRO_CASE(TestARepeatIsNotAPress());
     JBRO_CASE(TestLosingFocusReleasesEverything());
     JBRO_CASE(TestTextComesInOrderAndIsCapped());
+    JBRO_CASE(TestCompositionPersistsUntilItEnds());
     JBRO_CASE(TestTheMouseIsMappedToTheGameSurface());
     JBRO_CASE(TestOutOfRangeNamesAreIgnored());
     JBRO_CASE(TestPlatformEventsFoldIntoState());

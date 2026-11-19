@@ -23,8 +23,12 @@ mono_crash.*
 [Rr]eleases/
 x64/
 x86/
-# Script SDK header copy made by the engine build (D-334)
-source/JBroEngine/Build/ScriptSdk/
+# Build outputs land under one root (source/JBro.BuildPaths.props, D-370): BuildOutput/ by default, or under %JBRO_BUILD_ROOT%.
+/BuildOutput/
+/BuildOutput.txt
+# Folders the build wrote before D-370
+source/JBroEngine/Build/
+source/JBroNetwork/Build/
 [Ww][Ii][Nn]32/
 [Aa][Rr][Mm]/
 [Aa][Rr][Mm]64/

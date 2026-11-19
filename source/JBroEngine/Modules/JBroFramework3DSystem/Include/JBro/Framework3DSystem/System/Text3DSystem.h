@@ -30,7 +30,7 @@ namespace JBro::System
     // `TextBlock`), 더러운 아틀라스 페이지만 올리고, 캐시된 글리프마다 아이템을 낸다. 아이템은 오브젝트 로컬의 사각형(유닛)과 오브젝트의
     // 월드 자리·회전·크기다 - 빌보드의 회전과 뒤→앞 정렬은 뷰마다 브리지가 한다(게임 카메라와 편집 카메라가 다르다).
     //
-    // 폰트 표와 아틀라스(`TextLibrary`)는 이 시스템이 제 것으로 든다. 2D 텍스트 시스템과 나눠 쓰지 않는다 - 캔버스 하나는 한 차원이다.
+    // 폰트 표와 아틀라스(`TextLibrary`)는 이 시스템이 제 것으로 든다. 2D 텍스트 시스템과 나눠 쓰지 않는다 - 3D 캔버스의 화면 레이어 글자(`Text2D`)는 화면 UI 의 `Text2DSystem` 이 제 아틀라스로 그린다(D-362).
     // 스크립트 서비스(`Text3DService`)가 부르는 글자 읽기·쓰기는 공용 `TextSystemBase` 가 한다(D-224).
     class Text3DSystem final : public GameSystem, public TextSystemBase
     {

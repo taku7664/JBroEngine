@@ -41,6 +41,9 @@ namespace JBro
         // 이번 프레임에 들어온 글자(유니코드 코드포인트)를 들어온 순서대로 둔다. 키와 별개다(D-62).
         UInt32 textLength = 0;
         UInt32 text[MaxTextPerFrame] = {};
+        // IME 가 조합 중인 글자(코드포인트, 차례대로)다(D-355). 조합이 이어지는 동안 **프레임을 넘어 남고**, 조합이 끝나거나 창이 포커스를 잃으면 빈다.
+        UInt32 compositionLength = 0;
+        UInt32 composition[MaxTextPerFrame] = {};
 
         Bool IsDown(Key key) const
         {
@@ -87,6 +90,21 @@ namespace JBro
                 return 0;
             }
             return text[index];
+        }
+
+        // 조합 중인 글자다(D-355). 0 이면 조합 중이 아니다.
+        UInt32 GetCompositionLength() const
+        {
+            return compositionLength;
+        }
+
+        UInt32 GetComposition(UInt32 index) const
+        {
+            if (index >= compositionLength || index >= MaxTextPerFrame)
+            {
+                return 0;
+            }
+            return composition[index];
         }
     };
 

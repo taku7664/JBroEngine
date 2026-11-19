@@ -55,10 +55,32 @@ namespace
         // 개수를 적어 두면 필드를 더하거나 지울 때 테스트가 먼저 운다.
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
         Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
-        Check(Table("Component::Button2D").count == 11, "Button2D declares eleven fields - size, offset, two switches, four tints and three states (D-237)");
-        Check(Table("Component::Camera2D").count == 7, "Camera2D declares seven fields (pixelsPerUnit since D-239)");
-        Check(Table("Component::SpriteRenderer2D").count == 14, "SpriteRenderer2D declares fourteen fields - the hidden drawSequence of D-296 is the fourteenth");
-        Check(Table("Component::Text2D").count == 23, "Text2D declares twenty-three fields - with the hidden drawSequence of D-296");
+        Check(Table("Component::Button2D").count == 25,
+            "Button2D declares twenty-five fields - size, offset, interactable, the transition and its target of D-351, four tints, three state sprite pairs, two sound pairs of D-358, four states and the swap latch");
+        Check(Table("Component::InputField2D").count == 38, "InputField2D declares thirty-eight fields - the rect, interactable, the transition set of D-355 (twelve), text, display, caret, selection, maxLength, blinkRate, five states, the caret index, the selection anchor, composing and five hidden values (D-352, D-354, D-355), the composition underline and the undo text, caret and flag (D-361)");
+        Check(Table("Component::ToggleGroup2D").count == 2, "ToggleGroup2D declares two fields - allowOff and the value state (D-355)");
+        Check(Table("Component::Dropdown2D").count == 28, "Dropdown2D declares twenty-eight fields - the rect, interactable, the transition set (twelve), list, caption, value, six states, two shown values and the swap latch (D-355, D-360)");
+        Check(Table("Component::Layout2D").count == 9, "Layout2D declares nine fields - mode, cell, spacing, padding, columns, pivot, fitChildren and the block size (D-352, D-355)");
+        Check(Table("Component::ContentSizeFitter2D").count == 6, "ContentSizeFitter2D declares six fields - two axes, padding, minSize and the fitted size (D-355)");
+        Check(Table("Component::Tooltip2D").count == 8, "Tooltip2D declares eight fields - the rect, delay, target, follow and its offset, shown and the hover time (D-357, D-360)");
+        Check(Table("Component::Modal2D").count == 1, "Modal2D declares one field - blockGame (D-357)");
+        Check(Table("Component::TabGroup2D").count == 2, "TabGroup2D declares two fields - content and the page state (D-357)");
+        Check(Table("Component::Draggable2D").count == 10, "Draggable2D declares ten fields - the rect, interactable, snapBack, liftOrder, two states, the hidden start and the lift taken (D-357, D-360)");
+        Check(Table("Component::DropTarget2D").count == 4, "DropTarget2D declares four fields - the rect and two states (D-357)");
+        Check(Table("Component::Tween2D").count == 16, "Tween2D declares sixteen fields - target, ease, duration, loop, playOnStart, next, three from/to pairs, three states and the hidden start (D-357, D-360)");
+        Check(Table("Component::ListView2D").count == 15, "ListView2D declares fifteen fields - count, item size, spacing, axis, variableSize, six states, three hidden ranges and the measured count (D-357, D-360)");
+        Check(Table("Component::SafeArea2D").count == 2, "SafeArea2D declares two axes (D-358)");
+        Check(Table("Component::CanvasGroup2D").count == 3, "CanvasGroup2D declares alpha, interactable and blocksRaycasts (D-358, D-361)");
+        Check(Table("Component::AspectRatioFitter2D").count == 2, "AspectRatioFitter2D declares mode and aspect (D-358)");
+        Check(Table("Component::VirtualKeyboard2D").count == 4, "VirtualKeyboard2D declares the target and three special keys (D-358)");
+        Check(Table("Component::Navigation2D").count == 4, "Navigation2D declares four directions (D-358)");
+        Check(Table("Component::Slider2D").count == 25, "Slider2D declares twenty-five fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), direction, value, handle, fill and four states (D-351, focused of D-352)");
+        Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
+        Check(Table("Component::ScrollView2D").count == 10, "ScrollView2D declares ten fields - content, its size, two scrollbars, two axes, sensitivity, deceleration and two states (D-351, D-355)");
+        Check(Table("Component::Toggle2D").count == 23, "Toggle2D declares twenty-three fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), isOn, checkmark and four states (D-351, focused of D-352)");
+        Check(Table("Component::Camera2D").count == 15, "Camera2D declares fifteen fields - pixelsPerUnit of D-239, the post-process profile pair of D-344, then the viewport and depth of D-359, and clearViewport (D-362), and the render texture id and handle (D-362)");
+        Check(Table("Component::SpriteRenderer2D").count == 19, "SpriteRenderer2D declares nineteen fields - the hidden drawSequence of D-296, then drawMode, fillAmount and fillOrigin of D-351, and the render texture id and handle (D-362)");
+        Check(Table("Component::Text2D").count == 26, "Text2D declares twenty-six fields - with the hidden drawSequence of D-296, and the highlight range and colour (D-362)");
         Check(Table("Component::Rigidbody2D").count == 11,
             "Rigidbody2D declares eleven fields - the seven of D-199, then angular damping, the axis locks of D-227 and canSleep of D-229");
         Check(Table("Component::Collider2D").count == 12,
@@ -79,7 +101,7 @@ namespace
 
         // 3D 도 2D 와 같은 모양이 됐다(framework3d-plan §2.1). 저작 값 셋 + 월드 캐시 넷.
         Check(Table("Component::Transform3D").count == 7, "Transform3D declares seven fields");
-        Check(Table("Component::Camera3D").count == 7, "Camera3D declares seven fields");
+        Check(Table("Component::Camera3D").count == 9, "Camera3D declares nine fields - with the post-process profile pair of D-344");
         Check(Table("Component::MeshRenderer3D").count == 6, "MeshRenderer3D declares six fields");
         Check(Table("Component::Text3D").count == 19, "Text3D declares nineteen fields");
         Check(Table("Component::Rigidbody3D").count == 2, "Rigidbody3D declares two fields");

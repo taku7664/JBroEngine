@@ -1,4 +1,5 @@
 #include "TextCoordinates.h"
+#include <JBro/Types/ValueMath.h>
 
 #include <algorithm>
 #include <cctype>
@@ -53,7 +54,7 @@ namespace JBro::ScriptLanguageServer::Detail
 
     Json PositionCursor::At(UInt32 offset)
     {
-        const std::size_t end = std::min(static_cast<std::size_t>(offset), m_text.size());
+        const std::size_t end = Min(static_cast<std::size_t>(offset), m_text.size());
         if (end < m_offset)
         {
             m_offset = m_text.starts_with("\xEF\xBB\xBF") ? 3 : 0;

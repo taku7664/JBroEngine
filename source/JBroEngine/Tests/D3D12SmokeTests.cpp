@@ -184,7 +184,7 @@ namespace
             Check(fs::exists(root / "Assets" / "renamed.png.jmeta", ignored), "and its meta moved with it");
             Check(engine.GetAssetRegistry().FindByPath("extra.png") == nullptr, "and the old path is gone");
 
-            // **모델 파일을 고치면 하위 목록이 맞춰지고 로드된 메시가 다시 읽힌다**(D-342). 메시 하나에서 둘로 - 처음 메시는 같은 아이디다.
+            // **모델 파일을 고치면 하위 목록이 맞춰지고 로드된 메시가 다시 읽힌다**(D-395). 메시 하나에서 둘로 - 처음 메시는 같은 아이디다.
             {
                 const JBro::AssetRecord* crate = engine.GetAssetRegistry().FindByPath("crate.obj");
                 Check(crate != nullptr && crate->type == JBro::AssetType::Model, "the model is registered");

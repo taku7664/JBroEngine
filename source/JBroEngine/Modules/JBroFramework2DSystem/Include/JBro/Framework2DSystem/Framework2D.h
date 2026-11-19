@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Framework2DSystem/Scripting/UiBindings2D.h>
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -7,19 +8,24 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Prefab/Prefab.h>
-#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
+#include <JBro/ScreenUi/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
-#include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
+#include <JBro/ScriptRuntime/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
-#include <JBro/Framework2DSystem/System/SpriteRender2DSystem.h>
-#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
+#include <JBro/ScreenUi/System/SpriteRender2DSystem.h>
+#include <JBro/ScreenUi/System/Transform2DSystem.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasObjectSystem.h>
 #include <JBro/Canvas/SystemScheduler.h>
-#include <JBro/Framework2DSystem/Rendering/SpriteLibrary.h>
+#include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
+#include <JBro/Graphics/MaterialLibrary.h>
+#include <JBro/Graphics/PostProcessLibrary.h>
+#include <JBro/Graphics/PostProcessMixer.h>
+#include <JBro/Host/MaterialSystem.h>
+#include <JBro/Host/PostProcessSystem.h>
 #include <JBro/Types/Table.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
@@ -83,6 +89,39 @@ namespace JBro
         ScreenSpaceFrame m_screenSpace;
         // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
         SpriteLibrary    m_spriteLibrary;
+        // 화면 UI 의 연결(D-362): 훅은 `GameScript2D` 로, 월드 레이어는 카메라 2D 로.
+        System::UiHookDispatcher2D m_uiHooks;
+        System::WorldLayerMapper2D m_worldLayers;
+        // 머티리얼 에셋 → 렌더러 머티리얼(D-347). 스프라이트의 `materialId` 와 후처리 효과 `Material` 이 쓴다. 프로필 라이브러리보다 먼저 서고 늦게 내려간다.
+        MaterialLibrary  m_materials;
+        // 카메라의 후처리 프로필을 푼다(D-344). 추출 뒤에 이번 카메라의 것을 렌더 월드에 건다.
+        PostProcessLibrary m_postProcess;
+        // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 덮어쓰기는 스크립트 컨텍스트의 `PostProcess` 로 들어온다.
+        PostProcessMixer m_postMixer;
+        // 분할 화면의 다른 카메라마다의 섞기(D-361). 주 카메라는 `m_postMixer` 다. 자리는 처음에 `MaxCameraMixers` 만큼 잡는다.
+        Array<PostProcessMixer> m_cameraMixers;
+        static constexpr UInt32 MaxCameraMixers = 8;
+        PostProcessSystem m_postProcessSystem;
+        // 스크립트의 머티리얼 파라미터 덮어쓰기(D-348). `m_materials` 에 묶인다.
+        MaterialSystem m_materialSystem;
+        // 이번 프레임에 섞을 볼륨이다. 자리는 처음에 잡는다.
+        struct VolumeSample
+        {
+            Int32 priority = 0;
+            Float weight = 0.0f;
+            AssetHandle profile;
+        };
+        Array<VolumeSample> m_volumes;
+        static constexpr UInt32 PostMixerEntries = 32;
+        static constexpr UInt32 PostMixerBlockBytes = 4096;
+        static constexpr UInt32 MaxVolumes = 64;
+        // 레이어 효과 자리의 처음 크기다(레이어 수). 넘으면 그때 늘린다.
+        static constexpr UInt32 LayerPostProcessCapacity = 64;
+        void ResolvePostProcess();
+        // 렌더 텍스처에 그리는 카메라(D-362)의 대상을 스프라이트 라이브러리로 풀어 렌더 월드에 건다. 추출 뒤, 렌더러 프레임 밖이다.
+        void ResolveCameraTargets();
+        // 카메라 하나의 프로필에 그 자리의 볼륨을 섞고 덮어쓰기를 얹는다(D-346·D-361). `overridesFrom` 이 있으면 그 섞기의 덮어쓰기를 받는다.
+        void MixPostProcessFor(const RenderCamera2D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom);
         // 복제 풀 어댑터들(D-122). 네트워크가 있을 때만 있고, 캔버스와 함께 죽는다.
         OwnerPtr<Framework2DNetworkBinding> m_networkBinding;
         // 스크립트 DLL 에 넘길 블록과 그 실체다. 블록이 이것들을 가리키므로

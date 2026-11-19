@@ -5,6 +5,8 @@
 #include <JBro/Core/Core.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Runtime/ScriptModule.h>
+#include <JBro/Types/String.h>
+#include <cstddef>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
@@ -12,6 +14,7 @@
 namespace JBro
 {
     class AssetSystem;
+    class IShaderCompiler;
     class NetworkHost;
     class TaskManager;
     namespace System
@@ -59,6 +62,8 @@ namespace JBro
         Bool debugDraw = true;
         // 2D 라이트로 그릴지다(D-291). 거짓이면 빛을 받는 레이어도 원래 색이다. UI 보기는 늘 빛이 없다.
         Bool lighting = true;
+        // 게임 카메라의 후처리 프로필을 걸지다(D-344). 캔버스 뷰의 단추가 끈다. UI 보기는 늘 후처리가 없다(화면 레이어는 게임에서도 후처리 뒤다).
+        Bool postProcess = true;
         // 캔버스 뷰에서 **들어가 있는 오브젝트**다(D-157, D-252). 있으면 장면 위에 반투명 흰 막을 덮고 이 오브젝트와
         // 그 자손만 막 위에 다시 그린다 - 무엇을 고치는 중인지가 화면에서 보인다. 없으면 막이 없다. 2D 만 읽는다.
         InstanceId focusObject = InvalidInstanceId;
@@ -95,6 +100,18 @@ namespace JBro
         Float clearColor[4] = {0.08f, 0.09f, 0.11f, 1.0f};
     };
 
+    // **글자 입력 호스트**(D-355). 글자 칸이 포커스를 가진 프레임마다 프레임워크가 커서의 자리(게임 화면 픽셀, 세로는 줄의 가운데)를 알리고, 복사·붙여넣기에
+    // 클립보드를 묻는다. 호스트(엔진 인스턴스)가 플랫폼의 IME 조합 창 자리·인라인 조합과 OS 클립보드로 옮긴다 - 프레임워크는 플랫폼을 모른다.
+    // 없으면(시험의 가짜) 글자 칸은 조합 창을 옮기지 않고 복사·붙여넣기가 비어 있다.
+    class ITextInputHost
+    {
+    public:
+        virtual ~ITextInputHost() = default;
+        virtual void SetTextInputArea(Float pixelX, Float pixelY, Float lineHeight) = 0;
+        virtual Bool ReadClipboardText(String& utf8) = 0;
+        virtual Bool WriteClipboardText(const char* utf8, std::size_t size) = 0;
+    };
+
     struct FrameworkContext
     {
         JMemoryContext memory;
@@ -117,6 +134,11 @@ namespace JBro
         // 호스트가 소유하는 게임 입력(D-214). 프레임워크는 스크립트의 레이어 체인을 이것에 내려보낸다.
         // 없으면(테스트의 가짜) 체인을 돌리지 않고, 스크립트의 폴링은 빈 입력을 본다.
         System::InputSystem* input = nullptr;
+        // 호스트가 넘겨받은 머티리얼 셰이더 컴파일러(D-347). 에디터만 준다 - 게임은 패키지의 구운 셰이더만 싣고, 없으면 굽지 않은 셰이더의 머티리얼은
+        // 서지 않는다(빌트인으로 그린다).
+        IShaderCompiler* shaderCompiler = nullptr;
+        // 호스트의 글자 입력(D-355). 없으면(시험의 가짜) 글자 칸은 IME 조합 창을 옮기지 않고 클립보드가 비어 있다.
+        ITextInputHost* textInput = nullptr;
     };
 
     class IFramework

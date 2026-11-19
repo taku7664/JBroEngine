@@ -4,10 +4,11 @@
     모든 JBro 모듈이 공유하는 빌드 설정.
     모듈별 vcxproj 는 이름, 구성 타입, 의존 모듈만 정의하고 나머지는 여기서 상속한다.
   -->
+  <!-- 산출물 자리(`JBroOutputRoot`·`JBroBuildDir`·`JBroNetworkBuildDir`)는 저기 한 곳이다(D-370). 사용자 스크립트 프로젝트도 이 파일을 거쳐 같은 자리를 본다. -->
+  <Import Project="$(MSBuildThisFileDirectory)..\JBro.BuildPaths.props" Condition="'$(JBroBuildPathsImported)' == ''" />
   <PropertyGroup Label="JBroPaths">
     <JBroRoot>$(MSBuildThisFileDirectory)</JBroRoot>
     <JBroModulesDir>$(JBroRoot)Modules\</JBroModulesDir>
-    <JBroBuildDir>$(JBroRoot)Build\</JBroBuildDir>
     <!-- 외부 라이브러리는 소스째로 여기 있다. ThirdParty/README.md 참조. -->
     <JBroThirdPartyDir>$(JBroRoot)ThirdParty\</JBroThirdPartyDir>
     <!-- 네트워크는 별도 프로젝트다(D-122). 엔진이 그것을 참조하고, 그것은 엔진의 Core·Runtime 만 참조한다. -->
@@ -28,13 +29,14 @@
       시스템·렌더 추출 같은 실행 계층을 여기에 넣으면 사용자 코드가 그것을 볼 수 있게 된다.
     -->
     <JBroScriptFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2D\Include</JBroScriptFrameworkIncludes>
-    <JBroScriptFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3D\Include</JBroScriptFrameworkIncludes>
+    <JBroScriptFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroFramework2D\Include</JBroScriptFrameworkIncludes>
     <!--
       호스트가 추가로 받는 실행 계층 경로. 게임 호스트는 선택한 차원의 Framework 를 직접 생성한다.
       Framework3D 는 아직 시스템이 없어 한 모듈이며, 생기면 2D 와 같은 방식으로 나눈다.
+      화면 UI(JBroScreenUi, D-362)는 두 차원이 같이 쓴다. 3D 호스트는 화면 레이어의 2D 컴포넌트 때문에 JBroFramework2D 도 본다.
     -->
-    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2DSystem\Include</JBroHostFrameworkIncludes>
-    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3DSystem\Include</JBroHostFrameworkIncludes>
+    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '2D'">$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroScriptRuntime\Include</JBroHostFrameworkIncludes>
+    <JBroHostFrameworkIncludes Condition="'$(JBroScriptDimension)' == '3D'">$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroScriptRuntime\Include;$(JBroModulesDir)JBroFramework2D\Include</JBroHostFrameworkIncludes>
     <!-- 스크립트 타깃이 받는 전체 include 집합. JBro.Script.props 와 스크립트 프로브가 공유한다. -->
     <!-- 스크립트 타깃임을 헤더가 알아볼 수 있게 하는 표식이다. Tier S 헤더 중
          프렐류드를 거쳐야만 하는 것들이 이 값을 보고 직접 include 를 거절한다. -->
@@ -79,12 +81,25 @@
     <IntDir>$(JBroBuildDir)Intermediate\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+  <!--
+    산출물과 소스가 서로를 찾는 표지다(D-370). 산출물이 체크아웃 밖(`JBRO_BUILD_ROOT`)에 있으면 실행 파일에서 위로 올라가도 소스가 없고,
+    소스에서도 해시가 든 산출물 폴더 이름을 알 수 없다. 모든 프로젝트가 먼저 빌드하는 JBroCore 한 곳에서만 써서 병렬 빌드가 같은 파일을 다투지 않는다.
+  -->
+  <Target Name="JBroWriteBuildPointers" BeforeTargets="Build" Condition="'$(ProjectName)' == 'JBroCore'">
+    <WriteLinesToFile File="$(JBroCheckoutRoot)BuildOutput.txt" Lines="$(JBroOutputRoot)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile File="$(JBroBuildDir)EngineRoot.txt" Lines="$(JBroRoot)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+  </Target>
+
+  <!-- Debug scripts keep optimization off while the loading host selects the CRT and public value layouts. -->
+  <PropertyGroup Condition="'$(JBroScriptHostConfiguration)'=='Debug' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Debug')">
     <UseDebugLibraries>true</UseDebugLibraries>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+  <PropertyGroup Condition="'$(JBroScriptHostConfiguration)'=='Release' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Release')">
     <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <WholeProgramOptimization>true</WholeProgramOptimization>
   </PropertyGroup>
 
@@ -113,8 +128,8 @@
       <!-- 코드가 엔진 버전을 알아야 할 때(새 프로젝트의 `EngineVersion`, D-160) 위의 세 줄에서 받는다.
            `JBro/Core/Version.h` 가 글자로 바꾼다. 코드에 버전을 옮겨 적지 않는다(D-101). -->
       <PreprocessorDefinitions>JBRO_VERSION_MAJOR=$(JBroVersionMajor);JBRO_VERSION_MINOR=$(JBroVersionMinor);JBRO_VERSION_PATCH=$(JBroVersionPatch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Configuration)'=='Release'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroScriptHostConfiguration)'=='Debug' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Debug')">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroScriptHostConfiguration)'=='Release' or ('$(JBroScriptHostConfiguration)'=='' and '$(Configuration)'=='Release')">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Condition="'$(Configuration)'=='Release'">
       <FunctionLevelLinking>true</FunctionLevelLinking>

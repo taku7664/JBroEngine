@@ -1,6 +1,7 @@
 ﻿#include "AssetBrowserPanel.h"
 
 #include <JBro/Editor/Widget/AssetDrag.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
@@ -62,12 +63,20 @@ namespace JBro
                 return Icons::Language;
             case AssetType::Layer:
                 return Icons::Layer;
+            case AssetType::PostProcessProfile:
+                return Icons::PostProcess;
+            case AssetType::ColorLut:
+                return Icons::ColorLut;
+            case AssetType::RenderTexture:
+                return Icons::FileImage;
+            case AssetType::Material:
+                return Icons::Material;
+            case AssetType::Mesh:
+                return Icons::Mesh;
+            case AssetType::Shader:
+                return Icons::Shader;
             case AssetType::Model:
                 return Icons::FileModel;
-            case AssetType::Mesh:
-                return Icons::FileMesh;
-            case AssetType::Material:
-                return Icons::FileMaterial;
             default:
                 return Icons::File;
             }
@@ -176,7 +185,7 @@ namespace JBro
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);
-            // **하위 레코드는 제 줄을 갖지 않는다**(D-338). 그림의 Sprite 처럼 같은 파일에서 나온 것이라 파일의 줄 아래에 펼쳐 보인다(아래에서 단다).
+            // **하위 레코드는 제 줄을 갖지 않는다**(D-391). 그림의 Sprite 처럼 같은 파일에서 나온 것이라 파일의 줄 아래에 펼쳐 보인다(아래에서 단다).
             if (false == record.owner.IsNull())
             {
                 continue;
@@ -808,7 +817,7 @@ namespace JBro
         const ImVec2 origin = ImGui::GetCursorScreenPos();
         ImDrawList* draw = ImGui::GetWindowDrawList();
 
-        // **펼침 단추는 칸보다 먼저 낸다**(D-338). 먼저 낸 항목이 마우스를 차지하므로 단추 위를 누르면 칸이 골라지지 않고, 칸이 커서를 옮긴 뒤의
+        // **펼침 단추는 칸보다 먼저 낸다**(D-391). 먼저 낸 항목이 마우스를 차지하므로 단추 위를 누르면 칸이 골라지지 않고, 칸이 커서를 옮긴 뒤의
         // 항목이 되어 ImGui 의 커서 규칙도 지킨다. 그림은 위 칸(1)에 그려 칸의 바탕·그림에 가려지지 않는다.
         const Bool hasExpander = false == entry.isChild && entry.children.Size() > 0;
         if (hasExpander)
@@ -826,7 +835,7 @@ namespace JBro
         HandleEntryInput(entry);
         const ImVec2 imageMin(origin.x + 4.0f, origin.y + 2.0f);
         const ImVec2 imageMax(origin.x + side - 4.0f, origin.y + side - 4.0f);
-        // **펼친 묶음은 한 띠 위에 선다**(D-338). 파일 칸과 그 하위 칸들이 같은 옅은 바탕을 깔아 어디까지가 한 파일인지 보인다.
+        // **펼친 묶음은 한 띠 위에 선다**(D-391). 파일 칸과 그 하위 칸들이 같은 옅은 바탕을 깔아 어디까지가 한 파일인지 보인다.
         const Bool grouped = entry.isChild || (entry.children.Size() > 0 && IsExpanded(entry.record->id));
         if (grouped)
         {
@@ -884,7 +893,7 @@ namespace JBro
 
     void AssetBrowserPanel::DrawFile(const Entry& entry)
     {
-        // **하위 에셋이 있으면 ▶ 로 펼친다**(D-338). 계층 패널의 오브젝트처럼 화살표만 펼치고, 줄을 누르는 것은 그대로 고르기다.
+        // **하위 에셋이 있으면 ▶ 로 펼친다**(D-391). 계층 패널의 오브젝트처럼 화살표만 펼치고, 줄을 누르는 것은 그대로 고르기다.
         const Bool hasChildren = false == entry.isChild && entry.children.Size() > 0;
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
         flags |= hasChildren ? ImGuiTreeNodeFlags_OpenOnArrow : ImGuiTreeNodeFlags_Leaf;
@@ -1037,6 +1046,8 @@ namespace JBro
         Widget::TreeDrawContext row;
         Widget::TreeBegin("##scriptsRoot", flags, &row);
         Widget::TreeEnd();
+        Widget::ReportGuideTarget(GuideFocusTargets::ScriptsRootMenu(), ImGui::GetItemRectMin(),
+            ImGui::GetItemRectMax(), ImGui::IsPopupOpen("##ScriptsRootMenu"), false);
         const bool clicked = ImGui::IsItemClicked();
         if (Widget::BeginContextMenu("##ScriptsRootMenu"))
         {
@@ -1168,6 +1179,7 @@ namespace JBro
     {
         // 폴더에서 열었으면 그 폴더에, 빈자리에서 열었으면 지금 보는 폴더에 만든다.
         const String folder = relativePath.empty() ? m_scriptFolder : relativePath;
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("script.create"));
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewScript, "New Script")))
         {
             m_inScripts = true;
@@ -1271,7 +1283,7 @@ namespace JBro
             }
             any = true;
             m_visible.Add(entry.record->relativePath);
-            // 펼쳐 두었으면 파일 바로 뒤에 하위 에셋이 선다 - 목록은 들여 쓴 줄로, 아이콘은 이어 붙는 칸으로(D-338).
+            // 펼쳐 두었으면 파일 바로 뒤에 하위 에셋이 선다 - 목록은 들여 쓴 줄로, 아이콘은 이어 붙는 칸으로(D-391).
             const Bool expanded = entry.children.Size() > 0 && IsExpanded(entry.record->id);
             if (m_iconView)
             {
@@ -1323,10 +1335,10 @@ namespace JBro
         // **새 캔버스**(D-174, 기존 `에셋 추가 ▸ 캔버스`). 만들고 바로 연다 - 만들어 놓고
         // 열리지 않으면 방금 만든 것이 어디 있는지 목록에서 찾아야 한다.
         // **새 폰트 패밀리**(D-225). 만들고 브라우저에서 고른다 - 네 칸은 인스펙터에서 채운다.
-        // **새 재질**(material-plan 4 단계). 기본값으로 만들고 브라우저에서 고른다 - 값은 인스펙터에서 고친다.
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewMaterial, "New Material")))
+        // **새 표준 머티리얼**(material-plan 4 단계, D-403). 기본값으로 만들고 브라우저에서 고른다 - 값은 인스펙터에서 고친다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewStandardMaterial, "New Standard Material")))
         {
-            m_editor->CreateMaterialAsset(m_openFolder.c_str());
+            m_editor->CreateStandardMaterialAsset(m_openFolder.c_str());
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFontFamily, "New Font Family")))
         {
@@ -1342,10 +1354,34 @@ namespace JBro
         {
             m_editor->CreateSoundEffectAsset(m_openFolder.c_str());
         }
+        // **새 후처리 프로필**(D-344). 빈 프로필을 만들고 고른다 - 효과는 인스펙터에서 더하고, 카메라의 `postProcessProfileId` 에 건다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewPostProcessProfile, "New Post-Process Profile")))
+        {
+            m_editor->CreatePostProcessProfileAsset(m_openFolder.c_str());
+        }
+        // **새 렌더 텍스처**(D-362). 256 x 256 을 만들고 고른다 - 카메라와 스프라이트의 `renderTextureId` 에 같은 것을 건다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewRenderTexture, "New Render Texture")))
+        {
+            m_editor->CreateRenderTextureAsset(m_openFolder.c_str());
+        }
+        // **새 셰이더·새 머티리얼**(D-347). 셰이더는 픽셀 단계 하나를 적는 틀(`.hlsl`)이고, 머티리얼은 셰이더를 고르고 파라미터를 적는 파일(`.jmat`)이다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewShader, "New Shader")))
+        {
+            m_editor->CreateShaderAsset(m_openFolder.c_str());
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewMaterial, "New Material")))
+        {
+            m_editor->CreateMaterialAsset(m_openFolder.c_str());
+        }
         // **새 노드 그래프**(D-323). 샘플 도메인 `Math` 의 그래프를 만들고 노드 그래프 창에서 연다.
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewNodeGraph, "New Node Graph")))
         {
             m_editor->CreateNodeGraphAsset(m_openFolder.c_str());
+        }
+        // **새 셰이더 그래프**(D-369). 저장하면 그래프 옆에 `.hlsl` 이 생겨 머티리얼이 그것을 고른다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewShaderGraph, "New Shader Graph")))
+        {
+            m_editor->CreateShaderGraphAsset(m_openFolder.c_str());
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewCanvas, "New Canvas")))
         {

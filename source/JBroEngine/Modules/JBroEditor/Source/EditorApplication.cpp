@@ -18,6 +18,10 @@
 #include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
+#include "Panel/CodeEditorPanel.h"
+#include "Panel/MarkdownPanel.h"
+#include "Panel/ScriptSummaryPanel.h"
+#include <JBro/Editor/Code/SourceDebugger.h>
 #include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/MessagePopup.h>
 
@@ -51,6 +55,7 @@
 #include <JBro/Types/Math3D.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
+#include <JBro/Asset/RenderTextureFile.h>
 #include <JBro/Asset/MaterialFile.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -60,6 +65,11 @@
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/TaskProgress.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Editor/Command/SetAssetSourceCommand.h>
+#include <JBro/Asset/MaterialFile.h>
+#include <JBro/Graphics/MaterialLibrary.h>
+#include <JBro/Graphics/PostProcessProfile.h>
+#include <JBro/ShaderCompiler/ShaderCompiler.h>
 #include <JBro/Editor/Command/SetAssetFileCommand.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
@@ -75,6 +85,7 @@
 #include <JBro/NodeGraph/Domain.h>
 #include <JBro/NodeGraph/GraphYaml.h>
 #include <JBro/NodeGraph/MathDomain.h>
+#include <JBro/NodeGraph/ShaderDomain.h>
 #include <JBro/Asset/AudioEffectFile.h>
 #include "Panel/SpriteViewerPanel.h"
 
@@ -165,12 +176,20 @@ namespace JBro
     {
         // 노드 그래프의 도메인이다(D-323). 셰이더 그래프가 서면 여기에 더한다.
         m_nodeGraphDomains->Add(NodeGraph::MakeMathDomain());
+        m_nodeGraphDomains->Add(NodeGraph::MakeShaderDomain());
         // 프로세스마다 다르면 된다 - 이 객체의 주소와 지금 시각이다(D-321).
         char session[64];
         std::snprintf(session, sizeof(session), "%llx-%llx",
             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(this)),
             static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count()));
         m_clipboardSession = session;
+        // 재생 오류 알림은 이 에디터가 생긴 뒤의 로그만 본다 - 같은 프로세스에서 앞서 돈 에디터(시험)의 스크립트 오류를 다시 알리지 않는다.
+        const std::size_t logged = Log::GetCount();
+        const LogEntry* last = logged > 0 ? Log::GetAt(logged - 1) : nullptr;
+        if (last != nullptr)
+        {
+            m_scriptErrorSerial = last->serial;
+        }
     }
 
     NodeGraph::DomainRegistry& EditorApplication::GetNodeGraphDomains()
@@ -285,8 +304,16 @@ namespace JBro
                 return false;
             }
 
+            // 머티리얼 셰이더를 그 자리에서 굽는다(D-347). 컴파일러 DLL 이 없으면 머티리얼이 서지 않을 뿐 에디터는 뜬다.
+            m_shaderCompiler = MakeOwnerPtr<ShaderCompiler>();
+            if (false == m_shaderCompiler->Initialize(m_platform->GetExecutableFolder().View()))
+            {
+                m_shaderCompiler.Reset();
+            }
+
             EngineConfig engineConfig;
             engineConfig.graphicsApi = config.graphicsApi;
+            engineConfig.shaderCompiler = m_shaderCompiler.Get();
             engineConfig.time = config.time;
             // 시뮬레이션 뷰의 디버그 선은 에디터의 토글이 정한다(D-243). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
             engineConfig.gameDebugDrawFromProject = false;
@@ -2039,6 +2066,44 @@ namespace JBro
         m_canvasLoadGroup = InvalidTaskGroupId;
     }
 
+    namespace
+    {
+        // 스크립트 필드를 잇지 못한 자리를 하나씩 로그에 적는다. 캔버스를 열 때와 스크립트를 다시 실을 때 같은 글로 적는다.
+        void LogScriptResolveNotes(const Array<ScriptResolveNote>& notes)
+        {
+            for (const ScriptResolveNote& note : notes)
+            {
+                const char* what = note.kind == ScriptResolveNote::Kind::FieldDropped
+                    ? "the field is gone from the code, so its value was dropped"
+                    : (note.kind == ScriptResolveNote::Kind::FieldUnreadable
+                        ? "the value no longer reads as the field's type, so it went back to the default"
+                        : "the script could not be attached again, so it stays set aside with its values");
+                Log::Write(LogLevel::Warning, "script", "%s on '%s'%s%s: %s", note.typeName.c_str(), note.objectName.c_str(),
+                    note.fieldName.empty() ? "" : ", field ", note.fieldName.c_str(), what);
+            }
+        }
+    }
+
+    void EditorApplication::NotifyScriptFieldsNotRead(const Array<ScriptResolveNote>& notes)
+    {
+        if (notes.IsEmpty())
+        {
+            return;
+        }
+        LogScriptResolveNotes(notes);
+        char title[160];
+        std::snprintf(title, sizeof(title),
+            Loc::TextOr(LocKeys::NotifyScriptFieldsNotRead, "%zu saved script field value(s) could not be read"), notes.Size());
+        NotificationDesc desc;
+        desc.level = NotificationLevel::Warning;
+        desc.title = title;
+        // 레이어 에셋과 클립보드의 글자는 그대로다 - 빠지는 것은 넣은 사본이다. 파일에서 빠진다는 캔버스의 말을 쓰지 않는다.
+        desc.message = Loc::TextOr(LocKeys::NotifyScriptFieldsNotReadInserted,
+            "Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. See the log for each field");
+        desc.id = "script_fields_not_read";
+        m_notifications.Notify(std::move(desc));
+    }
+
     Bool EditorApplication::ReadCanvasFile(const char* path, CanvasFileError& error)
     {
         error = CanvasFileError{};
@@ -2060,9 +2125,26 @@ namespace JBro
             error.message = "cannot open the file";
             return false;
         }
-        if (false == ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error))
+        Array<ScriptResolveNote> notes;
+        if (false == ReadCanvasText(*canvas, reinterpret_cast<const char*>(text.Data()), text.Size(), error, &notes))
         {
             return false;
+        }
+        // **에디터를 끈 채 스크립트 필드를 지우거나 타입을 바꿨다**(D-349). 캔버스는 열고, 잇지 못한 값을 알린다 - 저장하면 버린 값은 파일에서도 빠진다.
+        if (false == notes.IsEmpty())
+        {
+            LogScriptResolveNotes(notes);
+            char title[160];
+            std::snprintf(title, sizeof(title),
+                Loc::TextOr(LocKeys::NotifyScriptFieldsNotRead, "%zu saved script field value(s) could not be read"), notes.Size());
+            NotificationDesc desc;
+            desc.level = NotificationLevel::Warning;
+            desc.title = title;
+            desc.message = Loc::TextOr(LocKeys::NotifyScriptFieldsNotReadWhy,
+                "Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. "
+                "See the log for each field. Saving leaves them out of the file");
+            desc.id = "script_fields_not_read";
+            m_notifications.Notify(std::move(desc));
         }
         // 모르는 스크립트는 들고만 있고 돌지 않는다(D-264). 스크립트 DLL 을 빌드하지 않았거나 타입을 지운 것이다.
         if (const std::size_t unresolved = canvas->GetUnresolvedScriptCount(); unresolved != 0)
@@ -2186,6 +2268,7 @@ namespace JBro
             Log::Write(LogLevel::Error, "editor", "the copied layer could not be pasted: %s", raw->GetError().c_str());
             return InvalidLayerId;
         }
+        NotifyScriptFieldsNotRead(raw->GetScriptNotes());
         SetSelectedLayer(raw->GetLayerId());
         return raw->GetLayerId();
     }
@@ -2241,6 +2324,7 @@ namespace JBro
             }
             return false;
         }
+        NotifyScriptFieldsNotRead(raw->GetScriptNotes());
         const Array<EditorObjectId> pasted = raw->GetPastedRootIds();
         Array<Object::GameObject*> objects;
         for (std::size_t index = 0; index < pasted.Size(); ++index)
@@ -2498,7 +2582,7 @@ namespace JBro
         }
         if (m_frameworkKind == FrameworkKind::Framework3D)
         {
-            // **3D 의 카메라는 캔버스 뷰가 처음 서는 궤도 자리에 선다**(D-335). 원점에 회전 없이 두면 -Z 만 보고 바닥도 큐브도 비껴,
+            // **3D 의 카메라는 캔버스 뷰가 처음 서는 궤도 자리에 선다**(D-388). 원점에 회전 없이 두면 -Z 만 보고 바닥도 큐브도 비껴,
             // 실행해도 바탕색만 보였다. 편집 화면과 실행 화면이 같아야 둘을 오가며 헷갈리지 않는다(2D 의 크기 5 와 같은 까닭).
             // 자리는 `EditorViewDesc` 의 처음 값에서 `SubmitEditorView3D` 와 같은 식으로 낸다.
             const EditorViewDesc view;
@@ -2527,7 +2611,7 @@ namespace JBro
             {
                 mesh->meshId = MeshLibrary::BuiltinCubeId();
             }
-            // **빛 하나**(D-353 (3)). 라이트가 없을 때의 기본 빛과 같은 방향광(빛 쪽 (0.4, 0.8, 0.45), 0.75)과 환경광(0.25)을 한 오브젝트에 둔다 -
+            // **빛 하나**(D-407 (3)). 라이트가 없을 때의 기본 빛과 같은 방향광(빛 쪽 (0.4, 0.8, 0.45), 0.75)과 환경광(0.25)을 한 오브젝트에 둔다 -
             // 새 프로젝트의 그림이 라이트 기능 전과 같고, 사용자는 처음부터 빛을 고칠 자리를 본다(Unity 의 새 씬에 방향광이 있는 것과 같다).
             Object::GameObject* light = canvas->CreateObject("Light");
             if (light == nullptr)
@@ -2753,7 +2837,7 @@ namespace JBro
     Bool EditorApplication::CreateProject(
         const char* parentFolder, const char* name, FrameworkKind framework, ProjectCreateFailure* failure)
     {
-        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-336). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
+        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-389). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
         if (false == CanSwitchProject())
         {
             Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
@@ -2977,6 +3061,169 @@ namespace JBro
         return created;
     }
 
+    String EditorApplication::CreatePostProcessProfileAsset(const char* folder)
+    {
+        // 효과가 없는 프로필이다. 카메라에 걸어도 그림이 바뀌지 않는다 - 효과는 인스펙터의 `효과 추가` 로 더한다.
+        const String created = WriteNewAssetFile(folder, "NewPostProcess", ".jpost", WritePostProcessProfile({}));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    String EditorApplication::CreateRenderTextureAsset(const char* folder)
+    {
+        const String created = WriteNewAssetFile(folder, "NewRenderTexture", ".jrt", WriteRenderTexture({}));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    String EditorApplication::CreateShaderAsset(const char* folder)
+    {
+        // 머티리얼 셰이더의 틀이다(D-347). 두 자리(후처리·스프라이트)에서 다 구워진다.
+        const String created = WriteNewAssetFile(folder, "NewShader", ".hlsl", String(GetMaterialShaderTemplate()));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    String EditorApplication::CreateMaterialAsset(const char* folder)
+    {
+        // 셰이더가 없는 머티리얼이다. 셰이더는 인스펙터에서 고른다 - 고르기 전에는 그려도 빌트인과 같다.
+        const String created = WriteNewAssetFile(folder, "NewMaterial", ".jmat", WriteMaterial({}));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    IShaderCompiler* EditorApplication::GetShaderCompiler()
+    {
+        return m_shaderCompiler.Get();
+    }
+
+    const CompiledMaterialShader* EditorApplication::GetMaterialShader(AssetId shader, MaterialDomain domain, const String** error)
+    {
+        static const String NoCompiler("no shader compiler: d3dcompiler_47.dll could not be opened");
+        static const String NoShader("the shader could not be loaded");
+        if (error != nullptr)
+        {
+            *error = nullptr;
+        }
+        AssetSystem* assets = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
+        if (assets == nullptr || shader.IsNull())
+        {
+            return nullptr;
+        }
+        if (m_shaderCompiler.Get() == nullptr)
+        {
+            if (error != nullptr)
+            {
+                *error = &NoCompiler;
+            }
+            return nullptr;
+        }
+        // 렌더러 없이 굽기만 하는 라이브러리다. 프로젝트(에셋 시스템)가 바뀌면 처음부터 선다.
+        if (m_materialInspection.Get() == nullptr || m_materialInspectionAssets != assets)
+        {
+            m_materialInspection = MakeOwnerPtr<MaterialLibrary>();
+            m_materialInspection->Initialize(assets, nullptr, m_shaderCompiler.Get());
+            m_materialInspectionAssets = assets;
+            m_inspectedShaderId = {};
+            m_inspectedShader = {};
+        }
+        // 보는 셰이더 하나를 잡는다. 다른 셰이더로 넘어가면 앞의 것을 놓는다.
+        if (m_inspectedShaderId != shader || false == assets->IsLoaded(m_inspectedShader))
+        {
+            if (m_inspectedShader.generation != 0 && assets->IsLoaded(m_inspectedShader))
+            {
+                assets->Release(m_inspectedShader);
+            }
+            m_inspectedShaderId = shader;
+            m_inspectedShader = assets->Load(shader);
+        }
+        if (assets->GetShader(m_inspectedShader) == nullptr)
+        {
+            if (error != nullptr)
+            {
+                *error = &NoShader;
+            }
+            return nullptr;
+        }
+        return m_materialInspection->GetCompiledShader(m_inspectedShader, domain, error);
+    }
+
+    Bool EditorApplication::DescribeAssetSource(AssetId asset, AssetSourceTarget& target) const
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(asset);
+        if (record == nullptr || GetAssetRoot().empty() || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        target.platform = m_platform.Get();
+        target.assets = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
+        target.path = EditorPaths::JoinPath(GetAssetRoot().c_str(), record->relativePath.c_str());
+        target.id = record->id;
+        return true;
+    }
+
+    Bool EditorApplication::ReadAssetSourceText(AssetId asset, String& text) const
+    {
+        // 실린 프로필은 커맨드와 파일 감시가 제자리에서 다시 읽어 둔다 - 디스크를 다시 읽지 않는다.
+        if (AssetSystem* assets = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr)
+        {
+            if (const PostProcessProfileData* profile = assets->GetPostProcessProfile(assets->Find(asset)))
+            {
+                text = profile->text;
+                return true;
+            }
+            if (const MaterialData* material = assets->GetMaterial(assets->Find(asset)))
+            {
+                text = material->text;
+                return true;
+            }
+        }
+        AssetSourceTarget target;
+        if (false == DescribeAssetSource(asset, target))
+        {
+            return false;
+        }
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(target.path.c_str(), bytes))
+        {
+            return false;
+        }
+        text.assign(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        return true;
+    }
+
     String EditorApplication::CreateNodeGraphAsset(const char* folder)
     {
         // 샘플 도메인의 빈 그래프에 결과 노드 하나를 둔다 - 열자마자 무엇을 이을지 보인다.
@@ -3002,7 +3249,106 @@ namespace JBro
         return created;
     }
 
-    String EditorApplication::CreateMaterialAsset(const char* folder)
+    String EditorApplication::CreateShaderGraphAsset(const char* folder)
+    {
+        // 소스 색을 그대로 내는 그래프다 - 처음부터 세 자리에서 구워진다.
+        const NodeGraph::Domain* domain = m_nodeGraphDomains->Find(NodeGraph::ShaderDomainName);
+        if (domain == nullptr)
+        {
+            return String();
+        }
+        NodeGraph::Graph graph;
+        graph.SetDomain(domain->GetName());
+        const NodeGraph::NodeId output = graph.AddNode(*domain, "Output", Vector2{320.0f, 0.0f});
+        const NodeGraph::NodeId source = graph.AddNode(*domain, "Source", Vector2{0.0f, 0.0f});
+        graph.Connect(*domain, NodeGraph::PinRef{source, 0}, NodeGraph::PinRef{output, 0});
+        const String created = WriteNewAssetFile(folder, "NewShaderGraph", ".jgraph", NodeGraph::WriteGraph(graph, domain));
+        if (created.empty())
+        {
+            return created;
+        }
+        const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str());
+        if (record == nullptr)
+        {
+            return created;
+        }
+        const AssetId id = record->id;
+        String hlsl;
+        String why;
+        if (NodeGraph::GenerateShaderHlsl(graph, *domain, hlsl, why))
+        {
+            WriteGeneratedShader(id, hlsl);
+        }
+        SetSelectedAsset(id);
+        RevealAssetInBrowser(id);
+        OpenNodeGraphEditor(id);
+        return created;
+    }
+
+    Bool EditorApplication::RegenerateShaderFromGraph(AssetId graph, String* why)
+    {
+        String text;
+        if (false == ReadAssetText(graph, text))
+        {
+            return false;
+        }
+        String domainName;
+        if (false == NodeGraph::ReadGraphDomain(text.View(), domainName) || domainName.View() != NodeGraph::ShaderDomainName)
+        {
+            return true;
+        }
+        const NodeGraph::Domain* domain = m_nodeGraphDomains->Find(NodeGraph::ShaderDomainName);
+        NodeGraph::Graph parsed;
+        Array<String> problems;
+        String hlsl;
+        String error;
+        if (domain == nullptr || false == NodeGraph::ReadGraph(text.View(), domain, parsed, problems)
+            || false == NodeGraph::GenerateShaderHlsl(parsed, *domain, hlsl, error) || false == WriteGeneratedShader(graph, hlsl))
+        {
+            if (why != nullptr)
+            {
+                *why = error;
+            }
+            return false;
+        }
+        return true;
+    }
+
+    Bool EditorApplication::WriteGeneratedShader(AssetId graph, const String& hlsl)
+    {
+        const AssetRecord* record = GetAssetRegistry().Find(graph);
+        if (record == nullptr || GetAssetRoot().empty() || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        String relative = record->relativePath;
+        const std::size_t dot = relative.find_last_of('.');
+        if (dot == String::npos)
+        {
+            return false;
+        }
+        relative.resize(dot);
+        relative.append(".hlsl");
+        const String path = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
+        if (false == m_platform->WriteWholeFile(path.c_str(), {reinterpret_cast<const std::byte*>(hlsl.c_str()), static_cast<JBro::UInt32>(hlsl.size())}))
+        {
+            Log::Write(LogLevel::Error, "editor", "the generated shader could not be written: %s", path.c_str());
+            return false;
+        }
+        // 처음 만든 파일이면 등록한다(메타가 생긴다). 이미 있으면 실린 셰이더를 제자리에서 다시 읽는다.
+        const AssetRecord* shader = GetAssetRegistry().FindByPath(relative.c_str());
+        if (shader == nullptr)
+        {
+            return RescanAssets();
+        }
+        if (AssetSystem* assets = GetAssetSystem(); assets != nullptr && assets->IsLoaded(assets->Find(shader->id)))
+        {
+            assets->ReloadInPlace(shader->id);
+        }
+        return true;
+    }
+
+    String EditorApplication::CreateStandardMaterialAsset(const char* folder)
     {
         String text;
         if (false == FormatMaterialFile(MaterialDesc{}, text))
@@ -3106,6 +3452,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::LayerAssetLoadFailed, "the layer asset could not be read"), record->relativePath.c_str());
             return false;
         }
+        NotifyScriptFieldsNotRead(raw->GetScriptNotes());
         SetSelectedLayer(raw->GetLayerId());
         return true;
     }
@@ -3558,6 +3905,10 @@ namespace JBro
         m_scriptBreakContext = hit.context;
         m_scriptBreakThread = hit.threadId;
         m_platform->DescribeCodeAddress(hit.address, m_scriptBreakLocation);
+        if (m_scriptBreakLocation.file.EndsWith(".jscript"))
+        {
+            OpenCodeFile(m_scriptBreakLocation.file, m_scriptBreakLocation.line);
+        }
         m_commands.SetLocked(true);
         if (m_debugServer.Get() != nullptr)
         {
@@ -3586,6 +3937,10 @@ namespace JBro
         auto previous = std::chrono::steady_clock::now();
         while (m_scriptBreakRequest == ScriptBreakRequest::None)
         {
+            if (m_sourceDebugger.Get() != nullptr)
+            {
+                m_sourceDebugger->Poll(0.016f);
+            }
             if (m_debugServer.Get() != nullptr)
             {
                 m_debugServer->Poll(*this);
@@ -3747,26 +4102,20 @@ namespace JBro
 
     void EditorApplication::StartDebugSession()
     {
-        if (IsDebugSessionActive() || m_platform.Get() == nullptr)
+        if (m_platform.Get() == nullptr || IsDebugSessionActive())
         {
             return;
         }
-        if (false == StartScriptDebugServer(m_platform->GetProcessId()))
-        {
-            m_notifications.Notify(NotificationLevel::Error,
-                Loc::TextOr(LocKeys::NotifyDebugChannelFailed, "The debug channel could not open"));
-            return;
-        }
-        if (false == m_simulationPlaying)
-        {
-            StartSimulation();
-        }
-        m_notifications.Notify(NotificationLevel::Info,
-            Loc::TextOr(LocKeys::NotifyDebugStarted, "Debugging is on - attach from the script editor to hit breakpoints"));
+        GetSourceDebugger().Start();
     }
 
     void EditorApplication::StopDebugSession()
     {
+        if (m_sourceDebugger.Get() != nullptr && m_sourceDebugger->IsActive())
+        {
+            m_sourceDebugger->Stop();
+            return;
+        }
         if (false == IsDebugSessionActive())
         {
             return;
@@ -3780,7 +4129,7 @@ namespace JBro
 
     Bool EditorApplication::IsDebugSessionActive() const
     {
-        return IsScriptDebugServerActive();
+        return IsScriptDebugServerActive() || (m_sourceDebugger.Get() != nullptr && m_sourceDebugger->IsActive());
     }
 
     void EditorApplication::PollScriptErrors()
@@ -3917,6 +4266,16 @@ namespace JBro
         {
             return false;
         }
+        Array<EditorPanel*> codePanels;
+        FindPanels(CodeEditorPanel::TypeName, codePanels);
+        for (auto* panel : codePanels)
+        {
+            if (!panel->SaveChanges())
+            {
+                panel->RequestFocus();
+                return false;
+            }
+        }
         const String contents = GetScriptContentsRoot();
         // **스크립트 폴더에 소스가 있는데 프로젝트가 없으면 여기서 만든다**(사용자 시나리오 C). 프로젝트는 `새 스크립트` 가 만들어 왔는데,
         // 그 팝업은 C++ 만 만든다 - `.jscript` 를 편집기에서 바로 쓴 사람은 빌드할 길이 없었다. 엔진 폴더를 못 찾으면 만들지 않는다(아래 알림).
@@ -3963,7 +4322,11 @@ namespace JBro
         // 지난 빌드의 로그를 남기면 이번 빌드가 로그를 못 쓰고 끝났을 때 지난 진단을 이번 것으로 읽는다.
         m_platform->DeleteFileAt(m_scriptBuildLog.c_str());
         const String projectFile = EditorPaths::JoinPath(contents.c_str(), "GameScript.vcxproj");
-        const String command = ScriptBuild::MakeBuildCommand(m_msbuildPath.c_str(), projectFile.c_str(), "Debug", m_scriptBuildLog.c_str());
+        const String compiler = EditorPaths::JoinPath(m_platform->GetExecutableFolder().c_str(), "JBroc.exe");
+        // 컴파일러 진단도 에디터 언어로 온다 - 넘기지 않으면 영어 에디터의 빌드 결과에 한국어 진단이 섞였다.
+        const String compilerLocale = ScriptBuild::CompilerLocaleFor(m_locale.c_str());
+        const String command = ScriptBuild::MakeBuildCommand(m_msbuildPath.c_str(), projectFile.c_str(), "Debug", m_scriptBuildLog.c_str(),
+            compiler.c_str(), compilerLocale.c_str());
         m_scriptBuild = m_platform->StartProcess(command.c_str(), contents.c_str(), nullptr);
         if (m_scriptBuild.process == nullptr)
         {
@@ -3972,6 +4335,10 @@ namespace JBro
             return false;
         }
         m_scriptBuildState = ScriptBuildState::Running;
+        if (m_sourceDebugger.Get() != nullptr)
+        {
+            m_sourceDebugger->BuildStarted();
+        }
         m_scriptDiagnostics.Clear();
         Log::Write(LogLevel::Info, "script", "building the scripts: %s", projectFile.c_str());
         if (EditorPanel* panel = FindPanel("BuildResults"))
@@ -4031,10 +4398,22 @@ namespace JBro
             {
                 Log::Write(LogLevel::Warning, "script",
                     "the project names no script library (ScriptOutputLibraryPath), so the new build is not loaded");
+                if (m_sourceDebugger.Get() != nullptr)
+                {
+                    m_sourceDebugger->BuildFinished(false);
+                }
                 return;
             }
-            ReloadScripts(false);
+            const Bool reloaded = ReloadScripts(false);
+            if (m_sourceDebugger.Get() != nullptr)
+            {
+                m_sourceDebugger->BuildFinished(reloaded || m_scriptReloadPending);
+            }
             return;
+        }
+        if (m_sourceDebugger.Get() != nullptr)
+        {
+            m_sourceDebugger->BuildFinished(false);
         }
         // 툴셋은 빌드 전에 봤지만 SDK 는 MSBuild 가 본다(`MSB8036`). 설치 위치가 기계마다 달라 미리 재지 않고 MSBuild 의 판단을 받는다.
         for (const ScriptBuild::Diagnostic& diagnostic : m_scriptDiagnostics)
@@ -4119,6 +4498,11 @@ namespace JBro
     }
 
     Bool EditorApplication::OpenInScriptEditor(const String& file, UInt32 line)
+    {
+        return m_uiEnabled ? OpenCodeFile(file, line) : OpenCodeFileExternally(file, line);
+    }
+
+    Bool EditorApplication::OpenCodeFileExternally(const String& file, UInt32 line)
     {
         // 밖의 프로그램을 띄우는 대신 받을 쪽이 있으면(시험) 그쪽에 넘긴다. 없으면 시험이 이 PC 의 편집기를 실제로 띄운다.
         if (m_openPath != nullptr)
@@ -4271,6 +4655,10 @@ namespace JBro
         // 넣은 중단점은 내릴 DLL 의 코드에 있다. 내린 뒤에 원래 바이트를 되돌리려 들면 죽는다.
         m_platform->ClearCodeBreakpoints();
         const Bool loaded = m_engine->ReloadScriptModule();
+        if (m_sourceDebugger.Get() != nullptr)
+        {
+            m_sourceDebugger->ModuleReloaded(loaded);
+        }
         // 필드 모양이 바뀌었으면 되돌리기 기록을 비운다. 순번으로 필드를 가리키는 편집이 엉뚱한 필드를 되돌린다.
         // 코드만 고친 흔한 경우(필드가 그대로)에는 기록이 남는다.
         if (DescribeScriptFieldLayout() != layoutBefore && m_commands.GetUndoCount() + m_commands.GetRedoCount() != 0)
@@ -4281,16 +4669,7 @@ namespace JBro
         }
         Array<ScriptResolveNote> notes;
         const std::size_t resolved = canvas != nullptr ? ResolveKeptScripts(*canvas, notes) : 0;
-        for (const ScriptResolveNote& note : notes)
-        {
-            const char* what = note.kind == ScriptResolveNote::Kind::FieldDropped
-                ? "the field is gone from the code, so its value was dropped"
-                : (note.kind == ScriptResolveNote::Kind::FieldUnreadable
-                    ? "the value no longer reads as the field's type, so it went back to the default"
-                    : "the script could not be attached again, so it stays set aside with its values");
-            Log::Write(LogLevel::Warning, "script", "%s on '%s'%s%s: %s", note.typeName.c_str(), note.objectName.c_str(),
-                note.fieldName.empty() ? "" : ", field ", note.fieldName.c_str(), what);
-        }
+        LogScriptResolveNotes(notes);
         if (m_framework.Get() != nullptr)
         {
             m_framework->BindCanvasAssets();
@@ -4484,7 +4863,7 @@ namespace JBro
         {
             base.push_back('/');
         }
-        // 설치본은 에디터 옆에 둘을 둔다. 개발 빌드는 구성마다 폴더가 다르다(`Build/x64/Debug_Game2D`).
+        // 설치본은 에디터 옆에 둘을 둔다. 개발 빌드는 구성마다 폴더가 다르다(`<산출물 자리>/Engine/x64/Debug_Game2D`, D-370).
         const char* const candidates[] = {
             is3D ? "JBroGameHost3D.exe" : "JBroGameHost2D.exe",
             is3D ? "../Debug_Game3D/JBroGameHost.exe" : "../Debug_Game2D/JBroGameHost.exe",
@@ -4514,6 +4893,7 @@ namespace JBro
         }
         GameBuildOptions options;
         options.gameHostPath = FindGameHostExecutable();
+        options.shaderCompiler = m_shaderCompiler.Get();
         // 게임은 패키지에서 캔버스를 세어 볼 수 없으므로 물리 워커 수는 여기서 정해 적는다(D-223).
         if (m_frameworkKind == FrameworkKind::Framework2D)
         {
@@ -4617,6 +4997,9 @@ namespace JBro
         SetSelectedAsset({});
         m_commands.Clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
+        m_agentGuideReady = false;
         CancelSpriteFramePick();
         if (false == canvas->Clear())
         {
@@ -4889,6 +5272,7 @@ namespace JBro
         {
             m_ui.UsePrivateClipboard();
         }
+        m_ui.BindPlatformWindow(*m_platform, m_engine->GetMainWindow());
 
         FrameTarget target;
         target.texture = m_simulationView;
@@ -5449,6 +5833,10 @@ namespace JBro
 
     Bool EditorApplication::StartSimulation()
     {
+        if (m_sourceDebugger.Get() != nullptr && m_sourceDebugger->IsActive() && !m_sourceDebugger->CanPlay())
+        {
+            return false;
+        }
         if (m_simulationPlaying || m_engine.Get() == nullptr)
         {
             return false;
@@ -5531,6 +5919,9 @@ namespace JBro
         }
         m_simulationSnapshot.clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
+        m_agentGuideReady = false;
         // 재생 중에 쌓인 편집은 되돌릴 대상이 사라졌다. 스택을 비우지 않으면 Ctrl+Z 가
         // 이제 없는 오브젝트를 가리킨다. **저장 안 됨은 남긴다** - 캔버스는 재생 전으로 돌아왔고, 재생 전에 저장하지 않은 편집은
         // 여전히 저장되지 않았다(D-324).
@@ -5621,6 +6012,16 @@ namespace JBro
     Bool EditorApplication::IsCanvasViewDebugDrawVisible() const
     {
         return m_canvasViewDebugDraw;
+    }
+
+    void EditorApplication::SetCanvasViewPostProcess(Bool enabled)
+    {
+        m_canvasViewPostProcess = enabled;
+    }
+
+    Bool EditorApplication::IsCanvasViewPostProcessEnabled() const
+    {
+        return m_canvasViewPostProcess;
     }
 
     const FrameTime* EditorApplication::GetFrameTime() const
@@ -5730,37 +6131,50 @@ namespace JBro
         return false;
     }
 
-    void EditorApplication::RetireLayerThumbnail(TextureHandle texture)
+    void EditorApplication::RetireUiTexture(TextureHandle texture)
     {
         if (texture.IsValid())
         {
-            m_retiredLayerThumbnails.Add(texture);
+            const UInt64 frame = ImGui::GetCurrentContext() != nullptr
+                ? static_cast<UInt64>(ImGui::GetFrameCount()) : UInt64(0);
+            m_retiredUiTextures.Add({texture, frame});
         }
     }
 
-    void EditorApplication::DestroyRetiredLayerThumbnails()
+    void EditorApplication::DestroyRetiredUiTextures(Bool force)
     {
         Renderer* renderer = m_engine ? m_engine->GetRenderer() : nullptr;
         IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
-        for (std::size_t index = 0; index < m_retiredLayerThumbnails.Size() && device != nullptr; ++index)
+        if (device == nullptr)
         {
-            device->DestroyTexture(m_retiredLayerThumbnails[index]);
+            m_retiredUiTextures.Clear();
+            return;
         }
-        m_retiredLayerThumbnails.Clear();
+        const UInt64 frame = ImGui::GetCurrentContext() != nullptr
+            ? static_cast<UInt64>(ImGui::GetFrameCount()) : UInt64(0);
+        const Bool flushAll = force || !m_uiEnabled || ImGui::GetCurrentContext() == nullptr;
+        m_retiredUiTextures.RemoveAll([&](const RetiredUiTexture& retired) {
+            if (!flushAll && retired.frame >= frame)
+            {
+                return false;
+            }
+            device->DestroyTexture(retired.texture);
+            return true;
+        });
     }
 
     void EditorApplication::ReleaseLayerThumbnails(Bool now)
     {
         for (std::size_t index = 0; index < m_layerThumbnails.Size(); ++index)
         {
-            RetireLayerThumbnail(m_layerThumbnails[index].texture);
+            RetireUiTexture(m_layerThumbnails[index].texture);
         }
         m_layerThumbnails.Clear();
         m_layerThumbnailExtent = {};
         m_layerThumbnailCursor = 0;
         if (now)
         {
-            DestroyRetiredLayerThumbnails();
+            DestroyRetiredUiTextures(true);
         }
     }
 
@@ -5772,7 +6186,7 @@ namespace JBro
         const UInt32 height = m_layerThumbnailHeight;
         m_layerThumbnailHeight = 0;
         // 지난 플러시에서 놓은 것은 지난 프레임의 UI 까지만 쓰였다. 이제 지운다(디바이스가 GPU 가 다 쓴 뒤에 놓는다).
-        DestroyRetiredLayerThumbnails();
+        DestroyRetiredUiTextures();
         Canvas* canvas = GetCanvas();
         Renderer* renderer = m_engine ? m_engine->GetRenderer() : nullptr;
         IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
@@ -5801,7 +6215,7 @@ namespace JBro
         {
             if (canvas->FindLayer(m_layerThumbnails[index - 1].layer) == nullptr)
             {
-                RetireLayerThumbnail(m_layerThumbnails[index - 1].texture);
+                RetireUiTexture(m_layerThumbnails[index - 1].texture);
                 m_layerThumbnails.RemoveAt(index - 1);
             }
         }
@@ -5898,6 +6312,7 @@ namespace JBro
         m_canvasViewRequest.screenSpace = screenSpace;
         m_canvasViewRequest.focusObject = focusObject;
         m_canvasViewRequest.lighting = lighting;
+        m_canvasViewRequest.postProcess = m_canvasViewPostProcess;
         // 고른 것의 번호를 실어 보낸다(D-276). 요청은 값으로 복사되므로 가리키는 배열은 이 멤버다.
         m_canvasViewSelection.Clear();
         const Array<Object::GameObject*> selected = GetSelectedObjects();
@@ -5970,15 +6385,20 @@ namespace JBro
         m_canvasView = {};
         m_canvasViewExtent = {};
         m_canvasViewRequested = false;
+        m_retiredUiTextures.Clear();
         ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
         m_uiEnabled = false;
+        m_agentGuideReady = false;
     }
 
     void EditorApplication::ReleaseEditorUi()
     {
         DestroyPanels();
+        m_codeLanguage.Reset();
         // **그림을 먼저 내린다.** 장치가 사라진 뒤에 내리면 이미 없는 텍스처를 파괴하려 든다.
         if (m_thumbnails.Get() != nullptr)
         {
@@ -6017,7 +6437,10 @@ namespace JBro
         ClearSelection();
         m_commands.Clear();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
         m_uiEnabled = false;
+        m_agentGuideReady = false;
     }
 
     void EditorApplication::DestroyPanels()
@@ -6057,7 +6480,7 @@ namespace JBro
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             // 기존과 같은 차례다: 새 프로젝트 · 구분선 · 열기 · 저장.
-            // **프로젝트가 열려 있으면 다른 프로젝트를 들이는 항목은 없다**(D-336). 다른 프로젝트는 그 `.jproject` 를 두 번 눌러 새 에디터로 연다.
+            // **프로젝트가 열려 있으면 다른 프로젝트를 들이는 항목은 없다**(D-389). 다른 프로젝트는 그 `.jproject` 를 두 번 눌러 새 에디터로 연다.
             if (CanSwitchProject())
             {
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
@@ -6075,6 +6498,10 @@ namespace JBro
                 }
                 ImGui::Separator();
             }
+            EditorActionContext documentContext;
+            documentContext.editor = this;
+            EditorActionUi::DrawItem("markdown.open", documentContext);
+            ImGui::Separator();
             DrawShortcutItem(EditorShortcut::SaveCanvas,
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), Icons::Save);
             {
@@ -6213,14 +6640,17 @@ namespace JBro
             }
             ImGui::Separator();
             DrawPanelMenuItem("Profiler", Loc::TextOr(LocKeys::MenuDebugCpuProfiler, "CPU Profiler"));
+            DrawPanelMenuItem("RenderGraph", Loc::TextOr(LocKeys::MenuDebugRenderGraph, "Render Graph"));
             DrawPanelMenuItem("Stats", Loc::TextOr(LocKeys::MenuDebugStats, "Statistics"));
             DrawPanelMenuItem("Log", Loc::TextOr(LocKeys::MenuDebugLog, "Log"));
             Widget::EndMenu();
         }
 
+        Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.window"));
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
         {
             // 기존 엔진처럼 한 겹 더 들어간다 - 도구 창 말고도 열 것이 늘어날 자리다.
+            Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.window_editor"));
             if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindowEditor, "Editor")))
             {
                 // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
@@ -6234,6 +6664,7 @@ namespace JBro
                         continue;
                     }
                     Bool open = panel->IsOpen();
+                    Widget::SetNextItemTarget(GuideFocusTargets::PanelMenu(panel->GetTitle()));
                     if (Widget::MenuToggle(panel->GetDisplayTitle(), open))
                     {
                         panel->SetOpen(open);
@@ -6304,9 +6735,10 @@ namespace JBro
     void EditorApplication::DrawGuideFocus(Float deltaTime)
     {
         // 모달이 떠 있으면 막을 걷는다(D-251 (7)). 이 프레임에 그린 팝업을 본다.
-        m_guideFocus.SetPaused(ImGui::GetTopMostPopupModal() != nullptr);
+        m_guideFocus.SetPaused(m_agentGuidePaused || ImGui::GetTopMostPopupModal() != nullptr);
 
         Widget::GuideFocusBalloon balloon;
+        balloon.chatLabel = Loc::TextOr(LocKeys::AgentOpenChat, "Ask AI");
         char progress[32] = {};
         char disabledNote[256] = {};
         const GuideStep* step = m_guide.GetStep();
@@ -6349,6 +6781,12 @@ namespace JBro
                 balloon.title = Loc::TextFor(guide.title.key, guide.title.string, guide.title.locale);
                 balloon.body = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
             }
+            else if (m_guide.UsesManualPanels() && (m_guide.IsOpeningPanel()
+                || (!m_guideFocus.GetPath().IsEmpty()
+                    && m_guideFocus.GetPath().targets[m_guideFocus.GetLevel()].name == GuideFocusTargets::Panel("").name)))
+            {
+                balloon.note = Loc::Text(LocKeys::GuideOpenPanel);
+            }
             else if (balloon.nextLabel == nullptr && m_guide.WhyNextBlocked(*this) != nullptr)
             {
                 // **다음 단추가 없는 단계도 막힌 까닭을 적는다**(D-273). 포인트가 없는 콜라이더처럼 지금은 할 수 없는 단계에서 구멍만
@@ -6372,10 +6810,19 @@ namespace JBro
             }
         }
         const GuideFocusAction action = Widget::GuideFocus(m_guideFocus, balloon);
+        if (action == GuideFocusAction::Chat)
+        {
+            SetAgentGuidePaused(true);
+            CreatePanel("Agent");
+            return;
+        }
         // 다음 프레임의 Esc 를 가를 것이다 - 글자를 치는 중이면 Esc 는 칸의 것이다.
         m_guideFocus.SetTextInputActive(ImGui::GetIO().WantTextInput);
         m_guideFocus.Update(deltaTime);
-        m_guide.Update(*this, m_guideFocus, action);
+        if (!m_agentGuidePaused)
+        {
+            m_guide.Update(*this, m_guideFocus, action);
+        }
         if (m_guide.ConsumeFinished())
         {
             NotificationDesc done;
@@ -6384,6 +6831,35 @@ namespace JBro
             done.id = "guide.finished";
             m_notifications.Notify(std::move(done));
         }
+    }
+
+    void EditorApplication::GrowDockForPanel(const EditorPanel& panel)
+    {
+        // 지금 그리는 창(방금 `Begin` 한 패널)이 붙은 도크 칸이 위아래로 나뉜 칸이면, 그 칸을 바라는 높이까지 넓히고 이웃 칸을 그만큼 줄인다.
+        // 칸 경계를 끄는 것과 같은 값(`SizeRef`)을 고친다. 이웃 칸이 너무 작아지지 않게 나뉜 높이의 60% 까지만 넓힌다.
+        const Float wanted = panel.GetPreferredDockHeight();
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (wanted <= 0.0f || window == nullptr || window->DockNode == nullptr || window->DockNode->ParentNode == nullptr)
+        {
+            return;
+        }
+        ImGuiDockNode* node = window->DockNode;
+        ImGuiDockNode* parent = node->ParentNode;
+        if (parent->SplitAxis != ImGuiAxis_Y || parent->ChildNodes[0] == nullptr || parent->ChildNodes[1] == nullptr)
+        {
+            return;
+        }
+        ImGuiDockNode* other = parent->ChildNodes[0] == node ? parent->ChildNodes[1] : parent->ChildNodes[0];
+        const Float total = parent->Size.y;
+        const Float target = JBro::Min(wanted, total * 0.6f);
+        if (node->Size.y >= target)
+        {
+            return;
+        }
+        node->SizeRef.y = target;
+        other->SizeRef.y = total - target;
+        node->WantLockSizeOnce = true;
+        other->WantLockSizeOnce = true;
     }
 
     void EditorApplication::DrawPanelMenuItem(const char* panelTitle, const char* label)
@@ -6397,8 +6873,9 @@ namespace JBro
             panel->SetOpen(open);
             if (open)
             {
-                // 다른 탭 뒤에 있으면 연 것이 보이지 않는다. 앞으로 꺼낸다.
+                // 다른 탭 뒤에 있으면 연 것이 보이지 않는다. 앞으로 꺼낸다. 도크가 너무 낮으면 넓힌다(D-341).
                 ImGui::SetWindowFocus(panelTitle);
+                panel->RequestRoom();
             }
         }
     }
@@ -6757,7 +7234,7 @@ namespace JBro
             }
             area->shown = true;
             ImGui::SetNextWindowClass(&RootDockClass());
-            // **뿌리 칸의 탭 줄에서 골라질 때까지 앞으로 꺼낸다.** 처음 붙는 프레임에는 탭 줄이 아직 없어 한 번 꺼내도 다음
+            // **독이 실제로 보일 때까지 앞으로 꺼낸다.** 처음 붙는 프레임에는 탭 줄이 아직 없어 한 번 꺼내도 다음
             // 프레임에 탭 줄이 서며 메인 도크가 도로 앞에 선다(실측) - 그러면 연 뷰어가 보이지 않는다.
             area->comingForward = area->comingForward || wantsFront;
             if (area->comingForward)
@@ -6773,9 +7250,9 @@ namespace JBro
             if (area->comingForward)
             {
                 const ImGuiWindow* window = ImGui::GetCurrentWindow();
-                const ImGuiDockNode* node = window->DockNode;
-                const Bool chosen = node == nullptr
-                    || (node->TabBar != nullptr && node->TabBar->SelectedTabId == window->TabId);
+                // 숨긴 탭 줄은 SelectedTabId를 갱신하지 않는다. 그 값을 기다리면 요청이 끝나지 않아
+                // 매 프레임 포커스를 빼앗는다. Begin이 갱신한 실제 탭 표시 상태로 완료를 판정한다.
+                const Bool chosen = window->DockNode == nullptr || window->DockTabIsVisible;
                 area->comingForward = false == (visible && chosen);
             }
             const ImGuiID dockSpace = ImGui::GetID("DockSpace");
@@ -6806,10 +7283,10 @@ namespace JBro
             // 그리지 않으면 포커스도 없다. 열린 창은 아래에서 다시 적는다.
             panel->SetFocused(false);
             panel->SetVisible(false);
-            // **가이드 포커스가 가리키는 패널은 연다**(D-251). 닫혀 있으면 그 안의 대상이 그려지지 않는다. 가려진 탭은
+            // **내장 가이드 포커스가 가리키는 패널은 연다**(D-251). AI 가이드는 사용자 클릭을 기다린다. 닫혀 있으면 그 안의 대상이 그려지지 않는다. 가려진 탭은
             // 머묾이 끝난 뒤 앞으로 꺼낸다 - 매 프레임 꺼내면 그 안에서 연 콤보가 포커스를 잃고 닫힌다.
             const GuideFocusTarget panelTarget = GuideFocusTargets::Panel(panel->GetTitle());
-            if (m_guideFocus.IsActive())
+            if (m_guideFocus.IsActive() && !m_guide.UsesManualPanels())
             {
                 const UInt32 at = m_guideFocus.GetPath().Find(panelTarget);
                 const Bool onPath = at < m_guideFocus.GetPath().count && at <= m_guideFocus.GetLevel();
@@ -6894,16 +7371,18 @@ namespace JBro
             ImGui::SetNextWindowClass(&panelClass);
             const Bool shown = ImGui::Begin(label.c_str(), closable != nullptr ? &rawOpen : nullptr, flags);
             panelOpen = rawOpen;
-            // 창 전체가 대상일 수 있다(레이어 창에서 오브젝트를 고르는 단계). 가려진 탭이면 열리지 않은 것으로 알린다.
+            if (shown && panel->TakeRoomRequest())
             {
-                const ImVec2 position = ImGui::GetWindowPos();
-                const ImVec2 size = ImGui::GetWindowSize();
-                Widget::ReportGuideTarget(panelTarget, position, ImVec2(position.x + size.x, position.y + size.y), shown, false);
+                GrowDockForPanel(*panel);
             }
+            // 창 전체가 대상일 수 있다(레이어 창에서 오브젝트를 고르는 단계). 가려진 탭이면 열리지 않은 것으로 알린다.
+            Widget::ReportPanelGuideTarget(panelTarget, shown, m_guide.UsesManualPanels());
             if (shown)
             {
-                panel->SetVisible(true);
-                panel->SetFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
+                const ImGuiWindow* window = ImGui::GetCurrentWindow();
+                const Bool visible = !window->Hidden && (!window->DockIsActive || window->DockTabIsVisible);
+                panel->SetVisible(visible);
+                panel->SetFocused(visible && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
                 if (panel->HasMenuBar() && Widget::BeginMenuBar())
                 {
                     panel->OnMenuBar();
@@ -7116,7 +7595,7 @@ namespace JBro
                 }
                 popup.OnDraw(*this);
                 // **붙드는 프레임이 지난 뒤에 크기가 바뀌어도, 사람이 옮기지 않았으면 다시 가운데에 붙든다.** 내용에 맞추는 높이가
-                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-336 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
+                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-389 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
                 const ImVec2 size = ImGui::GetWindowSize();
                 const ImVec2 pos = ImGui::GetWindowPos();
                 const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -7219,6 +7698,52 @@ namespace JBro
         return m_notifications;
     }
 
+    String EditorApplication::GetAgentSkillsRoot() const
+    {
+        return EditorPaths::JoinPath(EditorPaths::FolderOf(m_localizationDirectory.c_str()).c_str(), "AgentSkills");
+    }
+
+    void EditorApplication::SetAgentGuidePaused(Bool paused)
+    {
+        if (paused && !m_agentGuidePaused)
+        {
+            m_agentGuideSelection.Clear();
+            for (auto* object : GetSelectedObjects())
+            {
+                m_agentGuideSelection.Add(object->SafeFromThis());
+            }
+        }
+        else if (!paused && m_agentGuidePaused && m_guide.IsRunning() && !m_guide.IsConfirming())
+        {
+            Bool valid = true;
+            for (const auto& object : m_agentGuideSelection)
+            {
+                valid = valid && object != nullptr;
+            }
+            if (valid)
+            {
+                ClearSelection();
+                for (const auto& object : m_agentGuideSelection)
+                {
+                    AddToSelection(object.TryGet());
+                }
+                valid = m_guide.RefreshCurrentStep(*this, m_guideFocus);
+            }
+            if (!valid)
+            {
+                m_guide.Stop(m_guideFocus);
+                m_notifications.Notify(NotificationLevel::Warning,
+                    Loc::TextOr(LocKeys::AgentGuideTargetLost, "The guide target changed. Ask for a new guide."));
+            }
+        }
+        m_agentGuidePaused = paused;
+        m_guideFocus.SetPaused(paused);
+        if (!paused)
+        {
+            m_agentGuideSelection.Clear();
+        }
+    }
+
     EditorGuideFocus& EditorApplication::GetGuideFocus()
     {
         return m_guideFocus;
@@ -7231,10 +7756,13 @@ namespace JBro
         {
             return false;
         }
+        m_guide.Stop(m_guideFocus);
+        SetAgentGuidePaused(false);
+        m_agentGuideReady = false;
         return m_guide.Start(*guide, *this, m_guideFocus);
     }
 
-    Bool EditorApplication::StartGuideFromText(const char* text, std::size_t length, String& error)
+    Bool EditorApplication::StartGuideFromText(const char* text, std::size_t length, String& error, Bool prepareOnly)
     {
         if (GetCanvas() == nullptr)
         {
@@ -7249,13 +7777,45 @@ namespace JBro
         }
         // 돌던 가이드가 옛 글자를 가리키므로 먼저 멈추고 바꾼다.
         m_guide.Stop(m_guideFocus);
+        SetAgentGuidePaused(false);
         m_textGuide = std::move(loaded);
+        m_agentGuideReady = prepareOnly;
+        if (prepareOnly)
+        {
+            return true;
+        }
         if (false == m_guide.Start(m_textGuide->Get(), *this, m_guideFocus))
         {
             error = "no step of the guide has anything to point at";
             return false;
         }
         return true;
+    }
+
+    const Guide* EditorApplication::GetAgentGuide() const
+    {
+        return m_agentGuideReady && m_textGuide.Get() != nullptr ? &m_textGuide->Get() : m_guide.GetGuide();
+    }
+
+    void EditorApplication::ResumeAgentGuide()
+    {
+        if (m_agentGuideReady)
+        {
+            m_agentGuideReady = false;
+            if (m_textGuide.Get() == nullptr || !m_guide.Start(m_textGuide->Get(), *this, m_guideFocus, true))
+            {
+                m_notifications.Notify(NotificationLevel::Warning, Loc::Text(LocKeys::AgentGuideTargetLost));
+            }
+            return;
+        }
+        SetAgentGuidePaused(false);
+    }
+
+    void EditorApplication::StopAgentGuide()
+    {
+        m_guide.Stop(m_guideFocus);
+        m_agentGuideReady = false;
+        SetAgentGuidePaused(false);
     }
 
     EditorGuide& EditorApplication::GetGuide()
@@ -7379,8 +7939,16 @@ namespace JBro
         PollCanvasLoad();
         // 스크립트 빌드가 끝났으면 진단을 모은다(D-299). 기다리지 않는다 - 끝났는지만 본다.
         PollScriptBuild();
+        if (m_codeLanguage.Get() != nullptr)
+        {
+            m_codeLanguage->Poll(deltaTime);
+        }
         // DLL 이 바뀌었거나 미룬 리로드가 있으면 다시 싣는다(D-300).
         PollScriptModuleFile(deltaTime);
+        if (m_sourceDebugger.Get() != nullptr)
+        {
+            m_sourceDebugger->Poll(deltaTime);
+        }
         // 지난 프레임의 스크립트 훅에서 예외가 났으면 실행을 멈추고 알린다(D-330). UI 보다 먼저라 이 프레임부터 되돌린 캔버스가 보인다.
         PollScriptFault();
         PollScriptErrors();
@@ -7497,6 +8065,12 @@ namespace JBro
         {
             return;
         }
+        if (m_sourceDebugger.Get() != nullptr)
+        {
+            m_sourceDebugger->Stop();
+            m_sourceDebugger.Reset();
+        }
+        StopScriptDebugServer();
         // 도는 스크립트 빌드는 끝낸다. 남기면 다음 프로젝트를 여는 동안 컴파일러가 이 프로젝트의 산출물을 붙잡는다.
         if (m_scriptBuildState == ScriptBuildState::Running)
         {
@@ -7527,6 +8101,9 @@ namespace JBro
         // 남은 것이 있으면 여기서 치운다 - 다음 프로젝트가 남의 휴지통을 물려받지 않는다(D-191).
         ClearTrash();
         m_objectIds.Clear();
+        ++m_agentContextRevision;
+        m_agentGuidePaused = false;
+        m_agentGuideReady = false;
         // 고르던 프레임은 이 프로젝트의 컴포넌트를 가리킨다. 다음 프로젝트의 같은 번호에 쓰면 안 된다.
         CancelSpriteFramePick();
         // 그림은 이 프로젝트의 것이다. 다음 프로젝트의 같은 아이디는 다른 파일이다. **에셋 시스템과도 끊는다** -
@@ -7556,6 +8133,7 @@ namespace JBro
                 ClosePanel(*panel);
             }
         }
+        m_codeLanguage = nullptr;
         // 캔버스 경로는 프로젝트의 것이다. 다음 프로젝트의 저장이 옛 파일에 가면 안 된다.
         m_canvasPath.clear();
         m_saveRequested = false;
@@ -7645,6 +8223,12 @@ namespace JBro
         }
         ScriptCallGuard::Disable();
         ScriptCallGuard::ClearFault();
+        // **위젯의 가이드 알림 자리를 뗀다**(D-251). 프레임마다 이 에디터의 `m_guideFocus` 를 걸 뿐 떼는 곳이 없어, 에디터가 사라진 뒤 같은 프로세스의
+        // 다른 ImGui 화면(시험의 `ScriptSummaryPanel`)이 해제된 메모리를 읽고 죽었다.
+        if (Widget::GetGuideFocus() == &m_guideFocus)
+        {
+            Widget::SetGuideFocus(nullptr);
+        }
         // 제어 포트를 먼저 닫는다 - 소켓은 provider 가, provider 는 플랫폼의 Winsock 이 살아 있어야 닫힌다.
         m_controlPort.Reset();
         m_socketProvider.Reset();
@@ -7657,7 +8241,16 @@ namespace JBro
             m_lastFrameStatus = m_engine->GetLastFrameStatus();
         }
         DestroySelectedFramework();
+        if (m_materialInspection.Get() != nullptr)
+        {
+            m_materialInspection->Shutdown();
+            m_materialInspection.Reset();
+        }
+        m_materialInspectionAssets = nullptr;
+        m_inspectedShaderId = {};
+        m_inspectedShader = {};
         m_engine.Reset();
+        m_shaderCompiler.Reset();
         if (m_rhiModule)
         {
             m_rhiModule->Shutdown();
@@ -7673,4 +8266,87 @@ namespace JBro
         }
         m_initialized = false;
     }
+    Bool EditorApplication::OpenMarkdownFile(const String& path, const String& anchor)
+    {
+        if (!m_uiEnabled || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const String normalized = Code::LanguageClient::NormalizePath(path);
+        Array<EditorPanel*> panels;
+        FindPanels(MarkdownPanel::TypeName, panels);
+        for (auto* candidate : panels)
+        {
+            auto* panel = static_cast<MarkdownPanel*>(candidate);
+            if (panel->GetPath() == normalized)
+            {
+                panel->Focus(anchor);
+                return true;
+            }
+        }
+        auto* panel = static_cast<MarkdownPanel*>(CreatePanel(MarkdownPanel::TypeName));
+        return panel != nullptr && panel->Open(normalized, anchor);
+    }
+    Bool EditorApplication::OpenCodeFile(const String& path, UInt32 line, UInt32 column)
+    {
+        if (m_openPath != nullptr)
+        {
+            return m_openPath(path.c_str(), m_openPathUser);
+        }
+        if (!m_uiEnabled || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const String normalized = Code::LanguageClient::NormalizePath(path);
+        Array<EditorPanel*> panels;
+        FindPanels(CodeEditorPanel::TypeName, panels);
+        for (auto* panel : panels)
+        {
+            auto* code = static_cast<CodeEditorPanel*>(panel);
+            if (code->GetPath() == normalized)
+            {
+                code->FocusAt(line, column);
+                return true;
+            }
+        }
+        auto* panel = static_cast<CodeEditorPanel*>(CreatePanel(CodeEditorPanel::TypeName));
+        if (panel == nullptr)
+        {
+            return false;
+        }
+        if (!panel->Open(normalized, line, column))
+        {
+            ClosePanel(*panel);
+            Log::Write(LogLevel::Warning, "editor", "The code file could not be opened: %s", normalized.c_str());
+            return false;
+        }
+        return true;
+    }
+    Code::LanguageClient& EditorApplication::GetCodeLanguageClient()
+    {
+        if (m_codeLanguage.Get() == nullptr)
+        {
+            m_codeLanguage = MakeOwnerPtr<Code::LanguageClient>(*m_platform);
+            ReconnectCodeLanguageClient();
+        }
+        return *m_codeLanguage;
+    }
+    Code::SourceDebugger& EditorApplication::GetSourceDebugger()
+    {
+        if (m_sourceDebugger.Get() == nullptr)
+        {
+            m_sourceDebugger = MakeOwnerPtr<Code::SourceDebugger>(*this);
+        }
+        return *m_sourceDebugger;
+    }
+    void EditorApplication::ReconnectCodeLanguageClient()
+    {
+        if (m_codeLanguage.Get() == nullptr)
+        {
+            return;
+        }
+        const String executable = EditorPaths::JoinPath(m_platform->GetExecutableFolder().c_str(), "JBroc.exe");
+        m_codeLanguage->Start(executable, m_projectFilePath, m_locale);
+    }
+
 }

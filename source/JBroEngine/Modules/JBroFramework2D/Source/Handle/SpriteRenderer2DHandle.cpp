@@ -49,6 +49,22 @@ namespace JBro::Handle
         return component->materialId;
     }
 
+    AssetHandle SpriteRenderer2D::GetRenderTexture() const
+    {
+        const Component::SpriteRenderer2D* component = Resolve("GetRenderTexture");
+        return component != nullptr ? component->renderTexture : AssetHandle{};
+    }
+
+    void SpriteRenderer2D::SetRenderTexture(AssetHandle value)
+    {
+        Component::SpriteRenderer2D* component = Resolve("SetRenderTexture");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->renderTexture = value;
+    }
+
     AssetHandle SpriteRenderer2D::GetMaterial() const
     {
         const Component::SpriteRenderer2D* component = Resolve("GetMaterial");
@@ -247,5 +263,65 @@ namespace JBro::Handle
             return;
         }
         component->visible = value;
+    }
+
+    Component::SpriteDrawMode SpriteRenderer2D::GetDrawMode() const
+    {
+        const Component::SpriteRenderer2D* component = Resolve("GetDrawMode");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->drawMode;
+    }
+
+    void SpriteRenderer2D::SetDrawMode(Component::SpriteDrawMode value)
+    {
+        Component::SpriteRenderer2D* component = Resolve("SetDrawMode");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->drawMode = value;
+    }
+
+    Float SpriteRenderer2D::GetFillAmount() const
+    {
+        const Component::SpriteRenderer2D* component = Resolve("GetFillAmount");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->fillAmount;
+    }
+
+    void SpriteRenderer2D::SetFillAmount(Float value)
+    {
+        Component::SpriteRenderer2D* component = Resolve("SetFillAmount");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->fillAmount = value;
+    }
+
+    Component::SpriteFillOrigin SpriteRenderer2D::GetFillOrigin() const
+    {
+        const Component::SpriteRenderer2D* component = Resolve("GetFillOrigin");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->fillOrigin;
+    }
+
+    void SpriteRenderer2D::SetFillOrigin(Component::SpriteFillOrigin value)
+    {
+        Component::SpriteRenderer2D* component = Resolve("SetFillOrigin");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->fillOrigin = value;
     }
 }

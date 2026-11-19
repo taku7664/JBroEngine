@@ -1,4 +1,6 @@
-#include <JBro/Editor/EditorPaths.h>
+﻿#include <JBro/Editor/EditorPaths.h>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/Bool.h>
 
 namespace JBro::EditorPaths
 {
@@ -60,5 +62,64 @@ namespace JBro::EditorPaths
         }
         left += start;
         return left;
+    }
+    String Normalize(const String& path)
+    {
+        String source = path;
+        for (auto& ch : source)
+        {
+            if (ch == '\\')
+            {
+                ch = '/';
+            }
+        }
+        String prefix;
+        std::size_t at = 0;
+        if (source.size() > 1 && source[1] == ':')
+        {
+            prefix = source.substr(0, 2);
+            if (prefix[0] >= 'a' && prefix[0] <= 'z')
+            {
+                prefix[0] = static_cast<char>(prefix[0] - 'a' + 'A');
+            }
+            at = 2;
+        }
+        const Bool rooted = at < source.size() && source[at] == '/';
+        if (rooted)
+        {
+            prefix += '/';
+            ++at;
+            if (prefix == "/" && at < source.size() && source[at] == '/')
+            {
+                prefix += '/';
+                ++at;
+            }
+        }
+        Array<String> parts;
+        while (at < source.size())
+        {
+            const auto slash = source.find('/', at);
+            const auto end = slash == String::npos ? source.size() : slash;
+            const String part = source.substr(at, end - at);
+            if (part == ".." && !parts.IsEmpty() && parts[parts.Size() - 1] != "..")
+            {
+                parts.RemoveAt(parts.Size() - 1);
+            }
+            else if (!part.empty() && part != "." && (part != ".." || !rooted))
+            {
+                parts.Add(part);
+            }
+            at = end + 1;
+        }
+        String result = prefix;
+        for (const auto& part : parts)
+        {
+            if (!result.empty() && result.back() != '/' && result.back() != ':')
+            {
+                result += '/';
+            }
+            result += part;
+        }
+        return result;
     }
 }

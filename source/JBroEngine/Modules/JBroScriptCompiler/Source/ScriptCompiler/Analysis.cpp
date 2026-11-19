@@ -1,7 +1,10 @@
 #include <JBro/ScriptCompiler/Analysis.h>
+#include <JBro/Types/ValueMath.h>
 #include <JBro/ScriptCompiler/Parser.h>
 #include <JBro/ScriptCompiler/Lexer.h>
+#include <JBro/ScriptCompiler/Summary.h>
 #include <JBro/Types/Table.h>
+#include "QualifiedName.h"
 
 #include <algorithm>
 #include <charconv>
@@ -119,15 +122,8 @@ namespace JBro::ScriptCompiler
 
         SymbolId TypeId(const AnalysisResult& result, std::string_view type)
         {
-            const String name = TypeBase(type);
-            for (const Symbol& symbol : result.Symbols)
-            {
-                if (IsTypeSymbol(symbol.Kind) && symbol.Name == name)
-                {
-                    return symbol.Id;
-                }
-            }
-            return InvalidSymbol;
+            const SymbolId* found = result.TypeIndex.Find(TypeBase(type));
+            return found != nullptr ? *found : InvalidSymbol;
         }
 
         Bool Derives(const AnalysisResult& result, SymbolId type, SymbolId base, Array<SymbolId>& visited)
@@ -157,15 +153,36 @@ namespace JBro::ScriptCompiler
             return Derives(result, type, base, visited);
         }
 
+        Bool LexicalOwner(const AnalysisResult& result, SymbolId ancestor, SymbolId owner)
+        {
+            while (owner != InvalidSymbol)
+            {
+                if (owner == ancestor)
+                {
+                    return true;
+                }
+                owner = result.Symbols[owner].Parent;
+            }
+            return false;
+        }
+
         Bool Accessible(const AnalysisResult& result, const Symbol& member, SymbolId owner)
         {
             if (member.IsPrivate)
             {
-                return member.Parent == owner;
+                return LexicalOwner(result, member.Parent, owner);
             }
             if (member.IsProtected)
             {
-                return Derives(result, owner, member.Parent);
+                while (owner != InvalidSymbol)
+                {
+                    if (Derives(result, owner, member.Parent))
+                    {
+                        return true;
+                    }
+                    owner = result.Symbols[owner].Parent;
+                }
+                return false;
             }
             return true;
         }
@@ -195,12 +212,10 @@ namespace JBro::ScriptCompiler
                 return;
             }
             visited.Add(type);
-            for (const Symbol& symbol : result.Symbols)
+            const Array<SymbolId>* children = name.empty() ? result.ChildIndex.Find(type) : result.MemberIndex.Find(MemberKey(type, name));
+            for (std::size_t slot = 0; children != nullptr && slot < children->Size(); ++slot)
             {
-                if (symbol.Parent != type || (false == name.empty() && symbol.Name != name))
-                {
-                    continue;
-                }
+                const Symbol& symbol = result.Symbols[(*children)[slot]];
                 const Bool hidden = nullptr != output.FindBy([&](SymbolId id)
                 {
                     const Symbol& earlier = result.Symbols[id];
@@ -226,23 +241,102 @@ namespace JBro::ScriptCompiler
             return output;
         }
 
+        String QualifiedSpelling(std::string_view name)
+        {
+            return Internal::QualifiedName(name);
+        }
+
+        SymbolId NestedTypePath(const AnalysisResult& result, SymbolId scope, std::string_view name)
+        {
+            const std::size_t dot = name.find('.');
+            const std::string_view head = name.substr(0, dot);
+            for (SymbolId id : Members(result, scope, head))
+            {
+                if (IsTypeSymbol(result.Symbols[id].Kind))
+                {
+                    return dot == std::string_view::npos ? id : NestedTypePath(result, id, name.substr(dot + 1));
+                }
+            }
+            return InvalidSymbol;
+        }
+
+        SymbolId ResolveTypeId(const AnalysisResult& result, std::string_view spelling, SymbolId owner)
+        {
+            const String name = QualifiedSpelling(spelling);
+            for (SymbolId scope = owner; scope != InvalidSymbol; scope = result.Symbols[scope].Parent)
+            {
+                if (IsTypeSymbol(result.Symbols[scope].Kind))
+                {
+                    if (name == result.Symbols[scope].Name)
+                    {
+                        return scope;
+                    }
+                    const SymbolId nested = NestedTypePath(result, scope, name.View());
+                    if (nested != InvalidSymbol)
+                    {
+                        return nested;
+                    }
+                }
+            }
+            const SymbolId exact = TypeId(result, name.View());
+            if (exact != InvalidSymbol)
+            {
+                return exact;
+            }
+            const std::size_t dot = name.find('.');
+            if (dot != String::npos)
+            {
+                const SymbolId root = TypeId(result, name.substr(0, dot));
+                if (root != InvalidSymbol)
+                {
+                    return NestedTypePath(result, root, name.View().substr(dot + 1));
+                }
+            }
+            return InvalidSymbol;
+        }
+
+        String SymbolPath(const AnalysisResult& result, SymbolId id)
+        {
+            if (id == InvalidSymbol)
+            {
+                return {};
+            }
+            const Symbol& symbol = result.Symbols[id];
+            return symbol.Parent == InvalidSymbol ? symbol.Name : String(SymbolPath(result, symbol.Parent) + "." + symbol.Name);
+        }
+
         void VisibleEqualityMembers(const AnalysisResult& result, SymbolId type, std::string_view name,
             Array<SymbolId>& output, Array<SymbolId>& visited, Bool& multipleBases)
         {
-            if (InvalidSymbol == type || visited.Contains(type)) return;
-            visited.Add(type);
-            for (const Symbol& symbol : result.Symbols)
+            if (InvalidSymbol == type || visited.Contains(type))
             {
-                if (symbol.Parent == type && symbol.Name == name) output.Add(symbol.Id);
+                return;
             }
-            if (!output.IsEmpty()) return;
+            visited.Add(type);
+            if (const Array<SymbolId>* children = result.MemberIndex.Find(MemberKey(type, name)))
+            {
+                for (const SymbolId child : *children)
+                {
+                    output.Add(child);
+                }
+            }
+            if (!output.IsEmpty())
+            {
+                return;
+            }
             Bool foundBase = false;
             for (const String& base : result.Symbols[type].BaseTypes)
             {
                 Array<SymbolId> branch;
                 VisibleEqualityMembers(result, TypeId(result, base), name, branch, visited, multipleBases);
-                if (branch.IsEmpty()) continue;
-                if (foundBase) multipleBases = true;
+                if (branch.IsEmpty())
+                {
+                    continue;
+                }
+                if (foundBase)
+                {
+                    multipleBases = true;
+                }
                 foundBase = true;
                 output.Append(branch.Data(), branch.Size());
             }
@@ -296,18 +390,31 @@ namespace JBro::ScriptCompiler
         SourceLocation Location(const SourceText& source, std::size_t offset)
         {
             const std::string_view text = source.GetText();
-            offset = std::min(offset, text.size());
+            offset = Min(offset, text.size());
             SourceLocation result;
             result.Offset = static_cast<UInt32>(offset);
-            std::size_t lineStart = text.starts_with("\xEF\xBB\xBF") ? 3 : 0;
-            for (std::size_t index = 0; index < offset; ++index)
+            // 줄 시작 표에서 `offset` 이하인 마지막 줄을 찾는다(D-387). 전에는 파일 처음부터 줄바꿈을 셌다.
+            const Array<UInt32>& starts = source.GetLineStarts();
+            std::size_t low = 0;
+            std::size_t high = starts.Size();
+            while (high - low > 1)
             {
-                if ('\n' == text[index])
+                const std::size_t middle = low + (high - low) / 2;
+                if (starts[middle].Get() <= offset)
                 {
-                    ++result.Line;
-                    lineStart = index + 1;
+                    low = middle;
+                }
+                else
+                {
+                    high = middle;
                 }
             }
+            std::size_t lineStart = starts.IsEmpty() ? 0 : starts[low].Get();
+            if (low == 0 && text.starts_with("\xEF\xBB\xBF"))
+            {
+                lineStart = 3;
+            }
+            result.Line = static_cast<UInt32>(low + 1);
             result.Column = static_cast<UInt32>(offset >= lineStart ? offset - lineStart + 1 : 1);
             return result;
         }
@@ -330,7 +437,7 @@ namespace JBro::ScriptCompiler
                 return "Void";
             }
             const SyntaxNode& node = tree.Get(index);
-            String type(node.Text);
+            String type = QualifiedSpelling(node.Text);
             const auto arguments = tree.GetChildren(index);
             if (0 != arguments.Size())
             {
@@ -468,13 +575,17 @@ namespace JBro::ScriptCompiler
                 }
                 if (node.Text == "this")
                 {
+                    const Symbol* owner = nullptr;
                     for (const Symbol& symbol : result.Symbols)
                     {
-                        if (IsTypeSymbol(symbol.Kind) && symbol.Uri == document.Input.Uri && Contains(symbol.Range, node.Range.Begin.Offset))
+                        if (IsTypeSymbol(symbol.Kind) && symbol.Uri == document.Input.Uri && Contains(symbol.Range, node.Range.Begin.Offset)
+                            && (owner == nullptr || symbol.Range.End.Offset - symbol.Range.Begin.Offset
+                                < owner->Range.End.Offset - owner->Range.Begin.Offset))
                         {
-                            return symbol.Name;
+                            owner = &symbol;
                         }
                     }
+                    return owner == nullptr ? String() : owner->Type;
                 }
                 return {};
             }
@@ -491,7 +602,10 @@ namespace JBro::ScriptCompiler
                     if (call.Range.Begin.Offset == node.Range.Begin.Offset && call.Range.End.Offset == node.Range.End.Offset
                         && InvalidSymbol != call.Resolved)
                     {
-                        if (false == call.ResultType.IsEmpty()) return call.ResultType;
+                        if (false == call.ResultType.IsEmpty())
+                        {
+                            return call.ResultType;
+                        }
                         const Symbol& function = result.Symbols[call.Resolved];
                         const NodeIndex callee = tree.GetChild(index, 0);
                         const SyntaxNode& calleeNode = tree.Get(callee);
@@ -698,7 +812,7 @@ namespace JBro::ScriptCompiler
                         {
                             return old.Parent == candidate.Parent;
                         }
-                        return m_previous->Symbols[old.Parent].Name == m_result.Symbols[candidate.Parent].Name
+                        return SymbolPath(*m_previous, old.Parent) == SymbolPath(m_result, candidate.Parent)
                             && SameParameters(old, candidate);
                     });
                     if (nullptr != match)
@@ -752,6 +866,13 @@ namespace JBro::ScriptCompiler
 
             const SyntaxNode& Node(NodeIndex index) const
             {
+                // 파서가 오류로 비운 자리(`a ?? ` 의 오른쪽 등)는 빈 노드로 읽는다. 그 자리의 구문 오류는 이미 나 있고,
+                // 빈 식의 타입은 비어 있어 이 노드의 범위로 새 진단이 나가지 않는다.
+                static const SyntaxNode missing{};
+                if (InvalidNode == index)
+                {
+                    return missing;
+                }
                 return m_document->Tree.Get(index);
             }
 
@@ -779,6 +900,13 @@ namespace JBro::ScriptCompiler
                 symbol.Id = static_cast<SymbolId>(m_result.Symbols.Size());
                 symbol.Signature = Signature(symbol);
                 const SymbolId id = symbol.Id;
+                if (IsTypeSymbol(symbol.Kind))
+                {
+                    // 같은 이름이 둘이면 처음 것이 이긴다 - 전의 앞에서부터 훑기와 같다.
+                    m_result.TypeIndex.TryAdd(symbol.Type, id);
+                }
+                m_result.ChildIndex[symbol.Parent].Add(id);
+                m_result.MemberIndex[MemberKey(symbol.Parent, symbol.Name.View())].Add(id);
                 m_result.Symbols.Add(std::move(symbol));
                 return id;
             }
@@ -789,14 +917,40 @@ namespace JBro::ScriptCompiler
                 {
                     return;
                 }
-                const Bool exists = nullptr != m_document->Occurrences.FindBy([&](const Occurrence& occurrence)
+                // 같은 자리·같은 대상은 한 번만 적는다. 전에는 문서의 출현을 매번 처음부터 훑어 필드 수의 제곱이었다(D-387) -
+                // (시작 위치, 대상) 색인으로 본다. 출현 목록은 다른 자리에서도 비우고 붙이므로 문서나 개수가 어긋나면 색인을 다시 맞춘다.
+                SyncOccurrenceIndex();
+                const UInt64 key = (UInt64(range.Begin.Offset.Get()) << 32) | UInt64(target.Get());
+                Array<UInt32>& ends = m_occurrenceIndex[key];
+                if (ends.Contains(range.End.Offset))
                 {
-                    return occurrence.Range.Begin.Offset == range.Begin.Offset && occurrence.Range.End.Offset == range.End.Offset
-                        && occurrence.Target == target;
-                });
-                if (false == exists)
+                    return;
+                }
+                ends.Add(range.End.Offset);
+                m_document->Occurrences.Add({target, range, declaration});
+                m_occurrenceIndexed = m_document->Occurrences.Size();
+                m_occurrenceLast = m_document->Occurrences.Last();
+            }
+
+            void SyncOccurrenceIndex()
+            {
+                const Array<Occurrence>& occurrences = m_document->Occurrences;
+                const Bool lastStillThere = m_occurrenceIndexed == 0 || (m_occurrenceIndexed <= occurrences.Size()
+                    && occurrences[m_occurrenceIndexed - 1].Target == m_occurrenceLast.Target
+                    && occurrences[m_occurrenceIndexed - 1].Range.Begin.Offset == m_occurrenceLast.Range.Begin.Offset
+                    && occurrences[m_occurrenceIndexed - 1].Range.End.Offset == m_occurrenceLast.Range.End.Offset);
+                if (m_occurrenceDocument != m_document || false == lastStillThere)
                 {
-                    m_document->Occurrences.Add({target, range, declaration});
+                    m_occurrenceIndex.Clear();
+                    m_occurrenceDocument = m_document;
+                    m_occurrenceIndexed = 0;
+                }
+                for (; m_occurrenceIndexed < occurrences.Size(); ++m_occurrenceIndexed)
+                {
+                    const Occurrence& occurrence = occurrences[m_occurrenceIndexed];
+                    const UInt64 key = (UInt64(occurrence.Range.Begin.Offset.Get()) << 32) | UInt64(occurrence.Target.Get());
+                    m_occurrenceIndex[key].Add(occurrence.Range.End.Offset);
+                    m_occurrenceLast = occurrence;
                 }
             }
 
@@ -863,6 +1017,9 @@ namespace JBro::ScriptCompiler
                         symbol.MutatesReceiver = member.MutatesReceiver;
                         symbol.MayInvalidateHandles = member.MayInvalidateHandles;
                         symbol.HasOutputProjection = member.HasOutputProjection;
+                        // 결과 필드를 섞는 꼴(`InputCapture`)은 언어 서버 계약(lsp-plan §5)이 받으므로 거절하지 않는다 - 생성은 사용자 결정 대기
+                        // (DECISIONS-NEEDED Q9). 그 밖의 내리지 못하는 꼴만 `JBC3050` 이다.
+                        symbol.ProjectionEmittable = CanEmitOutputProjection(member) || false == member.NativeReturnField.IsEmpty();
                         symbol.Description = member.Description;
                         symbol.Uri = member.DefinitionUri;
                         symbol.Range = member.DefinitionRange;
@@ -905,6 +1062,7 @@ namespace JBro::ScriptCompiler
                     symbol.MutatesReceiver = function.MutatesReceiver;
                     symbol.MayInvalidateHandles = function.MayInvalidateHandles;
                     symbol.HasOutputProjection = function.HasOutputProjection;
+                    symbol.ProjectionEmittable = CanEmitOutputProjection(function) || false == function.NativeReturnField.IsEmpty();
                     symbol.Description = function.Description;
                     symbol.Uri = function.DefinitionUri;
                     symbol.Range = function.DefinitionRange;
@@ -935,6 +1093,54 @@ namespace JBro::ScriptCompiler
                 return symbol;
             }
 
+            void CollectType(NodeIndex declaration, SymbolId parent)
+            {
+                const SyntaxNode& node = Node(declaration);
+                if (node.Text.empty())
+                {
+                    return;
+                }
+                SymbolKind kind = SymbolKind::Class;
+                switch (node.Kind)
+                {
+                case SyntaxKind::StructDeclaration: kind = SymbolKind::Struct; break;
+                case SyntaxKind::InterfaceDeclaration: kind = SymbolKind::Interface; break;
+                case SyntaxKind::EnumDeclaration: kind = SymbolKind::Enum; break;
+                case SyntaxKind::ScriptDeclaration:
+                case SyntaxKind::ClassDeclaration: break;
+                default: return;
+                }
+                const String qualified = parent == InvalidSymbol ? String(node.Text)
+                    : m_result.Symbols[parent].Type + "." + String(node.Text);
+                if (InvalidSymbol != TypeId(m_result, qualified.View())
+                    || (parent != InvalidSymbol && m_result.Symbols[parent].Name == node.Text))
+                {
+                    Error("JBC3002", "duplicate", NameRange(*m_document, node), {qualified});
+                }
+                Symbol symbol = FromNode(declaration, parent, kind);
+                symbol.Type = qualified;
+                symbol.IsStatic = parent != InvalidSymbol;
+                if (parent == InvalidSymbol)
+                {
+                    symbol.IsPrivate = false;
+                }
+                const SymbolId id = Add(std::move(symbol));
+                m_bindings.Add({m_document, declaration, id});
+                if (SyntaxKind::ScriptDeclaration == node.Kind)
+                {
+                    m_handles.Add(id);
+                    m_scripts.Add(id);
+                }
+                Occur(id, m_result.Symbols[id].SelectionRange, true);
+                for (NodeIndex child : m_document->Tree.GetChildren(declaration))
+                {
+                    if (child != InvalidNode)
+                    {
+                        CollectType(child, id);
+                    }
+                }
+            }
+
             void CollectTypes()
             {
                 for (auto& document : m_result.Documents)
@@ -942,34 +1148,7 @@ namespace JBro::ScriptCompiler
                     m_document = document.Get();
                     for (NodeIndex declaration : m_document->Tree.GetChildren(m_document->Tree.GetRoot()))
                     {
-                        const SyntaxNode& node = Node(declaration);
-                        if (node.Text.empty())
-                        {
-                            continue;
-                        }
-                        SymbolKind kind = SymbolKind::Class;
-                        switch (node.Kind)
-                        {
-                        case SyntaxKind::StructDeclaration: kind = SymbolKind::Struct; break;
-                        case SyntaxKind::InterfaceDeclaration: kind = SymbolKind::Interface; break;
-                        case SyntaxKind::EnumDeclaration: kind = SymbolKind::Enum; break;
-                        default: break;
-                        }
-                        if (InvalidSymbol != TypeId(m_result, node.Text))
-                        {
-                            Error("JBC3002", "duplicate", NameRange(*m_document, node), {String(node.Text)});
-                        }
-                        Symbol symbol = FromNode(declaration, InvalidSymbol, kind);
-                        symbol.Type = symbol.Name;
-                        symbol.IsPrivate = false;
-                        const SymbolId id = Add(std::move(symbol));
-                        m_bindings.Add({m_document, declaration, id});
-                        if (SyntaxKind::ScriptDeclaration == node.Kind)
-                        {
-                            m_handles.Add(id);
-                            m_scripts.Add(id);
-                        }
-                        Occur(id, m_result.Symbols[id].SelectionRange, true);
+                        CollectType(declaration, InvalidSymbol);
                     }
                 }
             }
@@ -981,9 +1160,15 @@ namespace JBro::ScriptCompiler
                 {
                     const Binding binding = m_bindings[bindingIndex];
                     m_document = binding.Document;
+                    m_owner = binding.Id;
                     for (NodeIndex child : m_document->Tree.GetChildren(binding.Node))
                     {
                         if (InvalidNode == child)
+                        {
+                            continue;
+                        }
+                        if (Node(child).Kind == SyntaxKind::ClassDeclaration || Node(child).Kind == SyntaxKind::StructDeclaration
+                            || Node(child).Kind == SyntaxKind::InterfaceDeclaration || Node(child).Kind == SyntaxKind::EnumDeclaration)
                         {
                             continue;
                         }
@@ -991,7 +1176,7 @@ namespace JBro::ScriptCompiler
                         {
                             for (NodeIndex base : m_document->Tree.GetChildren(child))
                             {
-                                m_result.Symbols[binding.Id].BaseTypes.Add(RenderType(m_document->Tree, base));
+                                m_result.Symbols[binding.Id].BaseTypes.Add(TypeName(base));
                             }
                             continue;
                         }
@@ -1005,16 +1190,46 @@ namespace JBro::ScriptCompiler
                             kind = SymbolKind::EnumMember;
                         }
                         Symbol symbol = FromNode(child, binding.Id, kind);
+                        // 필드 어트리뷰트의 이름과 인자 수는 타입체커가 잡는다(jbroc-rules §3.2). 전에는 C++ 생성기만 보아서 위치·코드 없는 영어 한 줄로
+                        // 빌드에서야 멈췄고, 언어 서버는 아무것도 보이지 않았다. 목록은 요약·생성기와 같은 `FindFieldAttributeDefinition` 이다.
+                        if (kind == SymbolKind::Field && Child(child, 0) != InvalidNode)
+                        {
+                            for (NodeIndex attribute : m_document->Tree.GetChildren(Child(child, 0)))
+                            {
+                                if (attribute == InvalidNode)
+                                {
+                                    continue;
+                                }
+                                const SyntaxNode& declaration = Node(attribute);
+                                const FieldAttributeDefinition* definition = FindFieldAttributeDefinition(declaration.Text);
+                                if (definition == nullptr)
+                                {
+                                    Error("JBC3045", "unknown_attribute", NameRange(*m_document, declaration), {String(declaration.Text)});
+                                }
+                                else if (declaration.ChildCount != definition->ArgumentCount)
+                                {
+                                    Error("JBC3046", "attribute_argument_count", NameRange(*m_document, declaration),
+                                        {String(declaration.Text), String(std::to_string(definition->ArgumentCount.Get()))});
+                                }
+                                else
+                                {
+                                    CheckAttributeArguments(attribute);
+                                }
+                            }
+                        }
                         if (kind == SymbolKind::Field && (Node(child).Flags & SyntaxFlagStatic))
                         {
-                            bool property = false;
-                            bool noSerialize = false;
+                            Bool property = false;
+                            Bool noSerialize = false;
                             const NodeIndex attributes = Child(child, 0);
                             if (attributes != InvalidNode)
                             {
                                 for (NodeIndex attribute : m_document->Tree.GetChildren(attributes))
                                 {
-                                    if (attribute == InvalidNode) continue;
+                                    if (attribute == InvalidNode)
+                                    {
+                                        continue;
+                                    }
                                     property |= Node(attribute).Text == "prop";
                                     noSerialize |= Node(attribute).Text == "noserialize";
                                 }
@@ -1027,7 +1242,7 @@ namespace JBro::ScriptCompiler
                         }
                         if (IsFunction(kind))
                         {
-                            symbol.Type = RenderType(m_document->Tree, Child(child, 2));
+                            symbol.Type = TypeName(Child(child, 2));
                             const NodeIndex parameters = Child(child, 1);
                             if (InvalidNode != parameters)
                             {
@@ -1036,7 +1251,7 @@ namespace JBro::ScriptCompiler
                                     const NodeIndex type = Child(parameter, 0);
                                     ParameterInfo info;
                                     info.Name = String(Node(parameter).Text);
-                                    info.Type = RenderType(m_document->Tree, type);
+                                    info.Type = TypeName(type);
                                     info.Borrowed = InvalidNode != type && 0 != (Node(type).Flags & SyntaxFlagRef);
                                     if (info.Borrowed && 0 != (Node(type).Flags & SyntaxFlagConst))
                                     {
@@ -1050,12 +1265,12 @@ namespace JBro::ScriptCompiler
                             symbol.MayInvalidateHandles = true;
                             if (SymbolKind::Constructor == kind)
                             {
-                                symbol.Type = m_result.Symbols[binding.Id].Name;
+                                symbol.Type = m_result.Symbols[binding.Id].Type;
                             }
                         }
                         else if (SymbolKind::EnumMember == kind)
                         {
-                            symbol.Type = m_result.Symbols[binding.Id].Name;
+                            symbol.Type = m_result.Symbols[binding.Id].Type;
                             symbol.Writable = false;
                             symbol.IsStatic = true;
                             symbol.IsPrivate = false;
@@ -1063,7 +1278,7 @@ namespace JBro::ScriptCompiler
                         else
                         {
                             const NodeIndex type = Child(child, 1);
-                            symbol.Type = RenderType(m_document->Tree, type);
+                            symbol.Type = TypeName(type);
                             symbol.Writable = InvalidNode == type || 0 == (Node(type).Flags & SyntaxFlagConst);
                         }
                         const SymbolId id = Add(std::move(symbol));
@@ -1091,6 +1306,78 @@ namespace JBro::ScriptCompiler
                 }
             }
 
+            String TypeName(NodeIndex index) const
+            {
+                if (index == InvalidNode)
+                {
+                    return "Void";
+                }
+                const SyntaxNode& node = Node(index);
+                const SymbolId id = ResolveTypeId(m_result, node.Text, m_owner);
+                String type = id == InvalidSymbol ? QualifiedSpelling(node.Text) : m_result.Symbols[id].Type;
+                const auto arguments = m_document->Tree.GetChildren(index);
+                if (false == arguments.IsEmpty())
+                {
+                    type += "<";
+                    for (std::size_t slot = 0; slot < arguments.Size(); ++slot)
+                    {
+                        if (slot != 0)
+                        {
+                            type += ", ";
+                        }
+                        type += TypeName(arguments[slot]);
+                    }
+                    type += ">";
+                }
+                return (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)) != 0 ? RefType(type) : type;
+            }
+
+            void TypeOccurrences(const SyntaxNode& node)
+            {
+                const std::string_view text = m_document->Source.GetText();
+                String prefix;
+                std::size_t position = 0;
+                while (position < node.Text.size())
+                {
+                    if (node.Text[position] == '/' && position + 1 < node.Text.size() && node.Text[position + 1] == '/')
+                    {
+                        while (position < node.Text.size() && node.Text[position] != '\n')
+                        {
+                            ++position;
+                        }
+                        continue;
+                    }
+                    while (position < node.Text.size() && (node.Text[position] == '.' || node.Text[position] == ' '
+                        || node.Text[position] == '\t' || node.Text[position] == '\r' || node.Text[position] == '\n'))
+                    {
+                        ++position;
+                    }
+                    const std::size_t begin = position;
+                    if (position < node.Text.size() && node.Text[position] == '/')
+                    {
+                        continue;
+                    }
+                    while (position < node.Text.size() && node.Text[position] != '.' && node.Text[position] != ' '
+                        && node.Text[position] != '\t' && node.Text[position] != '\r' && node.Text[position] != '\n'
+                        && node.Text[position] != '/')
+                    {
+                        ++position;
+                    }
+                    if (position == begin)
+                    {
+                        break;
+                    }
+                    if (false == prefix.IsEmpty())
+                    {
+                        prefix += ".";
+                    }
+                    prefix.Append(node.Text.substr(begin, position - begin));
+                    const SymbolId id = ResolveTypeId(m_result, prefix.View(), m_owner);
+                    const std::size_t offset = static_cast<std::size_t>(node.Text.data() - text.data()) + begin;
+                    Occur(id, {Location(m_document->Source, offset), Location(m_document->Source, offset + position - begin)});
+                }
+            }
+
             void ValidateType(NodeIndex index, Bool borrowAllowed, Bool returnType = false, Bool descriptor = false)
             {
                 if (InvalidNode == index)
@@ -1098,14 +1385,23 @@ namespace JBro::ScriptCompiler
                     return;
                 }
                 const SyntaxNode& node = Node(index);
-                const SymbolId id = TypeId(m_result, node.Text);
+                const SymbolId id = ResolveTypeId(m_result, node.Text, m_owner);
                 if (InvalidSymbol == id)
                 {
                     Error("JBC3001", "unknown_type", NameRange(*m_document, node), {String(node.Text)});
                 }
                 else
                 {
-                    Occur(id, NameRange(*m_document, node));
+                    TypeOccurrences(node);
+                    for (SymbolId type = id; type != InvalidSymbol && IsTypeSymbol(m_result.Symbols[type].Kind);
+                        type = m_result.Symbols[type].Parent)
+                    {
+                        if (false == Accessible(m_result, m_result.Symbols[type], m_owner))
+                        {
+                            Error("JBC3005", "inaccessible", NameRange(*m_document, node), {m_result.Symbols[type].Type});
+                            break;
+                        }
+                    }
                     if (false == descriptor && m_handles.Contains(id)
                         && 0 == (node.Flags & (SyntaxFlagRef | SyntaxFlagNullable)))
                     {
@@ -1139,7 +1435,7 @@ namespace JBro::ScriptCompiler
                 }
                 if (node.Text == "Table" && children.Size() == 2)
                 {
-                    const String key = RenderType(m_document->Tree, children[0]);
+                    const String key = TypeName(children[0]);
                     if (key != "Int" && key != "String")
                     {
                         Error("JBC3022", "table_key", Node(children[0]).Range);
@@ -1167,6 +1463,124 @@ namespace JBro::ScriptCompiler
                 path.Pop();
             }
 
+            Bool EngineCallback(const Symbol& method, SymbolId owner, Array<SymbolId>& visited) const
+            {
+                if (owner == InvalidSymbol || visited.Contains(owner))
+                {
+                    return false;
+                }
+                visited.Add(owner);
+                const Array<SymbolId>* ownerChildren = m_result.ChildIndex.Find(owner);
+                for (std::size_t slot = 0; ownerChildren != nullptr && slot < ownerChildren->Size(); ++slot)
+                {
+                    const Symbol& member = m_result.Symbols[(*ownerChildren)[slot]];
+                    if (member.Api && member.IsCallback && member.Name == method.Name
+                        && SameParameters(member, method) && EqualType(member.Type, method.Type))
+                    {
+                        return true;
+                    }
+                }
+                for (const String& base : m_result.Symbols[owner].BaseTypes)
+                {
+                    if (EngineCallback(method, TypeId(m_result, base), visited))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // 필드가 값으로 담는 사용자 `class`·`struct` 다. `ref T` 도 값과 있음 여부를 담으므로 소유다(§16). `script` 는 핸들이고,
+            // `Array`·`Table` 은 원소를 따로 잡으므로 소유 사슬을 끊는다. 정적 필드는 인스턴스의 크기에 들지 않는다.
+            // 어트리뷰트의 인자는 C++ 의 `constexpr` 어트리뷰트(`Attribute::Range(Float, Float)`·`Name(const char*)`)로 바로 들어가므로
+            // 상수여야 한다(jbroc-rules §3.2 "인자 개수·타입", D-385). `range`·`clamp` 는 숫자 리터럴(앞의 `-` 포함), 글을 받는 넷은 문자열 리터럴이다.
+            void CheckAttributeArguments(NodeIndex attribute)
+            {
+                const SyntaxNode& declaration = Node(attribute);
+                const std::string_view name = declaration.Text;
+                const Bool numbers = name == "range" || name == "clamp";
+                const Bool texts = name == "name" || name == "tooltip" || name == "category" || name == "visiblewhen";
+                if (false == numbers && false == texts)
+                {
+                    return;
+                }
+                UInt32 position = 0;
+                for (NodeIndex argument : m_document->Tree.GetChildren(attribute))
+                {
+                    ++position;
+                    if (argument == InvalidNode)
+                    {
+                        continue;
+                    }
+                    NodeIndex value = argument;
+                    if (numbers && SyntaxKind::UnaryExpression == Node(value).Kind && Node(value).Text == "-" && Node(value).ChildCount == 1)
+                    {
+                        value = Child(value, 0);
+                    }
+                    const SyntaxKind kind = value == InvalidNode ? SyntaxKind::Count : Node(value).Kind;
+                    const Bool fits = numbers ? (SyntaxKind::IntegerLiteral == kind || SyntaxKind::FloatLiteral == kind)
+                        : SyntaxKind::StringLiteral == kind;
+                    if (false == fits)
+                    {
+                        Error("JBC3051", numbers ? "attribute_argument_number" : "attribute_argument_text", Node(argument).Range,
+                            {String(name), String(std::to_string(position.Get()))});
+                    }
+                }
+            }
+
+            SymbolId OwnedValueType(const Symbol& field) const
+            {
+                if (SymbolKind::Field != field.Kind || field.IsStatic)
+                {
+                    return InvalidSymbol;
+                }
+                const SymbolId type = TypeId(m_result, Bare(field.Type));
+                if (InvalidSymbol == type)
+                {
+                    return InvalidSymbol;
+                }
+                const Symbol& symbol = m_result.Symbols[type];
+                if (symbol.Api || m_scripts.Contains(type)
+                    || (SymbolKind::Class != symbol.Kind && SymbolKind::Struct != symbol.Kind))
+                {
+                    return InvalidSymbol;
+                }
+                return type;
+            }
+
+            // `type` 의 인스턴스가 값으로(필드나 부모 부분으로) `target` 을 담는가.
+            Bool OwnsValueOf(SymbolId type, SymbolId target, Array<SymbolId>& visited) const
+            {
+                if (type == target)
+                {
+                    return true;
+                }
+                if (visited.Contains(type))
+                {
+                    return false;
+                }
+                visited.Add(type);
+                for (const String& base : m_result.Symbols[type].BaseTypes)
+                {
+                    const SymbolId baseId = TypeId(m_result, base);
+                    if (InvalidSymbol != baseId && false == m_scripts.Contains(baseId) && false == m_result.Symbols[baseId].Api
+                        && OwnsValueOf(baseId, target, visited))
+                    {
+                        return true;
+                    }
+                }
+                const Array<SymbolId>* members = m_result.ChildIndex.Find(type);
+                for (std::size_t slot = 0; members != nullptr && slot < members->Size(); ++slot)
+                {
+                    const SymbolId owned = OwnedValueType(m_result.Symbols[(*members)[slot]]);
+                    if (InvalidSymbol != owned && OwnsValueOf(owned, target, visited))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
             void ValidateDeclarations()
             {
                 for (const Binding& binding : m_bindings)
@@ -1175,12 +1589,10 @@ namespace JBro::ScriptCompiler
                     m_owner = m_result.Symbols[binding.Id].Parent;
                     const Symbol symbol = m_result.Symbols[binding.Id];
                     const SyntaxNode& node = Node(binding.Node);
-                    for (const Symbol& earlier : m_result.Symbols)
+                    const Array<SymbolId>& siblings = m_result.MemberIndex[MemberKey(symbol.Parent, symbol.Name.View())];
+                    for (std::size_t slot = 0; slot < siblings.Size() && siblings[slot] < symbol.Id; ++slot)
                     {
-                        if (earlier.Id >= symbol.Id || earlier.Parent != symbol.Parent || earlier.Name != symbol.Name)
-                        {
-                            continue;
-                        }
+                        const Symbol& earlier = m_result.Symbols[siblings[slot]];
                         if (IsFunction(symbol.Kind) && IsFunction(earlier.Kind) && false == SameParameters(symbol, earlier))
                         {
                             continue;
@@ -1199,14 +1611,23 @@ namespace JBro::ScriptCompiler
                         {
                             for (NodeIndex base : m_document->Tree.GetChildren(bases))
                             {
-                                const SymbolId baseId = TypeId(m_result, Node(base).Text);
+                                const SymbolId baseId = ResolveTypeId(m_result, Node(base).Text, m_owner);
                                 if (InvalidSymbol == baseId)
                                 {
                                     Error("JBC3001", "unknown_type", Node(base).Range, {String(Node(base).Text)});
                                 }
                                 else
                                 {
-                                    Occur(baseId, NameRange(*m_document, Node(base)));
+                                    TypeOccurrences(Node(base));
+                                    for (SymbolId type = baseId; type != InvalidSymbol && IsTypeSymbol(m_result.Symbols[type].Kind);
+                                        type = m_result.Symbols[type].Parent)
+                                    {
+                                        if (false == Accessible(m_result, m_result.Symbols[type], m_owner))
+                                        {
+                                            Error("JBC3005", "inaccessible", Node(base).Range, {m_result.Symbols[type].Type});
+                                            break;
+                                        }
+                                    }
                                     if (SymbolKind::Struct == m_result.Symbols[baseId].Kind || SymbolKind::Enum == m_result.Symbols[baseId].Kind)
                                     {
                                         Error("JBC3023", "invalid_base", Node(base).Range, {String(Node(base).Text)});
@@ -1238,6 +1659,18 @@ namespace JBro::ScriptCompiler
                         if (SymbolKind::Interface == m_result.Symbols[symbol.Parent].Kind)
                         {
                             Error("JBC3024", "interface_field", symbol.SelectionRange);
+                        }
+                        // **값으로 담는 필드가 돌아서 자기 타입을 담으면 C++ 로 나타낼 수 없다**(D-377). 크기가 끝없이 커지기 때문이다.
+                        // 전에는 생성기만 알아서 빌드에서야 위치 없는 영어 한 줄로 멈췄다.
+                        const SymbolId owned = OwnedValueType(symbol);
+                        if (InvalidSymbol != owned)
+                        {
+                            Array<SymbolId> visited;
+                            if (OwnsValueOf(owned, symbol.Parent, visited))
+                            {
+                                Error("JBC3048", "owned_field_cycle", symbol.SelectionRange,
+                                    {symbol.Name, m_result.Symbols[owned].Type, m_result.Symbols[symbol.Parent].Type});
+                            }
                         }
                         continue;
                     }
@@ -1288,6 +1721,11 @@ namespace JBro::ScriptCompiler
                         return IsFunction(m_result.Symbols[id].Kind) && SameParameters(symbol, m_result.Symbols[id])
                             && EqualType(symbol.Type, m_result.Symbols[id].Type);
                     });
+                    Array<SymbolId> callbackBases;
+                    if (m_scripts.Contains(symbol.Parent) && EngineCallback(symbol, symbol.Parent, callbackBases))
+                    {
+                        m_result.Symbols[binding.Id].IsCallback = true;
+                    }
                     if (symbol.IsCallback && (nullptr == matching || false == m_result.Symbols[*matching].Api
                         || false == m_result.Symbols[*matching].IsCallback || false == m_scripts.Contains(symbol.Parent)))
                     {
@@ -1327,7 +1765,7 @@ namespace JBro::ScriptCompiler
                             continue;
                         }
                         Symbol symbol = FromNode(parameter, m_member, SymbolKind::Parameter);
-                        symbol.Type = RenderType(m_document->Tree, type);
+                        symbol.Type = TypeName(type);
                         symbol.ScopeRange = Node(body).Range;
                         symbol.Writable = 0 == (Node(type).Flags & SyntaxFlagConst);
                         flow.Initialized.Add(AddLocal(std::move(symbol)));
@@ -1375,16 +1813,24 @@ namespace JBro::ScriptCompiler
                         }
                     }
                 }
-                Array<SymbolId> candidates = Members(m_result, m_owner, name);
-                if (false == candidates.IsEmpty())
+                Array<SymbolId> candidates;
+                for (SymbolId scope = m_owner; scope != InvalidSymbol; scope = m_result.Symbols[scope].Parent)
                 {
-                    return candidates;
-                }
-                for (const Symbol& symbol : m_result.Symbols)
-                {
-                    if (InvalidSymbol == symbol.Parent && symbol.Name == name)
+                    candidates = Members(m_result, scope, name);
+                    if (false == candidates.IsEmpty())
                     {
-                        candidates.Add(symbol.Id);
+                        return candidates;
+                    }
+                    if (m_result.Symbols[scope].Name == name)
+                    {
+                        return {scope};
+                    }
+                }
+                for (const SymbolId top : m_result.ChildIndex[InvalidSymbol])
+                {
+                    if (m_result.Symbols[top].Name == name)
+                    {
+                        candidates.Add(top);
                     }
                 }
                 return candidates;
@@ -1490,6 +1936,12 @@ namespace JBro::ScriptCompiler
                 expression.LValue = SymbolKind::Field == symbol.Kind || SymbolKind::Local == symbol.Kind || SymbolKind::Parameter == symbol.Kind;
                 expression.Writable = symbol.Writable;
                 expression.TypeObject = IsTypeSymbol(symbol.Kind);
+                expression.StaticReceiver = implicit && symbol.Parent != m_owner
+                    && LexicalOwner(m_result, symbol.Parent, m_owner);
+                if (expression.StaticReceiver && false == symbol.IsStatic && false == expression.TypeObject && false == IsFunction(symbol.Kind))
+                {
+                    Error("JBC3028", "static_access", range, {symbol.Name});
+                }
                 if (!write && (implicit || symbol.IsStatic))
                 {
                     CheckFieldInitializationRead(id, range);
@@ -1555,7 +2007,7 @@ namespace JBro::ScriptCompiler
                         {
                             Error("JBC3028", "static_access", NameRange(*m_document, node), {"this"});
                         }
-                        Expression self = Literal(m_result.Symbols[m_owner].Name);
+                        Expression self = Literal(m_result.Symbols[m_owner].Type);
                         self.Target = m_owner;
                         self.LValue = true;
                         self.Writable = true;
@@ -1575,7 +2027,7 @@ namespace JBro::ScriptCompiler
                     if (node.Kind == SyntaxKind::GenericNameExpression && value.TypeObject)
                     {
                         ValidateType(index, false, false, true);
-                        value.Type = RenderType(m_document->Tree, index);
+                        value.Type = TypeName(index);
                         value.DeclaredType = value.Type;
                     }
                     else
@@ -1718,7 +2170,8 @@ namespace JBro::ScriptCompiler
                 {
                     value.Overloads = found;
                 }
-                if (receiver.TypeObject && false == symbol.IsStatic && SymbolKind::EnumMember != symbol.Kind && false == IsFunction(symbol.Kind))
+                if (receiver.TypeObject && false == symbol.IsStatic && SymbolKind::EnumMember != symbol.Kind
+                    && false == IsFunction(symbol.Kind) && false == IsTypeSymbol(symbol.Kind))
                 {
                     Error("JBC3028", "static_access", NameRange(*m_document, node), {symbol.Name});
                 }
@@ -2023,7 +2476,7 @@ namespace JBro::ScriptCompiler
                 const std::size_t genericStart = SyntaxKind::MemberAccessExpression == calleeSyntax.Kind ? 1 : 0;
                 for (std::size_t slot = genericStart; slot < calleeSyntax.ChildCount; ++slot)
                 {
-                    explicitTypes.Add(RenderType(m_document->Tree, Child(calleeNode, slot)));
+                    explicitTypes.Add(TypeName(Child(calleeNode, slot)));
                 }
                 if (explicitTypes.Size() == 1 && InvalidSymbol != callee.Target && m_result.Symbols[callee.Target].Api)
                 {
@@ -2066,7 +2519,7 @@ namespace JBro::ScriptCompiler
                     const Bool implicitCall = SyntaxKind::NameExpression == calleeSyntax.Kind || SyntaxKind::GenericNameExpression == calleeSyntax.Kind;
                     const Bool staticContext = callee.StaticReceiver || (implicitCall && InvalidSymbol != m_member
                         && m_result.Symbols[m_member].IsStatic && Derives(m_result, m_owner, symbol.Parent));
-                    if (staticContext && false == symbol.IsStatic)
+                    if (staticContext && false == symbol.IsStatic && symbol.Kind != SymbolKind::Constructor)
                     {
                         requiresInstance = true;
                         continue;
@@ -2149,6 +2602,11 @@ namespace JBro::ScriptCompiler
                 {
                     const Symbol symbol = m_result.Symbols[best];
                     call.Resolved = best;
+                    if (symbol.Api && symbol.HasOutputProjection && false == symbol.ProjectionEmittable)
+                    {
+                        // 버퍼와 길이를 받는 꼴·반환값의 필드를 섞는 꼴은 아직 C++ 로 내리지 못한다(D-382). 빌드에서야 멈추지 않게 여기서 알린다.
+                        Error("JBC3050", "projection_unsupported", call.CalleeRange, {symbol.Name});
+                    }
                     for (std::size_t slot = 0; slot < arguments.Size(); ++slot)
                     {
                         String expected = OwnerSubstitution(symbol.Parameters[slot].Type, callee.ReceiverType);
@@ -2362,7 +2820,7 @@ namespace JBro::ScriptCompiler
                     const NodeIndex typeNode = Child(index, 0);
                     ValidateType(typeNode, false);
                     Symbol symbol = FromNode(index, m_member, SymbolKind::Local);
-                    symbol.Type = RenderType(m_document->Tree, typeNode);
+                    symbol.Type = TypeName(typeNode);
                     symbol.ScopeRange = m_scopes.Last().Range;
                     symbol.Writable = InvalidNode == typeNode || 0 == (Node(typeNode).Flags & SyntaxFlagConst);
                     const NodeIndex initializer = Child(index, 1);
@@ -2699,6 +3157,11 @@ namespace JBro::ScriptCompiler
             Array<Binding> m_bindings;
             Array<SymbolId> m_handles;
             Array<SymbolId> m_scripts;
+            // `Occur` 의 중복 확인 색인이다. 한 문서의 출현만 든다.
+            Table<UInt64, Array<UInt32>> m_occurrenceIndex;
+            const DocumentAnalysis* m_occurrenceDocument = nullptr;
+            std::size_t m_occurrenceIndexed = 0;
+            Occurrence m_occurrenceLast;
             Array<Scope> m_scopes;
             Array<String> m_iterated;
             DocumentAnalysis* m_document = nullptr;
@@ -2713,6 +3176,14 @@ namespace JBro::ScriptCompiler
     String GetExpressionType(const AnalysisResult& result, const DocumentAnalysis& document, NodeIndex index)
     {
         return ExpressionType(result, document, index);
+    }
+
+    String MemberKey(SymbolId parent, std::string_view name)
+    {
+        String key(std::to_string(parent.Get()));
+        key.push_back('\x1f');
+        key.Append(name);
+        return key;
     }
 
     OwnerPtr<AnalysisResult> AnalyzeProject(ArrayView<const DocumentInput> documents, const ApiCatalog& api)
@@ -2902,7 +3373,9 @@ namespace JBro::ScriptCompiler
             "jbroc.semantic.for_variables", "jbroc.semantic.jump_context", "jbroc.semantic.type_constraint",
             "jbroc.semantic.legacy_nullable_type", "jbroc.semantic.static_property_not_serialized",
             "jbroc.semantic.switch_value_type", "jbroc.semantic.equality_operator_signature",
-            "jbroc.semantic.uninitialized_field"
+            "jbroc.semantic.uninitialized_field", "jbroc.semantic.unknown_attribute", "jbroc.semantic.attribute_argument_count",
+            "jbroc.semantic.owned_field_cycle", "jbroc.semantic.projection_unsupported",
+            "jbroc.semantic.attribute_argument_number", "jbroc.semantic.attribute_argument_text"
         };
         return {keys, std::size(keys)};
     }
@@ -2933,7 +3406,7 @@ namespace JBro::ScriptCompiler
             }
         }
         const std::string_view text = document->Source.GetText();
-        std::size_t cursor = std::min(static_cast<std::size_t>(offset), text.size());
+        std::size_t cursor = Min(static_cast<std::size_t>(offset), text.size());
         while (cursor > 0 && (('_' == text[cursor - 1]) || ('a' <= text[cursor - 1] && text[cursor - 1] <= 'z')
             || ('A' <= text[cursor - 1] && text[cursor - 1] <= 'Z') || ('0' <= text[cursor - 1] && text[cursor - 1] <= '9')))
         {
@@ -2981,7 +3454,7 @@ namespace JBro::ScriptCompiler
             }
             if (receiverType.IsEmpty() && receiverEnd >= 4 && text.substr(receiverEnd - 4, 4) == "this" && InvalidSymbol != owner)
             {
-                receiverType = result.Symbols[owner].Name;
+                receiverType = result.Symbols[owner].Type;
             }
             for (SymbolId id : Members(result, TypeId(result, receiverType)))
             {
@@ -3013,17 +3486,25 @@ namespace JBro::ScriptCompiler
                 candidates.Add(id);
             }
         }
-        for (SymbolId id : Members(result, owner))
+        for (SymbolId scope = owner; scope != InvalidSymbol; scope = result.Symbols[scope].Parent)
         {
-            const Symbol& symbol = result.Symbols[id];
-            if (false == Accessible(result, symbol, owner) || (InvalidSymbol != function && result.Symbols[function].IsStatic && false == symbol.IsStatic))
+            for (SymbolId id : Members(result, scope))
             {
-                continue;
-            }
-            const Bool localShadows = nullptr != locals.FindBy([&](SymbolId local) { return result.Symbols[local].Name == symbol.Name; });
-            if (false == localShadows)
-            {
-                candidates.Add(id);
+                const Symbol& symbol = result.Symbols[id];
+                if (false == Accessible(result, symbol, owner)
+                    || (scope != owner && false == symbol.IsStatic && false == IsTypeSymbol(symbol.Kind))
+                    || (InvalidSymbol != function && result.Symbols[function].IsStatic && false == symbol.IsStatic))
+                {
+                    continue;
+                }
+                const Bool shadows = nullptr != candidates.FindBy([&](SymbolId candidate)
+                {
+                    return result.Symbols[candidate].Name == symbol.Name && (scope != owner || locals.Contains(candidate));
+                });
+                if (false == shadows)
+                {
+                    candidates.Add(id);
+                }
             }
         }
         for (const Symbol& symbol : result.Symbols)
@@ -3152,6 +3633,11 @@ namespace JBro::ScriptCompiler
         for (SymbolId memberId : group)
         {
             const Symbol& member = result.Symbols[memberId];
+            if (IsTypeSymbol(member.Kind) && member.Parent != InvalidSymbol && result.Symbols[member.Parent].Name == newName)
+            {
+                error = "A nested type cannot have its enclosing type's name.";
+                return false;
+            }
             if (member.Name == "operator==" || member.Name == "operator!=")
             {
                 error = "Operator declarations cannot be renamed as identifiers.";

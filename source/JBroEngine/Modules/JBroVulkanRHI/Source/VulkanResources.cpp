@@ -357,7 +357,7 @@ namespace JBro::Internal
         }
         if (HasTextureUsage(desc.usage, TextureUsage::Storage))
         {
-            // 셰이더의 `RWTexture2D` 는 형식을 적지 않고 구워진다(`-fspv-use-unknown-image-format`, D-352). Vulkan 1.3 에서 그런
+            // 셰이더의 `RWTexture2D` 는 형식을 적지 않고 구워진다(`-fspv-use-unknown-image-format`, D-405). Vulkan 1.3 에서 그런
             // 이미지에 쓰려면 포맷이 "형식 없는 쓰기" 를 지원해야 한다 - 포맷 기능의 둘째 판(`VkFormatProperties3`)에만 있다.
             VkFormatProperties3 support3 = {VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3};
             VkFormatProperties2 support2 = {VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};

@@ -45,8 +45,8 @@
 // NORMAL                   0   xyz         1     NONE   float   xyz 
 // COLOR                    0   xyzw        2     NONE   float   xyzw
 // TEXCOORD                 0   xy          3     NONE   float   xy  
-// TANGENT                  0   xyzw        4     NONE   float   xyzw
-// TEXCOORD                 1   xyz         5     NONE   float   xyz 
+// TEXCOORD                 1   xyz         4     NONE   float   xyz 
+// TANGENT                  0   xyzw        5     NONE   float   xyzw
 //
 vs_5_0
 dcl_globalFlags refactoringAllowed
@@ -64,8 +64,8 @@ dcl_output_siv o0.xyzw, position
 dcl_output o1.xyz
 dcl_output o2.xyzw
 dcl_output o3.xy
-dcl_output o4.xyzw
-dcl_output o5.xyz
+dcl_output o4.xyz
+dcl_output o5.xyzw
 dcl_temps 2
 mov r0.xyz, v0.xyzx
 mov r0.w, l(1.000000)
@@ -77,7 +77,7 @@ dp4 o0.x, cb0[0].xyzw, r1.xyzw
 dp4 o0.y, cb0[1].xyzw, r1.xyzw
 dp4 o0.z, cb0[2].xyzw, r1.xyzw
 dp4 o0.w, cb0[3].xyzw, r1.xyzw
-mov o5.xyz, r1.xyzx
+mov o4.xyz, r1.xyzx
 dp3 r0.x, v2.xyzx, v1.xyzx
 dp3 r0.y, v3.xyzx, v1.xyzx
 dp3 r0.z, v4.xyzx, v1.xyzx
@@ -91,18 +91,18 @@ dp3 r0.y, v3.xyzx, v8.xyzx
 dp3 r0.z, v4.xyzx, v8.xyzx
 dp3 r0.w, r0.xyzx, r0.xyzx
 rsq r0.w, r0.w
-mul o4.xyz, r0.wwww, r0.xyzx
-mov o4.w, v8.w
+mul o5.xyz, r0.wwww, r0.xyzx
+mov o5.w, v8.w
 ret 
 // Approximately 27 instruction slots used
 #endif
 
 const BYTE JBroBuiltinMeshVS_SM5[] =
 {
-     68,  88,  66,  67, 227,  36, 
-     90,  73, 135, 240,  97, 252, 
-    169,  18,  30, 158,  54,  40, 
-    196, 240,   1,   0,   0,   0, 
+     68,  88,  66,  67, 235,   3, 
+     32, 166, 110,  81,  70, 205, 
+    250,  97,  18,  57,  14, 109, 
+    158,   8,   1,   0,   0,   0, 
     160,   7,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
     180,   1,   0,   0, 168,   2, 
@@ -231,14 +231,14 @@ const BYTE JBroBuiltinMeshVS_SM5[] =
       0,   0,   0,   0,   0,   0, 
       3,   0,   0,   0,   3,   0, 
       0,   0,   3,  12,   0,   0, 
-    186,   0,   0,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-      3,   0,   0,   0,   4,   0, 
-      0,   0,  15,   0,   0,   0, 
     177,   0,   0,   0,   1,   0, 
       0,   0,   0,   0,   0,   0, 
-      3,   0,   0,   0,   5,   0, 
+      3,   0,   0,   0,   4,   0, 
       0,   0,   7,   8,   0,   0, 
+    186,   0,   0,   0,   0,   0, 
+      0,   0,   0,   0,   0,   0, 
+      3,   0,   0,   0,   5,   0, 
+      0,   0,  15,   0,   0,   0, 
      83,  86,  95,  80,  79,  83, 
      73,  84,  73,  79,  78,   0, 
      78,  79,  82,  77,  65,  76, 
@@ -279,9 +279,9 @@ const BYTE JBroBuiltinMeshVS_SM5[] =
      16,   0,   2,   0,   0,   0, 
     101,   0,   0,   3,  50,  32, 
      16,   0,   3,   0,   0,   0, 
-    101,   0,   0,   3, 242,  32, 
-     16,   0,   4,   0,   0,   0, 
     101,   0,   0,   3, 114,  32, 
+     16,   0,   4,   0,   0,   0, 
+    101,   0,   0,   3, 242,  32, 
      16,   0,   5,   0,   0,   0, 
     104,   0,   0,   2,   2,   0, 
       0,   0,  54,   0,   0,   5, 
@@ -332,7 +332,7 @@ const BYTE JBroBuiltinMeshVS_SM5[] =
       3,   0,   0,   0,  70,  14, 
      16,   0,   1,   0,   0,   0, 
      54,   0,   0,   5, 114,  32, 
-     16,   0,   5,   0,   0,   0, 
+     16,   0,   4,   0,   0,   0, 
      70,   2,  16,   0,   1,   0, 
       0,   0,  16,   0,   0,   7, 
      18,   0,  16,   0,   0,   0, 
@@ -391,11 +391,11 @@ const BYTE JBroBuiltinMeshVS_SM5[] =
       0,   0,  58,   0,  16,   0, 
       0,   0,   0,   0,  56,   0, 
       0,   7, 114,  32,  16,   0, 
-      4,   0,   0,   0, 246,  15, 
+      5,   0,   0,   0, 246,  15, 
      16,   0,   0,   0,   0,   0, 
      70,   2,  16,   0,   0,   0, 
       0,   0,  54,   0,   0,   5, 
-    130,  32,  16,   0,   4,   0, 
+    130,  32,  16,   0,   5,   0, 
       0,   0,  58,  16,  16,   0, 
       8,   0,   0,   0,  62,   0, 
       0,   1,  83,  84,  65,  84, 

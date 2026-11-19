@@ -181,6 +181,8 @@ namespace JBro
             BindInputSystemContext(m_input->GetSystemContext());
             BindInputServiceContext(m_input->GetServiceContext());
             m_frameworkContext.input = m_input.Get();
+            m_textInput.engine = this;
+            m_frameworkContext.textInput = &m_textInput;
             // 세이브(D-218). 입력처럼 호스트가 소유하고 이 모듈 사본에도 묶는다. 폴더는 프로젝트를 열 때 정한다.
             m_save = MakeOwnerPtr<SaveStorage>(platform);
             m_saveFolderOverride = config.saveFolder;
@@ -243,6 +245,7 @@ namespace JBro
             }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.tasks = m_tasks.Get();
+            m_frameworkContext.shaderCompiler = config.shaderCompiler;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
             m_watchAssetDirectory = config.watchAssetDirectory;
             if (m_exitRequested)
@@ -478,7 +481,7 @@ namespace JBro
             break;
         case FileEventKind::Modified:
         {
-            // **모델 파일이 바뀌면 하위 목록부터 맞춘다**(D-342, model-import-plan 4 단계). 메시가 생기거나 이름이 바뀌었을 수 있다 - 같은 키는 아이디를
+            // **모델 파일이 바뀌면 하위 목록부터 맞춘다**(D-395, model-import-plan 4 단계). 메시가 생기거나 이름이 바뀌었을 수 있다 - 같은 키는 아이디를
             // 지키고 새 키는 새 아이디다. 목록이 달라졌으면 메타를 쓰고 다시 훑는다(메타를 쓴 것은 메타 이벤트라 위에서 걸러진다). 감시는 에디터만 켠다.
             if (const AssetRecord* changed = m_assetRegistry.FindByPath(event.path);
                 changed != nullptr && changed->type == AssetType::Model && m_watchAssetDirectory)
@@ -885,7 +888,18 @@ namespace JBro
                 }
                 m_framework->SetScreenSpace(screen);
             }
+            m_textInputWanted = false;
             m_framework->Update();
+        }
+        else
+        {
+            m_textInputWanted = false;
+        }
+        // 글자 칸이 포커스를 가진 프레임에만 IME 조합이 창 안(인라인)이다(D-355). 아니면 플랫폼의 조합 창으로 돌린다(에디터의 ImGui 글자 칸).
+        if (m_textInputWanted != m_compositionInline)
+        {
+            m_platform->SetCompositionInline(m_mainWindow, m_textInputWanted);
+            m_compositionInline = m_textInputWanted;
         }
         // 끝난 보이스를 거둔다. 프레임워크 갱신이 이번 프레임의 재생 요청을 다 낸 뒤다.
         if (m_audio.Get() != nullptr)
@@ -1446,6 +1460,42 @@ namespace JBro
         return m_gameSubmittedLastFrame;
     }
 
+    void EngineInstance::TextInputBridge::SetTextInputArea(Float pixelX, Float pixelY, Float lineHeight)
+    {
+        if (engine == nullptr || engine->m_platform == nullptr)
+        {
+            return;
+        }
+        engine->m_textInputWanted = true;
+        // 게임 화면 픽셀 → 창 클라이언트 픽셀(입력 매핑의 역, D-214). 게임 호스트는 창 전체가 화면이라 그대로다. 조합 창은 줄의 위에 놓는다.
+        Float x = pixelX;
+        Float y = pixelY - lineHeight * 0.5f;
+        Float height = lineHeight;
+        if (engine->m_inputOwnedByHost)
+        {
+            const InputSurfaceMapping& mapping = engine->m_hostInputMapping;
+            const Float scaleX = mapping.scaleX != 0.0f ? mapping.scaleX : Float(1.0f);
+            const Float scaleY = mapping.scaleY != 0.0f ? mapping.scaleY : Float(1.0f);
+            x = x / scaleX + mapping.originX;
+            y = y / scaleY + mapping.originY;
+            height = height / scaleY;
+        }
+        if (std::isfinite(x.Get()) && std::isfinite(y.Get()) && std::isfinite(height.Get()))
+        {
+            engine->m_platform->SetTextInputPosition(engine->m_mainWindow, x, y, height);
+        }
+    }
+
+    Bool EngineInstance::TextInputBridge::ReadClipboardText(String& utf8)
+    {
+        return engine != nullptr && engine->m_platform != nullptr && engine->m_platform->ReadClipboardText(utf8);
+    }
+
+    Bool EngineInstance::TextInputBridge::WriteClipboardText(const char* utf8, std::size_t size)
+    {
+        return engine != nullptr && engine->m_platform != nullptr && engine->m_platform->WriteClipboardText(utf8, size);
+    }
+
     void EngineInstance::SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping)
     {
         m_hostInputMapping = mapping;
@@ -1781,6 +1831,22 @@ namespace JBro
             }
         };
         blocks.Add(MakeScriptErrorContextBlock(m_scriptErrorContext));
+        m_scriptLogContext.Owner = nullptr;
+        m_scriptLogContext.Write = [](void*, UInt32 level, const char* category, const char* groupKey, const char* message) noexcept {
+            if (level > static_cast<UInt32>(LogLevel::Error))
+            {
+                return;
+            }
+            try
+            {
+                Log::WriteGrouped(static_cast<LogLevel>(level.Get()), category, groupKey, "%s", message);
+            }
+            catch (...)
+            {
+                // No C++ exception may cross this host/DLL function pointer.
+            }
+        };
+        blocks.Add(MakeScriptLogContextBlock(m_scriptLogContext));
         if (m_input)
         {
             blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));

@@ -198,13 +198,16 @@ internal static class Program
         Console.WriteLine($"  the editor build here says it is engine {version}");
     }
 
-    /// <summary>리포에서 빌드한 에디터를 찾는다. 없으면 빈 문자열이다.</summary>
+    /// <summary>
+    /// 리포에서 빌드한 에디터를 찾는다. 없으면 빈 문자열이다. 이 시험과 에디터는 같은 산출물 자리 아래에 있다
+    /// (`<산출물 자리>/JBroLauncherTests/bin/...` 와 `<산출물 자리>/Engine/x64/Debug`, D-370).
+    /// </summary>
     private static string FindEditorBuild()
     {
         for (DirectoryInfo? here = new(AppContext.BaseDirectory); here is not null; here = here.Parent)
         {
             string candidate = Path.Combine(
-                here.FullName, "JBroEngine", "Build", "x64", "Debug", "JBroEditorHost.exe");
+                here.FullName, "Engine", "x64", "Debug", "JBroEditorHost.exe");
             if (File.Exists(candidate))
             {
                 return candidate;

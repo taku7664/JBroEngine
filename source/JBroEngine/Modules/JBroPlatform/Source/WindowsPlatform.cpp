@@ -3,6 +3,8 @@
 #include <JBro/Core/Log.h>
 
 #include <Windows.h>
+#include <DbgHelp.h>
+#include <imm.h>
 #include <windowsx.h>
 #include <objbase.h>
 #include <shobjidl.h>
@@ -122,6 +124,9 @@ namespace JBro
             }
             return Key::Unknown;
         }
+
+        // 한 조합에서 읽어 둘 UTF-16 단위 수다(입력 상태의 32 글자를 서러게이트까지 담는다).
+        constexpr std::size_t MaxTextPerFrameUnits = 64;
 
         // **누른 순간의 조합키를 그때 읽는다.** 이벤트를 나중에 꺼내 볼 때 다시 물으면
         // 그 사이에 사용자가 손을 뗐을 수 있다.
@@ -372,6 +377,42 @@ namespace JBro
                 break;
             }
 
+            // IME 조합(D-355). 조합 글자는 늘 이벤트로 내고, 인라인이면 플랫폼의 조합 창을 띄우지 않으며 결과 글자도 여기서 `Text` 로 낸다
+            // (`DefWindowProc` 에 넘기지 않으면 `WM_IME_CHAR` → `WM_CHAR` 가 오지 않는다). 인라인이 아니면 결과 글자는 전처럼 `WM_CHAR` 로 온다.
+            case WM_IME_STARTCOMPOSITION:
+                if (platform->IsCompositionInline())
+                {
+                    return 0;
+                }
+                break;
+
+            case WM_IME_COMPOSITION:
+                if (platform->IsCompositionInline() && (lParam & GCS_RESULTSTR) != 0)
+                {
+                    platform->RecordComposition(window, true);
+                }
+                if ((lParam & GCS_COMPSTR) != 0)
+                {
+                    platform->RecordComposition(window, false);
+                }
+                if (platform->IsCompositionInline())
+                {
+                    return 0;
+                }
+                break;
+
+            case WM_IME_ENDCOMPOSITION:
+                event.kind = InputEventKind::CompositionEnd;
+                platform->RecordInputEvent(event);
+                break;
+
+            case WM_IME_SETCONTEXT:
+                if (platform->IsCompositionInline())
+                {
+                    return DefWindowProcW(window, message, wParam, lParam & ~static_cast<LPARAM>(ISC_SHOWUICOMPOSITIONWINDOW));
+                }
+                break;
+
             case WM_SETFOCUS:
                 event.kind = InputEventKind::FocusGained;
                 platform->RecordInputEvent(event);
@@ -621,6 +662,150 @@ namespace JBro
         m_inputEvents.Add(event);
     }
 
+    void WindowsPlatform::RecordComposition(void* hwnd, Bool result)
+    {
+        HWND window = static_cast<HWND>(hwnd);
+        HIMC context = window != nullptr ? ImmGetContext(window) : nullptr;
+        if (context == nullptr)
+        {
+            return;
+        }
+        const DWORD kind = result ? GCS_RESULTSTR : GCS_COMPSTR;
+        // 한 조합이 이보다 길 일은 없다(입력 상태의 상한은 32 글자다). 넘치면 잘린다.
+        wchar_t units[MaxTextPerFrameUnits] = {};
+        const LONG bytes = ImmGetCompositionStringW(context, kind, nullptr, 0);
+        LONG copied = 0;
+        if (bytes > 0)
+        {
+            copied = ImmGetCompositionStringW(context, kind, units, static_cast<DWORD>(sizeof(units)));
+        }
+        ImmReleaseContext(window, context);
+        const std::size_t count = copied > 0 ? static_cast<std::size_t>(copied) / sizeof(wchar_t) : 0;
+        InputEvent event;
+        event.modifiers = CurrentModifiers();
+        if (false == result)
+        {
+            event.kind = InputEventKind::CompositionBegin;
+            RecordInputEvent(event);
+        }
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            const std::uint16_t unit = static_cast<std::uint16_t>(units[index]);
+            UInt32 codePoint = unit;
+            if (unit >= 0xD800 && unit <= 0xDBFF)
+            {
+                const std::uint16_t low = index + 1 < count ? static_cast<std::uint16_t>(units[index + 1]) : 0;
+                if (low >= 0xDC00 && low <= 0xDFFF)
+                {
+                    codePoint = 0x10000u + ((static_cast<JBro::UInt32>(unit) - 0xD800u) << 10) + (static_cast<JBro::UInt32>(low) - 0xDC00u);
+                    ++index;
+                }
+                else
+                {
+                    continue;
+                }
+            }
+            else if (unit >= 0xDC00 && unit <= 0xDFFF)
+            {
+                continue;
+            }
+            if (result && (codePoint < 0x20 || codePoint == 0x7F))
+            {
+                continue;
+            }
+            event.kind = result ? InputEventKind::Text : InputEventKind::Composition;
+            event.codePoint = codePoint;
+            RecordInputEvent(event);
+        }
+    }
+
+    void WindowsPlatform::SetCompositionInline(WindowHandle window, Bool inlineComposition)
+    {
+        (void)window;
+        m_inlineComposition = inlineComposition;
+    }
+
+    namespace
+    {
+        // **클립보드는 몇 번 두드린다.** 다른 프로그램(클립보드 기록 따위)이 바뀐 직후 잠깐 쥐고 있으면 `OpenClipboard` 가 거짓이다 -
+        // 시험에서 쓴 직후의 읽기가 한 번 떨어졌다. 몇 밀리초 뒤 다시 열면 된다.
+        Bool OpenClipboardWithRetry()
+        {
+            for (int attempt = 0; attempt < 8; ++attempt)
+            {
+                if (OpenClipboard(nullptr))
+                {
+                    return true;
+                }
+                Sleep(2);
+            }
+            return false;
+        }
+    }
+
+    Bool WindowsPlatform::ReadClipboardText(String& utf8)
+    {
+        if (false == IsClipboardFormatAvailable(CF_UNICODETEXT) || false == OpenClipboardWithRetry())
+        {
+            return false;
+        }
+        Bool read = false;
+        HANDLE data = GetClipboardData(CF_UNICODETEXT);
+        const wchar_t* wide = data != nullptr ? static_cast<const wchar_t*>(GlobalLock(data)) : nullptr;
+        if (wide != nullptr)
+        {
+            const int size = WideCharToMultiByte(CP_UTF8, 0, wide, -1, nullptr, 0, nullptr, nullptr);
+            if (size > 1)
+            {
+                utf8.resize(static_cast<std::size_t>(size - 1));
+                WideCharToMultiByte(CP_UTF8, 0, wide, -1, utf8.data(), size, nullptr, nullptr);
+                read = true;
+            }
+            GlobalUnlock(data);
+        }
+        CloseClipboard();
+        return read;
+    }
+
+    Bool WindowsPlatform::WriteClipboardText(const char* utf8, std::size_t size)
+    {
+        if (utf8 == nullptr || size > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+        {
+            return false;
+        }
+        const int wide = size > 0 ? MultiByteToWideChar(CP_UTF8, 0, utf8, static_cast<int>(size), nullptr, 0) : 0;
+        HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, (static_cast<std::size_t>(wide) + 1) * sizeof(wchar_t));
+        if (memory == nullptr)
+        {
+            return false;
+        }
+        wchar_t* out = static_cast<wchar_t*>(GlobalLock(memory));
+        if (out == nullptr)
+        {
+            GlobalFree(memory);
+            return false;
+        }
+        if (wide > 0)
+        {
+            MultiByteToWideChar(CP_UTF8, 0, utf8, static_cast<int>(size), out, wide);
+        }
+        out[wide] = 0;
+        GlobalUnlock(memory);
+        if (false == OpenClipboardWithRetry())
+        {
+            GlobalFree(memory);
+            return false;
+        }
+        EmptyClipboard();
+        const Bool written = SetClipboardData(CF_UNICODETEXT, memory) != nullptr;
+        if (false == written)
+        {
+            GlobalFree(memory);
+        }
+        CloseClipboard();
+        return written;
+    }
+
     std::uint16_t WindowsPlatform::TakePendingHighSurrogate()
     {
         const std::uint16_t pending = m_pendingHighSurrogate;
@@ -821,6 +1006,9 @@ namespace JBro
         auto* nativeLibrary = static_cast<WindowsDynamicLibrary*>(library.opaque);
         if (nativeLibrary->Module != nullptr)
         {
+            // 같은 주소에 다음 DLL이 실려도 이전 PDB를 쓰지 않도록 심볼도 함께 내린다.
+            // 심볼 세션을 열지 않았으면 실패하며, 그 경우에는 정리할 캐시도 없다.
+            SymUnloadModule64(GetCurrentProcess(), reinterpret_cast<DWORD64>(nativeLibrary->Module));
             FreeLibrary(nativeLibrary->Module);
         }
         if (nativeLibrary->ShadowPath != nullptr)

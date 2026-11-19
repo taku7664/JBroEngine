@@ -31,12 +31,12 @@ Windows, Visual Studio 2026의 MSVC `v145`, C++20, x64를 사용한다. 저장�
 MSBuild.exe source/JBroEngine/Modules/JBroc/JBroc.vcxproj /m:3 /p:Configuration=Debug /p:Platform=x64 /nr:false
 ```
 
-기본 산출물은 `source/JBroEngine/Build/x64/Debug/JBroc.exe`이며 Release는 같은 경로의 `Release` 아래다.
+기본 산출물은 `<엔진 산출물>/x64/Debug/JBroc.exe`(산출물 자리는 D-370, 저장소 뿌리의 `BuildOutput.txt`)이며 Release는 같은 경로의 `Release` 아래다.
 `/p:JBroBuildDir=<별도 절대 폴더>\`로 출력 뿌리를 바꿀 수 있다. 빌드는 실행 파일 옆에
 `Localization/jbroc/ko-KR.yaml`과 `en-US.yaml`을 복사한다.
 
 ```powershell
-& .\source\JBroEngine\Build\x64\Debug\JBroc.exe --lsp --locale ko-KR
+& "$(Get-Content BuildOutput.txt)Engine\x64\Debug\JBroc.exe" --lsp --locale ko-KR   # 산출물 자리는 D-370 의 BuildOutput.txt
 ```
 
 이는 에디터가 자식 프로세스로 띄울 명령이다. `--lsp`는 소스 파일 인자나 `--dump-tree`와 함께 쓸 수 없다.
@@ -93,11 +93,15 @@ MSBuild.exe source/JBroEngine/Modules/JBroc/JBroc.vcxproj /m:3 /p:Configuration=
 `didClose`와 파일 삭제에서는 이전 진단을 비운다. 종료는 `shutdown` 요청의 응답을 받은 뒤 `exit` 알림을 보낸다.
 `$/cancelRequest`를 처리하며 취소된 요청은 `-32800`으로 끝난다.
 
+`jbro/editFieldSettings` 의 `position` 은 **요약 응답(`jbro/scriptSummary`)이 그 필드에 준 `selectionRange.start`** 를 그대로 보낸다 - 필드 이름의 첫 글자다. 서버는 이름 범위의 시작과 정확히 같은 위치만 받고(`Summary.cpp` 의 `NameRange(…).Begin.Offset == selectionOffset`), 다르면 `-32602` 다. 이름 안의 다른 위치는 받지 않는다(다른 필드와 겹치는 판정을 두지 않기 위해서다). (2026-11-17, DECISIONS-NEEDED Q5-4 사용자 결정 "권고대로" - 지금 에디터 요약 패널이 이렇게 쓴다) (MUST)
+
 서버는 `positionEncoding: "utf-16"`을 반환한다. 내부 UTF-8 바이트 범위를 LSP의 0부터 시작하는 줄·UTF-16 열로 변환한다.
 BOM은 화면 열에 포함하지 않고, 비 BMP 글자는 UTF-16 두 단위로 센다. `initialize.params.locale`이 CLI 기본 locale보다 우선하며
 번역 파일을 찾지 못하면 영어를 시도한다. 소스 진단 번역과 프로토콜 오류 문구는 별도이며, 프로토콜 오류 문구는 현재 영어다.
 
 ## 4. 구현 경계와 증분 분석
+
+분석 결과는 이름 찾기 색인(타입 이름·부모→자식·(부모, 이름))과 원문의 줄 시작 표를 든다(D-387, 2026-11-17). 증분 분석도 새 결과에 심볼을 더하며 색인을 다시 세우고, 10,000 필드 문서의 첫 진단이 Debug 40.6 s → 0.88 s 가 되었다.
 
 | 모듈 | 책임·의존 |
 |---|---|
@@ -174,10 +178,12 @@ UTF-16/BOM·버전·취소·전체 편집 기능·엔진 투영·읽기 전용·
 ```powershell
 MSBuild.exe source/JBroEngine/Tests/JBroTests.vcxproj /m:3 /p:Configuration=Debug /p:Platform=x64 /nr:false
 $env:JBRO_TESTS = "Script"
-& .\source\JBroEngine\Build\x64\Debug\JBroTests.exe
+& "$(Get-Content BuildOutput.txt)Engine\x64\Debug\JBroTests.exe"
 $env:JBRO_TESTS = $null
-py -3.12 source/JBroEngine/Tests/lsp_process_tests.py --exe source/JBroEngine/Build/x64/Debug/JBroc.exe
+py -3.12 source/JBroEngine/Tests/lsp_process_tests.py --exe "$(Get-Content BuildOutput.txt)Engine\x64\Debug\JBroc.exe"
 ```
+
+> 2026-11-17 덧붙임: 아래 표와 문단의 시험 개수(34·35 개)와 `source/JBroEngine/Build/...` 경로는 그날의 기록이다. 지금 `lsp_process_tests.py` 는 32 개이고(Script QA 결함 4 로 하나가 늘었다), 산출물은 D-370 의 자리(체크아웃 뿌리의 `BuildOutput.txt`)에 있다.
 
 2026-10-14 실행 결과다. 빌드·서버 시험과 게임·에디터 실제 사용을 구분한다.
 

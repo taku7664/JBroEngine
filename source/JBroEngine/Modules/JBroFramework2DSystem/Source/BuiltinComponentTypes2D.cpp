@@ -1,12 +1,36 @@
 ﻿#include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 
+#include <JBro/ScreenUi/ScreenUiComponentTypes.h>
+
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
+#include <JBro/Framework2D/Component/InputField2D.h>
+#include <JBro/Framework2D/Component/Layout2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/Mask2D.h>
+#include <JBro/Framework2D/Component/ScrollView2D.h>
+#include <JBro/Framework2D/Component/Slider2D.h>
+#include <JBro/Framework2D/Component/Toggle2D.h>
+#include <JBro/Framework2D/Component/ToggleGroup2D.h>
+#include <JBro/Framework2D/Component/Dropdown2D.h>
+#include <JBro/Framework2D/Component/ContentSizeFitter2D.h>
+#include <JBro/Framework2D/Component/Tooltip2D.h>
+#include <JBro/Framework2D/Component/Modal2D.h>
+#include <JBro/Framework2D/Component/TabGroup2D.h>
+#include <JBro/Framework2D/Component/Draggable2D.h>
+#include <JBro/Framework2D/Component/DropTarget2D.h>
+#include <JBro/Framework2D/Component/Tween2D.h>
+#include <JBro/Framework2D/Component/ListView2D.h>
+#include <JBro/Framework2D/Component/SafeArea2D.h>
+#include <JBro/Framework2D/Component/CanvasGroup2D.h>
+#include <JBro/Framework2D/Component/AspectRatioFitter2D.h>
+#include <JBro/Framework2D/Component/VirtualKeyboard2D.h>
+#include <JBro/Framework2D/Component/Navigation2D.h>
 #include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/PostProcessVolume2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -25,13 +49,13 @@ namespace JBro::Component
             // 콜라이더와 스프라이트는 한 오브젝트에 여럿 붙지만, 위치·카메라·강체는
             // 하나뿐이다 - 둘씩 있으면 어느 쪽이 쓰이는지 사용자가 알 수 없다.
             Bool all = true;
-            all = RegisterComponentType<Transform2D>(
-                      ComponentCategory::Transform, ComponentMultiplicity::Single) && all;
+            // 트랜스폼·스프라이트·텍스트·위젯은 화면 UI 묶음이다(D-362) - 3D 캔버스의 화면 레이어와 같이 쓴다.
+            all = RegisterScreenUiComponentTypes() && all;
             all = RegisterComponentType<Camera2D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
-            all = RegisterComponentType<SpriteRenderer2D>(ComponentCategory::Rendering) && all;
-            // 기존 엔진 표와 같다: Rendering, 여럿 붙는다(D-200).
-            all = RegisterComponentType<Text2D>(ComponentCategory::Rendering) && all;
+            // 볼륨은 오브젝트에 하나다 - 모양이 오브젝트의 트랜스폼에 놓이므로 둘이면 같은 자리의 두 프로필이다(D-346).
+            all = RegisterComponentType<PostProcessVolume2D>(
+                      ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Light2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<ShadowCaster2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody2D>(
@@ -44,9 +68,6 @@ namespace JBro::Component
             all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
             all = RegisterComponentType<AudioListener2D>(
                       ComponentCategory::Audio, ComponentMultiplicity::Single) && all;
-            // 누름 사각형은 하나다 - 둘이면 어느 것이 훅을 부르는지 사용자가 알 수 없다(D-237).
-            all = RegisterComponentType<Button2D>(
-                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();
         return registered;

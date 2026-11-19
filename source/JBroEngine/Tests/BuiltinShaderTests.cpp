@@ -113,7 +113,7 @@ namespace
     void TestEveryProgramMatchesItsShaders()
     {
         const auto count = static_cast<std::uint32_t>(JBro::BuiltinShader::Count);
-        Check(count == 14, "fourteen built-in programs come from the manifest");
+        Check(count == 28, "twenty-eight built-in programs come from the manifest");
         for (std::uint32_t index = 0; index < count; ++index)
         {
             const JBro::ShaderData& shader = JBro::GetBuiltinShader(static_cast<JBro::BuiltinShader>(index));

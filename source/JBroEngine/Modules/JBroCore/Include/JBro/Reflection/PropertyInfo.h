@@ -28,6 +28,8 @@ namespace JBro
         Bool        visible = true;
         // 범위가 있을 때 슬라이더인가. 거짓이면 범위로 자르는 끌기 칸이다(`Attribute::Clamp`, D-298).
         Bool        slider = true;
+        // 값이 화면 레이어의 픽셀이다(`Attribute::Pixels`, D-354). 에디터가 월드 레이어에 맨 컴포넌트를 붙일 때 기본값을 PPU 로 나눈다.
+        Bool        pixels = false;
         // 이 이름의 `Bool` 필드가 거짓이면 인스펙터가 줄을 두지 않는다(`Attribute::VisibleWhen`, D-309).
         const char* visibleWhen = nullptr;
     };

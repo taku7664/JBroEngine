@@ -261,9 +261,10 @@ namespace JBro::ScriptLanguageServer
                 {"renameProvider", versionedEdits ? Json{{"prepareProvider", true}} : Json(false)},
                 {"signatureHelpProvider", Json{{"triggerCharacters", Json::array({"(", ","})}, {"retriggerCharacters", Json::array({")"})}}},
                 {"semanticTokensProvider", Json{{"legend", Json{
-                    {"tokenTypes", Json::array({"type", "class", "struct", "interface", "enum", "enumMember", "function", "method", "property", "parameter", "variable", "namespace", "keyword", "string", "number", "comment", "operator"})},
+                    {"tokenTypes", Json::array({"type", "class", "struct", "interface", "enum", "enumMember", "function", "method", "property", "parameter", "variable", "namespace", "keyword", "string", "number", "comment", "operator", "decorator"})},
                     {"tokenModifiers", Json::array({"declaration", "readonly", "static", "defaultLibrary"})}}}, {"full", true}, {"range", false}}},
                 {"foldingRangeProvider", true}, {"documentFormattingProvider", true},
+                {"experimental", Json{{"jbroScriptSummary", true}, {"jbroEditFieldSettings", true}}},
                 {"workspace", Json{{"workspaceFolders", Json{{"supported", false}, {"changeNotifications", false}}}}}};
         }
 
@@ -271,7 +272,8 @@ namespace JBro::ScriptLanguageServer
         {
             for (const char* available : {"textDocument/completion", "textDocument/hover", "textDocument/definition", "textDocument/typeDefinition",
                 "textDocument/documentSymbol", "workspace/symbol", "textDocument/signatureHelp", "textDocument/references", "textDocument/rename",
-                "textDocument/prepareRename", "textDocument/semanticTokens/full", "textDocument/foldingRange", "textDocument/formatting"})
+                "textDocument/prepareRename", "textDocument/semanticTokens/full", "textDocument/foldingRange", "textDocument/formatting",
+                "jbro/scriptSummary", "jbro/editFieldSettings"})
             {
                 if (method == available)
                 {

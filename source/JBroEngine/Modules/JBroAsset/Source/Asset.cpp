@@ -5,6 +5,7 @@
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Asset/AudioEffectFile.h>
+#include <JBro/Asset/ColorLutFile.h>
 #include <JBro/Asset/ModelDecoder.h>
 #include <JBro/Asset/ModelImport.h>
 #include <JBro/Asset/ImageDecoder.h>
@@ -176,6 +177,11 @@ namespace JBro
         m_fontFamilies = {};
         m_stringTables = {};
         m_audioEffects = {};
+        m_colorLuts = {};
+        m_postProcessProfiles = {};
+        m_shaders = {};
+        m_materials = {};
+        m_meshes = {};
         m_fonts = {};
         m_textures = {};
         m_sprites = {};
@@ -799,6 +805,106 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
+    Bool AssetSystem::ReadColorLut(const AssetRecord& record, ColorLutData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        ColorLutData read;
+        String error;
+        if (false == ParseColorLut(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), read.lut, &error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a colour LUT could not be read (%s): %s", record.relativePath.c_str(), error.c_str());
+            return false;
+        }
+        data = std::move(read);
+        return true;
+    }
+
+    const ColorLutData* AssetSystem::GetColorLut(AssetHandle handle) const
+    {
+        const Slot<ColorLutData>* slot = FindSlot(m_colorLuts, handle, AssetType::ColorLut);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        data.text.assign(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        return true;
+    }
+
+    const PostProcessProfileData* AssetSystem::GetPostProcessProfile(AssetHandle handle) const
+    {
+        const Slot<PostProcessProfileData>* slot = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::ReadRenderTexture(const AssetRecord& record, RenderTextureData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        RenderTextureData read;
+        String error;
+        if (false == ParseRenderTexture(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), read.settings, &error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a render texture could not be read (%s): %s", record.relativePath.c_str(), error.c_str());
+            return false;
+        }
+        data = read;
+        return true;
+    }
+
+    const RenderTextureData* AssetSystem::GetRenderTexture(AssetHandle handle) const
+    {
+        const Slot<RenderTextureData>* slot = FindSlot(m_renderTextures, handle, AssetType::RenderTexture);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::ReadShader(const AssetRecord& record, ShaderAssetData& data)
+    {
+        if (m_source == nullptr)
+        {
+            return false;
+        }
+        data.path = record.relativePath;
+        // 패키지는 구운 묶음만 든다(D-347). 느슨한 폴더는 원본만 든다.
+        if (m_source->Has(record, AssetBlob::CompiledShader))
+        {
+            Array<std::byte> compiled;
+            if (false == m_source->Read(record, AssetBlob::CompiledShader, compiled)
+                || false == ReadCompiledShaderSet(compiled.Data(), compiled.Size(), data.compiled))
+            {
+                Log::Write(LogLevel::Warning, "asset", "a compiled shader could not be read (%s)", record.relativePath.c_str());
+                return false;
+            }
+            data.hasCompiled = true;
+            return true;
+        }
+        Array<std::byte> bytes;
+        if (false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        data.source.assign(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        return true;
+    }
+
+    const ShaderAssetData* AssetSystem::GetShader(AssetHandle handle) const
+    {
+        const Slot<ShaderAssetData>* slot = FindSlot(m_shaders, handle, AssetType::Shader);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     const MeshData* AssetSystem::GetMesh(AssetHandle handle) const
     {
         const Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
@@ -923,6 +1029,10 @@ namespace JBro
             return false;
         }
         String error;
+        // 갈래는 글자가 정한다 - 빌드가 옮긴 것과 모델의 재질은 늘 표준 머티리얼이다. 재로드가 같은 자리를 다시 쓰므로 둘 다 비우고 시작한다.
+        data.standard = true;
+        data.desc = MaterialDesc{};
+        data.text.clear();
         // 빌드가 옮겨 둔 것이 먼저다 - 게임은 모델을 읽지 않는다. 그림 칸의 아이디까지 풀려 있다.
         if (m_source->Has(record, AssetBlob::CookedMaterial))
         {
@@ -935,7 +1045,7 @@ namespace JBro
             }
             return true;
         }
-        // 모델의 하위 Material 은 모델의 재질을 옮긴 것이다(읽기 전용, D-346 (2)).
+        // 모델의 하위 Material 은 모델의 재질을 옮긴 것이다(읽기 전용, D-399 (2)).
         if (const AssetRecord* model = OwnerModelOf(record))
         {
             const ModelData* decoded = DecodeOwnerModel(*model);
@@ -965,6 +1075,13 @@ namespace JBro
         {
             Log::Write(LogLevel::Warning, "asset", "%s: the material file could not be read", record.relativePath.c_str());
             return false;
+        }
+        // 셰이더 머티리얼(D-347)은 글자째 든다 - 그래픽 모듈의 `MaterialLibrary` 가 셰이더를 보고 푼다.
+        if (false == IsStandardMaterialText(reinterpret_cast<const char*>(text.Data()), text.Size()))
+        {
+            data.standard = false;
+            data.text.assign(reinterpret_cast<const char*>(text.Data()), text.Size());
+            return true;
         }
         if (false == ParseMaterialFile(reinterpret_cast<const char*>(text.Data()), text.Size(), data.desc, error))
         {
@@ -1252,8 +1369,29 @@ namespace JBro
                     return handle;
                 }
                 break;
-            case AssetType::Mesh:
-                if (Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh))
+            case AssetType::ColorLut:
+                if (Slot<ColorLutData>* slot = FindSlot(m_colorLuts, handle, AssetType::ColorLut))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
+            case AssetType::PostProcessProfile:
+                if (Slot<PostProcessProfileData>* slot = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
+            case AssetType::RenderTexture:
+                if (Slot<RenderTextureData>* slot = FindSlot(m_renderTextures, handle, AssetType::RenderTexture))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
+            case AssetType::Shader:
+                if (Slot<ShaderAssetData>* slot = FindSlot(m_shaders, handle, AssetType::Shader))
                 {
                     ++slot->referenceCount;
                     return handle;
@@ -1261,6 +1399,13 @@ namespace JBro
                 break;
             case AssetType::Material:
                 if (Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
+            case AssetType::Mesh:
+                if (Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh))
                 {
                     ++slot->referenceCount;
                     return handle;
@@ -1363,14 +1508,44 @@ namespace JBro
             handle = Occupy(m_audioEffects, AssetType::AudioEffect, id, std::move(data));
             break;
         }
-        case AssetType::Mesh:
+        case AssetType::ColorLut:
         {
-            MeshData data;
-            if (false == ReadMesh(*record, data))
+            ColorLutData data;
+            if (false == ReadColorLut(*record, data))
             {
                 return {};
             }
-            handle = Occupy(m_meshes, AssetType::Mesh, id, std::move(data));
+            handle = Occupy(m_colorLuts, AssetType::ColorLut, id, std::move(data));
+            break;
+        }
+        case AssetType::PostProcessProfile:
+        {
+            PostProcessProfileData data;
+            if (false == ReadPostProcessProfile(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_postProcessProfiles, AssetType::PostProcessProfile, id, std::move(data));
+            break;
+        }
+        case AssetType::RenderTexture:
+        {
+            RenderTextureData data;
+            if (false == ReadRenderTexture(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_renderTextures, AssetType::RenderTexture, id, std::move(data));
+            break;
+        }
+        case AssetType::Shader:
+        {
+            ShaderAssetData data;
+            if (false == ReadShader(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_shaders, AssetType::Shader, id, std::move(data));
             break;
         }
         case AssetType::Material:
@@ -1381,6 +1556,16 @@ namespace JBro
                 return {};
             }
             handle = Occupy(m_materials, AssetType::Material, id, std::move(data));
+            break;
+        }
+        case AssetType::Mesh:
+        {
+            MeshData data;
+            if (false == ReadMesh(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_meshes, AssetType::Mesh, id, std::move(data));
             break;
         }
         default:
@@ -1452,11 +1637,35 @@ namespace JBro
             }
             return;
         }
-        if (Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        if (Slot<ColorLutData>* lut = FindSlot(m_colorLuts, handle, AssetType::ColorLut))
         {
-            if (mesh->referenceCount != 0)
+            if (lut->referenceCount != 0)
             {
-                --mesh->referenceCount;
+                --lut->referenceCount;
+            }
+            return;
+        }
+        if (Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
+        {
+            if (profile->referenceCount != 0)
+            {
+                --profile->referenceCount;
+            }
+            return;
+        }
+        if (Slot<RenderTextureData>* target = FindSlot(m_renderTextures, handle, AssetType::RenderTexture))
+        {
+            if (target->referenceCount != 0)
+            {
+                --target->referenceCount;
+            }
+            return;
+        }
+        if (Slot<ShaderAssetData>* shader = FindSlot(m_shaders, handle, AssetType::Shader))
+        {
+            if (shader->referenceCount != 0)
+            {
+                --shader->referenceCount;
             }
             return;
         }
@@ -1465,6 +1674,13 @@ namespace JBro
             if (material->referenceCount != 0)
             {
                 --material->referenceCount;
+            }
+        }
+        if (Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        {
+            if (mesh->referenceCount != 0)
+            {
+                --mesh->referenceCount;
             }
         }
     }
@@ -1484,8 +1700,12 @@ namespace JBro
             || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr
             || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr
             || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr
-            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr
-            || FindSlot(m_materials, handle, AssetType::Material) != nullptr;
+            || FindSlot(m_colorLuts, handle, AssetType::ColorLut) != nullptr
+            || FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile) != nullptr
+            || FindSlot(m_renderTextures, handle, AssetType::RenderTexture) != nullptr
+            || FindSlot(m_shaders, handle, AssetType::Shader) != nullptr
+            || FindSlot(m_materials, handle, AssetType::Material) != nullptr
+            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr;
     }
 
     UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -1518,13 +1738,29 @@ namespace JBro
         {
             return effect->referenceCount;
         }
-        if (const Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        if (const Slot<ColorLutData>* lut = FindSlot(m_colorLuts, handle, AssetType::ColorLut))
         {
-            return mesh->referenceCount;
+            return lut->referenceCount;
+        }
+        if (const Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
+        {
+            return profile->referenceCount;
+        }
+        if (const Slot<RenderTextureData>* target = FindSlot(m_renderTextures, handle, AssetType::RenderTexture))
+        {
+            return target->referenceCount;
+        }
+        if (const Slot<ShaderAssetData>* shader = FindSlot(m_shaders, handle, AssetType::Shader))
+        {
+            return shader->referenceCount;
         }
         if (const Slot<MaterialData>* material = FindSlot(m_materials, handle, AssetType::Material))
         {
             return material->referenceCount;
+        }
+        if (const Slot<MeshData>* mesh = FindSlot(m_meshes, handle, AssetType::Mesh))
+        {
+            return mesh->referenceCount;
         }
         return 0;
     }
@@ -1653,18 +1889,48 @@ namespace JBro
             effect->data = fresh;
             return true;
         }
-        if (Slot<MeshData>* mesh = FindSlot(m_meshes, *loaded, AssetType::Mesh))
+        if (Slot<ColorLutData>* lut = FindSlot(m_colorLuts, *loaded, AssetType::ColorLut))
         {
-            // 모델 파일이 바뀌었다는 뜻이다 - 들고 있던 모델을 버리고 다시 읽는다.
-            m_decodedModelId = {};
-            m_decodedModel = {};
-            MeshData fresh;
-            if (false == ReadMesh(*record, fresh))
+            ColorLutData fresh;
+            if (false == ReadColorLut(*record, fresh))
             {
                 return false;
             }
-            fresh.dataGeneration = mesh->data.dataGeneration + 1;
-            mesh->data = std::move(fresh);
+            fresh.dataGeneration = lut->data.dataGeneration + 1;
+            lut->data = std::move(fresh);
+            return true;
+        }
+        if (Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, *loaded, AssetType::PostProcessProfile))
+        {
+            PostProcessProfileData fresh;
+            if (false == ReadPostProcessProfile(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = profile->data.dataGeneration + 1;
+            profile->data = std::move(fresh);
+            return true;
+        }
+        if (Slot<RenderTextureData>* target = FindSlot(m_renderTextures, *loaded, AssetType::RenderTexture))
+        {
+            RenderTextureData fresh;
+            if (false == ReadRenderTexture(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = target->data.dataGeneration + 1;
+            target->data = std::move(fresh);
+            return true;
+        }
+        if (Slot<ShaderAssetData>* shader = FindSlot(m_shaders, *loaded, AssetType::Shader))
+        {
+            ShaderAssetData fresh;
+            if (false == ReadShader(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = shader->data.dataGeneration + 1;
+            shader->data = std::move(fresh);
             return true;
         }
         if (Slot<MaterialData>* material = FindSlot(m_materials, *loaded, AssetType::Material))
@@ -1682,6 +1948,20 @@ namespace JBro
             }
             fresh.dataGeneration = material->data.dataGeneration + 1;
             material->data = std::move(fresh);
+            return true;
+        }
+        if (Slot<MeshData>* mesh = FindSlot(m_meshes, *loaded, AssetType::Mesh))
+        {
+            // 모델 파일이 바뀌었다는 뜻이다 - 들고 있던 모델을 버리고 다시 읽는다.
+            m_decodedModelId = {};
+            m_decodedModel = {};
+            MeshData fresh;
+            if (false == ReadMesh(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = mesh->data.dataGeneration + 1;
+            mesh->data = std::move(fresh);
             return true;
         }
         return false;
@@ -1778,21 +2058,58 @@ namespace JBro
                 ++freed;
             }
         }
-        for (UInt32 index = 0; index < m_meshes.slots.Size(); ++index)
+        for (UInt32 index = 0; index < m_colorLuts.slots.Size(); ++index)
         {
-            Slot<MeshData>& slot = m_meshes.slots[index];
+            Slot<ColorLutData>& slot = m_colorLuts.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
             {
-                Vacate(m_meshes, index);
+                Vacate(m_colorLuts, index);
                 ++freed;
             }
         }
+        for (UInt32 index = 0; index < m_postProcessProfiles.slots.Size(); ++index)
+        {
+            Slot<PostProcessProfileData>& slot = m_postProcessProfiles.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_postProcessProfiles, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_renderTextures.slots.Size(); ++index)
+        {
+            Slot<RenderTextureData>& slot = m_renderTextures.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_renderTextures, index);
+                ++freed;
+            }
+        }
+        // 머티리얼이 먼저 - 셰이더는 머티리얼 라이브러리가 쥐므로 여기 순서와는 상관없지만 읽는 차례를 맞춘다.
         for (UInt32 index = 0; index < m_materials.slots.Size(); ++index)
         {
             Slot<MaterialData>& slot = m_materials.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_materials, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_shaders.slots.Size(); ++index)
+        {
+            Slot<ShaderAssetData>& slot = m_shaders.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_shaders, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_meshes.slots.Size(); ++index)
+        {
+            Slot<MeshData>& slot = m_meshes.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_meshes, index);
                 ++freed;
             }
         }

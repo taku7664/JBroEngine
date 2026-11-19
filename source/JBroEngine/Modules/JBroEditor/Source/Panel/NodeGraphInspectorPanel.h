@@ -43,5 +43,7 @@ namespace JBro
         // 고치는 중인 주석 제목이다. 다른 주석을 고르면 다시 채운다.
         String m_title;
         UInt64 m_titleComment = 0;
+        String m_label;
+        UInt64 m_labelNode = 0;
     };
 }

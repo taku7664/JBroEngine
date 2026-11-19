@@ -72,6 +72,9 @@ namespace JBro
 
     // 앵커(0..1, y 위)가 가리키는 화면의 점이다(기준 픽셀, 가운데 원점).
     void ComputeAnchorPoint(const ScreenExtent& extent, Float anchorX, Float anchorY, Float& x, Float& y);
+    // 같은 것을 **안전 영역**(`frame.safeArea` 를 뺀 안쪽) 에서 잰다(D-358). 띠는 대상 픽셀이라 보이는 영역의 비율로 기준 픽셀로 옮긴다. `horizontal`·`vertical` 이 거짓인 축은
+    // 화면 전체다. 띠가 없거나 그려지는 영역을 모르면 `ComputeAnchorPoint` 와 같다.
+    void ComputeSafeAnchorPoint(const ScreenExtent& extent, const ScreenSpaceFrame& frame, Bool horizontal, Bool vertical, Float anchorX, Float anchorY, Float& x, Float& y);
 
     // **역투영**(3 단계). 게임 화면 픽셀(왼쪽 위 원점, y 아래 - 마우스·터치의 좌표)과 보이는 영역의 -1..1 자리를 오간다.
     // 화면 레이어는 이 자리에 `ScreenExtent` 를 곱하면 기준 픽셀이고, 월드 레이어는 카메라의 반폭·반높이를 곱하면 뷰 좌표다.

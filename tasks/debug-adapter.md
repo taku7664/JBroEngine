@@ -10,7 +10,7 @@
 `source/JBroDebugAdapter` 의 `JBroDebugAdapter.exe` 는 표준 입출력으로 [Debug Adapter Protocol](https://microsoft.github.io/debug-adapter-protocol/) 을 말한다.
 떠 있는 씬 에디터(`JBroEditorHost.exe`)에 마이크로소프트 디버거 엔진(DbgEng)으로 붙어 스크립트 DLL 을 디버깅한다.
 
-- 산출물: `source/JBroEngine/Build/x64/<구성>/DebugAdapter/` 에 실행 파일, 재배포용 DbgEng DLL 넷, `JBro.natvis` 가 함께 놓인다.
+- 산출물: `<엔진 산출물>/x64/<구성>/DebugAdapter/`(산출물 자리는 D-370) 에 실행 파일, 재배포용 DbgEng DLL 넷, `JBro.natvis` 가 함께 놓인다.
   에디터 실행 파일 옆에 두지 않는다 - 함께 놓이는 `dbghelp.dll` 이 에디터가 싣는 것을 바꾼다.
 - 엔진 솔루션의 `/Tools/` 에 있고, `Tests/JBroTests.vcxproj` 가 빌드를 시킨다. 엔진 모듈은 JBroCore 만 링크한다.
 - DbgEng 은 리포의 `source/JBroDebugAdapter/ThirdParty/DbgEng/` 에 있다. 출처·버전·배포 근거는 그 폴더의 `README.md`.

@@ -48,6 +48,10 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, sprite,     NoSerialize() | ReadOnly() | Tooltip("spriteId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(AssetId,     materialId);
         JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
+        // **렌더 텍스처를 보인다**(D-362). 있으면 `spriteId` 대신 그 텍스처 전체를 그린다 - 카메라가 같은 에셋에 그린 그림이다. 크기는 `FromSprite` 면 텍스처 픽셀 / 100(유닛),
+        // 화면 레이어면 픽셀이다. 피벗은 가운데다.
+        JBRO_FIELD(AssetId,     renderTextureId);
+        JBRO_FIELD(AssetHandle, renderTexture, NoSerialize() | ReadOnly() | Tooltip("renderTextureId 에서 해석된 값") | Hidden());
 
         JBRO_FIELD(Color, tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         // `Custom` 일 때만 `pivot`·`size` 가 쓰인다(D-117). 기본은 에셋이 정한다.
@@ -56,6 +60,12 @@ namespace JBro::Component
         JBRO_FIELD(Vector2,  pivot) { 0.5f, 0.5f };
         JBRO_FIELD(Vector2,  size)  { 1.0f, 1.0f };
         JBRO_FIELD(SpriteFlip,   flip)        = SpriteFlip::None;
+        // 펴 그리는 방식이다(D-351). `Sliced`·`Tiled` 는 `sizeMode` 가 `Custom` 일 때 뜻이 있다 - 에셋 크기 그대로면 `Simple` 과 같은 그림이다.
+        JBRO_FIELD(SpriteDrawMode, drawMode) = SpriteDrawMode::Simple;
+        // `Filled` 가 그리는 비율(0..1)과 시작하는 변이다. 진행 막대는 이 값 하나다. 변은 스프라이트의 것이라 `flip` 이 그림과 함께 뒤집는다 -
+        // 가로로 뒤집은 `Left` 는 화면의 오른쪽부터 찬다.
+        JBRO_FIELD(Float, fillAmount, Range(0.0f, 1.0f)) = 1.0f;
+        JBRO_FIELD(SpriteFillOrigin, fillOrigin) = SpriteFillOrigin::Left;
         // 시트의 어느 칸인가(D-113). 슬라이싱이 없는 스프라이트는 언제나 0 이고, 넘치면 마지막 칸이다.
         JBRO_FIELD(UInt32, frameIndex) = 0;
         JBRO_FIELD(Int32, renderOrder) = 0;

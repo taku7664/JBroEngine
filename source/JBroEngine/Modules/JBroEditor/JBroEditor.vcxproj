@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroNodeGraph\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroPackage\Include;$(JBroModulesDir)JBroTextRendering\Include;$(JBroNetworkDir)Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroScreenUi\Include;$(JBroModulesDir)JBroScriptRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroThirdPartyDir)ImGuiColorTextEdit;$(JBroThirdPartyDir)md4c;$(JBroThirdPartyDir)nlohmann-json;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroNodeGraph\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;$(JBroModulesDir)JBroPackage\Include;$(JBroModulesDir)JBroShaderCompiler\Include;$(JBroModulesDir)JBroTextRendering\Include;$(JBroNetworkDir)Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -77,6 +77,14 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
       <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScriptRuntime\JBroScriptRuntime.vcxproj">
+      <Project>{1a000058-0000-4000-8000-0000000a5c11}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroScreenUi\JBroScreenUi.vcxproj">
+      <Project>{1a000057-0000-4000-8000-00000005c0e1}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
@@ -135,6 +143,11 @@
       <Project>{1a000034-0000-4000-8000-00000000fa4c}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroThirdPartyDir)md4c\md4c.vcxproj"><Project>{aa8e7e65-a7d3-4e51-bc30-a32716e20c01}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)ImGuiColorTextEdit\ImGuiColorTextEdit.vcxproj"><Project>{3a97ca11-209a-48a3-8104-641ebc4bc606}</Project></ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)nlohmann-json\nlohmann-json.vcxproj"><Project>{1a000040-0000-4000-8000-000000004a50}</Project><LinkLibraryDependencies>false</LinkLibraryDependencies></ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

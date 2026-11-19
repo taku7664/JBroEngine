@@ -11,6 +11,20 @@ namespace JBro
     // 에디터의 생김새다. 색·치수·글꼴이 모두 여기서 나온다.
     namespace EditorTheme
     {
+        inline constexpr Float MarkdownLineHeight = 1.4f;
+        inline constexpr Float MarkdownBlockGap = 0.55f;
+        inline constexpr Float MarkdownIndent = 2.0f;
+        inline constexpr Float MarkdownMinimumCellWidth = 9.0f;
+        inline constexpr Float MarkdownTabWidth = 2.4f;
+        inline constexpr Float MarkdownNewlineWidth = 0.35f;
+        inline constexpr Float MarkdownBorderWidth = 1.0f;
+        inline constexpr Float MarkdownBoldOffset = 0.55f;
+        inline constexpr Float MarkdownItalicShear = 0.18f;
+        inline constexpr Float MarkdownSelectionAlpha = 0.35f;
+        inline constexpr Float MarkdownCurrentMatchAlpha = 0.65f;
+        inline constexpr Float MarkdownAutoScrollSpeed = 12.0f;
+        inline constexpr Float MarkdownCopyButtonWidth = 5.0f;
+        inline constexpr Float MarkdownHeadingScale[] = {1.85f, 1.55f, 1.3f, 1.15f, 1.05f, 1.0f};
         // ── 팔레트 ────────────────────────────────────────────────────────
         //
         // **밝기 계층**이다. 깊은 자리에서 얕은 자리로 올라간다. 이 순서가 깨지면
@@ -49,6 +63,7 @@ namespace JBro
 
         constexpr ImVec4 Ink(0.894f, 0.910f, 0.933f, 1.00f);          // #E4E8EE
         constexpr ImVec4 InkMuted(0.478f, 0.518f, 0.576f, 1.00f);     // #7A8493
+        constexpr ImVec4 CodeAttribute(196.0f / 255.0f, 181.0f / 255.0f, 253.0f / 255.0f, 1.00f); // #C4B5FD
 
         // **파랑은 상호작용에만 쓴다.** 고름·초점·체크·슬라이더·도킹·키보드 탐색,
         // 그리고 주 동작. 장식으로 쓰면 무엇이 눌리는 것인지 알 수 없게 된다.
@@ -101,4 +116,11 @@ namespace JBro
         // 셋 다.
         void Apply();
     }
+}
+
+namespace JBro::EditorTheme
+{
+    void LoadCodeFont(IPlatform& platform);
+    void ReleaseCodeFont();
+    ImFont* GetCodeFont();
 }

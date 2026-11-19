@@ -41,11 +41,43 @@ Entries:
   menu.debug_log: Log
   menu.debug_start: Start Debugging
   menu.debug_stop: Stop Debugging
-  notify.debug_started: Debugging is on - attach from the script editor to hit breakpoints
+  notify.debug_started: Debugging started.
   notify.debug_channel_failed: The debug channel could not open
+  debug_client.queue_full: "The debugger request queue is full."
+  debug_client.input_unavailable: "The debugger input channel is unavailable."
+  debug_client.rejected: "The debug adapter rejected a request."
+  debug_client.breakpoint_response_invalid: "The debugger sent an invalid breakpoint response."
+  debug_client.session_closing: "The previous debugger session is still closing."
+  debug_client.invalid_target: "A valid debug adapter path and editor process are required."
+  debug_client.start_failed: "JBroDebugAdapter.exe could not be started."
+  debug_client.output_limit: "The debugger output exceeded its frame limit."
+  debug_client.header_invalid: "The debugger sent an invalid DAP header."
+  debug_client.length_invalid: "The debugger sent an invalid DAP frame length."
+  debug_client.message_invalid: "The debugger sent an invalid DAP message."
+  debug_client.response_malformed: "The debugger sent a malformed DAP response."
+  debug_client.stopped: "The debug adapter stopped unexpectedly."
+  debug_client.startup_timeout: "The debug adapter did not finish installing breakpoints in time."
+  language_client.input_unavailable: "The language server input channel is unavailable."
+  language_client.initialization_failed: "Language server initialization failed."
+  language_client.edit_source_changed: "The source changed while the field edit was being checked."
+  language_client.edit_rejected: "The field edit was rejected."
+  language_client.edit_version_mismatch: "The field edit does not match the source version."
+  language_client.semantic_tokens_invalid: "The language server sent invalid semantic tokens."
+  language_client.start_failed: "JBroc.exe could not be started."
+  language_client.disconnected: "The language server disconnected."
+  language_client.header_invalid: "The language server sent an invalid frame header."
+  language_client.length_invalid: "The language server sent an invalid frame length."
+  language_client.message_invalid: "The language server sent an invalid JSON-RPC message."
+  language_client.response_malformed: "The language server sent a malformed response."
+  language_client.stopped: "The language server stopped. Reconnect to resume analysis."
+  language_client.startup_timeout: "The language server did not initialize in time."
   menu.exit: Exit
   menu.undo: Undo
   menu.redo: Redo
+  menu.cut: Cut
+  menu.copy: Copy
+  menu.paste: Paste
+  menu.select_all: Select All
   menu.unsaved: unsaved
   dialog.save_canvas_title: Save Canvas
   dialog.canvas_filter: JBro canvas file
@@ -65,6 +97,37 @@ Entries:
   canvas_view.colliders_tooltip: show or hide collider shapes
   canvas_view.lighting: Lighting
   canvas_view.lighting_tooltip: draw the canvas view with the scene's 2D lights, or in the sprites' own colours
+  canvas_view.post_process: "Post-processing"
+  canvas_view.post_process_tooltip: "show the canvas view through the game camera's post-process profile, or without it"
+  assets.new_post_process_profile: "New Post-Process Profile"
+  assets.new_render_texture: "New Render Texture"
+  inspector.post_process_effects: "Post-Process Effects"
+  inspector.post_process_empty: "No effects yet"
+  inspector.post_process_add: "Add Effect"
+  inspector.post_process_remove: "Remove Effect"
+  inspector.post_process_menu: "Effect menu"
+  inspector.post_process_unknown: "This engine does not know this effect. It is kept as it was read"
+  inspector.post_process_override_tooltip: "Write this value into the profile. Off uses the effect's default"
+  inspector.post_process_unreadable: "This profile could not be read"
+  inspector.post_process_broken: "The profile's text is broken. Fix the file to edit it here"
+  assets.new_material: "New Material"
+  assets.new_shader: "New Shader"
+  inspector.material_parameters: "Parameters"
+  inspector.material_textures: "Textures"
+  inspector.material_no_shader: "Pick a shader to see its parameters and textures"
+  inspector.material_shader_error: "The shader could not be compiled"
+  inspector.material_no_parameters: "The shader has no parameters"
+  inspector.material_override_tooltip: "Write this value into the material. Off uses the shader's initial value"
+  inspector.material_unreadable: "This material could not be read"
+  inspector.render_texture_unreadable: "This render texture could not be read"
+  inspector.render_texture_hint: "Set it as a camera's renderTextureId to draw into it, and as a sprite's renderTextureId to show it"
+  inspector.render_texture_width: width
+  inspector.render_texture_height: height
+  inspector.render_texture_filter: filter
+  inspector.material_broken: "The material's text is broken. Fix the file to edit it here"
+  inspector.shader_open: "Open in Editor"
+  inspector.shader_domain_error: "Could not be compiled for this domain"
+  inspector.shader_empty: "No parameters or textures"
   canvas_view.edit_collider: Edit Collider
   canvas_view.edit_collider_tooltip: edit the selected object's polygon collider - drag a point to move it, click an edge to add one, right-click a point to delete it
   canvas_view.point_delete: Delete Point
@@ -177,6 +240,7 @@ Entries:
   component_category.Physics: Physics
   component_category.Audio: Audio
   component_category.UI: UI
+  component_category.UiLayout: UI Layout
   component_category.Components: Components
   component_category.Scripts: Scripts
   asset.none: (None)
@@ -325,6 +389,8 @@ Entries:
   layer_asset.load_failed: the layer asset could not be read
   inspector.layer_parallax: Parallax Factor
   inspector.layer_parallax_tooltip: how far this layer moves when the camera moves; 1 moves with the camera, 0.5 is a half-speed background and 0 stays fixed in the world. Seen in the simulation view only, not in the canvas view
+  inspector.layer_post_process: Post-Process Profile
+  inspector.layer_post_process_tooltip: the layer is drawn as one image, and the profile's layer effects (blur, outline, drop shadow, colour adjustments, LUT) are applied before it is laid onto what is below. Exposure, bloom and tonemapping belong to the camera and are skipped here
   inspector.layer_lit: Lit
   inspector.layer_lit_tooltip: the objects on this layer are lit by the canvas lights; off draws them in their own colours
   inspector.layer_space: Space
@@ -449,6 +515,9 @@ Entries:
   file_window.save_and_close: Save and close
   file_window.close_without_saving: Close without saving
   assets.new_node_graph: New Node Graph
+  assets.new_shader_graph: New Shader Graph
+  node_graph.node_label: Name
+  node_graph.shader_failed: The shader file could not be made
   node_graph.save: Save
   node_graph.nothing_to_save: Nothing has changed
   node_graph.reload: Reload From Disk
@@ -560,7 +629,7 @@ Entries:
   assets.list_view: List
   assets.expand: Show sub-assets
   assets.collapse: Hide sub-assets
-  assets.new_material: New Material
+  assets.new_standard_material: New Standard Material
   assets.same_image_tooltip: The same image is also embedded in
   assets.view_tooltip: switch between the list and the icons
   menu.new_project: New Project
@@ -584,6 +653,8 @@ Entries:
   sprite_viewer.pick_hint: click a cell on the sheet to use that frame
   inspector.pick_frame: Pick Frame
   inspector.pick_frame_no_sprite: set a sprite first
+  inspector.fit_sprite: Fit to Sprite
+  inspector.fit_sprite_no_sprite: no sprite to fit
   inspector.text_no_font: "No usable font, so this text is not drawn. Set fontId or add a font in Project Settings."
   inspector.camera_size_unused: "Not used by PixelPerfect. The view is the reference resolution divided by pixelsPerUnit."
   inspector.camera_ppu_unused: Used only by PixelPerfect.
@@ -603,6 +674,9 @@ Entries:
   notify.scripts_reload_failed: The scripts could not be reloaded
   notify.scripts_reload_kept: The scripts keep their values in the canvas. Fix the build and try again
   notify.scripts_reload_pending: The new scripts load when play stops
+  notify.script_fields_not_read: "%zu saved script field value(s) could not be read"
+  notify.script_fields_not_read_why: Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. See the log for each field. Saving leaves them out of the file
+  notify.script_fields_not_read_inserted: Values of fields removed from the code were dropped, and fields whose type changed went back to their defaults. See the log for each field
   editor_settings.search_hint: Search by name or key
   editor_settings.press_key: Press a key
   editor_settings.capture_hint: Press Esc to cancel
@@ -646,3 +720,262 @@ Entries:
   guide.build_game_title: Building the Game
   guide.build_game_step_title: Build Game
   guide.build_game_step_body: Open the File menu and choose Build Game to pack the project into a game you can run.
+
+  # Embedded code editor
+  code_editor.title: "Code Editor"
+  code_editor.save: "Save"
+  code_editor.reload: "Reload from disk"
+  code_editor.close: "Close"
+  code_editor.external: "Open in external editor"
+  code_editor.unsaved: "This file has unsaved changes."
+  code_editor.read_failed: "The code file could not be read. Check that it is UTF-8 text."
+  code_editor.save_failed: "The code file could not be saved."
+  code_editor.conflict: "The file changed on disk. Reload it before saving."
+  code_editor.server_starting: "Connecting JBroScript analysis…"
+  code_editor.server_ready: "JBroScript analysis connected"
+  code_editor.server_failed: "JBroScript analysis is disconnected."
+  code_editor.reconnect: "Reconnect language server"
+  code_editor.cursor: "Line %u, Column %u | %u diagnostics"
+
+  # Source script summary
+  script_summary.title: "Script Summary"
+  script_summary.no_document: "Open a JBroScript file to see its summary"
+  script_summary.waiting: "Waiting for analysis"
+  script_summary.unavailable: "Summary is unavailable"
+  script_summary.locked: "Source is read only"
+  script_summary.applying: "Checking edit..."
+  script_summary.changed: "The source changed. Refresh the field and try again."
+  script_summary.empty: "No declarations in this file"
+  script_summary.callback: "Callback"
+  script_summary.property: "Property"
+  script_summary.range: "Range"
+  script_summary.clamp: "Clamp"
+  script_summary.name: "Display name"
+  script_summary.tooltip: "Description"
+  script_summary.category: "Category"
+  script_summary.visible_when: "Visibility condition"
+  script_summary.read_only: "Read only"
+  script_summary.no_serialize: "Saving"
+  script_summary.hidden: "Hidden"
+  script_summary.expression: "Expression"
+  script_summary.minimum: "Minimum"
+  script_summary.maximum: "Maximum"
+  script_summary.default: "Save"
+  script_summary.excluded: "Do not save"
+
+  # Native script debugger
+  editor.code_editor.debug_build_failed: "Debugging could not start because the script build failed."
+  editor.code_editor.debug_source_mismatch: "The source differs from the loaded build. Rebuild before debugging."
+  editor.code_editor.debug_busy: "Another debugger is connected. Disconnect it before starting."
+  editor.code_editor.breakpoint_pending: "Breakpoint pending"
+  editor.code_editor.breakpoint_add: "Click to add breakpoint"
+  editor.code_editor.breakpoint_remove: "Click to remove breakpoint"
+  editor.code_editor.read_only: "This file is read only."
+  editor.code_editor.finish_input: "Finish editing the active input field first."
+  editor.code_editor.no_changes: "There are no changes to save."
+  editor.code_editor.no_selection: "No text is selected."
+  editor.code_editor.empty_document: "The document is empty."
+  editor.code_editor.debug_inactive: "No debugging session is running."
+  editor.code_editor.debug_not_stopped: "The script is not stopped at a breakpoint."
+  editor.code_editor.debug_already_active: "A debugging session is already running."
+  editor.code_editor.start_debugging: "Start debugging"
+  editor.code_editor.continue_debugging: "Continue"
+  editor.code_editor.stop_debugging: "Stop debugging"
+
+  script_summary.counts: "%u fields  /  %u functions"
+  script_summary.select_member: "Select a declaration to see its details"
+  script_summary.initializer: "Initial value"
+  script_summary.add_initializer: "Add initial value"
+  script_summary.remove_initializer: "Remove initial value"
+  script_summary.advanced: "More settings"
+  script_summary.const_rule: "const fields are read only and excluded from saving."
+  script_summary.static_rule: "static values are shared and excluded from instance saving."
+  script_summary.implicit_property: "Other attributes also expose this field as a property."
+  script_summary.automatic_readonly: "Automatic (const)"
+  script_summary.explicit_readonly: "Explicit [readonly]"
+  script_summary.automatic_exclude: "Automatically excluded"
+  script_summary.explicit_exclude: "Explicitly excluded"
+  script_summary.edit_rejected: "The setting could not be applied. Check the expression you entered."
+
+  markdown.title: Documents
+  markdown.open: Open Markdown document...
+  markdown.reload: Reload from disk
+  markdown.find: Find in document
+  markdown.previous: Previous
+  markdown.next: Next
+  markdown.closefind: Close find
+  markdown.loading: Reading document...
+  markdown.readfailed: The document could not be read. The last valid contents are retained.
+  markdown.imageunavailable: Local image is unavailable or unsupported.
+  markdown.unsupportedlink: This link is not supported.
+  panel.agent: AI Agent
+  agent.executable: Codex executable
+  agent.connect: Connect
+  agent.connecting: Connecting to Codex...
+  agent.project_required: Open a project first.
+  agent.install: Codex installation guide
+  agent.login_chatgpt: Sign in with ChatGPT
+  agent.api_key: API key
+  agent.login_key: Sign in with API key
+  agent.stop: Stop
+  agent.disconnect: Disconnect
+  agent.resume_guide: Resume guide
+  guide.open_panel: Click the highlighted tab or Window menu to open the panel.
+  agent.start_guide: Start guide
+  agent.guide_ready: Start the guide when you are ready to follow the steps.
+  agent.open_chat: Ask AI
+  agent.new_chat: New conversation
+  agent.send: Send
+  agent.not_ready: Connect and sign in before sending a message.
+  agent.communication_failed: Codex communication failed. Reconnect; changes are not replayed.
+  agent.invalid_protocol: Invalid Codex protocol message.
+  agent.login_failed: Codex sign-in failed. Try signing in again.
+  agent.connected: Codex connected. Previous object references must be refreshed.
+  agent.login_cancelled: Codex sign-in was cancelled or failed.
+  agent.turn_stopped: Stopped. Applied changes remain; no changes were replayed.
+  agent.turn_failed: Codex turn failed. Check the recorded tool results; completion is not confirmed.
+  agent.server_error: Codex reported an error. Check connection and account access.
+  agent.executable_missing: Codex executable not found. Install Codex or select codex.exe; automatic installation is disabled.
+  agent.startup_timeout: Codex did not initialize. Check your installation, network and protocol compatibility.
+  agent.message_limit: Codex protocol message exceeds the size limit.
+  agent.incompatible: Codex protocol is invalid or incompatible. Update Codex and reconnect.
+  agent.path_invalid: Could not resolve the project or bundled skill path. Check the paths before reconnecting.
+  agent.exited: Codex exited. Reconnect to continue; changes are not replayed.
+  agent.rpc_rejected: Codex rejected the request. Check authentication or update Codex before reconnecting.
+  agent.tool_running: Working with the editor...
+  agent.tool_done: Editor operation completed.
+  agent.tool_failed: The editor rejected the operation. The AI received the reason.
+  agent.no_models: Codex did not return an available model. Check account access.
+  agent.invalid_target: This reference is no longer valid.
+  agent.attachments: References (%u)
+  agent.asset: Asset
+  agent.object: Object
+  agent.component: Component
+  agent.remove_attachment: Remove
+  agent.attachment_limit: You can attach up to 16 items per message.
+  agent.guide_target_lost: The guide target changed. Ask for a new guide.
+  agent.isolation_failed: External tools could not be disabled. Update Codex before connecting.
+  agent.restored_incomplete: This previous turn did not complete. Inspect applied changes before continuing; no work was replayed.
+
+  agent.settings: Connection settings
+  agent.back: Back to conversation
+  agent.connected_short: Codex connected
+  agent.disconnected_short: Disconnected
+  agent.sign_in_required: Sign-in required
+  agent.welcome: What would you like to create?
+  agent.welcome_hint: Ask for help or request an edit. Drop a subject here to include it.
+  agent.prompt_focus: How do I enter object focus mode?
+  agent.prompt_order: How do I reorder sprites without changing Z?
+  agent.prompt_script: How do I create a script?
+  agent.input_hint: Enter a request…
+  agent.drop_hint: Drop objects, components, or assets
+  agent.executable_hint: Uses your installed Codex.
+  agent.auth_managed: Codex manages account authentication.
+  agent.guide: Guide
+  agent.guide_paused: The guide is paused while you chat.
+  agent.guide_target: Subject
+  agent.prompt_focus_label: Enter object focus mode
+  agent.prompt_order_label: Reorder sprites without Z
+  agent.prompt_script_label: Create a script
+  agent.connect_hint: Connect to Codex to start chatting.
+  agent.model_placeholder: Select model
+  agent.model_after_connect: Model · connect to select
+  agent.shortcut_hint: Enter to send · Shift + Enter for a new line
+  agent.attach_file: Attach file
+  agent.attachment_filter: Project assets
+  agent.attachment_unsupported: Only registered project assets can currently be attached from a file.
+  panel.render_graph: Render Graph
+  menu.debug_render_graph: Render Graph
+  render_graph.empty: No render graph has been recorded yet
+  render_graph.pause_tooltip: Hold this graph to inspect it. The game keeps running
+  render_graph.step_tooltip: Take the next frame's graph
+  render_graph.step_disabled: Only while the graph is held
+  render_graph.show_skipped: Skipped passes
+  render_graph.search: Find a pass or texture
+  render_graph.held: Held
+  render_graph.frame: Frame
+  render_graph.passes_ran: Passes run
+  render_graph.texture_count: Textures
+  render_graph.physical_count: Actual textures
+  render_graph.barrier_count: Barriers
+  render_graph.kind_raster: Raster
+  render_graph.kind_copy: Copy
+  render_graph.kind_compute: Compute
+  render_graph.status_ran: Ran
+  render_graph.status_ran_tip: This pass was recorded this frame.
+  render_graph.skip_missing: Texture missing
+  render_graph.skip_missing_tip: A texture this pass needs does not exist this frame. Its shape is made before the next frame.
+  render_graph.skip_present: Not needed
+  render_graph.skip_present_tip: This is a fallback. The texture exists, so the original pass ran instead.
+  render_graph.skip_input: No input
+  render_graph.skip_input_tip: The pass that writes a texture this pass must read did not run.
+  render_graph.skip_unused: Unused
+  render_graph.skip_unused_tip: Nothing reads what this pass writes, so it was dropped.
+  render_graph.view: View
+  render_graph.view_frame: Game screen
+  render_graph.view_other: Editor image
+  render_graph.view_not_recorded: Not drawn this frame
+  render_graph.column_pass: Pass
+  render_graph.column_kind: Kind
+  render_graph.column_status: Status
+  render_graph.column_barriers: Barriers
+  render_graph.column_texture: Texture
+  render_graph.column_use: Use
+  render_graph.column_actual: Actual texture
+  render_graph.column_state: State
+  render_graph.column_shape: Shape
+  render_graph.column_source: Source
+  render_graph.column_lifetime: Lifetime
+  render_graph.column_slot: Slot
+  render_graph.column_this_frame: This frame
+  render_graph.column_idle: Idle frames
+  render_graph.tab_pass: Pass
+  render_graph.tab_textures: Textures
+  render_graph.tab_pool: Pool
+  render_graph.select_pass_hint: Choose a pass on the left
+  render_graph.condition: Condition
+  render_graph.condition_available: available
+  render_graph.condition_missing: missing (fallback)
+  render_graph.accesses: Textures this pass uses
+  render_graph.access_color: Colour attachment
+  render_graph.access_depth: Depth attachment
+  render_graph.access_read: Read
+  render_graph.access_read_optional: Read (may be absent)
+  render_graph.access_copy_source: Copy source
+  render_graph.access_copy_destination: Copy destination
+  render_graph.access_storage: Read and write
+  render_graph.optional_suffix: " (may be absent)"
+  render_graph.load_load: Keep
+  render_graph.load_clear: Clear
+  render_graph.load_discard: Discard
+  render_graph.actual_none: None this frame
+  render_graph.actual_none_tip: The pool had no free texture of this shape. Passes that need it fell back; it is made before the next frame.
+  render_graph.barriers_header: Barriers before this pass
+  render_graph.no_barriers: No barriers
+  render_graph.state_shader_read: Shader read
+  render_graph.state_render_target: Render target
+  render_graph.state_depth_write: Depth write
+  render_graph.state_copy_source: Copy source
+  render_graph.state_copy_destination: Copy destination
+  render_graph.state_storage: Read and write
+  render_graph.source_transient: Graph
+  render_graph.source_imported: Imported
+  render_graph.source_back_buffer: Back buffer
+  render_graph.shared_hint: Bars of one colour share one actual texture.
+  render_graph.lifetime_tip: Lives from the first pass that uses it to the last
+  render_graph.pool_slots: Slots in use
+  render_graph.pool_hint: Textures unused for 300 frames are released. Shapes the graph lacked are made before the next frame.
+  render_graph.slot_empty: Empty
+  render_graph.slot_used: Used
+  render_graph.wants: To make before the next frame
+  render_graph.wants_none: Nothing to make
+  render_graph.column_gpu: GPU ms
+  render_graph.gpu_unsupported: No GPU time
+  render_graph.gpu_unsupported_tip: This device cannot write GPU timestamps.
+  render_graph.gpu_pending: Measuring GPU time
+  render_graph.gpu_tip: GPU time of the measured passes. Timestamps arrive after the GPU finishes a frame, a few frames late.
+  render_graph.preview: Preview
+  render_graph.preview_hint: Choose a texture above to see it right after this pass
+  render_graph.preview_waiting: Making the copy
+  render_graph.preview_not_found: This pass did not run this frame
+  render_graph.preview_unsupported: Depth textures have no preview

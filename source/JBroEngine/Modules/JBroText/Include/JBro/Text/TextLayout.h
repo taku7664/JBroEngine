@@ -119,8 +119,18 @@ namespace JBro::Text
         Float         baseline = 0.0f; // 기준선의 y
         Float         size = 0.0f;     // 줄에서 가장 큰 글자의 em 크기(픽셀). 줄 높이와 기준선은 이 크기로 잰다
         Float         height = 0.0f;   // 줄 높이(픽셀, 줄 간격 배율을 곱한 것)
+        Float         shift = 0.0f;    // 가로 정렬로 줄이 밀린 양(픽셀). 글리프의 x 에는 이미 더해져 있다
         UInt32 sourceBegin = 0;
         UInt32 sourceEnd = 0;
+    };
+
+    // **글자 구간이 한 줄에서 차지하는 사각형**(D-362). 레이아웃 좌표(픽셀, 정렬 기준점 원점, y 위쪽)다.
+    struct RangeRect
+    {
+        Float left = 0.0f;
+        Float right = 0.0f;
+        Float top = 0.0f;
+        Float bottom = 0.0f;
     };
 
     enum class LayoutError : std::uint8_t
@@ -153,6 +163,19 @@ namespace JBro::Text
 
         ArrayView<const PositionedGlyph> GetGlyphs() const;
         ArrayView<const LineInfo> GetLines() const;
+
+        // **커서 자리**(D-354). UTF-8 바이트 위치 `byteOffset` 앞에 서는 커서의 x 와 그 줄의 세로 가운데 y(픽셀, 정렬 기준점 원점, y 위쪽)다.
+        // 글자 사이는 그 글자의 왼쪽(공백·탭도 글자다), 글자 끝은 마지막 글자의 전진 폭 끝이다. 레이아웃이 없으면 거짓이다.
+        Bool GetCaretPosition(UInt32 byteOffset, Float& x, Float& y) const;
+        // 같은 것에 그 줄의 높이(픽셀)를 더 준다 - 선택 사각형의 높이다(D-355).
+        Bool GetCaretPosition(UInt32 byteOffset, Float& x, Float& y, Float& lineHeight) const;
+        // **자리 → 커서**(D-355). 레이아웃 좌표(정렬 기준점 원점, y 위쪽)의 점이 가리키는 커서의 바이트 위치다. y 로 줄을 고르고(첫 줄 위는 첫 줄,
+        // 마지막 줄 아래는 마지막 줄), 그 줄에서 x 가 글자의 가운데를 넘으면 그 글자의 뒤다. 줄 끝 뒤는 그 줄의 끝(개행 앞, 접힌 줄은 다음 줄의 머리)이다.
+        // 결합 표시는 제 받침과 한 글자다. 레이아웃이 없으면 거짓이다.
+        Bool GetCaretOffsetAt(Float x, Float y, UInt32& byteOffset) const;
+        // **구간의 줄마다 사각형**(D-362). UTF-8 바이트 구간 [begin, end) 가 걸친 줄마다 하나 - 그 줄에서 구간의 첫 글자 왼쪽부터 마지막 글자 끝까지,
+        // 높이는 그 줄의 높이다. 개행만 든 줄·폭이 0 인 조각은 건너뛴다. `capacity` 를 넘는 줄은 버린다. 낸 수를 준다.
+        UInt32 GetRangeRects(UInt32 begin, UInt32 end, RangeRect* out, UInt32 capacity) const;
 
         // 블록 사각형이다(정렬 기준점 기준 픽셀). 에디터의 선택과 컬링이 쓴다.
         Float GetMinX() const;
