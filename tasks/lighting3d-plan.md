@@ -2,7 +2,7 @@
 
 결정은 D-353. 2026-11-19 사용자와 정했다(todo-3d 우선순위 5, "다 추천안대로"). 그림자는 이 계획에 없다 - 그 뒤의 일이다.
 
-> 상태: **진행** (2026-11-19 시작).
+> 상태: **완료** (2026-11-19 시작·세 단계 완료, D-354~D-356). 남은 것은 §4.
 
 ## 1. 지금 상태와 참고한 것
 
@@ -85,7 +85,7 @@
 |---|---|---|---|
 | 1 | 렌더러: `Light3DSubmit`·b2 라이트 블록·셰이더 루프·기본 빛·넘침 세기 | 세 백엔드 픽셀 시험 - 라이트 없음은 전과 같은 그림, 방향광의 방향, 점광의 `range` 밖은 환경광만, 스포트의 안·밖, `Ambient` 만, 넘침 셈. 뮤테이션 | `[완료]` 2026-11-19 · D-354 · `Light3DSubmit`·`SubmitLight3D(s)`·`RendererConfig::maxLights3D`(1024)·`Renderer::MaxLights3DPerView`(64)·`RendererFrameStats::light3DCount`/`droppedLight3DCount`, 메시 셰이더의 라이트 루프와 b2 블록(`ShaderManifest` 의 `Mesh` 상수 버퍼 둘), 뷰마다 `ConstantRing` 에 한 번(앞 뷰와 같은 바이트면 그 구간을 다시 묶는다), 기본 빛 블록 · 시험 `MeshPixel` 의 `TestLightsLightTheMeshes`(세 백엔드) |
 | 2 | `Light3D` 컴포넌트·`Light3DSystem`·브리지·스크립트 핸들·시작 오브젝트의 방향광 | 캔버스로 그린 픽셀 시험, 감춘 레이어의 라이트, 캔버스 파일 왕복, 새 3D 프로젝트의 라이트 | `[완료]` 2026-11-19 · D-355 · `Component::Light3D`(`Light3DType`)·`Handle::Light3D`·`Light3DSystem`·`RenderWorld3D` 의 라이트·브리지의 `PushLights`(레이어 뷰마다)·시작 오브젝트 `Light`(방향광 0.75 + 환경광 0.25)·새 스크립트 창의 `Light3D` 필드 · 시험 `MeshPixel` 의 `TestLightComponentsLightTheCanvas`(세 백엔드), `UserScenario` 의 시나리오 D |
-| 3 | 에디터: 전구 표시·기즈모(`range` 구·원뿔 손잡이·방향 화살표) | 손잡이를 끌어 값이 바뀌고 되돌리기 한 번, 시험 스크린숏 | |
+| 3 | 에디터: 전구 표시·기즈모(`range` 구·원뿔 손잡이·방향 화살표) | 손잡이를 끌어 값이 바뀌고 되돌리기 한 번, 시험 스크린숏 | `[완료]` 2026-11-19 · D-356 · `LightGizmo3DModel`(화면을 모르는 손잡이 수학)·캔버스 뷰의 `DrawObjectMarkers3D`(라이트·카메라 표시)·`DrawLightEditor3D`(점광 구·스포트 원뿔·방향광 화살표, `range`·바깥 각·안쪽 각 손잡이, 커맨드 한 번) · 시험 `LightGizmoModel` 의 `TestThe3DLightHandles`, `UserScenario` 의 시나리오 E(`TestScenarioELights3D`, 스크린숏 e01~e06) |
 
 ## 4. `[열림]`
 
@@ -94,3 +94,6 @@
 - 모델 파일의 라이트 가져오기(glTF `KHR_lights_punctual`·FBX 라이트, model-import-plan §4 의 "카메라·조명") - 각은 반각이라 두 배로 옮긴다.
 - 물리 단위(루멘·럭스)와 노출.
 - 64 를 넘는 라이트(클러스터·타일).
+- 3 단계에서 남긴 것: 손잡이 끌기는 화면에서 잰다 - 스포트의 `range` 는 원근에서 축을 따라 선형이 아니라 손잡이가 마우스보다 조금 앞서거나 뒤진다(놓을 때 값은 맞는다). 축이 카메라를 곧바로 향하면 각 손잡이가 꼭짓점에 겹친다.
+  전구 표시는 그리기만 시험이 보지 않는다(시나리오 E 의 스크린숏으로 봤다). 표시를 누르면 골라지는 것은 3D 의 자리 집기가 한다.
+- 시나리오 E 의 게임 화면은 프로젝트 해상도가 작아(`EnableEditorUi({64, 48})`) 흐리다 - 라이트와 무관하다.

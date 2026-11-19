@@ -1,4 +1,5 @@
 ﻿#include "TestCases.h"
+#include <JBro/Editor/Gizmo/LightGizmo3DModel.h>
 #include <JBro/Editor/Gizmo/LightGizmoModel.h>
 
 #include <cmath>
@@ -140,6 +141,61 @@ namespace
         Check(std::string(JBro::LightGizmoModel::HandleId(Handle::OuterAngle)) != JBro::LightGizmoModel::HandleId(Handle::OuterAngleMirror),
             "but the twins are separate items");
     }
+    // **3D 라이트 기즈모의 모델**(D-353 3 단계). 손잡이는 월드에 놓이고, 끌기는 화면 좌표로 잰다.
+    void TestThe3DLightHandles()
+    {
+        using JBro::LightGizmo3DModel::Handle;
+        JBro::Component::Light3D light;
+        light.type = JBro::Component::Light3DType::Spot;
+        light.range = 4.0f;
+        light.innerAngle = 30.0f;
+        light.outerAngle = 90.0f;
+        // 아래를 보는 스포트: 로컬 -Z 가 -Y 로, 로컬 +X 는 그대로 옆이다.
+        const JBro::LightGizmo3DModel::Pose pose = JBro::LightGizmo3DModel::PoseFrom({1.0f, 5.0f, 0.0f},
+            JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f)));
+        const auto near3 = [](JBro::Vector3 a, JBro::Vector3 b) {
+            return std::fabs(a.x - b.x) < 0.001f && std::fabs(a.y - b.y) < 0.001f && std::fabs(a.z - b.z) < 0.001f;
+        };
+        Check(near3(pose.direction, {0.0f, -1.0f, 0.0f}) && near3(pose.side, {1.0f, 0.0f, 0.0f}), "the pose shines along the object's -Z and keeps its +X as the side");
+        const JBro::Vector3 right{0.0f, 0.0f, 1.0f};
+        Check(near3(JBro::LightGizmo3DModel::HandlePosition(light, pose, Handle::Range, right), {1.0f, 1.0f, 0.0f}),
+            "a spot's range handle is at the end of its axis");
+        // 바깥 90 도는 반각 45 도라 끝 원의 반지름이 길이와 같다.
+        Check(near3(JBro::LightGizmo3DModel::HandlePosition(light, pose, Handle::OuterAngle, right), {5.0f, 1.0f, 0.0f}),
+            "the outer angle handle is on the end circle on the side");
+        Check(JBro::LightGizmo3DModel::HandlePosition(light, pose, Handle::InnerAngle, right).x < 1.0f,
+            "and the inner one across from it");
+        Check(JBro::LightGizmo3DModel::HasHandle(light, Handle::OuterAngle) && JBro::LightGizmo3DModel::HasHandle(light, Handle::Range),
+            "a spot has range and angle handles");
+        light.type = JBro::Component::Light3DType::Point;
+        Check(near3(JBro::LightGizmo3DModel::HandlePosition(light, pose, Handle::Range, right), {1.0f, 5.0f, 4.0f}),
+            "a point light's range handle is on its sphere toward the screen's right");
+        Check(false == JBro::LightGizmo3DModel::HasHandle(light, Handle::OuterAngle), "a point light has no angle handles");
+        light.type = JBro::Component::Light3DType::Directional;
+        Check(false == JBro::LightGizmo3DModel::HasHandles(light), "a directional light has no handles");
+        light.type = JBro::Component::Light3DType::Spot;
+        light.range = 0.0f;
+        Check(near3(JBro::LightGizmo3DModel::HandlePosition(light, pose, Handle::Range, right), {1.0f, 0.0f, 0.0f}),
+            "an unbounded light is drawn and grabbed at the shown length");
+
+        // 끌기: 점광은 화면 거리, 스포트는 축에 내린 거리를 유닛으로 바꾼다.
+        Check(Near(JBro::LightGizmo3DModel::DragRange(false, {100.0f, 100.0f}, {120.0f, 100.0f}, {100.0f, 160.0f}), 3.0f),
+            "a point light's range is the mouse's screen distance in units, whichever way");
+        Check(Near(JBro::LightGizmo3DModel::DragRange(true, {100.0f, 100.0f}, {100.0f, 120.0f}, {130.0f, 160.0f}), 3.0f),
+            "a spot's range is how far the mouse went along the axis");
+        Check(Near(JBro::LightGizmo3DModel::DragRange(true, {100.0f, 100.0f}, {100.0f, 120.0f}, {100.0f, 50.0f}), 0.0f),
+            "and not below zero");
+        // 각: 축에서 45 도 비낀 마우스는 90 도 원뿔이다. 꼭짓점 뒤면 그대로다.
+        Check(Near(JBro::LightGizmo3DModel::DragAngle({0.0f, 0.0f}, {0.0f, 10.0f}, {5.0f, 5.0f}, 20.0f).Get(), 90.0f),
+            "a mouse 45 degrees off the axis makes a 90 degree cone");
+        Check(Near(JBro::LightGizmo3DModel::DragAngle({0.0f, 0.0f}, {0.0f, 10.0f}, {-5.0f, 5.0f}, 20.0f).Get(), 90.0f), "on either side");
+        Check(Near(JBro::LightGizmo3DModel::DragAngle({0.0f, 0.0f}, {0.0f, 10.0f}, {3.0f, -4.0f}, 20.0f).Get(), 20.0f),
+            "behind the apex the angle stays what it was");
+        Check(std::string(JBro::LightGizmo3DModel::FieldName(Handle::Range)) == "range"
+                && std::string(JBro::LightGizmo3DModel::FieldName(Handle::OuterAngle)) == "outerAngle"
+                && std::string(JBro::LightGizmo3DModel::FieldName(Handle::InnerAngle)) == "innerAngle",
+            "each handle edits the Light3D field of its name");
+    }
 }
 
 JBro::Int32 RunLightGizmoModelTests()
@@ -149,6 +205,7 @@ JBro::Int32 RunLightGizmoModelTests()
     JBRO_CASE(TestHandlesSitOnWhatTheyChange());
     JBRO_CASE(TestDraggingChangesTheValue());
     JBRO_CASE(TestHandlesNameTheirFields());
+    JBRO_CASE(TestThe3DLightHandles());
     std::cout << "Light gizmo model tests passed.\n";
     return 0;
 }

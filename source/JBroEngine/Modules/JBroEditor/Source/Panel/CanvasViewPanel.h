@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
+#include <JBro/Editor/Gizmo/LightGizmo3DModel.h>
 #include <JBro/Editor/Gizmo/LightGizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -75,6 +76,8 @@ namespace JBro
 
         // 월드 한 점이 마지막으로 그린 화면(2D)의 어디에 놓였는가. 그린 적이 없거나 3D 면 거짓이다.
         Bool ProjectWorldToScreen(Float worldX, Float worldY, Float& screenX, Float& screenY) const;
+        // 3D 의 월드 한 점이 마지막으로 그린 화면의 어디에 놓였는가(편집 카메라의 투영). 그린 적이 없거나 2D 거나 카메라 뒤면 거짓이다.
+        Bool ProjectWorldToScreen3D(const Vector3& world, Float& screenX, Float& screenY) const;
 
         // **이 오브젝트 안으로 들어간다**(D-254, 기존 `SetFocusContext`). 캔버스 뷰와 계층 창의 두 번 누르기가 같은 길이다.
         // 고르기는 부르는 쪽이 한다 - 캔버스 뷰는 자손까지, 계층 창은 그 줄 하나를 고른다.
@@ -171,7 +174,22 @@ namespace JBro
         Bool FindLightTarget(LightTarget& target);
         void DrawLightEditor(const ViewRect& rect);
         // 손잡이 하나가 고친 필드를 커맨드 하나로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값(`before`)으로 되돌린 뒤 커맨드가 쓴다.
-        void CommitLightField(const ComponentAddress& address, LightGizmoModel::Handle handle, const String& before);
+        void CommitLightField(const ComponentAddress& address, const char* fieldName, const String& before);
+        // **3D 라이트 기즈모**(D-353 3 단계). 인스펙터에서 고른 `Light3D` 에 점광은 `range` 구, 스포트는 원뿔, 방향광은 화살표를 그리고,
+        // 손잡이를 끌어 `range` 와 각을 고친다. 2D 의 것과 같은 커맨드 길이다.
+        struct Light3DTarget
+        {
+            Object::GameObject*         object = nullptr;
+            Component::Light3D*         light = nullptr;
+            ComponentAddress            address;
+            LightGizmo3DModel::Pose     pose;
+        };
+        Bool FindLight3DTarget(Light3DTarget& target);
+        void DrawLightEditor3D(const ViewRect& rect);
+        // 라이트·카메라 오브젝트의 표시(D-298 의 3D 판). 그림이 없는 오브젝트를 캔버스 뷰에서 찾을 수 있게 한다.
+        void DrawObjectMarkers3D(const ViewRect& rect);
+        // 라이트 손잡이(2D 든 3D 든)를 가리키거나 끄는 중인가. 기즈모·고르기·상자 고르기가 마우스를 양보한다.
+        Bool LightHandleHot() const;
         void DrawGizmo(const ViewRect& rect);
         // 몸통 누르기를 무장하고, 고르지 않은 것을 눌러 끌면 그것을 고른다(D-298).
         void ArmBodyDrag(const ViewRect& rect);
@@ -275,6 +293,12 @@ namespace JBro
         String m_lightDragBefore;
         Float m_lightDragStart = 0.0f;
         Vector2 m_lightGrabWorld;
+        LightGizmo3DModel::Handle m_light3DHover = LightGizmo3DModel::Handle::None;
+        LightGizmo3DModel::Handle m_light3DDragHandle = LightGizmo3DModel::Handle::None;
+        Bool m_light3DDragging = false;
+        ComponentAddress m_light3DDragAddress;
+        String m_light3DDragBefore;
+        Float m_light3DDragStart = 0.0f;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
         Array<Component::DistanceJoint2D*> m_distanceJointScratch;

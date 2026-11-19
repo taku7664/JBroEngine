@@ -587,6 +587,12 @@ namespace JBro
         return view != nullptr && view->ProjectWorldToScreen(worldX, worldY, screenX, screenY);
     }
 
+    Bool EditorApplication::CanvasViewWorldToScreen3D(const Vector3& world, Float& screenX, Float& screenY)
+    {
+        CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView"));
+        return view != nullptr && view->ProjectWorldToScreen3D(world, screenX, screenY);
+    }
+
     void EditorApplication::StepCanvasViewInto(Object::GameObject& object)
     {
         if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))

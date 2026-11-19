@@ -17,6 +17,7 @@
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Platform/Input.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Host/ProjectFile.h>
@@ -203,6 +204,8 @@ namespace JBro
         // 월드 한 점이 **마지막으로 그린** 캔버스 뷰(2D)의 어느 화면 점에 놓였는가. 그린 적이 없으면 거짓이다.
         // 그림 위에 겹쳐 그리는 도구와 그것을 마우스로 몰아 보는 테스트가 같은 변환을 쓰게 한다.
         Bool CanvasViewWorldToScreen(Float worldX, Float worldY, Float& screenX, Float& screenY);
+        // 3D 판이다 - 편집 카메라로 투영한다(시험이 3D 손잡이를 찾는다).
+        Bool CanvasViewWorldToScreen3D(const Vector3& world, Float& screenX, Float& screenY);
         // 캔버스 뷰가 이 오브젝트 안으로 들어간다(D-254). 계층 창의 두 번 누르기가 부른다. 캔버스 뷰가 없으면 아무것도 하지 않는다.
         void StepCanvasViewInto(Object::GameObject& object);
         // 캔버스 뷰의 카메라를 곧바로 그 자리로 둔다(따라가지 않는다). 세션을 되살리는 길과 같다.

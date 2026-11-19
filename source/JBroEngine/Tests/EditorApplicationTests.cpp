@@ -57,6 +57,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Editor/Gizmo/LightGizmo3DModel.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
@@ -17744,6 +17745,202 @@ namespace
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }
+    // **시나리오 E: 3D 라이트를 놓고 고친다**(D-353, lighting3d-plan 3 단계). 바닥·상자·구에 방향광·환경광·스포트·점광을 둔다.
+    // 라이트 오브젝트에는 전구 표시가 서고 그 자리를 누르면 그 라이트가 골라진다. 인스펙터에서 `Light3D` 를 고르면 스포트는 원뿔과 손잡이가 서고,
+    // 바깥 각 손잡이를 축에서 멀리 끌면 각이 커지며 한 번 되돌리면 돌아온다. 축 끝 손잡이를 끌면 `range` 가 늘어난다.
+    void TestScenarioELights3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = ScenarioWidth;
+        config.windowHeight = ScenarioHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; scenario E not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "Light3DProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        project.graphicsApi = JBro::GraphicsApi::D3D12;
+        Check(editor.OpenProject(project), "the 3D probe project opens");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI turns on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe has a canvas");
+
+        const auto place = [&](const char* label, JBro::Vector3 at, JBro::Vector3 scale, const char* shape, JBro::Color tint) {
+            JBro::Object::GameObject* object = canvas->CreateObject(label);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(object);
+            transform->position = at;
+            transform->scale = scale;
+            auto* mesh = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(object);
+            for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+            {
+                if (std::strcmp(JBro::MeshLibrary::GetBuiltin(index).name, shape) == 0)
+                {
+                    mesh->meshId = JBro::MeshLibrary::GetBuiltin(index).id;
+                }
+            }
+            mesh->tint = tint;
+            return object;
+        };
+        place("Floor", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, "Plane", {0.8f, 0.8f, 0.8f, 1.0f});
+        place("Box", {-1.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, "Cube", {0.9f, 0.9f, 0.9f, 1.0f});
+        place("Ball", {2.0f, 0.5f, -1.0f}, {1.0f, 1.0f, 1.0f}, "Sphere", {0.9f, 0.9f, 0.9f, 1.0f});
+        // 게임 화면을 그릴 카메라.
+        JBro::Object::GameObject* camera = canvas->CreateObject("Camera");
+        {
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(camera);
+            transform->position = {0.0f, 5.0f, 8.0f};
+            transform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-0.55f));
+            auto* lens = canvas->AttachComponent<JBro::Component::Camera3D>(camera);
+            lens->primary = true;
+        }
+        // 어둑한 해와 환경광.
+        JBro::Object::GameObject* sky = canvas->CreateObject("Sky");
+        {
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(sky);
+            transform->position = {3.5f, 4.0f, 2.0f};
+            transform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.1f));
+            auto* sun = canvas->AttachComponent<JBro::Component::Light3D>(sky);
+            sun->type = JBro::Component::Light3DType::Directional;
+            sun->intensity = 0.25f;
+            auto* ambient = canvas->AttachComponent<JBro::Component::Light3D>(sky);
+            ambient->type = JBro::Component::Light3DType::Ambient;
+            ambient->intensity = 0.08f;
+        }
+        // 상자를 내려 비추는 따뜻한 스포트(로컬 -Z 가 아래).
+        JBro::Object::GameObject* torch = canvas->CreateObject("Torch");
+        auto* torchTransform = canvas->AttachComponent<JBro::Component::Transform3D>(torch);
+        torchTransform->position = {-1.5f, 3.0f, 0.0f};
+        torchTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        auto* spot = canvas->AttachComponent<JBro::Component::Light3D>(torch);
+        spot->type = JBro::Component::Light3DType::Spot;
+        spot->color = {1.0f, 0.75f, 0.45f, 1.0f};
+        spot->intensity = 9.0f;
+        spot->range = 3.5f;
+        spot->innerAngle = 30.0f;
+        spot->outerAngle = 60.0f;
+        // 구 곁의 푸른 점광.
+        JBro::Object::GameObject* bulb = canvas->CreateObject("Bulb");
+        canvas->AttachComponent<JBro::Component::Transform3D>(bulb)->position = {2.6f, 1.4f, 0.4f};
+        auto* point = canvas->AttachComponent<JBro::Component::Light3D>(bulb);
+        point->type = JBro::Component::Light3DType::Point;
+        point->color = {0.4f, 0.6f, 1.0f, 1.0f};
+        point->intensity = 3.0f;
+        point->range = 4.0f;
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window is findable");
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view has a window");
+        const auto screenOf = [&](const JBro::Vector3& world) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen3D(world, x, y), "the canvas view has drawn a 3D frame");
+            Spot spotOnScreen;
+            spotOnScreen.x = static_cast<JBro::Int32>(std::lround(x.Get()));
+            spotOnScreen.y = static_cast<JBro::Int32>(std::lround(y.Get()));
+            return spotOnScreen;
+        };
+        const auto hoveredAt = [&](const Spot& at) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(at.x, at.y));
+            Check(editor.Tick(Frame), "the editor ticks while hovering");
+            Check(editor.Tick(Frame), "and once more for the hover to settle");
+            return ImGui::GetHoveredID();
+        };
+        ScenarioShot(editor, "e01_lights_placed");
+
+        // ── 1. 전구 표시의 자리를 누르면 그 라이트가 골라진다 ─────────────
+        ClickAt(editor, hwnd, screenOf({2.6f, 1.4f, 0.4f}));
+        Check(editor.Tick(Frame), "the click is taken");
+        Check(editor.GetSelectedObject() == bulb, "clicking a light's marker picks that light");
+        SelectInspectorComponent(editor, hwnd, 1, "Light3D");
+        ScenarioShot(editor, "e02_point_light_range");
+
+        // ── 2. 스포트를 고르고 원뿔의 손잡이를 끈다 ─────────────
+        editor.SetSelectedObject(torch);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the selection settles");
+        }
+        SelectInspectorComponent(editor, hwnd, 1, "Light3D");
+        const JBro::LightGizmo3DModel::Pose pose = JBro::LightGizmo3DModel::PoseFrom(torchTransform->position, torchTransform->rotation);
+        const JBro::Vector3 unused{1.0f, 0.0f, 0.0f};
+        const Spot outer = screenOf(JBro::LightGizmo3DModel::HandlePosition(*spot, pose, JBro::LightGizmo3DModel::Handle::OuterAngle, unused));
+        const Spot end = screenOf(JBro::LightGizmo3DModel::HandlePosition(*spot, pose, JBro::LightGizmo3DModel::Handle::Range, unused));
+        const Spot apex = screenOf(torchTransform->position);
+        Check(hoveredAt(outer) == LabelId(view->ID, "##light3d_outer_angle"), "the spot's outer angle has a handle on its end circle");
+        Check(hoveredAt(end) == LabelId(view->ID, "##light3d_range"), "and its range a handle at the end of its axis");
+        ScenarioShot(editor, "e03_spot_cone");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        Spot wider = outer;
+        wider.x = outer.x + (outer.x - end.x);
+        wider.y = outer.y + (outer.y - end.y);
+        DragTo(editor, hwnd, outer, wider);
+        Check(spot->outerAngle.Get() > 75.0f && spot->outerAngle.Get() < 179.5f, "dragging the outer handle away from the axis widens the cone");
+        Check(spot->innerAngle.Get() == 30.0f, "and leaves the inner angle alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one undo step");
+        Check(editor.GetSelectedObject() == torch, "grabbing a light handle does not change the selection");
+        ScenarioShot(editor, "e04_spot_widened");
+        Check(editor.GetCommands().Undo() && spot->outerAngle.Get() == 60.0f, "undo puts the angle back");
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor lets the double-click time pass");
+        }
+
+        Spot further = end;
+        further.x = end.x + (end.x - apex.x) / 2;
+        further.y = end.y + (end.y - apex.y) / 2;
+        DragTo(editor, hwnd, end, further);
+        Check(spot->range > 4.0f && spot->range < 8.0f, "dragging the axis end further makes the range longer");
+        Check(editor.GetCommands().Undo() && spot->range == 3.5f, "and undo puts it back");
+        ScenarioShot(editor, "e05_after_undo");
+
+        // ── 3. 실행하면 게임 카메라의 화면도 그 빛을 받는다 ─────────────
+        Check(RunEditorAction(editor, "simulation.play"), "play (F5) starts");
+        if (JBro::EditorPanel* simulation = editor.FindPanel("Simulation"))
+        {
+            simulation->RequestFocus();
+        }
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor plays");
+        }
+        Check(editor.IsSimulationPlaying() && IsFrontTab("Simulation"), "the simulation runs in front");
+        ImGuiWindow* game = ImGui::FindWindowByName("Simulation");
+        Check(game != nullptr, "the simulation view has a window");
+        ScenarioShot(editor, "e06_playing");
+        // 푸른 점광을 끈 그림과 견준다. 게임 화면 안에서 달라져야 그 빛이 게임 카메라에 닿은 것이다.
+        JBro::Object::GameObject* playingBulb = FindRootNamed(*editor.GetCanvas(), "Bulb");
+        Check(playingBulb != nullptr, "the bulb is there while playing");
+        auto* playingLight = editor.GetCanvas()->FindComponentRaw<JBro::Component::Light3D>(playingBulb);
+        Check(playingLight != nullptr, "with its light");
+        JBro::Array<std::byte> lit;
+        JBro::Array<std::byte> unlit;
+        JBro::TextureReadback readback;
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, lit, readback);
+        playingLight->SetEnabled(false);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor draws without the bulb");
+        }
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, unlit, readback);
+        playingLight->SetEnabled(true);
+        const std::size_t litPixels = CountDifferingPixelsInWindow(lit, unlit, readback, *game);
+        std::cout << "  the blue point light changes " << litPixels << " pixels of the game view" << std::endl;
+        Check(litPixels > 100, "the game camera sees the point light's light");
+        Check(RunEditorAction(editor, "simulation.play"), "pressing play again stops");
+        Check(editor.Tick(Frame), "the editor stops");
+        editor.Shutdown();
+    }
 }
 
 JBro::Int32 RunEditorApplicationTests()
@@ -17894,6 +18091,7 @@ JBro::Int32 RunUserScenarioTests()
     JBRO_CASE(TestScenarioBHostileUser());
     JBRO_CASE(TestScenarioCJBroScript());
     JBRO_CASE(TestScenarioD3DFirstProject());
+    JBRO_CASE(TestScenarioELights3D());
     std::cout << "User scenario tests passed.\n";
     return 0;
 }

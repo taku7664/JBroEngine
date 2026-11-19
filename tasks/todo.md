@@ -3043,6 +3043,20 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-356. 캔버스 뷰가 3D 라이트를 표시하고 손잡이로 고친다 - 2D 의 라이트 기즈모와 같은 길이다.** (2026-11-19, lighting3d-plan 3 단계)
+  Updates: D-298(라이트·카메라 표시를 3D 에도), D-304(인스펙터에서 고른 라이트의 손잡이를 3D 에도).
+  (1) `LightGizmo3DModel`(Editor/Gizmo): 손잡이 셋(`range`·바깥 각·안쪽 각)의 월드 자리, 끌기를 화면 좌표로 재는 `DragRange`(점광은 화면 거리, 스포트는 축에 내린 거리를 1 유닛의 화면 길이로)·`DragAngle`(축과 마우스의 각 × 2, 0..179),
+  `range` 0(끝없음)은 5 유닛으로 그리고 잡는다. 3D 의 깊이를 마우스 하나로 정할 수 없어 화면에서 잰다.
+  (2) 캔버스 뷰: `DrawObjectMarkers3D` 가 `Light3D`(빛의 색 전구)·`Camera3D` 오브젝트에 2D 와 같은 표시를 투영해 그린다. `DrawLightEditor3D` 는 인스펙터에서 고른 `Light3D` 에 점광은 세 축 평면의 `range` 원, 스포트는 축·끝의 바깥·안쪽 원·꼭짓점에서 네 모서리,
+  방향광은 화살표를 그리고, 손잡이를 끌면 그 필드에 바로 쓰고 놓을 때 되돌린 뒤 `SetPropertyCommand` 하나로 올린다(2D `CommitLightField` 를 필드 이름을 받게 고쳐 함께 쓴다). 라이트 손잡이를 가리키거나 끄는 동안 기즈모와 3D 집기가 마우스를 양보한다(`LightHandleHot`).
+  시험을 위해 `EditorApplication::CanvasViewWorldToScreen3D` 를 더했다.
+  확인: 모델 시험(포즈·손잡이 자리·끝없는 라이트·끌기 셈·필드 이름), 시나리오 E - 바닥·상자·구에 해·환경광·스포트·점광을 두고, 전구 표시를 눌러 점광을 고르고, 스포트의 바깥 각 손잡이를 축에서 멀리 끌어 각이 넓어지고(커맨드 하나, 선택 그대로) 되돌리고,
+  축 끝 손잡이를 끌어 `range` 가 늘고 되돌리고, 실행해 게임 화면에서 점광을 끄면 픽셀이 바뀐다(48956). 스크린숏 e01~e06 으로 표시·구·원뿔·넓힌 원뿔·게임 화면을 봤다.
+  뮤테이션 일곱이 모두 잡힌다: 각을 두 배 하지 않음·바깥 각 손잡이가 안쪽 원에·스포트 range 가 화면 거리·패널이 손잡이를 가리키지 않음·끌기를 커맨드로 올리지 않음·range 끌기가 각에 씀·3D 라이트 편집을 부르지 않음.
+  넓은 묶음 LightGizmoModel·UserScenario·EditorApplication·MeshPixel·Framework3DSystem 이 지난다.
+
+  처음 실패: 시험의 3D 투영이 `m_hasLastRect` 를 봤는데 그것은 3D 에서 늘 거짓이었다 - 그린 사각형을 직접 본다.
+
 - **D-355. `Light3D` 컴포넌트가 선다 - 시스템이 담고 브리지가 레이어 뷰마다 내며, 새 3D 프로젝트는 기본 빛과 같은 라이트 오브젝트로 시작한다.** (2026-11-19, lighting3d-plan 2 단계)
   Updates: D-353 (3)(시작 오브젝트), D-337 의 새 프로젝트 시작 오브젝트(카메라·큐브에 `Light` 를 더함).
   (1) `Component::Light3D`(`type`·`color`·`intensity` Clamp 0..100·`range` Clamp 0..1000, 0 은 끝없음·`innerAngle`/`outerAngle` 전체 각 Clamp 0..179)와 `Light3DType`(`Ambient`·`Directional`·`Point`·`Spot`, 렌더러 `Light3DKind` 와 같은 차례).

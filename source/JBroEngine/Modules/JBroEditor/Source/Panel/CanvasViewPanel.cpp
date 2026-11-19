@@ -33,6 +33,8 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
@@ -692,6 +694,14 @@ namespace JBro
             DrawLightEditor(rect);
             draw->PopClipRect();
         }
+        else
+        {
+            draw->PushClipRect(
+                ImVec2(rect.left, rect.top),
+                ImVec2(rect.left + rect.width, rect.top + rect.height), true);
+            DrawLightEditor3D(rect);
+            draw->PopClipRect();
+        }
         DrawGizmo(rect);
         if (Is3D())
         {
@@ -738,6 +748,7 @@ namespace JBro
                 DrawGrid3D(rect);
             }
             DrawSelectionMarkers3D(rect);
+            DrawObjectMarkers3D(rect);
         }
         draw->PopClipRect();
         draw->ChannelsMerge();
@@ -1562,6 +1573,13 @@ namespace JBro
         return { localX - offset.x, localY - offset.y };
     }
 
+    Bool CanvasViewPanel::ProjectWorldToScreen3D(const Vector3& world, Float& screenX, Float& screenY) const
+    {
+        GizmoCamera camera;
+        // 2D 의 `m_hasLastRect` 는 3D 에서 거짓이다(평면 좌표가 없다). 그린 사각형은 3D 에서도 남는다.
+        return Is3D() && m_lastRect.width > 0.0f && MakeGizmoCamera(m_lastRect, camera) && GizmoModel::Project(camera, world, screenX, screenY);
+    }
+
     Bool CanvasViewPanel::ProjectWorldToScreen(Float worldX, Float worldY, Float& screenX, Float& screenY) const
     {
         if (false == m_hasLastRect)
@@ -1942,11 +1960,11 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::CommitLightField(const ComponentAddress& address, LightGizmoModel::Handle handle, const String& before)
+    void CanvasViewPanel::CommitLightField(const ComponentAddress& address, const char* fieldName, const String& before)
     {
         ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), address);
         SetPropertyCommand::Path path;
-        if (component == nullptr || false == SetPropertyCommand::MakeFieldPath(address.typeId, LightGizmoModel::FieldName(handle), path))
+        if (component == nullptr || false == SetPropertyCommand::MakeFieldPath(address.typeId, fieldName, path))
         {
             return;
         }
@@ -2007,7 +2025,7 @@ namespace JBro
             {
                 Widget::OverlayHandle(id, false, false, false);
                 m_lightDragging = false;
-                CommitLightField(m_lightDragAddress, m_lightDragHandle, m_lightDragBefore);
+                CommitLightField(m_lightDragAddress, LightGizmoModel::FieldName(m_lightDragHandle), m_lightDragBefore);
             }
         }
 
@@ -2130,6 +2148,333 @@ namespace JBro
             draw->AddCircleFilled(ImVec2(screen[index].x, screen[index].y), HandleRadius, hot ? hotColor : strong);
         }
     }
+
+    Bool CanvasViewPanel::LightHandleHot() const
+    {
+        return m_lightDragging || m_lightHover != LightGizmoModel::Handle::None
+            || m_light3DDragging || m_light3DHover != LightGizmo3DModel::Handle::None;
+    }
+
+    Bool CanvasViewPanel::FindLight3DTarget(Light3DTarget& target)
+    {
+        target = {};
+        Canvas* canvas = m_editor->GetCanvas();
+        Object::GameObject* object = m_editor->GetSelectedObject();
+        if (false == Is3D() || canvas == nullptr || object == nullptr || object->IsEditorHidden())
+        {
+            return false;
+        }
+        const Component::Transform3D* transform = canvas->FindComponentRaw<Component::Transform3D>(object);
+        // **인스펙터에서 고른 라이트다**(2D 와 같은 D-304) - 한 오브젝트의 방향광과 환경광 중 고른 그 하나다.
+        const AttachedRef inspected = m_editor->GetInspectedAttached();
+        Component::Light3D* light = inspected.component != nullptr
+                && inspected.component->GetTypeId() == MakeStableTypeId(Component::Light3D::StaticTypeName())
+            ? static_cast<Component::Light3D*>(inspected.component)
+            : nullptr;
+        if (transform == nullptr || false == transform->worldValid || light == nullptr || false == light->IsEnabled()
+            || light->type == Component::Light3DType::Ambient
+            || false == MakeComponentAddress(m_editor->GetObjectIds(), *object, *light, target.address))
+        {
+            return false;
+        }
+        target.object = object;
+        target.light = light;
+        target.pose = LightGizmo3DModel::PoseFrom(transform->worldPosition, transform->worldRotation);
+        return true;
+    }
+
+    namespace
+    {
+        void WriteLight3DHandle(Component::Light3D& light, LightGizmo3DModel::Handle handle, Float value)
+        {
+            switch (handle)
+            {
+            case LightGizmo3DModel::Handle::Range:
+                light.range = value;
+                break;
+            case LightGizmo3DModel::Handle::OuterAngle:
+                light.outerAngle = Degree(value);
+                break;
+            case LightGizmo3DModel::Handle::InnerAngle:
+                light.innerAngle = Degree(value);
+                break;
+            case LightGizmo3DModel::Handle::None:
+                break;
+            }
+        }
+
+        Float ReadLight3DHandle(const Component::Light3D& light, LightGizmo3DModel::Handle handle)
+        {
+            switch (handle)
+            {
+            case LightGizmo3DModel::Handle::Range:
+                return LightGizmo3DModel::ShownLength(light);
+            case LightGizmo3DModel::Handle::OuterAngle:
+                return Float(light.outerAngle.Get());
+            case LightGizmo3DModel::Handle::InnerAngle:
+                return Float(light.innerAngle.Get());
+            case LightGizmo3DModel::Handle::None:
+                break;
+            }
+            return 0.0f;
+        }
+    }
+
+    void CanvasViewPanel::DrawLightEditor3D(const ViewRect& rect)
+    {
+        using LightGizmo3DModel::Handle;
+        Light3DTarget target;
+        const Bool hasTarget = FindLight3DTarget(target);
+        if (m_light3DDragging && (false == hasTarget || false == target.address.Equals(m_light3DDragAddress)))
+        {
+            // 끌던 라이트가 사라졌거나 다른 것을 골랐다. 남은 것이 있으면 끌기 전 값으로 되돌린다.
+            if (ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), m_light3DDragAddress))
+            {
+                SetPropertyCommand::Path path;
+                if (SetPropertyCommand::MakeFieldPath(m_light3DDragAddress.typeId, LightGizmo3DModel::FieldName(m_light3DDragHandle), path))
+                {
+                    SetPropertyCommand::ApplyValue(component, m_light3DDragAddress.typeId, path, m_light3DDragBefore);
+                }
+            }
+            Widget::OverlayHandle(LightGizmo3DModel::HandleId(m_light3DDragHandle), false, false, false);
+            m_light3DDragging = false;
+        }
+        m_light3DHover = Handle::None;
+        GizmoCamera camera;
+        if (false == hasTarget || false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+        Component::Light3D& light = *target.light;
+        const LightGizmo3DModel::Pose& pose = target.pose;
+        // 화면의 오른쪽(점광의 `range` 손잡이가 서는 쪽)은 그린 카메라의 뷰 행렬 첫 행이다.
+        Vector3 cameraRight{1.0f, 0.0f, 0.0f};
+        CameraParams drawn;
+        if (Renderer* renderer = m_editor->GetRenderer(); renderer != nullptr && renderer->GetLastEditorViewCamera(drawn))
+        {
+            cameraRight = Normalize(Vector3{drawn.view.values[0], drawn.view.values[1], drawn.view.values[2]});
+        }
+        const auto project = [&](const Vector3& world, Vector2& screen) {
+            return GizmoModel::Project(camera, world, screen.x, screen.y);
+        };
+        Vector2 apex;
+        if (false == project(pose.position, apex))
+        {
+            return;
+        }
+        const ImGuiIO& io = ImGui::GetIO();
+        const Vector2 mouse{io.MousePos.x, io.MousePos.y};
+        const Bool spot = light.type == Component::Light3DType::Spot;
+
+        if (m_light3DDragging)
+        {
+            Float value = m_light3DDragStart;
+            if (m_light3DDragHandle == Handle::Range)
+            {
+                Vector2 unit;
+                if (project(Add(pose.position, spot ? pose.direction : cameraRight), unit))
+                {
+                    value = LightGizmo3DModel::DragRange(spot, apex, unit, mouse);
+                }
+            }
+            else
+            {
+                Vector2 axisEnd;
+                if (project(Add(pose.position, Scale(pose.direction, LightGizmo3DModel::ShownLength(light))), axisEnd))
+                {
+                    value = Float(LightGizmo3DModel::DragAngle(apex, axisEnd, mouse, Degree(m_light3DDragStart)).Get());
+                }
+            }
+            WriteLight3DHandle(light, m_light3DDragHandle, value);
+            const char* id = LightGizmo3DModel::HandleId(m_light3DDragHandle);
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                Widget::OverlayHandle(id, true, true, false);
+            }
+            else
+            {
+                Widget::OverlayHandle(id, false, false, false);
+                m_light3DDragging = false;
+                CommitLightField(m_light3DDragAddress, LightGizmo3DModel::FieldName(m_light3DDragHandle), m_light3DDragBefore);
+            }
+        }
+
+        constexpr Handle Handles[] = {Handle::Range, Handle::OuterAngle, Handle::InnerAngle};
+        constexpr std::size_t HandleCount = sizeof(Handles) / sizeof(Handles[0]);
+        Vector2 screen[HandleCount];
+        Bool present[HandleCount] = {};
+        for (std::size_t index = 0; index < HandleCount; ++index)
+        {
+            present[index] = LightGizmo3DModel::HasHandle(light, Handles[index])
+                && project(LightGizmo3DModel::HandlePosition(light, pose, Handles[index], cameraRight), screen[index]);
+        }
+        if (false == m_light3DDragging && false == m_gizmoState.dragging && false == m_editing.IsActive()
+            && PointerInView(rect) && false == ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            Float best = LightGizmo3DModel::HandlePickRadius * LightGizmo3DModel::HandlePickRadius;
+            for (std::size_t index = 0; index < HandleCount; ++index)
+            {
+                const Float dx = mouse.x - screen[index].x;
+                const Float dy = mouse.y - screen[index].y;
+                const Float distance = dx * dx + dy * dy;
+                if (present[index] && distance <= best)
+                {
+                    best = distance;
+                    m_light3DHover = Handles[index];
+                }
+            }
+        }
+        if (m_light3DHover != Handle::None)
+        {
+            const Bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            Widget::OverlayHandle(LightGizmo3DModel::HandleId(m_light3DHover), true, pressed, pressed);
+            SetPropertyCommand::Path path;
+            if (pressed && SetPropertyCommand::MakeFieldPath(target.address.typeId, LightGizmo3DModel::FieldName(m_light3DHover), path)
+                && SetPropertyCommand::ReadValue(&light, target.address.typeId, path, m_light3DDragBefore))
+            {
+                m_light3DDragHandle = m_light3DHover;
+                m_light3DDragAddress = target.address;
+                m_light3DDragStart = ReadLight3DHandle(light, m_light3DHover);
+                m_light3DDragging = true;
+            }
+        }
+
+        // 그리기. 끝이 있는 거리는 진하게, 끝없는(`range` 0) 것은 옅게 그린다. 손잡이는 점이고 가리킨 것·끄는 것은 희다.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 strong = IM_COL32(255, 214, 90, 230);
+        const ImU32 faint = IM_COL32(255, 214, 90, 120);
+        const ImU32 hotColor = IM_COL32(255, 255, 255, 255);
+        const ImU32 shadow = IM_COL32(0, 0, 0, 120);
+        const auto line = [&](const Vector3& from, const Vector3& to, ImU32 color, Float thickness) {
+            Vector2 a;
+            Vector2 b;
+            if (project(from, a) && project(to, b))
+            {
+                draw->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), color, thickness);
+            }
+        };
+        // 원 하나를 토막 내어 투영한다(바닥 격자와 같은 까닭 - 한 원이 카메라 평면을 지날 수 있다).
+        const auto circle = [&](const Vector3& center, const Vector3& axisA, const Vector3& axisB, Float radius, ImU32 color, Float thickness) {
+            constexpr Int32 Segments = 48;
+            constexpr Float Step = 6.283185307f / static_cast<float>(Segments);
+            for (Int32 at = 0; at < Segments; ++at)
+            {
+                const Float a0 = Step * static_cast<float>(at.Get());
+                const Float a1 = Step * static_cast<float>(at.Get() + 1);
+                const Vector3 p0 = Add(center, Add(Scale(axisA, std::cos(a0.Get()) * radius), Scale(axisB, std::sin(a0.Get()) * radius)));
+                const Vector3 p1 = Add(center, Add(Scale(axisA, std::cos(a1.Get()) * radius), Scale(axisB, std::sin(a1.Get()) * radius)));
+                line(p0, p1, color, thickness);
+            }
+        };
+        const Float length = LightGizmo3DModel::ShownLength(light);
+        const ImU32 reach = light.range > 0.0f ? strong : faint;
+        if (light.type == Component::Light3DType::Point)
+        {
+            // `range` 구 - 세 축 평면의 큰 원이다.
+            const Vector3 x{1.0f, 0.0f, 0.0f};
+            const Vector3 y{0.0f, 1.0f, 0.0f};
+            const Vector3 z{0.0f, 0.0f, 1.0f};
+            circle(pose.position, x, y, length, reach, 1.5f);
+            circle(pose.position, x, z, length, reach, 1.5f);
+            circle(pose.position, y, z, length, reach, 1.5f);
+        }
+        else if (spot)
+        {
+            // 원뿔 - 축, 끝의 바깥·안쪽 원, 꼭짓점에서 바깥 원까지의 네 모서리.
+            const Vector3 up = Normalize(Cross(pose.direction, pose.side));
+            const Vector3 end = Add(pose.position, Scale(pose.direction, length));
+            const Float outer = LightGizmo3DModel::ConeRadius(light.outerAngle, length);
+            const Float inner = LightGizmo3DModel::ConeRadius(light.innerAngle, length);
+            line(pose.position, end, faint, 1.0f);
+            circle(end, pose.side, up, outer, reach, 1.5f);
+            if (inner > 0.001f)
+            {
+                circle(end, pose.side, up, inner, faint, 1.0f);
+            }
+            line(pose.position, Add(end, Scale(pose.side, outer)), reach, 1.5f);
+            line(pose.position, Add(end, Scale(pose.side, -outer)), reach, 1.5f);
+            line(pose.position, Add(end, Scale(up, outer)), reach, 1.5f);
+            line(pose.position, Add(end, Scale(up, -outer)), reach, 1.5f);
+        }
+        else
+        {
+            // 방향광 - 빛이 가는 쪽의 화살표다.
+            const Vector3 up = Normalize(Cross(pose.direction, pose.side));
+            const Vector3 tip = Add(pose.position, Scale(pose.direction, LightGizmo3DModel::ArrowLength));
+            const Vector3 back = Add(pose.position, Scale(pose.direction, LightGizmo3DModel::ArrowLength * 0.75f));
+            constexpr Float Barb = 0.15f;
+            line(pose.position, tip, strong, 2.0f);
+            line(tip, Add(back, Scale(pose.side, Barb)), strong, 2.0f);
+            line(tip, Add(back, Scale(pose.side, -Barb)), strong, 2.0f);
+            line(tip, Add(back, Scale(up, Barb)), strong, 2.0f);
+            line(tip, Add(back, Scale(up, -Barb)), strong, 2.0f);
+        }
+        constexpr Float HandleRadius = 4.0f;
+        for (std::size_t index = 0; index < HandleCount; ++index)
+        {
+            if (false == present[index])
+            {
+                continue;
+            }
+            const Bool hot = (m_light3DDragging && Handles[index] == m_light3DDragHandle) || Handles[index] == m_light3DHover;
+            draw->AddCircleFilled(ImVec2(screen[index].x + 1.0f, screen[index].y + 1.0f), HandleRadius, shadow);
+            draw->AddCircleFilled(ImVec2(screen[index].x, screen[index].y), HandleRadius, hot ? hotColor : strong);
+        }
+    }
+
+    void CanvasViewPanel::DrawObjectMarkers3D(const ViewRect& rect)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        GizmoCamera camera;
+        if (canvas == nullptr || false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        canvas->ForEachObject([&](Object::GameObject& object)
+        {
+            if (object.IsEditorHidden() || false == InViewSpace(object))
+            {
+                return;
+            }
+            const Component::Transform3D* transform = canvas->FindComponentRaw<Component::Transform3D>(&object);
+            if (transform == nullptr)
+            {
+                return;
+            }
+            const char* glyph = nullptr;
+            UInt32 color = 0;
+            if (const Component::Light3D* light = canvas->FindComponentRaw<Component::Light3D>(&object))
+            {
+                // 전구는 빛의 색이다. 꺼 둔 라이트는 흐리다(2D 와 같다).
+                glyph = Icons::LightMarker;
+                const Float alpha = light->IsEnabled() ? Float(1.0f) : Float(0.45f);
+                color = ImGui::ColorConvertFloat4ToU32(ImVec4(light->color.R, light->color.G, light->color.B, alpha));
+            }
+            else if (const Component::Camera3D* lens = canvas->FindComponentRaw<Component::Camera3D>(&object))
+            {
+                glyph = Icons::CameraMarker;
+                color = lens->IsEnabled() ? IM_COL32(235, 240, 250, 255) : IM_COL32(235, 240, 250, 115);
+            }
+            else
+            {
+                return;
+            }
+            const Vector3 at = transform->worldValid ? transform->worldPosition : transform->position;
+            Float x = 0.0f;
+            Float y = 0.0f;
+            if (false == GizmoModel::Project(camera, at, x, y))
+            {
+                return;
+            }
+            const Float half = MarkerSize * 0.5f;
+            draw->AddCircleFilled(ImVec2(x, y), half * 0.92f, IM_COL32(20, 22, 28, 170));
+            const Bool selected = m_editor->IsSelected(&object);
+            draw->AddCircle(ImVec2(x, y), half * 0.92f, selected ? IM_COL32(255, 214, 90, 255) : IM_COL32(255, 255, 255, 70), 32, selected ? 2.0f : 1.0f);
+            Widget::DrawGlyphCentered(glyph, ImVec2(x - half, y - half), ImVec2(x + half, y + half), color, MarkerSize * 0.62f);
+        });
+    }
+
 
     Bool CanvasViewPanel::DrawVertexMenu(const ViewRect& rect)
     {
@@ -3286,8 +3631,9 @@ namespace JBro
 
     void CanvasViewPanel::HandlePicking3D(const ViewRect& rect, Bool hovered)
     {
+        // 라이트 손잡이를 누르고 놓은 것은 고르기가 아니다(2D 와 같다).
         if (false == PointerInView(rect) || m_gizmoState.dragging || m_editing.IsActive()
-            || m_gizmoState.hovered != GizmoAxis::None)
+            || m_gizmoState.hovered != GizmoAxis::None || LightHandleHot())
         {
             return;
         }
@@ -3503,7 +3849,7 @@ namespace JBro
         // 같은 단추가 돌리기도 15 도씩 끊는다(사용자 결정) - 기존 엔진은 Shift 로 따로 켰다.
         const Bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
         // 라이트 손잡이를 가리키거나 끄는 동안은 기즈모가 마우스를 받지 않는다 - 안쪽 반지름 손잡이는 가운데 가까이 있다.
-        const Bool lightHandleHot = m_lightDragging || m_lightHover != LightGizmoModel::Handle::None;
+        const Bool lightHandleHot = LightHandleHot();
         // 무장한 몸통 누르기가 고른 오브젝트 위였으면 끌기 문턱을 넘는 이 프레임에 그 모드의 중립 손잡이를 잡는다(위 `ArmBodyDrag`).
         Bool bodyDragStarted = false;
         if (m_bodyPressArmed && false == m_gizmoState.dragging && Widget::MouseWasDragged(ImGuiMouseButton_Left))
