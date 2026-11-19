@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/Widget/Viewport.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
@@ -26,7 +27,7 @@ namespace JBro
 
     private:
         // 그림 왼쪽 위에 상태를 적는다. 재생 중인지 정지인지, 그릴 것이 없으면 왜인지.
-        void DrawStatusOverlay(Float left, Float top, Bool hasImage) const;
+        void DrawStatusOverlay(const Widget::ViewportRect& rect) const;
         // 중단점에 선 자리를 적은 상태 줄이다(D-330). 그리는 동안만 쓴다.
         mutable char m_breakStatus[256] = {};
 

@@ -3386,6 +3386,62 @@ namespace
         editor.Shutdown();
     }
 
+    // **시뮬레이션 뷰는 게임 화면을 비율을 지켜 가운데 붙이고, 그 사각형을 게임 입력에 알린다**(D-413, `Widget::ViewportImage`).
+    // 게임 해상도를 세로로 길게 잡아 패널 양옆이 비게(필러박스) 한다 - 그래야 그림의 왼쪽이 패널의 왼쪽과 갈린다.
+    void TestTheSimulationViewLetterboxesTheGameInTheMiddle()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the simulation view letterbox not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "SimulationViewLetterboxProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({100, 400}), "the editor UI must turn on with a tall game");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* eye = canvas->CreateObject("Eye");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        Check(camera != nullptr, "the probe camera must attach");
+        camera->primary = true;
+        JBro::EditorPanel* game = editor.FindPanel("Simulation");
+        Check(game != nullptr, "the simulation view is a default panel");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        game->RequestFocus();
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the simulation view");
+        }
+        const JBro::Extent2D extent = editor.GetSimulationViewExtent();
+        Check(extent.width != 0 && extent.height != 0, "the simulation view has a picture");
+        ImGuiWindow* window = ImGui::FindWindowByName("Simulation");
+        Check(window != nullptr, "the simulation view has a window");
+        const ImRect panel = window->ContentRegionRect;
+        Check(panel.GetWidth() > panel.GetHeight() * 0.5f, "the panel is wider than the tall game, so its sides stay empty");
+        const JBro::InputSurfaceMapping& mapping = editor.GetSimulationViewMapping();
+        Check(std::fabs(mapping.scaleX - mapping.scaleY) < 1.0e-3f, "the picture keeps the game's shape");
+        const JBro::Float imageWidth = static_cast<JBro::Float>(extent.width) / mapping.scaleX;
+        const JBro::Float imageHeight = static_cast<JBro::Float>(extent.height) / mapping.scaleY;
+        std::cout << "  panel " << panel.Min.x << "," << panel.Min.y << " " << panel.GetWidth() << "x" << panel.GetHeight()
+                  << ", picture " << mapping.originX << "," << mapping.originY << " " << imageWidth << "x" << imageHeight << std::endl;
+        Check(std::fabs(imageHeight - panel.GetHeight()) < 1.5f, "the tall picture fills the panel's height");
+        Check(imageWidth < panel.GetWidth() - 10.0f, "and leaves room at the sides");
+        Check(std::fabs((mapping.originX + imageWidth * 0.5f) - (panel.Min.x + panel.Max.x) * 0.5f) < 1.5f
+                && std::fabs((mapping.originY + imageHeight * 0.5f) - (panel.Min.y + panel.Max.y) * 0.5f) < 1.5f,
+            "the picture sits in the middle of the panel, and game input knows where");
+        editor.Shutdown();
+    }
+
     void TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows()
     {
         JBro::EditorApplication editor;
@@ -14982,6 +15038,181 @@ namespace
         editor.Shutdown();
     }
 
+    // **3D 에도 격자 스냅이 있다**(D-413). 붙는 간격은 바닥 격자에 지금 보이는 칸이고, 단추와 Ctrl 은 2D 와 같다.
+    void TestTheGizmoSnapsToTheGridIn3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D grid snap not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GridSnap3DProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        if (JBro::EditorPanel* simulationView = editor.FindPanel("Simulation"))
+        {
+            simulationView->SetOpen(false);
+        }
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* box = canvas->CreateObject("Snapper");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(box);
+        Check(transform != nullptr, "the box needs a 3D transform");
+        // 격자 밖에서 출발한다. y·z 는 x 손잡이가 건드리지 않는다는 것을 보려고 격자 밖에 둔다.
+        transform->position = JBro::Vector3{0.33f, 0.21f, 0.27f};
+        editor.SetSelectedObject(box);
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const JBro::Float step = editor.GetCanvasViewGridStep();
+        Check(step > 0.0f, "a 3D canvas view must report the step of its floor grid");
+        // 그 칸은 바닥 격자에 **보이는** 칸이다 - 한 칸이 화면에서 격자의 최소 간격(8 픽셀)과 그 2.5 배 사이로 선다.
+        // 상자는 궤도 중심(원점) 가까이 있어 그 자리의 배율이 바라보는 점의 것과 거의 같다.
+        {
+            JBro::Float ax = 0.0f;
+            JBro::Float ay = 0.0f;
+            JBro::Float bx = 0.0f;
+            JBro::Float by = 0.0f;
+            Check(editor.CanvasViewWorldToScreen3D(JBro::Vector3{0.0f, 0.0f, 0.0f}, ax, ay)
+                    && editor.CanvasViewWorldToScreen3D(JBro::Vector3{step, 0.0f, 0.0f}, bx, by),
+                "the 3D canvas view must project the origin");
+            const JBro::Float cellPixels = std::sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+            std::cout << "  3D grid step " << step << " is " << cellPixels << " pixels" << std::endl;
+            Check(cellPixels >= 7.0f && cellPixels <= 21.0f, "the snap step is the cell the floor grid shows at the orbit centre");
+        }
+        const auto onGrid = [step](JBro::Float value) {
+            const JBro::Float steps = value / step;
+            return std::fabs(steps - std::round(steps)) < 1.0e-3f;
+        };
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const auto dragX = [&](JBro::Int32 pixels) {
+            Spot spot;
+            Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), spot), "the x handle must be on screen");
+            const JBro::Vector3 before = transform->position;
+            DragFrom(editor, hwnd, spot, spot.x + pixels);
+            Check(editor.Tick(Frame), "the editor must tick after the drag");
+            Check(std::fabs(transform->position.x - before.x) > step * 0.5f, "the drag must catch the x handle and move the box");
+            Check(std::fabs(transform->position.y - before.y) < 1.0e-4f && std::fabs(transform->position.z - before.z) < 1.0e-4f,
+                "the x handle moves x only");
+        };
+
+        dragX(57);
+        Check(false == onGrid(transform->position.x), "without snap the drag lands anywhere");
+
+        Spot button;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_grid_snap"), button),
+            "a 3D canvas view's tool bar must offer grid snap");
+        ClickAt(editor, hwnd, button);
+        editor.SetSelectedObject(box);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the toggle");
+        }
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        dragX(-57);
+        Check(onGrid(transform->position.x), "with snap on the x handle lands on a grid line of the floor grid");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "and a snapped drag is one undo");
+        editor.Shutdown();
+    }
+
+    // **여럿을 돌리거나 늘리면 기즈모가 있는 점(주된 선택)을 피벗으로 함께 돈다**(D-413). 전에는 저마다 제 자리에서 돌았다.
+    void TestTurningSeveralObjectsTurnsThemAroundTheGizmo()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the common pivot not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GizmoPivotProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({320, 240}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* lead = canvas->CreateObject("Lead");
+        auto* leadTransform = canvas->AttachComponent<JBro::Component::Transform2D>(lead);
+        JBro::Object::GameObject* follower = canvas->CreateObject("Follower");
+        auto* followerTransform = canvas->AttachComponent<JBro::Component::Transform2D>(follower);
+        Check(leadTransform != nullptr && followerTransform != nullptr, "both need a transform");
+        followerTransform->position = JBro::Vector2{1.0f, 0.0f};
+        // 주된 것이 먼저다 - 기즈모는 그 자리에 선다.
+        editor.SetSelectedObject(lead);
+        editor.AddToSelection(follower);
+        Check(editor.GetSelectedObject() == lead, "the lead stays the primary selection");
+        editor.SetCanvasViewCamera(0.0f, 0.0f, 3.0f);
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must exist");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view window must exist");
+        const auto press = [&](WPARAM key) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
+            Check(editor.Tick(Frame), "the editor must tick with the mouse away");
+            PostMessageW(hwnd, WM_KEYDOWN, key, 0);
+            Check(editor.Tick(Frame), "the editor must tick with the key down");
+            PostMessageW(hwnd, WM_KEYUP, key, 0);
+            Check(editor.Tick(Frame), "the editor must tick with the key up");
+        };
+        // 손잡이를 잡으려면 캔버스 뷰가 포커스를 받아야 단축키가 먹는다. x 손잡이를 한 번 눌러 둔다.
+        Spot spot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), spot), "the x handle must be on screen");
+        ClickAt(editor, hwnd, spot);
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+
+        // ── 돌리기: 따르는 것이 주된 것 둘레의 원 위로 간다. ─────────────
+        press('E');
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_z"), spot), "E must put the z ring on screen");
+        Spot to = spot;
+        to.x += 40;
+        to.y += 40;
+        DragTo(editor, hwnd, spot, to);
+        const JBro::Float turned = leadTransform->GetRotationRadian();
+        Check(std::fabs(turned) > 0.1f, "dragging the ring must turn the lead");
+        Check(std::fabs(leadTransform->position.x) < 1.0e-4f && std::fabs(leadTransform->position.y) < 1.0e-4f,
+            "the lead turns where it stands - it is the pivot");
+        Check(std::fabs(followerTransform->GetRotationRadian() - turned) < 1.0e-3f, "the follower turns by the same angle");
+        Check(std::fabs(followerTransform->position.x - std::cos(turned)) < 1.0e-3f
+                && std::fabs(followerTransform->position.y - std::sin(turned)) < 1.0e-3f,
+            "and swings around the lead, staying one unit away");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "turning both is one undo step");
+        Check(editor.GetCommands().Undo(), "undo the turn");
+        Check(std::fabs(followerTransform->position.x - 1.0f) < 1.0e-4f && std::fabs(followerTransform->position.y) < 1.0e-4f
+                && std::fabs(followerTransform->GetRotationRadian()) < 1.0e-4f,
+            "one undo puts the follower back where it was, unturned");
+
+        // ── 크기: 따르는 것과의 거리도 같은 배로 는다. ─────────────
+        press('R');
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), spot), "R must keep an x handle on screen");
+        DragFrom(editor, hwnd, spot, spot.x + 30);
+        const JBro::Float factor = leadTransform->scale.x;
+        Check(factor > 1.05f, "dragging the x box outwards scales the lead");
+        Check(std::fabs(followerTransform->scale.x - factor) < 1.0e-3f, "the follower scales by the same factor");
+        Check(std::fabs(followerTransform->position.x - factor) < 1.0e-3f && std::fabs(followerTransform->position.y) < 1.0e-4f,
+            "and its distance from the lead along x grows by it too");
+        Check(editor.GetCommands().Undo() && std::fabs(followerTransform->position.x - 1.0f) < 1.0e-4f,
+            "one undo puts the follower back");
+        editor.Shutdown();
+    }
+
     // ── 단축키 관리자(D-228) ──────────────────────────────────────────
 
     std::string ReadWholeText(const JBro::String& path)
@@ -19955,6 +20186,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestAPairElementDragsAsADeltaOnEveryChosenList());
     JBRO_CASE(TestAVectorFieldEditsThroughACommand());
     JBRO_CASE(TestTheSimulationViewKnowsWhenNoCameraDrew());
+    JBRO_CASE(TestTheSimulationViewLetterboxesTheGameInTheMiddle());
     JBRO_CASE(TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows());
     JBRO_CASE(TestDraggingTheGizmoMovesTheSelectionUnderOneUndo());
     JBRO_CASE(TestPopupsOpenOneAtATimeAndCloseByHandle());
@@ -20050,6 +20282,8 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheHierarchyDrawsLayerThumbnails());
     JBRO_CASE(TestTheGizmoCanWorkInWorldAxes());
     JBRO_CASE(TestTheGizmoSnapsToTheGrid());
+    JBRO_CASE(TestTheGizmoSnapsToTheGridIn3D());
+    JBRO_CASE(TestTurningSeveralObjectsTurnsThemAroundTheGizmo());
     JBRO_CASE(TestRemappedShortcutsAreSavedAndReadBack());
     JBRO_CASE(TestGizmoKeysFollowTheCanvasViewFocus());
     JBRO_CASE(TestTypingKeepsEditorShortcutsOutOfTheField());

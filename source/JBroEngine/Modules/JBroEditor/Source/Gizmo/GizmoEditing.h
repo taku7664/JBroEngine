@@ -10,6 +10,8 @@
 namespace JBro
 {
     class EditorApplication;
+    class CompoundCommand;
+    class ComponentBase;
     namespace Object
     {
         class GameObject;
@@ -21,6 +23,9 @@ namespace JBro
     //
     // 대상은 고른 것 중 맨 위 것들이다(부모와 자식을 함께 골랐으면 부모만). 주된 것의 월드 변화를
     // 델타로 떠서 저마다의 로컬 값에 얹는다 - 셋을 골라 끌었을 때 셋이 한 자리로 모이면 옮긴 것이 아니다.
+    //
+    // **여럿을 돌리거나 늘리면 손잡이가 있는 점(주된 것의 위치)을 피벗으로 함께 돈다**(D-413). 전에는 저마다 제 자리에서 돌았다 -
+    // 줄지어 놓은 상자 셋을 돌리면 줄은 그대로이고 상자만 돌았다. 그래서 돌리기·크기도 회전·크기 필드와 함께 위치를 쓴다.
     class GizmoEditing
     {
     public:
@@ -46,6 +51,12 @@ namespace JBro
             ComponentAddress address;
             SetPropertyCommand::Path path;
             String before;
+            // 돌리기·크기에서 피벗을 따라 옮겨지는 위치다. 옮기기면 `path` 가 이미 위치라 쓰지 않는다.
+            SetPropertyCommand::Path positionPath;
+            String positionBefore;
+            Bool movesPosition = false;
+            // 끌기를 시작할 때의 월드 위치. 피벗에서 얼마나 떨어졌는지를 잰다.
+            Vector3 worldPosition;
             // 로컬 시작값. 2D 는 z·w 를 쓰지 않는다.
             Vector3 localPosition;
             Quaternion localRotation;
@@ -58,6 +69,11 @@ namespace JBro
         };
 
         Bool CollectTarget(EditorApplication& editor, Object::GameObject& object, Target& target) const;
+        // 월드 델타를 대상의 로컬 위치로 쓴다.
+        static void WritePosition(ComponentBase& component, const Target& target, const Vector3& worldDelta);
+        // 확정·취소에서 필드 하나를 편집 전 값으로 되돌린다. `compound` 가 있으면(확정) 바뀐 값을 커맨드로 묶는다.
+        static void Restore(EditorApplication& editor, ComponentBase& component, const Target& target,
+            const SetPropertyCommand::Path& path, const String& before, CompoundCommand* compound);
         void Write(EditorApplication& editor, const Target& target, const GizmoSubject& primaryNow) const;
 
         Array<Target> m_targets;

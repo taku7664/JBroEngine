@@ -86,7 +86,12 @@ namespace JBro
         void StepInto(Object::GameObject& object);
         const Array<Float>& GetGridLabelsX() const { return m_gridLabelsX; }
         // 마지막으로 그린 화면에서 격자 스냅이 붙는 간격이다(D-282). 그린 적이 없으면 0 이다.
-        Float GetLastGridStep() const { return m_hasLastRect ? GridStep(m_lastRect) : Float(0.0f); }
+        Float GetLastGridStep() const
+        {
+            // 3D 에서는 `m_hasLastRect` 가 거짓이다(평면 좌표가 없다). 그린 사각형은 3D 에서도 남는다.
+            const Bool drawn = m_hasLastRect || (Is3D() && m_lastRect.width > 0.0f);
+            return drawn ? GridStep(m_lastRect) : Float(0.0f);
+        }
         // 지금 들어가 있는 오브젝트다. 뿌리면 nullptr 이다.
         Object::GameObject* GetFocus() const;
 

@@ -844,10 +844,9 @@ namespace JBro
         {
             m_showGrid = false == m_showGrid;
         }
-        if (false == Is3D())
         {
             // **격자 스냅**(D-282). 옮기기는 격자 칸에, 돌리기는 15 도씩. 기존 엔진에는 위치 스냅이 없었고 회전의 15 도 스냅만
-            // Shift 로 있었다. 3D 에는 아직 없다 - 3D 의 격자는 바닥 평면 하나이고 간격이 거리에 따라 바뀌어 무엇에 붙일지가 다르다.
+            // Shift 로 있었다. 3D 도 같은 단추다(D-413) - 붙는 간격은 바닥 격자에 지금 보이는 칸이고, 세 축 모두 그 칸에 붙는다.
             ImGui::SameLine(0.0f, 6.0f);
             if (Widget::IconButton("##canvas_grid_snap", Icons::GridSnap)
                     .Selected(m_gridSnap)
@@ -1032,6 +1031,35 @@ namespace JBro
 
     Float CanvasViewPanel::GridStep(const ViewRect& rect) const
     {
+        if (Is3D())
+        {
+            // 간격은 2D 와 같은 눈금(1·2·5·10 …)을 쓴다. 다만 배율을 직교 크기가 아니라
+            // **바라보는 점에서 한 단위가 몇 픽셀로 보이는지**로 잰다 - 원근에서는 거리가
+            // 배율이고, 그 거리는 바라보는 점의 것을 대표로 삼는다. 바닥 격자와 격자 스냅이 이 값을 함께 쓴다(D-413).
+            GizmoCamera camera;
+            if (false == MakeGizmoCamera(rect, camera))
+            {
+                return 0.0f;
+            }
+            const Vector3 look{m_centerX, m_centerY, m_centerZ};
+            Float centerScreenX = 0.0f;
+            Float centerScreenY = 0.0f;
+            Float unitScreenX = 0.0f;
+            Float unitScreenY = 0.0f;
+            if (false == GizmoModel::Project(camera, look, centerScreenX, centerScreenY)
+                || false == GizmoModel::Project(camera, Vector3{look.x + 1.0f, look.y, look.z}, unitScreenX, unitScreenY))
+            {
+                return 0.0f;
+            }
+            const Float dx = unitScreenX - centerScreenX;
+            const Float dy = unitScreenY - centerScreenY;
+            const Float pixelsPerUnit = std::sqrt(dx * dx + dy * dy);
+            if (false == std::isfinite(pixelsPerUnit) || pixelsPerUnit <= 0.001f)
+            {
+                return 0.0f;
+            }
+            return ChooseGridStep(1.0f / pixelsPerUnit);
+        }
         const Float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
         if (false == (drawHeight > 0.0f))
         {
@@ -3798,28 +3826,7 @@ namespace JBro
         // **바닥은 y=0 평면이다.** 격자를 카메라의 높이에 맞춰 띄우면 무엇이 바닥인지
         // 알 수 없게 되고, 오브젝트를 놓을 때 기준이 사라진다.
         const Vector3 look{m_centerX, m_centerY, m_centerZ};
-
-        // 간격은 2D 와 같은 눈금(1·2·5·10 …)을 쓴다. 다만 배율을 직교 크기가 아니라
-        // **바라보는 점에서 한 단위가 몇 픽셀로 보이는지**로 잰다 - 원근에서는 거리가
-        // 배율이고, 그 거리는 바라보는 점의 것을 대표로 삼는다.
-        Float centerScreenX = 0.0f;
-        Float centerScreenY = 0.0f;
-        Float unitScreenX = 0.0f;
-        Float unitScreenY = 0.0f;
-        if (false == GizmoModel::Project(camera, look, centerScreenX, centerScreenY)
-            || false == GizmoModel::Project(
-                camera, Vector3{look.x + 1.0f, look.y, look.z}, unitScreenX, unitScreenY))
-        {
-            return;
-        }
-        const Float dx = unitScreenX - centerScreenX;
-        const Float dy = unitScreenY - centerScreenY;
-        const Float pixelsPerUnit = std::sqrt(dx * dx + dy * dy);
-        if (false == std::isfinite(pixelsPerUnit) || pixelsPerUnit <= 0.001f)
-        {
-            return;
-        }
-        const Float step = ChooseGridStep(1.0f / pixelsPerUnit);
+        const Float step = GridStep(rect);
         if (false == std::isfinite(step) || step <= 0.0f)
         {
             return;
@@ -4154,7 +4161,7 @@ namespace JBro
         // **격자 스냅**(D-282). 붙는 간격은 지금 보이는 격자의 칸이다 - 줌하면 칸이 바뀌고 붙는 자리도 따라 바뀐다.
         // 격자를 감춰도 같은 칸에 붙는다. Ctrl 은 끄는 동안만 반대로 한다(켜져 있으면 풀고, 꺼져 있으면 붙인다).
         // 같은 단추가 돌리기도 15 도씩 끊는다(사용자 결정) - 기존 엔진은 Shift 로 따로 켰다.
-        const Bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
+        const Bool snapping = m_gridSnap != ImGui::GetIO().KeyCtrl;
         // 라이트 손잡이를 가리키거나 끄는 동안은 기즈모가 마우스를 받지 않는다 - 안쪽 반지름 손잡이는 가운데 가까이 있다.
         const Bool lightHandleHot = LightHandleHot() || m_buttonDragging || m_buttonHover != ButtonRectModel::Handle::None;
         // 무장한 몸통 누르기가 고른 오브젝트 위였으면 끌기 문턱을 넘는 이 프레임에 그 모드의 중립 손잡이를 잡는다(위 `ArmBodyDrag`).

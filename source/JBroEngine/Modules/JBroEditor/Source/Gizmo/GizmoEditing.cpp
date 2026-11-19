@@ -111,6 +111,7 @@ namespace JBro
             return false;
         }
         const char* field = FieldNameFor(m_mode);
+        target.movesPosition = m_mode != GizmoMode::Translate;
         if (auto* transform = canvas->FindComponentRaw<Component::Transform3D>(&object))
         {
             constexpr ComponentTypeId typeId = MakeStableTypeId(Component::Transform3D::StaticTypeName());
@@ -120,6 +121,14 @@ namespace JBro
             {
                 return false;
             }
+            // 되살릴 위치를 뜨지 못했으면 이 대상은 움직이지 않는다 - 쓰고 나서 되돌릴 수 없다.
+            if (target.movesPosition
+                && (false == SetPropertyCommand::MakeFieldPath(typeId, "position", target.positionPath)
+                    || false == SetPropertyCommand::ReadValue(transform, typeId, target.positionPath, target.positionBefore)))
+            {
+                return false;
+            }
+            target.worldPosition = transform->worldValid ? transform->worldPosition : transform->position;
             target.planar = false;
             target.localPosition = transform->position;
             target.localRotation = Normalize(transform->rotation);
@@ -136,6 +145,14 @@ namespace JBro
             {
                 return false;
             }
+            if (target.movesPosition
+                && (false == SetPropertyCommand::MakeFieldPath(typeId, "position", target.positionPath)
+                    || false == SetPropertyCommand::ReadValue(transform, typeId, target.positionPath, target.positionBefore)))
+            {
+                return false;
+            }
+            const Vector2 world = transform->worldValid ? transform->worldPosition : transform->position;
+            target.worldPosition = {world.x, world.y, 0.0f};
             target.planar = true;
             target.localPosition = {transform->position.x, transform->position.y, 0.0f};
             target.localAngle = transform->GetRotationRadian();
@@ -168,6 +185,24 @@ namespace JBro
         return m_active;
     }
 
+    void GizmoEditing::WritePosition(ComponentBase& component, const Target& target, const Vector3& worldDelta)
+    {
+        // 월드 델타를 부모의 축으로 돌려 로컬 델타로 만든다.
+        const Quaternion parentInverse = Conjugate(Normalize(target.parentRotation));
+        Vector3 localDelta = Rotate(parentInverse, worldDelta);
+        localDelta = {SafeDivide(localDelta.x, target.parentScale.x), SafeDivide(localDelta.y, target.parentScale.y),
+            SafeDivide(localDelta.z, target.parentScale.z)};
+        const Vector3 position = Add(target.localPosition, localDelta);
+        if (target.planar)
+        {
+            static_cast<Component::Transform2D&>(component).position = {position.x, position.y};
+        }
+        else
+        {
+            static_cast<Component::Transform3D&>(component).position = position;
+        }
+    }
+
     void GizmoEditing::Write(EditorApplication& editor, const Target& target, const GizmoSubject& primaryNow) const
     {
         ComponentBase* component = ResolveComponent(editor.GetObjectIds(), target.address);
@@ -176,30 +211,21 @@ namespace JBro
             return;
         }
         const Quaternion parentInverse = Conjugate(Normalize(target.parentRotation));
+        // 피벗(주된 것의 시작 위치)에서 이 대상까지. 주된 것은 0 이라 제 자리에 남는다.
+        const Vector3 offset = Subtract(target.worldPosition, m_primaryStart.position);
         switch (m_mode)
         {
         case GizmoMode::Translate:
         {
-            // 월드 델타를 부모의 축으로 돌려 로컬 델타로 만든다.
-            const Vector3 worldDelta = Subtract(primaryNow.position, m_primaryStart.position);
-            Vector3 localDelta = Rotate(parentInverse, worldDelta);
-            localDelta = {SafeDivide(localDelta.x, target.parentScale.x), SafeDivide(localDelta.y, target.parentScale.y),
-                SafeDivide(localDelta.z, target.parentScale.z)};
-            const Vector3 position = Add(target.localPosition, localDelta);
-            if (target.planar)
-            {
-                static_cast<Component::Transform2D*>(component)->position = {position.x, position.y};
-            }
-            else
-            {
-                static_cast<Component::Transform3D*>(component)->position = position;
-            }
+            WritePosition(*component, target, Subtract(primaryNow.position, m_primaryStart.position));
             break;
         }
         case GizmoMode::Rotate:
         {
             // 월드에서 Δq 만큼 돌았다. 로컬로는 부모 축에서 본 Δq 다: q_p^-1 Δq q_p q_local.
             const Quaternion delta = Normalize(Multiply(primaryNow.rotation, Conjugate(m_primaryStart.rotation)));
+            // 피벗 둘레로 같은 만큼 돈 자리로 옮긴다.
+            WritePosition(*component, target, Subtract(Rotate(delta, offset), offset));
             if (target.planar)
             {
                 // Z 축 회전의 각. 사원수 (0,0,sin(θ/2),cos(θ/2)).
@@ -220,6 +246,10 @@ namespace JBro
                 SafeDivide(primaryNow.scale.y, m_primaryStart.scale.y),
                 SafeDivide(primaryNow.scale.z, m_primaryStart.scale.z)};
             const Vector3 scale = Multiply(target.localScale, factor);
+            // 피벗에서의 거리도 주된 것의 축을 따라 같은 배로 늘린다 - 크기 손잡이는 늘 주된 것의 로컬 축이다.
+            const Quaternion axes = Normalize(m_primaryStart.rotation);
+            const Vector3 alongAxes = Multiply(Rotate(Conjugate(axes), offset), factor);
+            WritePosition(*component, target, Subtract(Rotate(axes, alongAxes), offset));
             if (target.planar)
             {
                 static_cast<Component::Transform2D*>(component)->scale = {scale.x, scale.y};
@@ -245,6 +275,21 @@ namespace JBro
         }
     }
 
+    void GizmoEditing::Restore(EditorApplication& editor, ComponentBase& component, const Target& target,
+        const SetPropertyCommand::Path& path, const String& before, CompoundCommand* compound)
+    {
+        String after;
+        const Bool read = SetPropertyCommand::ReadValue(&component, target.address.typeId, path, after);
+        // 위젯이 쓴 값을 도로 되돌려 놓는다. 쓰는 것은 커맨드의 몫이다 - 그래야 되돌리기가 무엇을
+        // 되돌리는지 하나로 남는다.
+        SetPropertyCommand::ApplyValue(&component, target.address.typeId, path, before);
+        if (compound == nullptr || false == read || after == before)
+        {
+            return;
+        }
+        compound->Add(MakeOwnerPtr<SetPropertyCommand>(editor.GetObjectIds(), target.address, path, before, after));
+    }
+
     void GizmoEditing::Commit(EditorApplication& editor)
     {
         if (false == m_active)
@@ -261,17 +306,11 @@ namespace JBro
             {
                 continue;
             }
-            String after;
-            const Bool read = SetPropertyCommand::ReadValue(component, target.address.typeId, target.path, after);
-            // 위젯이 쓴 값을 도로 되돌려 놓는다. 쓰는 것은 커맨드의 몫이다 - 그래야 되돌리기가 무엇을
-            // 되돌리는지 하나로 남는다.
-            SetPropertyCommand::ApplyValue(component, target.address.typeId, target.path, target.before);
-            if (false == read || after == target.before)
+            Restore(editor, *component, target, target.path, target.before, compound.Get());
+            if (target.movesPosition)
             {
-                continue;
+                Restore(editor, *component, target, target.positionPath, target.positionBefore, compound.Get());
             }
-            compound->Add(MakeOwnerPtr<SetPropertyCommand>(editor.GetObjectIds(), target.address, target.path,
-                target.before, after));
         }
         m_targets.Clear();
         // 빈 묶음은 `CompoundCommand::Execute` 가 거절해 더미에 오르지 않는다 - 움직이지 않은 클릭은 되돌리기가 아니다.
@@ -290,7 +329,11 @@ namespace JBro
             const Target& target = m_targets[index];
             if (ComponentBase* component = ResolveComponent(editor.GetObjectIds(), target.address))
             {
-                SetPropertyCommand::ApplyValue(component, target.address.typeId, target.path, target.before);
+                Restore(editor, *component, target, target.path, target.before, nullptr);
+                if (target.movesPosition)
+                {
+                    Restore(editor, *component, target, target.positionPath, target.positionBefore, nullptr);
+                }
             }
         }
         m_targets.Clear();

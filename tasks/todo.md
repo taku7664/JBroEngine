@@ -3058,6 +3058,24 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-413. 기즈모 다듬기 - 3D 격자 스냅, 여럿을 돌리고 늘리면 주된 선택을 피벗으로, 시뮬레이션 뷰의 그림은 위젯으로.** (2026-11-19, todo-3d 우선순위 8)
+  Updates: D-282(격자 스냅을 3D 에도), D-109(여럿을 고른 기즈모 편집), D-131(시뮬레이션 뷰). 월드/로컬 축 전환은 D-171 로 2D·3D 에 이미 있었다 - 할 일이 없었다.
+  (1) **3D 격자 스냅.** 캔버스 뷰의 `GridStep` 이 3D 에서 바닥 격자의 간격(바라보는 점에서 한 유닛이 몇 픽셀인지로 고른 1·2·5·10 눈금)을 내고, 바닥 격자와 스냅이 그 값을 함께 쓴다.
+  격자 스냅 단추를 3D 도구 막대에도 두고, 단추·Ctrl·15 도 회전은 2D 와 같다(`GizmoModel::SnapTranslation` 은 이미 세 축을 다뤘다). 시험용 `GetCanvasViewGridStep` 이 3D 에서도 값을 낸다.
+  (2) **공통 피벗.** 여럿을 고르고 돌리거나 늘리면 주된 선택의 위치(기즈모가 선 자리)를 피벗으로 함께 돈다 - 전에는 저마다 제 자리에서 돌아 줄지어 놓은 것의 줄이 그대로였다.
+  `GizmoEditing` 이 돌리기·크기에서도 위치를 뜨고(뜨지 못한 대상은 움직이지 않는다), 피벗에서의 거리를 Δq 로 돌리거나 주된 것의 축을 따라 같은 배로 늘려 월드 델타를 로컬로 쓴다.
+  확정은 회전(또는 크기)과 위치를 한 묶음 커맨드로 올려 되돌리기 한 번이다. 2D 와 3D 가 같은 코드다. 피벗을 주된 선택으로 한 것은 "손잡이가 있는 점이 도는 점" 이 보이는 그대로라서다 -
+  선택의 가운데를 피벗으로 쓰는 고르기는 열어 둔다(todo-3d "편집").
+  (3) **시뮬레이션 뷰.** 바탕·레터박스·자리 잡기는 새 위젯 `Widget::ViewportImage`(그림과 패널의 사각형을 돌려준다), 겹쳐 쓰는 상태 줄은 `Widget::ViewportStatusLine` 이다. 패널에 `ImGui::` 호출이 남지 않는다.
+  3D 카메라가 애매하다는 경고를 붙이려다 3D 는 `primary` 가 없으면 그리지 않는다는 것을 알았다(2D 는 첫 활성 카메라) - 경고는 2D 만 두고 todo-3d "편집" 에 열어 두었다.
+  확인: 시험 `TestTheGizmoSnapsToTheGridIn3D`(3D 프로젝트에서 x 손잡이를 끌어 끄면 격자 밖, 단추를 켜면 바닥 격자의 선 위, y·z 그대로, 되돌리기 하나),
+  `TestTurningSeveralObjectsTurnsThemAroundTheGizmo`(2D 에서 둘을 골라 고리를 끌면 주된 것은 제자리에서 돌고 따르는 것은 같은 각만큼 돌며 반지름 1 의 원 위로, 되돌리기 한 번에 둘 다, 크기는 거리도 같은 배).
+  `TestTheSimulationViewLetterboxesTheGameInTheMiddle`(세로로 긴 게임 화면이 패널 높이를 채우고 양옆을 비우며 가운데 서고, 게임 입력의 사상이 그 사각형이다).
+  3D 스냅 시험은 칸이 바닥 격자에 보이는 칸(원점에서 한 칸이 7~21 픽셀)인지도 본다. 묶음 EditorApplication·UserScenario·GizmoModel·LightGizmoModel·EditorGuide 가 지난다.
+  뮤테이션 일곱 중 여섯이 잡혔다(3D 스냅 끄기·3D 칸을 2D 식으로·돌리기의 피벗 빼기·크기의 피벗 빼기·옮긴 위치를 커맨드에 넣지 않기·위젯이 패널을 그림 자리로 알리기).
+  살아남은 하나는 위젯이 "그림 없음" 으로 알리는 것이다 - 그 값은 상태 줄의 글자("카메라가 없습니다")만 바꾸고, 그 글자를 읽는 시험이 없다.
+  헤더 자기 완결 시험을 다시 생성해 그동안 빠졌던 헤더 여섯(`ModelDecoder`·`ModelImport`·`EditorHostArguments`·`LightGizmo3DModel`·`MeshMaterialLibrary`·`ScriptLogContext`)과 새 `Widget/Viewport.h` 가 들어갔다.
+
 - **D-412. 3D 스크립트 DLL 을 실제로 싣고 돌린다 - 3D 시험 DLL 과 3D 게임 호스트 실측.** (2026-11-19, todo-3d 우선순위 7·10, cpp-script-plan §3.7)
   Updates: D-265(3D 는 `Load` 를 실제로 부르지 않았다 - §3.2 의 남은 것), D-363(3D 스크립트 런타임), D-404(3D 게임 빌드의 남은 것: 호스트).
   (1) 시험 DLL `Tests/ScriptModuleProbe3D/JBroScriptModuleProbe3D`(`JBroScriptDimension` 3D, 시험 실행 파일 옆에 빌드). 사용자 프로젝트와 같은 모양이다 - `<JBro/ScriptAPI.h>` 한 줄, `GameScript3D` 를 잇는 `ProbeMover3D`
