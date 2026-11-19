@@ -892,6 +892,69 @@ namespace JBro::Physics3D
         return m_impl->physics.GetBodyInterfaceNoLock().IsActive(ToJolt(body));
     }
 
+    void World::SetAwake(BodyId body, Bool awake)
+    {
+        if (false == IsValid(body))
+        {
+            return;
+        }
+        JPH::BodyInterface& bodies = m_impl->physics.GetBodyInterfaceNoLock();
+        if (bodies.GetMotionType(ToJolt(body)) == JPH::EMotionType::Static)
+        {
+            return;
+        }
+        if (awake)
+        {
+            bodies.ActivateBody(ToJolt(body));
+        }
+        else
+        {
+            bodies.DeactivateBody(ToJolt(body));
+        }
+    }
+
+    Vector3 World::GetCenterOfMass(BodyId body) const
+    {
+        if (false == IsValid(body))
+        {
+            return {};
+        }
+        const JPH::RVec3 center = m_impl->physics.GetBodyInterfaceNoLock().GetCenterOfMassPosition(ToJolt(body));
+        return {static_cast<Float>(center.GetX()), static_cast<Float>(center.GetY()), static_cast<Float>(center.GetZ())};
+    }
+
+    void World::ApplyForce(BodyId body, const Vector3& force)
+    {
+        if (IsValid(body))
+        {
+            m_impl->physics.GetBodyInterfaceNoLock().AddForce(ToJolt(body), ToJolt(force), JPH::EActivation::Activate);
+        }
+    }
+
+    void World::ApplyTorque(BodyId body, const Vector3& torque)
+    {
+        if (IsValid(body))
+        {
+            m_impl->physics.GetBodyInterfaceNoLock().AddTorque(ToJolt(body), ToJolt(torque), JPH::EActivation::Activate);
+        }
+    }
+
+    void World::ApplyImpulse(BodyId body, const Vector3& impulse)
+    {
+        if (IsValid(body))
+        {
+            m_impl->physics.GetBodyInterfaceNoLock().AddImpulse(ToJolt(body), ToJolt(impulse));
+        }
+    }
+
+    void World::ApplyAngularImpulse(BodyId body, const Vector3& impulse)
+    {
+        if (IsValid(body))
+        {
+            m_impl->physics.GetBodyInterfaceNoLock().AddAngularImpulse(ToJolt(body), ToJolt(impulse));
+        }
+    }
+
     UInt64 World::GetUserData(BodyId body) const
     {
         if (false == IsValid(body))

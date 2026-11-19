@@ -629,6 +629,50 @@ namespace
     }
 }
 
+namespace
+{
+    // **힘과 충격량**(D-420). 중력 없는 월드에서: 힘은 한 스텝 동안만(F/m·dt), 충격량은 바로(J/m), 각 충격량과 토크는 돌린다. 정적인 몸은 받지 않는다.
+    void TestForcesAndImpulses()
+    {
+        World world;
+        world.SetGravity({0.0f, 0.0f, 0.0f});
+        BodyDef def = BoxAt({0.0f, 0.0f, 0.0f});
+        def.mass = 2.0f;
+        const BodyId pushed = world.CreateBody(def);
+        world.ApplyForce(pushed, {6.0f, 0.0f, 0.0f});
+        world.Step(Frame);
+        Check(Near(world.GetLinearVelocity(pushed).x, 6.0f / 2.0f * Frame, 1.0e-4f), "a force acts for one step: F/m times the step");
+        world.Step(Frame);
+        Check(Near(world.GetLinearVelocity(pushed).x, 6.0f / 2.0f * Frame, 1.0e-4f), "and is gone the next step");
+        world.ApplyImpulse(pushed, {0.0f, 4.0f, 0.0f});
+        Check(Near(world.GetLinearVelocity(pushed).y, 2.0f, 1.0e-4f), "an impulse changes the velocity at once: J/m");
+        world.ApplyAngularImpulse(pushed, {0.0f, 1.0f, 0.0f});
+        Check(world.GetAngularVelocity(pushed).y > 0.5f, "an angular impulse turns the body about its axis");
+        const BodyId twisted = world.CreateBody(BoxAt({5.0f, 0.0f, 0.0f}));
+        world.ApplyTorque(twisted, {0.0f, 0.0f, 3.0f});
+        world.Step(Frame);
+        Check(world.GetAngularVelocity(twisted).z > 0.0f, "a torque spins it up for a step");
+
+        BodyDef wall;
+        wall.type = BodyType::Static;
+        const BodyId still = world.CreateBody(wall);
+        world.ApplyImpulse(still, {10.0f, 0.0f, 0.0f});
+        world.Step(Frame);
+        Check(Near(world.GetPosition(still).x, 0.0f, 1.0e-6f), "a static body ignores forces");
+
+        // 질량 중심은 도형이 비켜 앉은 쪽이다.
+        BodyDef offset = BoxAt({0.0f, 10.0f, 0.0f});
+        offset.shape.offset = {2.0f, 0.0f, 0.0f};
+        const BodyId lopsided = world.CreateBody(offset);
+        Check(Near(world.GetCenterOfMass(lopsided).x, 2.0f, 1.0e-4f), "the centre of mass sits on the offset shape");
+
+        world.SetAwake(pushed, false);
+        Check(false == world.IsAwake(pushed), "a body can be put to sleep");
+        world.SetAwake(pushed, true);
+        Check(world.IsAwake(pushed), "and woken");
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -643,6 +687,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestQueriesFindBodies());
     JBRO_CASE(TestMeshesAndHulls());
     JBRO_CASE(TestWorkersSpeedUpALargePile());
+    JBRO_CASE(TestForcesAndImpulses());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }

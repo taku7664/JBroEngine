@@ -16,8 +16,28 @@
 
 // 3D 물리 컴포넌트다(D-416, physics3d-plan §2.2). 필드 이름과 뜻은 2D 의 `Rigidbody2D`·`Collider2D` 를 따른다 - 축이 하나 늘어난 것만 다르다.
 // 시뮬레이션은 `System::Physics3DSystem` 이 Jolt 커널(`JBroPhysics3D`)로 돌린다.
+namespace JBro::System
+{
+    class Physics3DSystem;
+}
+
 namespace JBro::Component
 {
+    // 스크립트가 다음 고정 스텝에 가할 힘·충격량을 모은 것이다(D-420, 2D 의 `PendingForces2D` 와 같은 모양). 위치를 준 힘은 월드 원점에 대한
+    // 모멘트(cross(점, 힘))로 모아 두고, 물리가 그 스텝의 질량 중심으로 토크를 푼다 - 컴포넌트는 질량 중심을 모른다.
+    struct PendingForces3D
+    {
+        Vector3 forceAtCenter;
+        Vector3 forceAtPoints;
+        Vector3 forceMoment;
+        Vector3 torque;
+        Vector3 impulseAtCenter;
+        Vector3 impulseAtPoints;
+        Vector3 impulseMoment;
+        Vector3 angularImpulse;
+        Bool wake = false;
+    };
+
     class Rigidbody3D final : public ComponentBase
     {
     public:
@@ -51,6 +71,58 @@ namespace JBro::Component
         JBRO_FIELD(Bool, freezeRotationZ) = false;
         // 멈춰 있으면 잠들 수 있는가. 잠든 몸은 계산에서 빠지고, 닿으면 깬다.
         JBRO_FIELD(Bool, canSleep) = true;
+
+        // 힘·토크는 다음 고정 스텝 한 번 동안 가해지고, 충격량은 그 스텝이 시작할 때 속도를 바꾼다(D-420, 2D 와 같다). 월드 좌표다.
+        // Dynamic 이 아니면 물리가 버린다.
+        void AddForce(Vector3 force)
+        {
+            m_pending.forceAtCenter = Add(m_pending.forceAtCenter, force);
+        }
+        void AddForceAtPosition(Vector3 force, Vector3 worldPoint)
+        {
+            m_pending.forceAtPoints = Add(m_pending.forceAtPoints, force);
+            m_pending.forceMoment = Add(m_pending.forceMoment, Cross(worldPoint, force));
+        }
+        void AddTorque(Vector3 torque)
+        {
+            m_pending.torque = Add(m_pending.torque, torque);
+        }
+        void AddImpulse(Vector3 impulse)
+        {
+            m_pending.impulseAtCenter = Add(m_pending.impulseAtCenter, impulse);
+        }
+        void AddImpulseAtPosition(Vector3 impulse, Vector3 worldPoint)
+        {
+            m_pending.impulseAtPoints = Add(m_pending.impulseAtPoints, impulse);
+            m_pending.impulseMoment = Add(m_pending.impulseMoment, Cross(worldPoint, impulse));
+        }
+        void AddAngularImpulse(Vector3 impulse)
+        {
+            m_pending.angularImpulse = Add(m_pending.angularImpulse, impulse);
+        }
+        // 다음 고정 스텝에 깨운다. 지난 고정 스텝이 끝났을 때 잠들어 있었는가.
+        void WakeUp()
+        {
+            m_pending.wake = true;
+        }
+        Bool IsSleeping() const
+        {
+            return m_sleeping;
+        }
+        // 물리 시스템이 고정 스텝마다 가져가고 비운다.
+        PendingForces3D TakePendingForces()
+        {
+            const PendingForces3D taken = m_pending;
+            m_pending = {};
+            return taken;
+        }
+
+    private:
+        friend class System::Physics3DSystem;
+
+        // 저장하지 않고 인스펙터에도 없다 - 스크립트가 쌓고 물리가 가져가는 한 스텝짜리 값이다.
+        PendingForces3D m_pending;
+        Bool m_sleeping = false;
     };
 
     // 한 오브젝트에 여럿 붙는다(2D 와 같다, D-416). 고체 콜라이더는 그 오브젝트의 바디 하나에 복합 도형으로 들고, 트리거는 따로 센서로 든다.

@@ -176,6 +176,17 @@ namespace JBro::Physics3D
         Vector3 GetAngularVelocity(BodyId body) const;
         void SetAngularVelocity(BodyId body, const Vector3& velocity);
         Bool IsAwake(BodyId body) const;
+        // 깨우거나 재운다(D-420). 움직이지 않는 몸은 아무것도 하지 않는다.
+        void SetAwake(BodyId body, Bool awake);
+        // 질량 중심(월드). 위치를 준 힘의 토크를 그 스텝의 질량 중심으로 풀 때 쓴다.
+        Vector3 GetCenterOfMass(BodyId body) const;
+
+        // **힘과 충격량**(D-420, 2D 와 같은 뜻). 힘·토크는 다음 Step 한 번 동안 가해지고 Step 이 끝나면 비워진다. 충격량은 속도를 바로 바꾼다.
+        // 동적인 몸만 받는다(Jolt 가 다른 몸에는 아무것도 하지 않는다). 막은 축으로는 움직이지 않는다. 받으면 깬다.
+        void ApplyForce(BodyId body, const Vector3& force);
+        void ApplyTorque(BodyId body, const Vector3& torque);
+        void ApplyImpulse(BodyId body, const Vector3& impulse);
+        void ApplyAngularImpulse(BodyId body, const Vector3& impulse);
         UInt64 GetUserData(BodyId body) const;
 
         // 도형을 제자리에서 바꾼다(콜라이더를 더하거나 크기를 바꿨다). 번호·자세·속도는 그대로이고 질량은 지금의 질량으로 다시 나눈다.

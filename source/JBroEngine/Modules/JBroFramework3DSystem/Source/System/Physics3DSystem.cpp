@@ -660,6 +660,41 @@ namespace JBro::System
                     }
                 }
             }
+            if (rigidbody != nullptr)
+            {
+                // 스크립트가 쌓은 힘·충격량을 이번 스텝에 먹인다(D-420). 위치를 준 것의 토크는 지금의 질량 중심으로 푼다:
+                // 점 p 의 힘 F 가 질량 중심 c 에 주는 토크는 (p - c) x F = p x F - c x F 이고, p x F 는 컴포넌트가 이미 모아 두었다.
+                const Component::PendingForces3D pending = rigidbody->TakePendingForces();
+                if (type == Physics3D::BodyType::Dynamic)
+                {
+                    const Vector3 center = world.GetCenterOfMass(link->body);
+                    const Vector3 force = Add(pending.forceAtCenter, pending.forceAtPoints);
+                    const Vector3 torque = Subtract(Add(pending.torque, pending.forceMoment), Cross(center, pending.forceAtPoints));
+                    const Vector3 impulse = Add(pending.impulseAtCenter, pending.impulseAtPoints);
+                    const Vector3 angular = Subtract(Add(pending.angularImpulse, pending.impulseMoment), Cross(center, pending.impulseAtPoints));
+                    const Vector3 zero{};
+                    if (false == SameVector(force, zero))
+                    {
+                        world.ApplyForce(link->body, force);
+                    }
+                    if (false == SameVector(torque, zero))
+                    {
+                        world.ApplyTorque(link->body, torque);
+                    }
+                    if (false == SameVector(impulse, zero))
+                    {
+                        world.ApplyImpulse(link->body, impulse);
+                    }
+                    if (false == SameVector(angular, zero))
+                    {
+                        world.ApplyAngularImpulse(link->body, angular);
+                    }
+                    if (pending.wake)
+                    {
+                        world.SetAwake(link->body, true);
+                    }
+                }
+            }
             link->seen = true;
             link->object = object;
             link->transform = transform;
@@ -757,6 +792,7 @@ namespace JBro::System
             link.writtenRotation = localRotation;
             if (link.rigidbodyComponent != nullptr)
             {
+                link.rigidbodyComponent->m_sleeping = false == world.IsAwake(link.body);
                 link.rigidbodyComponent->linearVelocity = world.GetLinearVelocity(link.body);
                 link.rigidbodyComponent->angularVelocity = world.GetAngularVelocity(link.body);
                 link.writtenLinearVelocity = link.rigidbodyComponent->linearVelocity;

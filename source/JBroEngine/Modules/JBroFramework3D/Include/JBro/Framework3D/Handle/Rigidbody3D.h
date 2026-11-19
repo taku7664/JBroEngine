@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Runtime/ComponentHandle.h>
 #include <JBro/Runtime/ComponentHandleReflection.h>
 #include <JBro/Types/Bool.h>
@@ -36,6 +37,40 @@ namespace JBro::Handle
         void SetAngularVelocity(Vector3 value);
         Float GetMass() const;
         void SetMass(Float value);
+        Component::BodyType3D GetBodyType() const;
+        void SetBodyType(Component::BodyType3D value);
+        Float GetGravityScale() const;
+        void SetGravityScale(Float value);
+        Float GetLinearDamping() const;
+        void SetLinearDamping(Float value);
+        Float GetAngularDamping() const;
+        void SetAngularDamping(Float value);
+        Bool GetFreezePositionX() const;
+        void SetFreezePositionX(Bool value);
+        Bool GetFreezePositionY() const;
+        void SetFreezePositionY(Bool value);
+        Bool GetFreezePositionZ() const;
+        void SetFreezePositionZ(Bool value);
+        Bool GetFreezeRotationX() const;
+        void SetFreezeRotationX(Bool value);
+        Bool GetFreezeRotationY() const;
+        void SetFreezeRotationY(Bool value);
+        Bool GetFreezeRotationZ() const;
+        void SetFreezeRotationZ(Bool value);
+        Bool GetCanSleep() const;
+        void SetCanSleep(Bool value);
+        // 힘·토크는 다음 고정 스텝 한 번 동안 가해지고, 충격량은 그 스텝이 시작할 때 속도를 바꾼다(D-420, 2D 와 같다). 월드 좌표다.
+        // Dynamic 이 아니면 물리가 버린다.
+        void AddForce(Vector3 force);
+        void AddForceAtPosition(Vector3 force, Vector3 worldPoint);
+        void AddTorque(Vector3 torque);
+        void AddImpulse(Vector3 impulse);
+        void AddImpulseAtPosition(Vector3 impulse, Vector3 worldPoint);
+        void AddAngularImpulse(Vector3 impulse);
+        // 다음 고정 스텝에 깨운다.
+        void WakeUp();
+        // 지난 고정 스텝이 끝났을 때 잠들어 있었는가.
+        Bool IsSleeping() const;
 
     private:
         Component::Rigidbody3D* Resolve(const char* operation) const;

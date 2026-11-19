@@ -3058,6 +3058,15 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-420. 3D 스크립트가 몸에 힘과 충격량을 준다 - 2D 와 같은 이름·같은 때.** (2026-11-20, physics3d-plan §4 의 열림)
+  Updates: D-416(`Rigidbody3D` 핸들), D-227(2D 의 힘·충격량을 3D 로).
+  (1) `Component::Rigidbody3D` 에 `PendingForces3D` 와 `AddForce`·`AddForceAtPosition`·`AddTorque`·`AddImpulse`·`AddImpulseAtPosition`·`AddAngularImpulse`·`WakeUp`·`IsSleeping`.
+  위치를 준 힘·충격량은 cross(점, 힘) 으로 모아 두고 어댑터가 그 스텝의 질량 중심 c 로 (p - c) x F = p x F - c x F 를 푼다 - 컴포넌트는 질량 중심을 모른다.
+  (2) 커널 `ApplyForce`·`ApplyTorque`·`ApplyImpulse`·`ApplyAngularImpulse`·`SetAwake`·`GetCenterOfMass`. 힘·토크는 다음 스텝 한 번, 충격량은 바로, 동적인 몸만.
+  (3) `Handle::Rigidbody3D` 가 2D 처럼 모든 칸(종류·중력 배율·감쇠·축 고정 여섯·잠듦)을 읽고 쓰고 힘·충격량을 준다.
+  확인: `Physics3DWorld` 의 `TestForcesAndImpulses`, 에디터 `TestForcesAndImpulsesReachA3DBody`(핸들로: 힘 12 → 0.1, 충격량 3 → 1.5, 중심 밖 충격량 → 각속도 (0, -3, 0)).
+  뮤테이션 여섯이 모두 잡혔다(커널의 힘·충격량 버림·질량 중심 보정 빼기·어댑터가 힘을 먹이지 않음·컴포넌트가 모멘트를 잃음·잠듦 되쓰기 빼기). 잠듦 되쓰기는 처음에 살아 바닥에서 잠드는 상자를 시험에 더해 잡았다.
+
 - **D-419. 3D 물리 워커는 Jolt 의 스레드 풀이고 `Build.PhysicsThreads` 를 따른다 - `JBroTask` 위가 아니다.** (2026-11-20, physics3d-plan §3 의 5 단계·§3.5)
   Updates: D-415(§2.3 의 "`JBroTask` 위에 잡 시스템"), D-223(물리 스레드 설정을 3D 에도). 사용자 지시("권고안대로, 장기적으로 건강한 구조").
   (1) `TaskManager` 는 공개 함수가 메인 스레드 전용이고 넣을 때마다 묶음을 힙에 만든다. Jolt 는 워커 안에서 스텝마다 잡을 수십 개 만든다 - 그 위에 세우면 메인 전용 계약과 프레임 경로 힙 금지를 둘 다 어긴다.

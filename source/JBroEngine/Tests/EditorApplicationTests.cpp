@@ -80,6 +80,7 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
+#include <JBro/Framework3D/Handle/Rigidbody3D.h>
 #include <JBro/Physics3D/World.h>
 #include <JBro/Framework3DSystem/System/Physics3DSystem.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
@@ -7088,6 +7089,90 @@ namespace
 
     // **3D 의 물리 스레드 설정도 재생까지 간다**(D-419). 빌드 캔버스에 상자 콜라이더 600 개를 저장해 두면 Auto 가 3D 의 기준으로 워커를 고르고,
     // Single·워커 수를 저장할 때마다 재생의 워커 수가 따라온다.
+    // **3D 스크립트의 힘과 충격량**(D-420). 스크립트가 쓰는 핸들로 재생 중에 준다: 충격량은 J/m, 힘은 한 고정 스텝만 F/m·dt, 중심 밖에 준 충격량은 돌린다.
+    // 정지 상태와 잠듦도 핸들이 읽는다.
+    void TestForcesAndImpulsesReachA3DBody()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D forces not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "Forces3DProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto place = [&](const char* tag, JBro::Vector3 position) {
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
+            canvas->AttachComponent<JBro::Component::Transform3D>(object)->position = position;
+            canvas->AttachComponent<JBro::Component::Collider3D>(object);
+            auto* body = canvas->AttachComponent<JBro::Component::Rigidbody3D>(object);
+            body->gravityScale = 0.0f;
+            body->mass = 2.0f;
+            return object;
+        };
+        place("Pushed", {0.0f, 5.0f, 0.0f});
+        place("Kicked", {4.0f, 5.0f, 0.0f});
+        place("Spun", {8.0f, 5.0f, 0.0f});
+        // 바닥에 놓여 잠드는 상자. 잠듦이 핸들까지 되쓰이는지 본다.
+        JBro::Object::GameObject* ground = canvas->CreateObject("Ground");
+        canvas->AttachComponent<JBro::Component::Transform3D>(ground)->position = {0.0f, -0.5f, 20.0f};
+        canvas->AttachComponent<JBro::Component::Collider3D>(ground)->size = {10.0f, 1.0f, 10.0f};
+        JBro::Object::GameObject* sleeper = place("Sleeper", {0.0f, 0.5f, 20.0f});
+        canvas->FindComponentRaw<JBro::Component::Rigidbody3D>(sleeper)->gravityScale = 1.0f;
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        Check(editor.Tick(Frame), "the editor must tick once while playing");
+        JBro::Canvas* playing = editor.GetCanvas();
+        const auto handleOf = [&](const char* tag) {
+            JBro::Object::GameObject* found = nullptr;
+            playing->ForEachObject([&](JBro::Object::GameObject& candidate) {
+                if (std::strcmp(candidate.GetName(), tag) == 0)
+                {
+                    found = &candidate;
+                }
+            });
+            Check(found != nullptr, "the object is in the playing canvas");
+            return found->GetScriptHandle().GetComponent<JBro::Handle::Rigidbody3D>();
+        };
+        JBro::Handle::Rigidbody3D pushed = handleOf("Pushed");
+        JBro::Handle::Rigidbody3D kicked = handleOf("Kicked");
+        JBro::Handle::Rigidbody3D spun = handleOf("Spun");
+        Check(pushed.IsValid() && kicked.IsValid() && spun.IsValid(), "the handles resolve");
+        pushed.AddForce({12.0f, 0.0f, 0.0f});
+        kicked.AddImpulse({0.0f, 0.0f, 3.0f});
+        // 중심에서 +x 로 1 떨어진 점에 +z 충격량: r x J = (1,0,0) x (0,0,1) = (0,-1,0) - y 축 둘레로 음의 방향으로 돈다.
+        spun.AddImpulseAtPosition({0.0f, 0.0f, 1.0f}, {9.0f, 5.0f, 0.0f});
+        Check(editor.Tick(Frame), "the editor must tick with the forces queued");
+        std::cout << "  pushed " << pushed.GetLinearVelocity().x << ", kicked " << kicked.GetLinearVelocity().z << ", spun " << spun.GetAngularVelocity().y
+                  << std::endl;
+        Check(std::fabs(pushed.GetLinearVelocity().x - 12.0f / 2.0f * Frame) < 2.0e-3f, "a force acts for one fixed step: F/m times the step");
+        Check(std::fabs(kicked.GetLinearVelocity().z - 1.5f) < 1.0e-3f, "an impulse changes the velocity at once: J/m");
+        // 질량 2 의 한 변 1 상자는 관성이 1/3 이라 각속도는 -1 / (1/3) = -3 이다. 토크를 월드 원점이 아니라 질량 중심으로 풀어야 x 성분이 0 이다.
+        Check(std::fabs(spun.GetAngularVelocity().y + 3.0f) < 1.0e-2f && std::fabs(spun.GetAngularVelocity().x) < 1.0e-3f
+                && std::fabs(spun.GetLinearVelocity().z - 0.5f) < 1.0e-3f,
+            "an impulse off the centre pushes it by J/m and turns it about its own centre by r x J over its inertia");
+        Check(false == pushed.IsSleeping(), "a moving body is not asleep");
+        JBro::Handle::Rigidbody3D resting = handleOf("Sleeper");
+        for (JBro::Int32 frame = 0; frame < 90; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the box settles");
+        }
+        Check(resting.IsSleeping(), "a box lying on the ground falls asleep, and the handle says so");
+        pushed.SetGravityScale(1.0f);
+        Check(pushed.GetGravityScale() == 1.0f && pushed.GetBodyType() == JBro::Component::BodyType3D::Dynamic, "the handle reads and writes the body's settings");
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
     void TestThePhysicsThreadsSettingReachesPlayIn3D()
     {
         namespace fs = std::filesystem;
@@ -20586,6 +20671,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBack());
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D());
     JBRO_CASE(TestThePhysicsThreadsSettingReachesPlayIn3D());
+    JBRO_CASE(TestForcesAndImpulsesReachA3DBody());
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());
