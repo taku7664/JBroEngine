@@ -728,6 +728,65 @@ namespace
     }
 }
 
+namespace
+{
+    JBro::Int32 CountTriggerEvents(JBro::ArrayView<const JBro::Physics3D::ContactEvent> events)
+    {
+        JBro::Int32 count = 0;
+        for (const JBro::Physics3D::ContactEvent& event : events)
+        {
+            count += event.isTrigger ? 1 : 0;
+        }
+        return count;
+    }
+
+    // **빠른 트리거**(D-423). 한 스텝에 8 을 가는 총알이 두께 0.2 의 트리거 판을 건너뛰지 않는다 - 그 스텝에 시작, 다음 스텝에 끝.
+    // 트리거가 `MoveContinuously` 로 한 스텝에 멀리 옮겨져도 사이의 몸을 알린다. `SetTransform`(순간 이동)은 쓸지 않는다.
+    void TestFastTriggersDoNotSkip()
+    {
+        World world;
+        world.SetGravity({0.0f, 0.0f, 0.0f});
+        BodyDef slab;
+        slab.type = BodyType::Static;
+        slab.shape.halfExtents = {0.1f, 2.0f, 2.0f};
+        slab.isTrigger = true;
+        world.CreateBody(slab);
+        BodyDef bullet;
+        bullet.shape.type = ShapeType::Sphere;
+        bullet.shape.radius = 0.1f;
+        bullet.position = {-6.0f, 0.0f, 0.0f};
+        bullet.linearVelocity = {480.0f, 0.0f, 0.0f};
+        const BodyId shot = world.CreateBody(bullet);
+        world.Step(Frame);
+        Check(world.GetPosition(shot).x > 0.3f, "the bullet ends the step past the slab");
+        Check(CountTriggerEvents(world.GetBeginEvents()) == 1, "a bullet that jumps over a thin trigger in one step still enters it");
+        Check(CountTriggerEvents(world.GetEndEvents()) == 0, "and leaves it on the next step, not the same one");
+        world.Step(Frame);
+        Check(CountTriggerEvents(world.GetEndEvents()) == 1 && CountTriggerEvents(world.GetBeginEvents()) == 0, "the next step ends the pass");
+
+        // 트리거를 옮긴다: 사이에 떠 있는 상자를 지나친다.
+        World moved;
+        moved.SetGravity({0.0f, 0.0f, 0.0f});
+        BodyDef sensor;
+        sensor.type = BodyType::Kinematic;
+        sensor.shape.halfExtents = {0.1f, 0.5f, 0.5f};
+        sensor.isTrigger = true;
+        sensor.position = {-5.0f, 0.0f, 0.0f};
+        const BodyId gate = moved.CreateBody(sensor);
+        moved.CreateBody(BoxAt({0.0f, 0.0f, 0.0f}));
+        moved.Step(Frame);
+        moved.MoveContinuously(gate, {5.0f, 0.0f, 0.0f}, {});
+        moved.Step(Frame);
+        Check(CountTriggerEvents(moved.GetBeginEvents()) == 1, "a trigger moved continuously across a box enters it");
+        moved.Step(Frame);
+        Check(CountTriggerEvents(moved.GetEndEvents()) == 1 && CountTriggerEvents(moved.GetBeginEvents()) == 0,
+            "and leaves it on the next step without entering again");
+        moved.SetTransform(gate, {-5.0f, 0.0f, 0.0f}, {});
+        moved.Step(Frame);
+        Check(CountTriggerEvents(moved.GetBeginEvents()) == 0, "a teleport sweeps nothing");
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -744,6 +803,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestWorkersSpeedUpALargePile());
     JBRO_CASE(TestForcesAndImpulses());
     JBRO_CASE(TestEachShapeHasItsOwnLayer());
+    JBRO_CASE(TestFastTriggersDoNotSkip());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }

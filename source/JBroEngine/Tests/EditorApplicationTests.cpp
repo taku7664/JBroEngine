@@ -81,6 +81,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Handle/Rigidbody3D.h>
+#include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Physics3D/World.h>
 #include <JBro/Framework3DSystem/System/Physics3DSystem.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
@@ -7297,6 +7298,85 @@ namespace
         canvas->DestroyObject(wall);
         canvas->FlushPendingDestroy();
         Check(false == hitsAt(5.0f, hit), "a destroyed object is no longer hit");
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
+    // 3D 트리거 훅을 세는 손잡이다(D-423).
+    class TriggerCounter3D final : public JBro::GameScript3D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::TriggerCounter3D";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnTriggerEnter(const JBro::Collision3D& hit) override
+        {
+            (void)hit;
+            ++enters;
+        }
+
+        void OnTriggerExit(const JBro::Collision3D& hit) override
+        {
+            (void)hit;
+            ++exits;
+        }
+
+        JBro::Int32 enters = 0;
+        JBro::Int32 exits = 0;
+    };
+
+    // **빠른 트리거가 사이의 것을 건너뛰지 않는다**(D-423). 스크립트가 트리거 오브젝트를 한 프레임에 멀리 옮겨도, 그 길에 떠 있는 상자가 들어감·나감을 듣는다.
+    void TestAFastTriggerDoesNotSkipIn3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; fast 3D triggers not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "FastTrigger3DProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* target = canvas->CreateObject("Target");
+        canvas->AttachComponent<JBro::Component::Transform3D>(target);
+        canvas->AttachComponent<JBro::Component::Collider3D>(target);
+        canvas->AttachComponent<JBro::Component::Rigidbody3D>(target)->gravityScale = 0.0f;
+        TriggerCounter3D* counter = canvas->AttachScript<TriggerCounter3D>(target);
+        Check(counter != nullptr, "the target listens for triggers");
+        JBro::Object::GameObject* sweeper = canvas->CreateObject("Sweeper");
+        auto* sweeperTransform = canvas->AttachComponent<JBro::Component::Transform3D>(sweeper);
+        sweeperTransform->position = {-6.0f, 0.0f, 0.0f};
+        auto* blade = canvas->AttachComponent<JBro::Component::Collider3D>(sweeper);
+        blade->size = {0.2f, 1.0f, 1.0f};
+        blade->isTrigger = true;
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        Check(counter->enters == 0, "nothing touches yet");
+        // 한 프레임에 12 를 옮긴다 - 그 사이 원점의 상자를 지난다.
+        sweeperTransform->position = {6.0f, 0.0f, 0.0f};
+        Check(editor.Tick(Frame), "the editor must tick after the jump");
+        Check(counter->enters == 1, "the box hears the trigger that swept past it in one frame");
+        Check(editor.Tick(Frame), "the editor must tick once more");
+        Check(counter->exits == 1, "and hears it leave on the next step");
         editor.StopSimulation();
         editor.Shutdown();
     }
@@ -20802,6 +20882,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestForcesAndImpulsesReachA3DBody());
     JBRO_CASE(TestTheLayerTableAndPerColliderLayersReachPlayIn3D());
     JBRO_CASE(TestQueriesSeeTheCurrentComponentsIn3D());
+    JBRO_CASE(TestAFastTriggerDoesNotSkipIn3D());
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());

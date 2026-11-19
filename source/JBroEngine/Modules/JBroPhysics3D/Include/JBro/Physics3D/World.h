@@ -168,8 +168,11 @@ namespace JBro::Physics3D
         Bool IsValid(BodyId body) const;
         UInt32 GetBodyCount() const;
 
-        // 원점과 회전을 옮긴다(순간 이동). 속도는 그대로다.
+        // 원점과 회전을 옮긴다(순간 이동). 속도는 그대로다. 지나온 길은 없는 것으로 본다.
         void SetTransform(BodyId body, const Vector3& position, const Quaternion& rotation);
+        // **이어진 움직임으로 옮긴다**(D-423). 자리는 `SetTransform` 처럼 바로 바뀌지만, 다음 `Step` 이 지금 자리에서 새 자리까지의 길을 쓸어
+        // 그 사이에 지나친 것을 트리거 사건으로 알린다(아래 "빠른 트리거"). 오브젝트를 따라가는 트리거 센서가 쓴다. 한 스텝에 여러 번 부르면 첫 자리에서 쓴다.
+        void MoveContinuously(BodyId body, const Vector3& position, const Quaternion& rotation);
         Vector3 GetPosition(BodyId body) const;
         Quaternion GetRotation(BodyId body) const;
         Vector3 GetLinearVelocity(BodyId body) const;
@@ -215,6 +218,10 @@ namespace JBro::Physics3D
         UInt32 GetWorkerCount() const;
 
         // 마지막 Step 의 접촉 사건. 다음 Step 이 비운다. 끝에는 그 사이 지운 바디의 접촉도 든다.
+        //
+        // **빠른 트리거**(D-423). 스텝은 끝 자리만 보므로 한 스텝에 제 크기보다 멀리 가는 몸은 얇은 트리거를 건너뛴다. 그래서 스텝 뒤에, 그 스텝에
+        // 제 안쪽 반지름보다 멀리 간 동적인 몸은 트리거만을, `MoveContinuously` 로 그만큼 옮긴 트리거는 고체만을 그 길을 따라 쓸어(도형 밀기),
+        // 끝 자리에서는 닿아 있지 않은 것을 "지나쳤다" 로 본다: 이번 스텝에 시작, 다음 스텝에 끝이 나온다.
         ArrayView<const ContactEvent> GetBeginEvents() const;
         ArrayView<const ContactEvent> GetStayEvents() const;
         ArrayView<const ContactEvent> GetEndEvents() const;

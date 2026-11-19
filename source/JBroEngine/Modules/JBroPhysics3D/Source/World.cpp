@@ -538,6 +538,34 @@ namespace JBro::Physics3D
                 }
             }
 
+            // 스텝 뒤의 쓸기가 찾은 "지나친" 쌍이다(D-423). 지금 닿아 있는 쌍이면 이미 사건이 있으니 아무것도 하지 않는다. 아니면 이번 스텝에 시작,
+            // 다음 스텝에 끝을 낸다 - 같은 스텝에 끝과 시작을 함께 내면 발송이 끝을 먼저 보내 차례가 뒤집힌다.
+            void PassThrough(const JPH::Body& first, const JPH::Body& second)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                const UInt64 key = Key(first.GetID(), second.GetID());
+                if (pairs.Find(key) != nullptr)
+                {
+                    return;
+                }
+                for (const UInt64 known : passed)
+                {
+                    if (known == key)
+                    {
+                        return;
+                    }
+                }
+                passed.Add(key);
+                ContactEvent event;
+                event.bodyA = BodyId{first.GetID().GetIndexAndSequenceNumber()};
+                event.bodyB = BodyId{second.GetID().GetIndexAndSequenceNumber()};
+                event.userDataA = first.GetUserData();
+                event.userDataB = second.GetUserData();
+                event.isTrigger = true;
+                begins.Add(event);
+                pendingEnds.Add(event);
+            }
+
             // 스텝 앞: 지난 사건을 비우고, 그 사이 지운 바디의 끝을 이번 끝으로 넘긴다.
             void BeginStep()
             {
@@ -550,6 +578,7 @@ namespace JBro::Physics3D
                     ends.Add(event);
                 }
                 pendingEnds.Clear();
+                passed.Clear();
                 for (auto& entry : pairs)
                 {
                     entry.MappedValue.reported = false;
@@ -617,6 +646,8 @@ namespace JBro::Physics3D
             Array<ContactEvent> pendingEnds;
             Array<UInt64> removals;
             Array<UInt64> emptied;
+            // 이번 스텝에 "지나쳤다" 로 낸 쌍. 한 쌍을 두 번 내지 않는다.
+            Array<UInt64> passed;
 
             void Mix(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
                 JPH::ContactSettings& settings) const
@@ -776,6 +807,15 @@ namespace JBro::Physics3D
         ObjectVsBroadPhase objectVsBroadPhase;
         ObjectPairs objectPairs;
         LeafTable leaves;
+        // 빠른 트리거의 쓸기(D-423). 스텝 앞의 질량 중심 자세다. 표는 미리 잡아 두어 흔한 경우 할당하지 않는다.
+        struct Sweep
+        {
+            JPH::BodyID body;
+            JPH::RMat44 from;
+        };
+        Array<Sweep> movedTriggers;
+        Array<Sweep> movingBodies;
+        JPH::BodyIDVector activeScratch;
         ContactTracker contacts;
         JPH::PhysicsSystem physics;
 
@@ -824,6 +864,126 @@ namespace JBro::Physics3D
             const Impl& m_owner;
             UInt32 m_mask;
         };
+
+        // ── 빠른 트리거(D-423) ───────────────────────────────────────────
+        // 스텝 앞: 깨어 있는 동적인 고체 몸의 질량 중심 자세를 떠 둔다. `MoveContinuously` 가 옮긴 트리거는 그때 이미 떠 두었다.
+        void RecordMovingBodies()
+        {
+            movingBodies.Clear();
+            physics.GetActiveBodies(JPH::EBodyType::RigidBody, activeScratch);
+            const JPH::BodyLockInterfaceNoLock& locks = physics.GetBodyLockInterfaceNoLock();
+            for (const JPH::BodyID& id : activeScratch)
+            {
+                JPH::BodyLockRead lock(locks, id);
+                if (lock.Succeeded() && lock.GetBody().IsDynamic() && false == lock.GetBody().IsSensor())
+                {
+                    movingBodies.Add(Sweep{id, lock.GetBody().GetCenterOfMassTransform()});
+                }
+            }
+        }
+
+        // 쓸 상대를 고른다: 고체 몸이면 트리거만, 트리거면 고체만. 정적·키네마틱 상대는 트리거가 그것을 볼 때만(`triggerSeesStatic`).
+        class SweepTargets final : public JPH::BodyFilter
+        {
+        public:
+            SweepTargets(JPH::BodyID self, Bool sweeperIsTrigger, Bool seesStatic)
+                : m_self(self), m_trigger(sweeperIsTrigger), m_seesStatic(seesStatic)
+            {
+            }
+
+            bool ShouldCollide(const JPH::BodyID& id) const override
+            {
+                return id != m_self;
+            }
+
+            bool ShouldCollideLocked(const JPH::Body& body) const override
+            {
+                if (m_trigger)
+                {
+                    return false == body.IsSensor() && (body.IsDynamic() || m_seesStatic);
+                }
+                return body.IsSensor();
+            }
+
+        private:
+            JPH::BodyID m_self;
+            Bool m_trigger;
+            Bool m_seesStatic;
+        };
+
+        // 쓸기 하나: 스텝 앞 자세에서 지금 자세까지 그 몸의 도형을 민다. 제 안쪽 반지름보다 덜 갔으면 끝 자리 판정으로 넉넉하다 - 쓸지 않는다.
+        void SweepOne(const Sweep& sweep)
+        {
+            JPH::BodyLockRead lock(physics.GetBodyLockInterfaceNoLock(), sweep.body);
+            if (false == lock.Succeeded())
+            {
+                return;
+            }
+            const JPH::Body& mover = lock.GetBody();
+            const JPH::RMat44 to = mover.GetCenterOfMassTransform();
+            const JPH::Vec3 travel = JPH::Vec3(to.GetTranslation() - sweep.from.GetTranslation());
+            const float inner = mover.GetShape()->GetInnerRadius();
+            if (travel.Length() <= inner)
+            {
+                return;
+            }
+            const JPH::RShapeCast cast(mover.GetShape(), JPH::Vec3::sOne(), sweep.from, travel);
+            JPH::ShapeCastSettings settings;
+            settings.mBackFaceModeConvex = JPH::EBackFaceMode::CollideWithBackFaces;
+            JPH::AllHitCollisionCollector<JPH::CastShapeCollector> collector;
+            const SweepTargets targets(mover.GetID(), mover.IsSensor(), mover.GetCollideKinematicVsNonDynamic());
+            // 바디 쌍은 넓은 판정과 같은 층 거르기를 지난다. 잎마다의 레이어는 지나친 몸의 첫 잎과 이 몸의 잎들을 견준다(아래).
+            const JPH::ObjectLayer self = mover.GetObjectLayer();
+            class SelfPairs final : public JPH::ObjectLayerFilter
+            {
+            public:
+                SelfPairs(const JPH::ObjectLayerPairFilter& pairs, JPH::ObjectLayer self) : m_pairs(pairs), m_self(self)
+                {
+                }
+                bool ShouldCollide(JPH::ObjectLayer other) const override
+                {
+                    return m_pairs.ShouldCollide(m_self, other);
+                }
+
+            private:
+                const JPH::ObjectLayerPairFilter& m_pairs;
+                JPH::ObjectLayer m_self;
+            };
+            const SelfPairs layers(objectPairs, self);
+            physics.GetNarrowPhaseQueryNoLock().CastShape(cast, settings, JPH::RVec3::sZero(), collector, {}, layers, targets);
+            lock.ReleaseLock();
+            for (const JPH::ShapeCastResult& hit : collector.mHits)
+            {
+                JPH::BodyLockRead first(physics.GetBodyLockInterfaceNoLock(), sweep.body);
+                JPH::BodyLockRead second(physics.GetBodyLockInterfaceNoLock(), hit.mBodyID2);
+                if (false == first.Succeeded() || false == second.Succeeded())
+                {
+                    continue;
+                }
+                // 잎마다의 레이어(D-421): 지나친 잎과 이 몸의 잎 가운데 하나라도 만나야 한다.
+                const LeafInfo* other = leaves.Find(hit.mBodyID2, second.GetBody().GetShape()->GetSubShapeUserData(hit.mSubShapeID2));
+                const LeafInfo* mine = leaves.Find(sweep.body, first.GetBody().GetShape()->GetSubShapeUserData(hit.mSubShapeID1));
+                if (other != nullptr && mine != nullptr && false == leaves.Meet(*mine, *other))
+                {
+                    continue;
+                }
+                contacts.PassThrough(first.GetBody(), second.GetBody());
+            }
+        }
+
+        // 스텝 뒤: 떠 둔 몸과 옮긴 트리거를 쓴다.
+        void SweepAfterStep()
+        {
+            for (const Sweep& sweep : movingBodies)
+            {
+                SweepOne(sweep);
+            }
+            for (const Sweep& sweep : movedTriggers)
+            {
+                SweepOne(sweep);
+            }
+            movedTriggers.Clear();
+        }
 
         // 맞은 바디의 userData 와 그 자리의 표면 법선을 채운다.
         void FillHit(const JPH::BodyID& id, const JPH::SubShapeID& subShape, JPH::RVec3Arg point, QueryHit& hit) const
@@ -955,6 +1115,25 @@ namespace JBro::Physics3D
         if (false == IsValid(body))
         {
             return;
+        }
+        m_impl->physics.GetBodyInterfaceNoLock().SetPositionAndRotation(ToJolt(body),
+            JPH::RVec3(position.x, position.y, position.z), ToJolt(rotation), JPH::EActivation::Activate);
+    }
+
+    void World::MoveContinuously(BodyId body, const Vector3& position, const Quaternion& rotation)
+    {
+        if (false == IsValid(body))
+        {
+            return;
+        }
+        Bool known = false;
+        for (const Impl::Sweep& sweep : m_impl->movedTriggers)
+        {
+            known = known || sweep.body == ToJolt(body);
+        }
+        if (false == known)
+        {
+            m_impl->movedTriggers.Add(Impl::Sweep{ToJolt(body), m_impl->physics.GetBodyInterfaceNoLock().GetCenterOfMassTransform(ToJolt(body))});
         }
         m_impl->physics.GetBodyInterfaceNoLock().SetPositionAndRotation(ToJolt(body),
             JPH::RVec3(position.x, position.y, position.z), ToJolt(rotation), JPH::EActivation::Activate);
@@ -1191,8 +1370,10 @@ namespace JBro::Physics3D
             return;
         }
         m_impl->contacts.BeginStep();
+        m_impl->RecordMovingBodies();
         m_impl->physics.Update(deltaTime, 1, &m_impl->temp, m_impl->Jobs());
         m_impl->contacts.Resolve(m_impl->physics.GetBodyInterfaceNoLock());
+        m_impl->SweepAfterStep();
     }
 
     void World::SetWorkerCount(UInt32 count)

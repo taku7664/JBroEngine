@@ -529,8 +529,9 @@ namespace JBro::System
                 }
                 else
                 {
-                    // 센서는 오브젝트를 따라간다. 움직이는 몸의 자세는 지난 스텝의 되쓰기에서 왔다.
-                    world.SetTransform(link->body, pose.position, pose.rotation);
+                    // 센서는 오브젝트를 따라간다. 움직이는 몸의 자세는 지난 스텝의 되쓰기에서 왔다. **이어진 움직임으로 옮긴다**(D-423) -
+                    // 다음 스텝이 지나온 길을 쓸어, 한 스텝에 멀리 간 트리거가 사이의 것을 건너뛰지 않는다.
+                    world.MoveContinuously(link->body, pose.position, pose.rotation);
                 }
                 link->seen = true;
                 return;
