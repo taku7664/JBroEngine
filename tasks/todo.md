@@ -3058,6 +3058,18 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-428. 3D 물리의 워커를 `JBroTask` 위로 - 나눴다 합치는 일의 `WorkerPool`.** (2026-11-20, physics3d-plan §2.3·§3.5)
+  Updates: D-419(Jolt 의 스레드 풀). Obsoletes: D-419 (1) 의 "`JBroTask` 위가 아니다". 사용자 지시의 원문이 "`JBroTask` 위에 세워" 였고, D-419 는 그것을 바꾸며 ProjectRule 의
+  "모듈마다 스레드를 들지 않는다"(D-209)에 적히지 않은 예외를 하나 더 만들었다.
+  (1) `JBroTask` 에 새 원시 `WorkerPool`: 어느 스레드에서나 넣는 `TrySubmit(WorkerJob)`(함수 포인터 + 문맥), 고리 큐를 `Start` 에서 한 번 잡아 넣을 때 할당하지 않음, 콜백 없음,
+  워커가 없거나 자리가 차면 거절(부른 쪽이 그 자리에서 돌린다), `Stop` 은 줄 선 일을 다 돌린 뒤 워커를 거둔다.
+  (2) `TaskManager` 는 그대로다 - 그것은 로딩처럼 길고 메인 스레드 콜백이 필요한 일의 것이다. 둘을 하나로 합치면 긴 파일 읽기가 물리 스텝의 워커를 붙잡는다.
+  (3) 커널의 `TaskJobSystem`(`JobSystemWithBarrier`)이 Jolt 의 잡을 미리 잡은 자유 목록에서 꺼내 `WorkerPool` 에 넣는다(Jolt 의 풀과 같은 참조 약속). `JBroPhysics3D` 가 `JBroTask` 에 기댄다.
+  (4) 실측: 1000 상자 60 스텝, 메인 6229 ms → 워커 넷 1479 ms(4.2 배). D-419 의 Jolt 풀은 4.4 배였다(같은 날 덜 바쁜 때).
+  (5) `[열림]` 2D 물리의 전용 워커(D-223)도 이것으로 옮기면 엔진의 스레드 주인이 하나 준다 - ProjectRule 에 적었다.
+  확인: `TaskManager` 의 `TestWorkerPoolRunsJobsSubmittedFromWorkers`(워커 안에서 넣은 자식까지 5000 번 정확히 한 번씩, 워커 없음·자리 참 거절, 멈출 때 남은 일 실행), `Physics3DWorld` 의 `TestWorkersSpeedUpALargePile`.
+  뮤테이션 여섯이 모두 잡혔다(모든 일 거절·멈출 때 남은 일 버림·고리를 돌지 않음·찬 큐가 받음·물리가 워커를 쓰지 않음·잡 시스템이 워커를 세우지 않음). TaskManager·Physics3DWorld·Physics2D·EditorApplication 전체가 지난다.
+
 - **D-427. 3D 캐릭터 컨트롤러 `CharacterController3D`.** (2026-11-20, physics3d-plan §3.6)
   (1) 새 컴포넌트 하나(사용자 지시 "권고안대로" 로 정했다). 칸은 유니티의 CharacterController 와 같은 이름에 `layer`·`mask`. 핸들은 `Move`·`IsGrounded`·`GetVelocity` 와 칸의 읽기·쓰기. 커널은 Jolt `CharacterVirtual`.
   (2) **`Move` 는 쌓아 두고 다음 고정 스텝이 먹인다** - 힘·충격량(D-420)과 같은 길이다. 고른 까닭: 그 자리에서 옮기면 핸들(JBroFramework3D)이 물리 시스템에 닿아야 해 계층이 거꾸로 서고,

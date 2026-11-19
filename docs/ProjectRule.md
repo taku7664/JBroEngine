@@ -329,7 +329,7 @@
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | 렉서·파서·의미 분석·공용 API DTO·들여쓰기 포맷·2D C++ 이미터. `JBroCore` 에만 기댄다 (D-104·D-316·D-317) |
   | Tier E | `JBroShaderCompiler` | 머티리얼 셰이더를 그 자리에서 굽는 `ShaderCompiler`(`IShaderCompiler` 구현). Windows 전용이고 `d3dcompiler_47.dll`·`dxcompiler.dll` 을 실행 중에 연다. Core·Asset 에 기대고 에디터·시험·게임 빌드가 든다 - 게임 실행 파일은 들지 않는다 (D-347) |
-  | Tier E | `JBroPhysics3D` | 3D 물리 커널. 캔버스를 모르고 `JBroCore` 에만 기댄다. **Jolt(`ThirdParty/Jolt`)의 include 경로를 받는 유일한 엔진 모듈**이고 공개 헤더는 Jolt 를 include 하지 않는다 - 컴포넌트·스크립트는 Jolt 타입을 보지 못한다. Jolt 의 할당은 이 모듈의 훅과 재사용 풀을 거친다 (D-414·D-415) |
+  | Tier E | `JBroPhysics3D` | 3D 물리 커널. 캔버스를 모르고 `JBroCore` 와 `JBroTask`(스텝을 나눠 돌릴 `WorkerPool`, D-428)에만 기댄다. **Jolt(`ThirdParty/Jolt`)의 include 경로를 받는 유일한 엔진 모듈**이고 공개 헤더는 Jolt 를 include 하지 않는다 - 컴포넌트·스크립트는 Jolt 타입을 보지 못한다. Jolt 의 할당은 이 모듈의 훅과 재사용 풀을 거친다 (D-414·D-415) |
   | Tier E | `JBroNodeGraph` | 노드 그래프 모델(노드·핀·링크·도메인·YAML)과 샘플 도메인 `Math`. `JBroCore` 에만 기대고 에디터·셰이더 그래프 컴파일러가 함께 쓴다 (D-323) |
   | Tier E | `JBroScriptApiCatalog2D` | 실제 공용/2D Tier S 타입과 명시적 공개 선언을 분석용 카탈로그로 변환. 엔진 호스트는 실행하지 않는다 (D-316) |
   | Tier E | `JBroScriptLanguageServer` | LSP 프로토콜·문서 상태·공용 분석 조회. Core·ScriptCompiler·nlohmann-json에 기댄다 (D-316) |
@@ -340,7 +340,7 @@
   | Tier E | `JBroScriptRuntime` | 스크립트 시스템(`ScriptSystem`: 실행 순서·수명 훅·입력 레이어 체인). Canvas·Runtime·Input 에 기대고 입력 체인 인터페이스만 `JBroScreenUi` 의 `UiHost.h` 에서 받는다. 2D·3D 프레임워크가 같이 쓴다 (D-363) |
   | Tier E | `JBroScreenUi` | 화면 UI 공용: `Transform2DSystem`·`Mask2DSystem`·`Layout2DSystem`·`Tween2DSystem`·`Button2DSystem`·`SpriteRender2DSystem`·`Text2DSystem` 과 `RenderWorld2D`·`SpriteLibrary`·`SpriteSubmit2D`·`Parallax2D`. Framework2D(컴포넌트)·Canvas·Host·Runtime·Asset·Graphics·Input·TextRendering 에 기대고 두 프레임워크 시스템 모듈을 모른다 - 스크립트 훅·월드 레이어 좌표·입력 체인은 `UiHost.h` 의 인터페이스로 받는다. 2D·3D 프레임워크가 같이 쓴다 (D-362) |
   | Tier E | `JBroTextRendering` | 텍스트 렌더링 공용: `TextLibrary`(폰트·아틀라스·페이지 텍스처)·`GlyphMesh`(글리프 쿼드)·`TextBlock`(레이아웃 캐시). Core·Text·AssetTypes·Asset·RHI·Graphics·Task·Platform·Runtime 에 기대고 캔버스·컴포넌트·프레임워크를 모른다. 2D·3D 텍스트 시스템이 쓴다 (D-222) |
-  | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
+  | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`, 그리고 나눴다 합치는 짧은 일의 `WorkerPool`(D-428). `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
 
   > `Object::GameObject` 는 Tier S다. `ComponentBase`·`Handle::GameObject`·`GameScriptBase` 가 그 정의를 필요로 하고
   > 셋 다 스크립트 DLL 이 링크하기 때문이다. 스크립트가 그 선언을 받지 않는 것은 프렐류드가
@@ -499,6 +499,9 @@
 - `Handle::GameObject`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
 - **워커 스레드의 일은 `JBroTask` 의 `TaskManager` 에 태스크로 등록한다.** 모듈마다 `std::thread` 를 새로 들지 않는다. 예외는 실시간 마감이
   있는 오디오 스트리머·장치 스레드, OS 대기에서 막히는 파일 감시, 그리고 스텝 안에서 나눴다 합치는 2D 물리의 전용 워커(아래)다. (SHOULD) (D-209, D-223)
+  - **한 프레임 안에서 나눴다 합치는 짧은 일은 `JBroTask` 의 `WorkerPool` 이다**(D-428). 어느 스레드에서나 넣고, 넣을 때 할당하지 않으며, 콜백 없이 넣은 쪽이 기다린다.
+    일은 함수 포인터와 문맥 포인터 둘이고(`std::function` 을 받지 않는다), 위의 `Task::Run` 과 같은 스레드 계약을 따른다. 3D 물리가 Jolt 의 잡을 이 위에서 돌린다.
+    `[열림]` 2D 물리의 전용 워커(D-223)를 이것으로 옮기는 일. (SHOULD)
   - `Task::Run` 은 워커에서 돈다. 그 안에서 `SafePtr`·`OwnerPtr`·`Ref<T>`·`Handle::GameObject` 을 만들거나 복사하거나 파괴하지 않는다. 값과 raw
     포인터만 쓰고, 대상의 수명은 등록한 쪽이 태스크가 끝날 때까지 보장한다. 풀에 넣는 것 같은 마무리는 메인 스레드의 `OnFinished` 가 한다. (MUST)
   - 태스크를 넘기는 모양은 가상 함수다(`Task::Run`·`OnFinished`). `std::function` 본문을 받지 않는다 - 캡처한 `SafePtr` 가 워커에서 소멸할 수 있다. (MUST) (D-212)

@@ -24,13 +24,13 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!--
-    3D 물리 커널이다(D-414, physics3d-plan §2.1). Tier E 이고 캔버스·컴포넌트를 모른다. JBroCore 만 본다.
+    3D 물리 커널이다(D-414, physics3d-plan §2.1). Tier E 이고 캔버스·컴포넌트를 모른다. JBroCore 와, 스텝을 나눠 돌릴 워커 묶음 때문에 JBroTask 를 본다(D-428).
     **Jolt 의 include 경로를 받는 엔진 모듈은 이것 하나다** - 공개 헤더는 Jolt 를 include 하지 않고 Source/ 만 Jolt 를 본다.
     JPH_* 매크로는 Jolt 라이브러리와 같은 값(JBro.Common.props 의 JBroJoltDefines)을 받아야 구조체 모양이 같다.
   -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroPhysics3D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroThirdPartyDir)Jolt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroPhysics3D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroTask\Include;$(JBroThirdPartyDir)Jolt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>$(JBroJoltDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -43,6 +43,10 @@
   <ItemGroup>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroTask\JBroTask.vcxproj">
+      <Project>{1a000023-0000-4000-8000-00000000da5c}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="$(JBroThirdPartyDir)Jolt\Jolt.vcxproj">

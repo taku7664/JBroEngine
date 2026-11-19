@@ -325,8 +325,9 @@ namespace JBro::Physics3D
         void Step(Float deltaTime);
 
         // 스텝을 나눌 물리 전용 워커 수(D-419). 0 이면 메인 한 스레드이고 워커를 세우지 않는다. `MaxWorkerCount` 에서 자른다.
-        // 워커는 Jolt 의 스레드 풀이다 - 엔진의 `TaskManager` 는 메인 스레드에서만 일을 받고 넣을 때마다 묶음을 힙에 만들어, Jolt 가 워커 안에서
-        // 스텝마다 잡을 수십 개 만드는 길에 맞지 않는다(2D 물리도 같은 까닭으로 제 워커를 든다, D-223). 같은 수를 다시 주면 아무것도 하지 않는다.
+        // 워커는 엔진의 태스크 모듈이 든다 - Jolt 의 잡은 `JBro::WorkerPool`(어느 스레드에서나 할당 없이 넣는 워커 묶음) 위에서 돈다(D-428).
+        // `TaskManager` 가 아닌 까닭: 그것은 메인 스레드에서만 일을 받고 넣을 때마다 묶음을 힙에 만든다. Jolt 는 워커 안에서 스텝마다 잡을 수십 개 만든다.
+        // 같은 수를 다시 주면 아무것도 하지 않는다.
         void SetWorkerCount(UInt32 count);
         UInt32 GetWorkerCount() const;
 

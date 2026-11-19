@@ -1,11 +1,11 @@
 ﻿#include <JBro/Physics3D/World.h>
 
 #include "JoltRuntime.h"
+#include "TaskJobSystem.h"
 
 #include <Jolt/Jolt.h>
 
 #include <Jolt/Core/JobSystemSingleThreaded.h>
-#include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyFilter.h>
@@ -819,6 +819,7 @@ namespace JBro::Physics3D
             : runtime()
             , temp(settings.tempAllocatorBytes)
             , singleThreaded(JPH::cMaxPhysicsJobs)
+            , taskJobs(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers)
             , broadPhaseLayers(*this)
             , objectVsBroadPhase(*this)
             , objectPairs(*this)
@@ -880,14 +881,14 @@ namespace JBro::Physics3D
         LayerCombo combos[MaxLayerCombos];
         UInt32 comboCount = 0;
         JPH::TempAllocatorImpl temp;
-        // 워커가 0 이면 이것으로 돈다. 워커가 있으면 `pool` 이다(D-419).
+        // 워커가 0 이면 이것으로 돈다. 워커가 있으면 엔진의 워커 묶음 위의 `taskJobs` 다(D-419·D-428).
         JPH::JobSystemSingleThreaded singleThreaded;
-        OwnerPtr<JPH::JobSystemThreadPool> pool;
+        TaskJobSystem taskJobs;
         UInt32 workerCount = 0;
 
         JPH::JobSystem* Jobs()
         {
-            return pool.Get() != nullptr ? static_cast<JPH::JobSystem*>(pool.Get()) : static_cast<JPH::JobSystem*>(&singleThreaded);
+            return workerCount != 0 ? static_cast<JPH::JobSystem*>(&taskJobs) : static_cast<JPH::JobSystem*>(&singleThreaded);
         }
         BroadPhaseLayers broadPhaseLayers;
         ObjectVsBroadPhase objectVsBroadPhase;
@@ -2153,12 +2154,8 @@ namespace JBro::Physics3D
         {
             return;
         }
-        // 풀은 스텝 밖(메인 스레드)에서만 세우고 허문다. 허무는 동안 워커가 끝나기를 기다린다.
-        m_impl->pool.Reset();
-        if (clamped != 0)
-        {
-            m_impl->pool = MakeOwnerPtr<JPH::JobSystemThreadPool>(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, static_cast<int>(clamped.Get()));
-        }
+        // 워커는 스텝 밖(메인 스레드)에서만 세우고 거둔다. 거두는 동안 줄 선 잡이 끝나기를 기다린다.
+        m_impl->taskJobs.SetWorkerCount(clamped);
         m_impl->workerCount = clamped;
     }
 

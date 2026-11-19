@@ -1,5 +1,6 @@
 ﻿#include "TestCases.h"
 #include <JBro/Task/TaskManager.h>
+#include <JBro/Task/WorkerPool.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -898,6 +899,90 @@ namespace
         rhi.Shutdown();
         platform.Shutdown();
     }
+
+    // **워커 묶음**(D-428). 워커 안에서 넣은 일도 돌고(나눴다 합치기), 넣는 길은 할당하지 않으며, 멈출 때 줄 선 일을 다 돌린다.
+    // 워커가 없거나 자리가 차면 넣기가 거절된다 - 부른 쪽이 그 자리에서 돌린다.
+    struct FanOut
+    {
+        JBro::WorkerPool* pool = nullptr;
+        std::atomic<std::uint32_t> done{0};
+        std::atomic<std::uint32_t> inline_{0};
+        std::atomic<std::uint32_t> threads{0};
+    };
+
+    void CountLeaf(void* context)
+    {
+        static_cast<FanOut*>(context)->done.fetch_add(1);
+    }
+
+    // 일 하나가 워커 안에서 자식 넷을 넣는다. 거절되면 그 자리에서 돌린다.
+    void SpawnChildren(void* context)
+    {
+        FanOut* fan = static_cast<FanOut*>(context);
+        for (std::uint32_t child = 0; child < 4; ++child)
+        {
+            if (false == fan->pool->TrySubmit(JBro::WorkerJob{&CountLeaf, fan}))
+            {
+                fan->inline_.fetch_add(1);
+                CountLeaf(fan);
+            }
+        }
+        fan->done.fetch_add(1);
+    }
+
+    void TestWorkerPoolRunsJobsSubmittedFromWorkers()
+    {
+        JBro::WorkerPool pool;
+        FanOut fan;
+        fan.pool = &pool;
+        Check(pool.Start(0, 16) && pool.GetWorkerCount() == 0, "a pool may stand without workers");
+        Check(false == pool.TrySubmit(JBro::WorkerJob{&CountLeaf, &fan}), "a pool without workers turns jobs away so the caller runs them");
+        Check(pool.Start(4, 4096) && pool.GetWorkerCount() == 4, "the pool raises four workers");
+        constexpr std::uint32_t parents = 1000;
+        for (std::uint32_t parent = 0; parent < parents; ++parent)
+        {
+            if (false == pool.TrySubmit(JBro::WorkerJob{&SpawnChildren, &fan}))
+            {
+                SpawnChildren(&fan);
+            }
+        }
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (fan.done.load() < parents * 5 && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::yield();
+        }
+        Check(fan.done.load() == parents * 5, "every job and every job a worker submitted runs exactly once");
+        pool.Stop();
+        Check(pool.GetWorkerCount() == 0, "stopping takes the workers back");
+
+        // 자리가 차면 거절한다. 워커 하나를 붙잡아 두고 자리 둘을 채운다.
+        std::atomic<bool> release{false};
+        struct Hold
+        {
+            std::atomic<bool>* release;
+            std::atomic<bool> started{false};
+        } hold{&release};
+        const auto holdWorker = [](void* context) {
+            Hold* held = static_cast<Hold*>(context);
+            held->started.store(true);
+            while (false == held->release->load())
+            {
+                std::this_thread::yield();
+            }
+        };
+        Check(pool.Start(1, 2), "a single worker with two slots");
+        Check(pool.TrySubmit(JBro::WorkerJob{holdWorker, &hold}), "the first job takes the worker");
+        while (false == hold.started.load())
+        {
+            std::this_thread::yield();
+        }
+        FanOut counted;
+        Check(pool.TrySubmit(JBro::WorkerJob{&CountLeaf, &counted}) && pool.TrySubmit(JBro::WorkerJob{&CountLeaf, &counted}), "two jobs wait in the two slots");
+        Check(false == pool.TrySubmit(JBro::WorkerJob{&CountLeaf, &counted}), "a full queue turns the next job away");
+        release.store(true);
+        pool.Stop();
+        Check(counted.done.load() == 2, "stopping runs the jobs still waiting");
+    }
 }
 
 JBro::Int32 RunTaskManagerTests()
@@ -905,6 +990,7 @@ JBro::Int32 RunTaskManagerTests()
     try
     {
         JBRO_CASE(TestParallelGroupRunsOnSeveralWorkersAtOnce());
+        JBRO_CASE(TestWorkerPoolRunsJobsSubmittedFromWorkers());
         JBRO_CASE(TestSequentialGroupNeverOverlaps());
         JBRO_CASE(TestProgressCountsUpAndFailuresSeparately());
         JBRO_CASE(TestUnreportedSubTasksCountAsDone());
