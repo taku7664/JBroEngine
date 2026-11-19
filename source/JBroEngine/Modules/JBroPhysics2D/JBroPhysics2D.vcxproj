@@ -25,13 +25,13 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!--
     2D 물리 커널이다(D-199). Tier E 이고 캔버스·컴포넌트를 모른다.
-    JBroCore 만 본다. Vector2 가 Core 로 옮겨가면서 Framework2D 의 include 경로는 필요 없어졌다.
+    JBroCore 와, 스텝을 나눠 돌릴 워커 묶음 때문에 JBroTask 를 본다(D-429). Vector2 가 Core 로 옮겨가면서 Framework2D 의 include 경로는 필요 없어졌다.
     JBroFramework2D 와 JBroRuntime 의 include 경로를 모두 받지 않으므로,
     컴포넌트 헤더(그것이 Runtime 을 include 한다)를 넣으면 컴파일이 실패한다.
   -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroTask\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -41,6 +41,10 @@
     <ClCompile Include="Source\**\*.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroTask\JBroTask.vcxproj">
+      <Project>{1a000023-0000-4000-8000-00000000da5c}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>

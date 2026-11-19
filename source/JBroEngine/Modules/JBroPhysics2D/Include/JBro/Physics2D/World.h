@@ -22,12 +22,14 @@
 // **바디의 상태는 질량 중심의 위치와 각도다.** 트랜스폼 원점은 거기서 되짚는다. 기존 엔진은 임펄스를 면적
 // 중심 기준으로 주면서 적분은 원점 기준으로 돌려, 중심이 원점에서 먼 도형(L·U)이 스텝마다 어긋났다
 // (physics-plan §1.2 의 5).
+namespace JBro
+{
+    // 워커는 엔진의 태스크 모듈의 것이다(D-429).
+    class WorkerPool;
+}
+
 namespace JBro::Physics2D
 {
-    namespace Internal
-    {
-        class WorkerPool;
-    }
 
     // 물리 전용 워커의 상한이다(D-223). 명시한 값도 여기서 자른다.
     inline constexpr UInt32 MaxWorkerCount = 16;
@@ -522,8 +524,8 @@ namespace JBro::Physics2D
         Array<ContactEvent>  m_beginEvents;
         Array<Candidate>     m_candidates;
         Array<Manifold>      m_candidateManifolds;
-        // 워커 수가 0 이 아닐 때만 있다.
-        OwnerPtr<Internal::WorkerPool> m_workers;
+        // 워커 수가 0 이 아닐 때만 있다. `JBroTask` 의 워커 묶음이다(D-429 - 전에는 이 모듈이 제 스레드를 들었다).
+        OwnerPtr<WorkerPool> m_workers;
         StepStats            m_lastStats;
         // 섬 찾기(합치고 찾기)의 부모 표와 섬마다의 가장 짧은 잠든 시간. 용량이 찬 뒤로는 할당하지 않는다.
         Array<UInt32> m_islandParent;

@@ -985,12 +985,64 @@ namespace
     }
 }
 
+namespace
+{
+    struct Visits
+    {
+        std::atomic<std::uint32_t> counts[20000];
+        std::atomic<std::uint32_t> calls{0};
+        std::thread::id caller;
+        std::atomic<bool> helped{false};
+    };
+
+    void VisitRange(void* context, JBro::UInt32 begin, JBro::UInt32 end)
+    {
+        Visits* visits = static_cast<Visits*>(context);
+        visits->calls.fetch_add(1);
+        if (std::this_thread::get_id() != visits->caller)
+        {
+            visits->helped.store(true);
+        }
+        for (JBro::UInt32 index = begin; index < end; ++index)
+        {
+            visits->counts[index.Get()].fetch_add(1);
+        }
+    }
+
+    // **나눠 돌기**(D-429). 워커 넷과 부르는 스레드가 [0, n) 을 나눠 칸마다 꼭 한 번 돌고, 돌아왔을 때는 모두 끝나 있다.
+    // 스택의 상태를 쓰므로 여러 번 이어 불러도 앞의 것이 남지 않는다. 워커가 없으면 부르는 스레드에서 한 번에 돈다.
+    void TestWorkerPoolParallelForVisitsEachIndexOnce()
+    {
+        JBro::WorkerPool pool;
+        Check(pool.Start(4, 64), "the pool raises four workers");
+        JBro::OwnerPtr<Visits> visits = JBro::MakeOwnerPtr<Visits>();
+        visits->caller = std::this_thread::get_id();
+        for (std::uint32_t round = 0; round < 200; ++round)
+        {
+            pool.ParallelFor(20000, 37, &VisitRange, visits.Get());
+        }
+        JBro::Bool exact = true;
+        for (const std::atomic<std::uint32_t>& count : visits->counts)
+        {
+            exact = exact && count.load() == 200u;
+        }
+        Check(exact, "every index is visited exactly once per call, and each call has finished when it returns");
+        Check(visits->helped.load(), "the workers take part, not only the caller");
+        pool.Stop();
+        Check(pool.Start(0, 4), "a pool may stand without workers");
+        visits->calls.store(0);
+        pool.ParallelFor(1000, 10, &VisitRange, visits.Get());
+        Check(visits->calls.load() == 1u, "without workers the caller runs the whole range at once");
+    }
+}
+
 JBro::Int32 RunTaskManagerTests()
 {
     try
     {
         JBRO_CASE(TestParallelGroupRunsOnSeveralWorkersAtOnce());
         JBRO_CASE(TestWorkerPoolRunsJobsSubmittedFromWorkers());
+        JBRO_CASE(TestWorkerPoolParallelForVisitsEachIndexOnce());
         JBRO_CASE(TestSequentialGroupNeverOverlaps());
         JBRO_CASE(TestProgressCountsUpAndFailuresSeparately());
         JBRO_CASE(TestUnreportedSubTasksCountAsDone());

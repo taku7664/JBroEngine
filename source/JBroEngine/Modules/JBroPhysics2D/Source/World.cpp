@@ -1,7 +1,7 @@
 ﻿#include <JBro/Physics2D/World.h>
 
 #include "VectorMath.h"
-#include "WorkerPool.h"
+#include <JBro/Task/WorkerPool.h>
 
 #include <algorithm>
 #include <bit>
@@ -136,9 +136,10 @@ namespace JBro::Physics2D
         }
         if (m_workers.Get() == nullptr)
         {
-            m_workers = MakeOwnerPtr<Internal::WorkerPool>();
+            m_workers = MakeOwnerPtr<WorkerPool>();
         }
-        m_workers->Start(count);
+        // 돕는 일은 한 번에 워커 수만큼만 줄 선다 - 자리 64 면 넉넉하다.
+        m_workers->Start(count, 64u, L"JBro Physics Worker");
         if (m_workers->GetWorkerCount() == 0)
         {
             // 스레드가 없는 빌드다.

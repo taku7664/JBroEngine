@@ -3058,6 +3058,15 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-429. 2D 물리의 워커도 `JBroTask` 의 `WorkerPool` 위로 - 물리 모듈은 제 스레드를 들지 않는다.** (2026-11-20, D-428 의 열림)
+  Updates: D-223(2D 물리 전용 워커는 커널의 `WorkerPool`), D-209(모듈마다 스레드를 들지 않는다 - 예외에서 2D 물리를 뺐다).
+  (1) `JBroTask` 의 `WorkerPool` 에 `ParallelFor(count, grain, job, context)` 를 더했다: 부르는 스레드도 칸을 받고, 워커 수와 덩어리 수 - 1 중 작은 만큼 돕는 일을 줄 세우며, 모두 끝나야 돌아온다.
+  나눌 상태는 부른 쪽 스택에 있고, 돕는 일은 풀의 잠금 아래에서 제 몫을 내린 뒤 풀의 조건 변수를 깨운다 - 부른 쪽이 돌아가 스택이 사라진 뒤에 그것을 만지지 않는다. 할당하지 않는다.
+  (2) 스레드 이름(`JBro Physics Worker n`)과 웹(스레드 없음)은 `WorkerPool::Start` 가 맡는다.
+  (3) `JBroPhysics2D` 의 `Internal::WorkerPool` 을 지우고 `World` 가 `JBroTask` 의 것을 든다. `JBroPhysics2D` 가 `JBroTask` 에 기댄다. 결과는 워커 수와 관계없이 비트까지 같다(기존 시험 그대로).
+  확인: `TaskManager` 의 `TestWorkerPoolParallelForVisitsEachIndexOnce`(2 만 칸을 200 번, 칸마다 꼭 한 번, 워커가 실제로 돕는다, 워커 없으면 한 번에), `Physics2DWorld` 의 `TestWorkersGiveTheSameResult`.
+  뮤테이션 다섯 가운데 넷이 잡혔다(돕는 일을 보내지 않음·부른 쪽이 기다리지 않음·칸이 겹침·2D 가 워커를 세우지 않음). "부른 쪽이 돕지 않음" 은 결과가 같은 변이라 남았다(속도만 다르다). 회귀는 TaskManager·Physics2D·Physics3DWorld 가 지났고, EditorApplication 전체는 시간이 없어 다시 돌리지 않았다(이 변경은 에디터 코드를 건드리지 않는다).
+
 - **D-428. 3D 물리의 워커를 `JBroTask` 위로 - 나눴다 합치는 일의 `WorkerPool`.** (2026-11-20, physics3d-plan §2.3·§3.5)
   Updates: D-419(Jolt 의 스레드 풀). Obsoletes: D-419 (1) 의 "`JBroTask` 위가 아니다". 사용자 지시의 원문이 "`JBroTask` 위에 세워" 였고, D-419 는 그것을 바꾸며 ProjectRule 의
   "모듈마다 스레드를 들지 않는다"(D-209)에 적히지 않은 예외를 하나 더 만들었다.

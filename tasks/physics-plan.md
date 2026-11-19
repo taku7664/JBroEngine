@@ -176,7 +176,7 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
 - **기본은 메인 한 스레드이고, 좁은 판정만 물리 전용 워커로 나눌 수 있다(D-223).** 스텝·되쓰기·훅 발송·질의는 캔버스의 고정 스텝
   (`EngineInstance::Tick` → Framework2D → 시스템 목록) 안의 메인 스레드에서 돈다 - 훅과 질의가 건네는 `GameObjectHandle` 은 메인 스레드 전용이다(D-54).
   기존 엔진 물리는 스레드를 쓰지 않았다.
-- 워커는 `TaskManager`(D-209) 가 아니라 커널의 `WorkerPool` 이다. `TaskManager` 는 제출마다 할당하고 결과가 다음 프레임에 와서 서브스텝 안의
+- 워커는 `TaskManager`(D-209) 가 아니라 `WorkerPool` 이다 - 처음(D-223)에는 커널의 것이었고, D-429 부터 `JBroTask` 의 것이다(3D 와 같은 원시, 커널의 사본은 지웠다). `TaskManager` 는 제출마다 할당하고 결과가 다음 프레임에 와서 서브스텝 안의
   나눴다 합치기에 쓸 수 없다. 워커 수는 빌드 설정 `Build.PhysicsThreads`(Auto·Single·워커 수)가 정한다 - 규칙과 기준은 D-223, 단계와 실측은 §4 의 8.
 - 물리 시스템은 캔버스의 시스템 목록에 있지만 캔버스는 Framework2D 수명에 하나다. 다른 캔버스 파일을 열면 같은 캔버스를 비우고 다시 읽으므로
   시스템·커널·워커는 내려가지 않는다(`Canvas::Clear` → `ReadCanvasText`, 2026-09-26 확인).
