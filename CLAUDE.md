@@ -61,10 +61,8 @@
 
 ### 관련 문서
 
-- [README.md](./README.md) — 저장소 구성과 빌드 방법. 처음 온 사람이 먼저 보는 문서
-- [GitHub Wiki](https://github.com/taku7664/JBroEngine/wiki) — 모듈 구조·오브젝트 모델·참조·스크립트 경계와 API·리플렉션·렌더링·에디터를 설명한다.
-  **잘 바뀌지 않는 것만 적는다** — 진행 현황과 남은 일은 `tasks/todo.md` 가 갖고, 위키에 옮겨 적지 않는다.
-  미구현인 JBroScript 는 위키에 두지 않는다. 규칙의 원문이 아니므로 `ProjectRule.md`·Decisions 와 어긋나면 원문이 맞고, 계약이 바뀌면 위키도 같이 고친다
+- [README.md](./README.md) — 에디터 스크린숏뿐이다(2026-11-20, 위키와 함께 줄였다)
+- [tasks/handoff-2026-11-20.md](./tasks/handoff-2026-11-20.md) — 2026-11-20 세션 인계: 한 것(D-419~D-430), 검증이 덜 된 것, 원래 실패하는 시험, 남은 일
 - [docs/ProjectRule.md](./docs/ProjectRule.md) — 확정 규칙
 - [docs/JBroEngine.drawio.xml](./docs/JBroEngine.drawio.xml) — 구조 다이어그램 6장(계층 개관·모듈 의존·런타임과 프레임 루프·
   스크립트 경계·렌더링 경로·에디터). 규칙의 원문이 아니므로 `ProjectRule.md`·Decisions 와 어긋나면 원문이 맞고, 계약이 바뀌면 도면도 같이 고친다
