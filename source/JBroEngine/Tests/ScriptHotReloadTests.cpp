@@ -9,6 +9,7 @@
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Reflection/Field.h>
@@ -944,6 +945,127 @@ namespace
         Check(false == editor.IsScriptModuleLoaded(), "closing unloads the 3D library");
         editor.Shutdown();
     }
+
+    // **3D 스크립트가 물리의 훅과 질의를 받는다**(physics3d-plan 3 단계, D-417). 시험 DLL 의 `ProbeContact3D` 를 붙인 상자가 트리거를 지나
+    // 바닥에 떨어진다: 트리거 시작·끝이 한 번씩, 바닥과의 충돌 시작이 한 번(법선은 상자에서 바닥으로, 상대는 정적인 바닥), 닿아 있는 동안 유지,
+    // 그리고 스크립트가 `Physics3DService` 로 쏜 반직선이 제 자리에서 바닥까지의 거리를 잰다.
+    void TestA3DScriptHearsCollisionsAndQueries()
+    {
+        const fs::path root = FreshFolder(u8"부딪힘");
+        fs::create_directories(root / "Contents" / "Assets");
+        const fs::path library = root / "x64" / "Debug" / "GameScript.dll";
+        fs::create_directories(library.parent_path());
+        fs::copy_file(ProbeLibrary(L"JBroScriptModuleProbe3D.dll"), library, fs::copy_options::overwrite_existing);
+        const fs::path projectPath = root / "Falling.jproject";
+        std::ofstream(projectPath, std::ios::binary) <<
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Contents/Assets\n"
+            "ScriptSourceDirectory: Contents\n"
+            "ScriptOutputLibraryPath: x64/Debug/GameScript.dll\n"
+            "Build:\n"
+            "  ProductName: Falling\n";
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D physics hooks not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the 3D project opens");
+        Check(editor.IsScriptModuleLoaded(), "with its script library loaded");
+        struct Contacts
+        {
+            UInt32 collisionEnters;
+            UInt32 collisionStays;
+            UInt32 triggerEnters;
+            UInt32 triggerExits;
+            UInt32 otherValid;
+            UInt32 otherStatic;
+            Float collisionNormalY;
+            Float rayDistance;
+            UInt32 listenerEnters;
+            UInt32 listenerOtherValid;
+        };
+        using GetContacts = Contacts (*)() noexcept;
+        const auto contacts = reinterpret_cast<GetContacts>(editor.GetScriptModule()->GetSymbol("JBroScriptProbe3D_GetContacts"));
+        Check(contacts != nullptr, "the probe exports its contact counters");
+
+        Canvas* canvas = editor.GetCanvas();
+        const auto place = [&](const char* name, Vector3 position) {
+            Object::GameObject* object = canvas->CreateObject(name);
+            Component::Transform3D* transform = canvas->AttachComponent<Component::Transform3D>(object);
+            Check(transform != nullptr, "each object has a 3D transform");
+            transform->position = position;
+            Component::Collider3D* collider = canvas->AttachComponent<Component::Collider3D>(object);
+            Check(collider != nullptr, "and a collider");
+            return collider;
+        };
+        place("Ground", {0.0f, -0.5f, 0.0f})->size = {20.0f, 1.0f, 20.0f};
+        Object::GameObject* ground = nullptr;
+        canvas->ForEachObject([&](Object::GameObject& candidate) {
+            if (std::strcmp(candidate.GetName(), "Ground") == 0)
+            {
+                ground = &candidate;
+            }
+        });
+        Check(canvas->AttachScript(ground, "ProbeListener3D") != nullptr, "the ground listens too");
+        Component::Collider3D* gate = place("Gate", {0.0f, 1.5f, 0.0f});
+        gate->size = {2.0f, 0.2f, 2.0f};
+        gate->isTrigger = true;
+        Component::Collider3D* box = place("Faller", {0.0f, 3.0f, 0.0f});
+        box->layer = UInt32(0x4u);
+        Object::GameObject* faller = nullptr;
+        canvas->ForEachObject([&](Object::GameObject& candidate) {
+            if (std::strcmp(candidate.GetName(), "Faller") == 0)
+            {
+                faller = &candidate;
+            }
+        });
+        Check(canvas->AttachComponent<Component::Rigidbody3D>(faller) != nullptr, "the faller has a body");
+        Check(canvas->AttachScript(faller, "ProbeContact3D") != nullptr, "and the contact probe from the library");
+        // 상자 아래로 삐져나온 트리거 구 - 움직이는 오브젝트의 트리거라 바닥에 내려앉으면 정적인 바닥과의 겹침을 듣는다.
+        Component::Collider3D* feeler = canvas->AttachComponent<Component::Collider3D>(faller);
+        Check(feeler != nullptr, "the faller takes a second, trigger collider");
+        feeler->shape = Component::ColliderShape3D::Sphere;
+        feeler->radius = 0.3f;
+        feeler->offset = {0.0f, -0.6f, 0.0f};
+        feeler->isTrigger = true;
+        feeler->layer = UInt32(0x4u);
+
+        Check(editor.StartSimulation(), "play starts");
+        for (Int32 frame = 0; frame < 150; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the editor ticks while playing");
+        }
+        const Contacts seen = contacts();
+        std::cout << "  3D hooks: collision enters " << seen.collisionEnters.Get() << ", stays " << seen.collisionStays.Get()
+                  << ", trigger " << seen.triggerEnters.Get() << "/" << seen.triggerExits.Get() << ", normal y " << seen.collisionNormalY.Get()
+                  << ", ray " << seen.rayDistance.Get() << std::endl;
+        // 트리거 사건은 콜라이더(바디) 쌍마다다: 상자-게이트, 트리거 구-게이트(움직이는 트리거는 정적인 트리거도 본다)가 들어갔다 나오고,
+        // 트리거 구-바닥은 들어간 채 남는다.
+        Check(seen.triggerEnters == 3 && seen.triggerExits == 2,
+            "the box and the feeler sphere pass through the gate, and the feeler enters the static ground and stays in it");
+        Check(seen.listenerEnters == 1 && seen.listenerOtherValid == 1, "the ground hears the same landing, knowing the box as its other side");
+        Check(seen.collisionEnters == 1, "landing on the ground begins one collision");
+        Check(seen.otherValid == 1 && seen.otherStatic == 1, "whose other side is the ground, a static body");
+        Check(seen.collisionNormalY < -0.9f, "and whose normal points from the box to the ground");
+        Check(seen.collisionStays > 5, "the box keeps hearing the contact while it settles");
+        Check(seen.rayDistance > 0.45f && seen.rayDistance < 0.52f, "the script's ray from its centre reaches the ground half a box below");
+
+        editor.StopSimulation();
+        editor.CloseProject();
+        editor.Shutdown();
+    }
 }
 
 Int32 RunScriptHotReloadTests()
@@ -956,6 +1078,7 @@ Int32 RunScriptHotReloadTests()
     TestTheEditorWarnsWhenWhatItInsertsLostAField();
     TestTheEditorReloadsTheLibraryUnderItsScripts();
     TestA3DProjectRunsItsScriptLibrary();
+    TestA3DScriptHearsCollisionsAndQueries();
     std::cout << "Script hot reload tests passed.\n";
     return 0;
 }

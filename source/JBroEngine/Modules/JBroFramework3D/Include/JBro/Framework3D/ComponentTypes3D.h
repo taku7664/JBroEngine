@@ -3,6 +3,9 @@
 // 3D 빌트인 컴포넌트의 열거형이다. 컴포넌트 데이터 헤더와 스크립트가 함께 본다(D-302 - 데이터 헤더는 스크립트 대상에서 막혀 있다).
 
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Runtime/GameObjectHandle.h>
+#include <JBro/Types/Math3D.h>
+#include <JBro/Types/PhysicsLayerMask.h>
 
 #include <cstdint>
 
@@ -81,4 +84,28 @@ namespace JBro
         { Component::ColliderShape3D::Box,     "Box" },
         { Component::ColliderShape3D::Sphere,  "Sphere" },
         { Component::ColliderShape3D::Capsule, "Capsule" });
+}
+
+namespace JBro
+{
+    // 충돌·트리거 훅이 받는 값이다(D-417, 2D 의 `Collision2D` 와 같은 모양). DLL 경계를 넘으므로 POD 다. normal 은 받는 쪽에서 상대 쪽으로 간다.
+    // point 는 대표 접촉점(월드)이고, 끝(Exit) 훅에서는 둘 다 0 이다 - 이미 떨어졌다.
+    struct Collision3D
+    {
+        Handle::GameObject other;
+        Component::BodyType3D bodyType = Component::BodyType3D::Dynamic;
+        Vector3 point;
+        Vector3 normal;
+    };
+
+    // 반직선·밀기 질의의 결과다(D-417, 2D 의 `RaycastHit2D` 와 같은 모양). normal 은 맞은 표면의 바깥(쏜 쪽을 향한다)이고 distance 는
+    // 출발점에서 맞은 자리까지다. 출발부터 겹쳐 있으면 distance 0 이다.
+    struct RaycastHit3D
+    {
+        Handle::GameObject other;
+        Component::BodyType3D bodyType = Component::BodyType3D::Static;
+        Vector3 point;
+        Vector3 normal;
+        Float distance = 0.0f;
+    };
 }

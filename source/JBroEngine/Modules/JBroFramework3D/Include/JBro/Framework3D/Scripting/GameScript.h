@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 
@@ -11,7 +12,7 @@ namespace JBro
     // 화면 레이어 UI 가 부르는 훅이 있다 - 화면 UI 시스템은 오브젝트에 붙은 스크립트를 이 타입으로 여기고 훅을 부른다(프레임 경로에서 dynamic_cast 를
     // 쓰지 않는다). 그래서 등록은 `RegisterScriptType3D` 로만 하고, 그것이 파생 관계를 컴파일할 때 검사한다.
     //
-    // 가상 함수 표는 스크립트 DLL 과의 ABI 다. 훅을 더하면 `Framework3DServiceContextAbiVersion` 을 올린다. 3D 의 충돌 훅은 아직 없다.
+    // 가상 함수 표는 스크립트 DLL 과의 ABI 다. 훅을 더하면 `Framework3DServiceContextAbiVersion` 을 올린다. 충돌 훅은 D-417 에서 더했다.
     class GameScript3D : public GameScriptBase
     {
     public:
@@ -36,6 +37,16 @@ namespace JBro
         // 같은 오브젝트의 `ListView2D` 가 항목을 묶을 때와 `variableSize` 목록이 항목을 잴 때.
         virtual void OnListItem();
         virtual void OnListMeasure();
+
+        // **3D 물리가 부른다**(D-417, 2D 의 `GameScript2D` 와 같은 이름·같은 때). 고정 스텝이 끝난 뒤, 이 오브젝트의 콜라이더가 다른 오브젝트의
+        // 콜라이더와 닿기 시작했을 때·계속 닿아 있을 때(잠들면 멈춘다)·떨어졌을 때다. 둘 중 하나가 트리거면 `OnTrigger*` 다.
+        // `hit.normal` 은 이 오브젝트에서 상대 쪽으로 간다. 끝 훅의 점과 법선은 0 이다.
+        virtual void OnCollisionEnter(const Collision3D& hit);
+        virtual void OnCollisionStay(const Collision3D& hit);
+        virtual void OnCollisionExit(const Collision3D& hit);
+        virtual void OnTriggerEnter(const Collision3D& hit);
+        virtual void OnTriggerStay(const Collision3D& hit);
+        virtual void OnTriggerExit(const Collision3D& hit);
     };
 
     // 3D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다(cpp-script-plan §3.2). `GameScriptBase` 에서 바로 파생한 타입은 여기서

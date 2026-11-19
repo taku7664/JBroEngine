@@ -383,6 +383,154 @@ namespace
         Check(mass.GetLinearVelocity(hit).x < 0.2f && mass.GetLinearVelocity(moving).x < 0.5f,
             "a target made a hundred times heavier in place barely moves and stops the mover");
     }
+
+    // 접촉 사건(D-417): 바디 쌍마다 시작 한 번, 닿아 있는 동안 스텝마다 유지, 떨어지면 끝. 트리거도 같은 길이고, 지운 바디의 접촉도 끝으로 나온다.
+    void TestContactEventsFollowTouchingPairs()
+    {
+        World world;
+        const BodyId ground = MakeGround(world);
+        BodyDef def = BoxAt({0.0f, 1.0f, 0.0f});
+        def.userData = 77;
+        const BodyId box = world.CreateBody(def);
+        JBro::Int32 begins = 0;
+        JBro::Int32 stays = 0;
+        JBro::Bool firstSeen = false;
+        for (JBro::Int32 step = 0; step < 90; ++step)
+        {
+            world.Step(Frame);
+            for (const JBro::Physics3D::ContactEvent& event : world.GetBeginEvents())
+            {
+                ++begins;
+                const JBro::Bool boxIsA = event.bodyA.value == box.value;
+                const JBro::UInt64 boxData = boxIsA ? event.userDataA : event.userDataB;
+                // 법선은 A 에서 B 로 간다. 상자가 A 면 아래(바닥 쪽)를 가리킨다.
+                const JBro::Float down = boxIsA ? event.normal.y.Get() : -event.normal.y.Get();
+                Check(boxData == 77 && down < -0.9f && false == event.isTrigger, "the begin carries the box, a normal from it to the ground and no trigger");
+                Check(std::fabs(event.point.y) < 0.05f, "and a contact point on the ground's top face");
+                firstSeen = true;
+            }
+            for (const JBro::Physics3D::ContactEvent& event : world.GetStayEvents())
+            {
+                ++stays;
+                // 유지에서도 법선은 사건의 A 에서 B 로 간다 - Jolt 가 콜백에서 두 바디를 어느 차례로 주든.
+                const JBro::Float down = event.bodyA.value == box.value ? event.normal.y.Get() : -event.normal.y.Get();
+                Check(down < -0.9f, "a stay's normal also points from A to B");
+            }
+            Check(world.GetEndEvents().Size() == 0, "nothing ends while the box lies on the ground");
+        }
+        std::cout << "  begins " << begins << ", stays " << stays << '\n';
+        Check(firstSeen && begins == 1, "a box landing on the ground begins one contact, not one per contact point");
+        // 잠든 뒤로는 유지가 나오지 않는다(2D 와 같다 - 잠든 더미가 스텝마다 알리지 않는다). Jolt 는 잠들 때 접촉을 "제거" 로 알리지만 끝이 아니다.
+        Check(stays > 20 && false == world.IsAwake(box), "it keeps the contact while it settles, then falls asleep without ending it");
+        (void)ground;
+
+        // 잠든 상자를 들어 올리면(깨워 옮긴다) 끝난다.
+        world.SetTransform(box, {0.0f, 5.0f, 0.0f}, {});
+        world.Step(Frame);
+        Check(world.GetEndEvents().Size() == 1, "lifting the box away ends the contact");
+
+        // 다시 떨어뜨려 닿게 한 뒤 지우면, 다음 스텝에 끝이 나온다 - userData 가 실려 있다.
+        Run(world, 2.0f);
+        world.DestroyBody(box);
+        world.Step(Frame);
+        Check(world.GetEndEvents().Size() == 1 && (world.GetEndEvents()[0].userDataA == 77 || world.GetEndEvents()[0].userDataB == 77),
+            "destroying a body that touches ends its contact with its user data");
+
+        // 트리거를 지나가는 상자: 시작과 끝이 트리거로 나오고, 상자는 지나간다.
+        World triggers;
+        BodyDef net;
+        net.type = BodyType::Static;
+        net.shape.halfExtents = {2.0f, 0.1f, 2.0f};
+        net.isTrigger = true;
+        triggers.CreateBody(net);
+        const BodyId diver = triggers.CreateBody(BoxAt({0.0f, 2.0f, 0.0f}));
+        JBro::Int32 triggerBegins = 0;
+        JBro::Int32 triggerEnds = 0;
+        for (JBro::Int32 step = 0; step < 90; ++step)
+        {
+            triggers.Step(Frame);
+            for (const JBro::Physics3D::ContactEvent& event : triggers.GetBeginEvents())
+            {
+                triggerBegins += event.isTrigger ? 1 : 0;
+            }
+            for (const JBro::Physics3D::ContactEvent& event : triggers.GetEndEvents())
+            {
+                triggerEnds += event.isTrigger ? 1 : 0;
+            }
+        }
+        Check(triggerBegins == 1 && triggerEnds == 1 && triggers.GetPosition(diver).y < -1.0f,
+            "a box falling through a trigger begins and ends one trigger contact and keeps falling");
+
+        // 키네마틱 트리거와 정적 바닥: 움직이는 오브젝트의 트리거(`triggerSeesStatic`)만 바닥과의 겹침을 알린다.
+        const auto touchesGround = [](JBro::Bool seesStatic) {
+            World still;
+            MakeGround(still);
+            BodyDef sensor = BoxAt({0.0f, 0.4f, 0.0f});
+            sensor.type = BodyType::Kinematic;
+            sensor.isTrigger = true;
+            sensor.triggerSeesStatic = seesStatic;
+            still.CreateBody(sensor);
+            JBro::Int32 begun = 0;
+            for (JBro::Int32 step = 0; step < 5; ++step)
+            {
+                still.Step(Frame);
+                begun += static_cast<JBro::Int32>(still.GetBeginEvents().Size());
+            }
+            return begun;
+        };
+        Check(touchesGround(true) == 1, "a moving object's trigger hears the static ground it overlaps");
+        Check(touchesGround(false) == 0, "a still trigger does not - two things that never move do not meet, as in 2D");
+    }
+
+    // 질의(D-417): 반직선·모든 반직선·구와 상자 겹침·구와 상자 밀기. 레이어 마스크로 거르고, 결과는 맞은 바디의 userData 다.
+    void TestQueriesFindBodies()
+    {
+        World world;
+        BodyDef floor;
+        floor.type = BodyType::Static;
+        floor.shape.halfExtents = {20.0f, 0.5f, 20.0f};
+        floor.position = {0.0f, -0.5f, 0.0f};
+        floor.userData = 1;
+        world.CreateBody(floor);
+        // 윗면이 y=1 인 정적 상자. 레이어는 비트 2.
+        BodyDef block;
+        block.type = BodyType::Static;
+        block.shape.halfExtents = {0.5f, 0.5f, 0.5f};
+        block.position = {3.0f, 0.5f, 0.0f};
+        block.layer = 0x4u;
+        block.userData = 2;
+        world.CreateBody(block);
+        const JBro::UInt32 all = 0xFFFFFFFFu;
+
+        JBro::Physics3D::QueryHit hit;
+        Check(world.Raycast({3.0f, 5.0f, 0.0f}, {0.0f, -2.0f, 0.0f}, 10.0f, all, hit), "a ray down onto the block hits");
+        Check(hit.userData == 2 && Near(hit.distance, 4.0f, 1.0e-3f) && Near(hit.point.y, 1.0f, 1.0e-3f) && Near(hit.normal.y, 1.0f, 1.0e-3f),
+            "the block, four units down, on its top face facing up - the direction need not be normalized");
+        Check(world.Raycast({3.0f, 5.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 10.0f, ~0x4u, hit) && hit.userData == 1 && Near(hit.distance, 5.0f, 1.0e-3f),
+            "masking the block's layer out lets the ray reach the floor");
+        Check(false == world.Raycast({3.0f, 5.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 3.0f, all, hit) && hit.userData == 0,
+            "a ray too short misses and clears the hit");
+        Check(false == world.Raycast({3.0f, 5.0f, 0.0f}, {0.0f, 0.0f, 0.0f}, 10.0f, all, hit), "a ray with no direction misses");
+
+        JBro::Array<JBro::Physics3D::QueryHit> hits;
+        world.RaycastAll({3.0f, 5.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 10.0f, all, hits);
+        Check(hits.Size() == 2 && hits[0].userData == 2 && hits[1].userData == 1, "a ray through everything finds the block, then the floor");
+
+        JBro::Array<JBro::UInt64> found;
+        world.OverlapSphere({3.0f, 0.5f, 0.0f}, 0.2f, all, found);
+        Check(found.Size() == 1 && found[0] == 2, "a small sphere inside the block overlaps only the block");
+        world.OverlapBox({2.0f, 0.5f, 0.0f}, {2.0f, 1.0f, 1.0f}, {}, all, found);
+        Check(found.Size() == 2, "a box over both overlaps the floor and the block, once each");
+        world.OverlapBox({2.0f, 0.5f, 0.0f}, {2.0f, 1.0f, 1.0f}, {}, 0x4u, found);
+        Check(found.Size() == 1 && found[0] == 2, "and only the block when the mask asks for its layer");
+
+        Check(world.SphereCast({3.0f, 5.0f, 0.0f}, 0.5f, {0.0f, -1.0f, 0.0f}, 10.0f, all, hit), "a sphere pushed down hits");
+        Check(hit.userData == 2 && Near(hit.distance, 3.5f, 1.0e-2f) && Near(hit.normal.y, 1.0f, 1.0e-2f) && Near(hit.point.y, 1.0f, 1.0e-2f),
+            "it stops one radius above the block's top, touching it there");
+        Check(world.BoxCast({3.0f, 5.0f, 0.0f}, {0.25f, 0.25f, 0.25f}, {}, {0.0f, -1.0f, 0.0f}, 10.0f, all, hit),
+            "a box pushed down hits");
+        Check(hit.userData == 2 && Near(hit.distance, 3.75f, 1.0e-2f), "it stops its half size above the block's top");
+    }
 }
 
 JBro::Int32 RunPhysics3DWorldTests()
@@ -395,6 +543,8 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestSteppingDoesNotAllocate());
     JBRO_CASE(TestCompoundShapesAndSurfaces());
     JBRO_CASE(TestShapesAndPropertiesChangeInPlace());
+    JBRO_CASE(TestContactEventsFollowTouchingPairs());
+    JBRO_CASE(TestQueriesFindBodies());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }

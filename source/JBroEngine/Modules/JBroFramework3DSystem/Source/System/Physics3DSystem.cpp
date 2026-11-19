@@ -4,6 +4,8 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/Scripting/GameScript.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 #include <JBro/Physics3D/World.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/Array.h>
@@ -262,7 +264,22 @@ namespace JBro::System
             Bool seen = false;
         };
 
+        // 사건과 질의가 커널의 userData(오브젝트 아이디)에서 오브젝트를 찾는 표다. 스텝마다 본 오브젝트의 표시를 새로 하고,
+        // 사건을 보낸 뒤 이번에 보지 못한 것을 지운다 - 이번 스텝에 지운 오브젝트의 끝 훅까지는 남는다.
+        struct Owner
+        {
+            Handle::GameObject handle;
+            SafePtr<Object::GameObject> object;
+            UInt64 stamp = 0;
+        };
+
         Physics3D::World world;
+        Table<InstanceId, Owner> owners;
+        UInt64 stamp = 0;
+        // 훅을 부를 스크립트를 먼저 모으는 자리와 질의 결과를 받는 자리. 멤버로 두어 부를 때마다 할당하지 않는다.
+        Array<GameScript3D*> hookTargets;
+        Array<Physics3D::QueryHit> queryHits;
+        Array<UInt64> queryData;
         Table<InstanceId, Group> groups;
         Table<InstanceId, BodyLink> bodies;
         Table<InstanceId, SensorLink> sensors;
@@ -302,13 +319,14 @@ namespace JBro::System
 
     void Physics3DSystem::OnInitialize(Canvas& canvas)
     {
-        (void)canvas;
+        m_canvas = &canvas;
         m_state = MakeOwnerPtr<State>();
     }
 
     void Physics3DSystem::OnShutdown(Canvas& canvas)
     {
         (void)canvas;
+        m_canvas = nullptr;
         // 커널과 연결을 모두 버린다. 다시 켜면 처음부터 만든다(2D 와 같다).
         m_state = MakeOwnerPtr<State>();
     }
@@ -321,6 +339,19 @@ namespace JBro::System
         }
         State& state = *m_state;
         Physics3D::World& world = state.world;
+        ++state.stamp;
+        const auto markOwner = [&state](Object::GameObject* object) {
+            State::Owner* owner = state.owners.Find(object->GetInstanceId());
+            if (owner == nullptr)
+            {
+                State::Owner fresh;
+                fresh.handle = object->GetScriptHandle();
+                fresh.object = object->SafeFromThis();
+                state.owners.TryAdd(object->GetInstanceId(), fresh);
+                owner = state.owners.Find(object->GetInstanceId());
+            }
+            owner->stamp = state.stamp;
+        };
 
         for (auto& entry : state.groups)
         {
@@ -352,10 +383,15 @@ namespace JBro::System
                 return;
             }
             const Physics3D::ShapeDesc desc = BakeShape(collider, pose.scale);
+            markOwner(object);
             if (collider.isTrigger)
             {
+                // 움직이는 오브젝트(켜진 동적·키네마틱 몸)의 트리거만 정적인 것과의 겹침을 본다(2D 와 같다).
+                const Component::Rigidbody3D* carrier = canvas.FindComponentRaw<Component::Rigidbody3D>(object);
+                const Bool moving = carrier != nullptr && carrier->IsActiveComponent() && carrier->bodyType != Component::BodyType3D::Static;
                 Fingerprint print;
                 MixShape(print, desc);
+                print.Mix(moving);
                 print.Mix(UInt32(collider.layer));
                 print.Mix(UInt32(collider.mask));
                 const InstanceId colliderId = collider.GetInstanceId();
@@ -373,11 +409,13 @@ namespace JBro::System
                     def.type = Physics3D::BodyType::Kinematic;
                     def.shape = desc;
                     def.isTrigger = true;
+                    def.triggerSeesStatic = moving;
                     def.position = pose.position;
                     def.rotation = pose.rotation;
                     def.layer = collider.layer;
                     def.mask = collider.mask;
-                    def.userData = colliderId;
+                    // 사건과 질의가 오브젝트를 찾도록 센서도 오브젝트 아이디를 싣는다.
+                    def.userData = object->GetInstanceId();
                     State::SensorLink fresh;
                     fresh.body = world.CreateBody(def);
                     fresh.object = object->GetInstanceId();
@@ -602,5 +640,241 @@ namespace JBro::System
                 link.writtenAngularVelocity = link.rigidbodyComponent->angularVelocity;
             }
         }
+
+        // ── 6. 사건 ─────────────────────────────────────────────────────────────────
+        DispatchEvents(canvas);
+        state.removals.Clear();
+        for (auto& entry : state.owners)
+        {
+            if (entry.MappedValue.stamp != state.stamp)
+            {
+                state.removals.Add(entry.KeyValue);
+            }
+        }
+        for (const InstanceId id : state.removals)
+        {
+            state.owners.Remove(id);
+        }
+    }
+
+    namespace
+    {
+        Component::BodyType3D BodyTypeOf(Canvas& canvas, Object::GameObject* object)
+        {
+            Component::Rigidbody3D* body = object != nullptr ? canvas.FindComponentRaw<Component::Rigidbody3D>(object) : nullptr;
+            if (body == nullptr || false == body->IsActiveComponent())
+            {
+                return Component::BodyType3D::Static;
+            }
+            return body->bodyType;
+        }
+    }
+
+    void Physics3DSystem::DispatchEvents(Canvas& canvas)
+    {
+        State& state = *m_state;
+        const ArrayView<const Physics3D::ContactEvent> begins = state.world.GetBeginEvents();
+        const ArrayView<const Physics3D::ContactEvent> stays = state.world.GetStayEvents();
+        const ArrayView<const Physics3D::ContactEvent> ends = state.world.GetEndEvents();
+        if (begins.IsEmpty() && stays.IsEmpty() && ends.IsEmpty())
+        {
+            return;
+        }
+
+        enum class Phase : std::uint8_t { Enter, Stay, Exit };
+
+        // 훅이 오브젝트를 지워도 지나간 객체 위에서 다음 훅이 불리지 않게, 발송 내내 파괴를 미룬다(2D 와 같다).
+        Canvas::IterationGuard guard(canvas);
+        const auto deliver = [&](Object::GameObject* self, const Collision3D& hit, Phase phase, Bool trigger) {
+            if (self == nullptr || false == self->IsActiveInHierarchy())
+            {
+                return;
+            }
+            // 먼저 모은 뒤 부른다. 훅이 스크립트를 붙이거나 떼면 목록이 흔들린다.
+            state.hookTargets.Clear();
+            for (const ScriptSlot& slot : self->GetScripts())
+            {
+                GameScriptBase* script = slot.reference.TryGet();
+                if (script != nullptr && script->IsActiveScript())
+                {
+                    // 3D 프로젝트의 스크립트는 모두 GameScript3D 다. 등록이 컴파일 시간에 그것을 막는다(D-363).
+                    state.hookTargets.Add(static_cast<GameScript3D*>(script));
+                }
+            }
+            // 스크립트 훅은 `ScriptCallGuard` 를 거친다(D-330).
+            for (GameScript3D* script : state.hookTargets)
+            {
+                if (trigger)
+                {
+                    if (phase == Phase::Enter)
+                    {
+                        ScriptCallGuard::Call("OnTriggerEnter", [script, &hit] { script->OnTriggerEnter(hit); });
+                    }
+                    else if (phase == Phase::Stay)
+                    {
+                        ScriptCallGuard::Call("OnTriggerStay", [script, &hit] { script->OnTriggerStay(hit); });
+                    }
+                    else
+                    {
+                        ScriptCallGuard::Call("OnTriggerExit", [script, &hit] { script->OnTriggerExit(hit); });
+                    }
+                }
+                else if (phase == Phase::Enter)
+                {
+                    ScriptCallGuard::Call("OnCollisionEnter", [script, &hit] { script->OnCollisionEnter(hit); });
+                }
+                else if (phase == Phase::Stay)
+                {
+                    ScriptCallGuard::Call("OnCollisionStay", [script, &hit] { script->OnCollisionStay(hit); });
+                }
+                else
+                {
+                    ScriptCallGuard::Call("OnCollisionExit", [script, &hit] { script->OnCollisionExit(hit); });
+                }
+            }
+        };
+
+        const auto dispatch = [&](const Physics3D::ContactEvent& event, Phase phase) {
+            const State::Owner* ownerA = state.owners.Find(static_cast<InstanceId>(event.userDataA));
+            const State::Owner* ownerB = state.owners.Find(static_cast<InstanceId>(event.userDataB));
+            Object::GameObject* objectA = ownerA != nullptr ? ownerA->object.TryGet() : nullptr;
+            Object::GameObject* objectB = ownerB != nullptr ? ownerB->object.TryGet() : nullptr;
+            // 한 오브젝트의 트리거와 그 오브젝트의 몸이 겹친 것은 자기 자신이다 - 알리지 않는다.
+            if (event.userDataA == event.userDataB)
+            {
+                return;
+            }
+            // 각 스크립트는 자기 쪽에서 본 법선(자기 → 상대)을 받는다.
+            Collision3D forA;
+            forA.other = ownerB != nullptr ? ownerB->handle : Handle::GameObject{};
+            forA.bodyType = BodyTypeOf(canvas, objectB);
+            forA.point = event.point;
+            forA.normal = event.normal;
+            Collision3D forB;
+            forB.other = ownerA != nullptr ? ownerA->handle : Handle::GameObject{};
+            forB.bodyType = BodyTypeOf(canvas, objectA);
+            forB.point = event.point;
+            forB.normal = {-event.normal.x, -event.normal.y, -event.normal.z};
+            deliver(objectA, forA, phase, event.isTrigger);
+            deliver(objectB, forB, phase, event.isTrigger);
+        };
+
+        // 끝을 먼저 보낸다 - 같은 스텝에 떨어졌다 다시 닿은 쌍이 끝·시작 차례로 보이게(2D 와 같다).
+        for (const Physics3D::ContactEvent& event : ends)
+        {
+            dispatch(event, Phase::Exit);
+        }
+        for (const Physics3D::ContactEvent& event : begins)
+        {
+            dispatch(event, Phase::Enter);
+        }
+        for (const Physics3D::ContactEvent& event : stays)
+        {
+            dispatch(event, Phase::Stay);
+        }
+    }
+
+    // ── 질의 ─────────────────────────────────────────────────────────────────────
+    namespace
+    {
+        template<typename StateT>
+        void ToScriptHit(Canvas* canvas, const StateT& state, const Physics3D::QueryHit& from, RaycastHit3D& hit)
+        {
+            hit = {};
+            const auto* owner = state.owners.Find(static_cast<InstanceId>(from.userData));
+            Object::GameObject* object = owner != nullptr ? owner->object.TryGet() : nullptr;
+            hit.other = owner != nullptr ? owner->handle : Handle::GameObject{};
+            hit.bodyType = canvas != nullptr ? BodyTypeOf(*canvas, object) : Component::BodyType3D::Static;
+            hit.point = from.point;
+            hit.normal = from.normal;
+            hit.distance = from.distance;
+        }
+
+        // 커널의 userData(오브젝트 아이디) 목록을 오브젝트 핸들로. 한 오브젝트의 몸과 트리거가 함께 걸려도 한 번이다.
+        template<typename StateT>
+        void ToHandles(const StateT& state, const Array<UInt64>& userData, Array<Handle::GameObject>& results)
+        {
+            results.Clear();
+            for (std::size_t index = 0; index < userData.Size(); ++index)
+            {
+                const auto* owner = state.owners.Find(static_cast<InstanceId>(userData[index]));
+                if (owner == nullptr || owner->object.TryGet() == nullptr)
+                {
+                    continue;
+                }
+                Bool known = false;
+                for (std::size_t before = 0; before < index; ++before)
+                {
+                    known = known || userData[before] == userData[index];
+                }
+                if (false == known)
+                {
+                    results.Add(owner->handle);
+                }
+            }
+        }
+    }
+
+    Bool Physics3DSystem::Raycast(Vector3 origin, Vector3 direction, Float distance, RaycastHit3D& hit, UInt32 layerMask) const
+    {
+        Physics3D::QueryHit found;
+        if (false == m_state->world.Raycast(origin, direction, distance, layerMask, found))
+        {
+            hit = {};
+            return false;
+        }
+        ToScriptHit(m_canvas, *m_state, found, hit);
+        return true;
+    }
+
+    void Physics3DSystem::RaycastAll(Vector3 origin, Vector3 direction, Float distance, Array<RaycastHit3D>& hits, UInt32 layerMask) const
+    {
+        hits.Clear();
+        m_state->world.RaycastAll(origin, direction, distance, layerMask, m_state->queryHits);
+        for (const Physics3D::QueryHit& found : m_state->queryHits)
+        {
+            RaycastHit3D hit;
+            ToScriptHit(m_canvas, *m_state, found, hit);
+            hits.Add(hit);
+        }
+    }
+
+    void Physics3DSystem::OverlapSphere(Vector3 center, Float radius, Array<Handle::GameObject>& results, UInt32 layerMask) const
+    {
+        m_state->world.OverlapSphere(center, radius, layerMask, m_state->queryData);
+        ToHandles(*m_state, m_state->queryData, results);
+    }
+
+    void Physics3DSystem::OverlapBox(Vector3 center, Vector3 halfExtents, Quaternion rotation, Array<Handle::GameObject>& results,
+        UInt32 layerMask) const
+    {
+        m_state->world.OverlapBox(center, halfExtents, rotation, layerMask, m_state->queryData);
+        ToHandles(*m_state, m_state->queryData, results);
+    }
+
+    Bool Physics3DSystem::SphereCast(Vector3 origin, Float radius, Vector3 direction, Float distance, RaycastHit3D& hit,
+        UInt32 layerMask) const
+    {
+        Physics3D::QueryHit found;
+        if (false == m_state->world.SphereCast(origin, radius, direction, distance, layerMask, found))
+        {
+            hit = {};
+            return false;
+        }
+        ToScriptHit(m_canvas, *m_state, found, hit);
+        return true;
+    }
+
+    Bool Physics3DSystem::BoxCast(Vector3 center, Vector3 halfExtents, Quaternion rotation, Vector3 direction, Float distance,
+        RaycastHit3D& hit, UInt32 layerMask) const
+    {
+        Physics3D::QueryHit found;
+        if (false == m_state->world.BoxCast(center, halfExtents, rotation, direction, distance, layerMask, found))
+        {
+            hit = {};
+            return false;
+        }
+        ToScriptHit(m_canvas, *m_state, found, hit);
+        return true;
     }
 }

@@ -46,7 +46,7 @@
 | **핫 리로드를 거는 곳.** `ScriptDLLLoader::Reload` 를 호스트·에디터가 부르지 않는다. 폴더 감시(`WatchDirectory`)는 에셋 폴더에만 걸려 있다 | `EngineInstance.cpp` |
 | **스크립트가 오브젝트를 만들고 찾는 길.** `PrefabSpawner::Spawn` 은 선언만 있고 정의가 없으며, 스크립트가 그것을 얻을 자리도 없다 | `Framework2D/Prefab/Prefab.h` |
 | **`ReadOnly` 필드를 스크립트가 못 쓰게 하는 것.** `Transform2D` 의 월드 캐시(`worldPosition` 등)는 `ReadOnly()` 지만 이 표시는 인스펙터만 본다 | `Framework2D/Component/Transform2D.h` |
-| 3D 스크립트 베이스·충돌 훅 | ~~3D 프렐류드에 `GameScript3D` 가 없다~~ 베이스와 런타임은 섰다(D-363). 충돌 훅은 3D 물리 뒤다(D-116) |
+| 3D 스크립트 베이스·충돌 훅 | ~~3D 프렐류드에 `GameScript3D` 가 없다~~ 베이스와 런타임은 섰다(D-363). 충돌·트리거 훅과 `Physics3DService` 도 섰다(D-417, physics3d-plan 3 단계) |
 
 ### 2.1 에디터·캔버스 쪽 연결 (2026-09-29, 코드로 확인)
 
@@ -280,7 +280,7 @@ JBRO_SCRIPT_MODULE_2D()
 
 `GameScript3D` 와 충돌 훅. 3D 물리가 없으므로 [todo-3d.md](./todo-3d.md) 의 순서를 따른다.
 - ~~`GameScript3D`·3D 스크립트 런타임~~ **섰다**(2026-11-01, D-363): 3D 스크립트는 그때까지 돌지 않았다. `ScriptSystem` 을 공용 모듈 `JBroScriptRuntime` 으로 옮겨 `Framework3D` 가 세우고,
-  `GameScript3D` 가 화면 UI 훅을 든다(기록은 [ui-plan.md](./ui-plan.md) §7.9). 충돌 훅은 3D 물리를 기다린다.
+  `GameScript3D` 가 화면 UI 훅을 든다(기록은 [ui-plan.md](./ui-plan.md) §7.9). 충돌·트리거 훅은 D-417 에서 더했다 - 3D 시험 DLL 의 `ProbeContact3D` 가 받는다.
 - ~~3D 시험 DLL·실제 `Load`·3D 게임 호스트~~ **섰다**(2026-11-19, D-412). 시험 DLL `Tests/ScriptModuleProbe3D`(`JBroScriptDimension` 3D, 사용자 프로젝트와 같은 모양 - 프렐류드 한 줄·`GameScript3D` 를 잇는
   `ProbeMover3D`·`JBRO_REGISTER_SCRIPT_3D`·`JBRO_SCRIPT_MODULE_3D()`)를 에디터가 3D 프로젝트로 열어 싣는다(`ScriptHotReload` 의 `TestA3DProjectRunsItsScriptLibrary`).
   스크립트가 붙고, 필드 기본값이 호스트 표에 보이고, 재생하면 DLL 이 센 틱 수 × 속도 × 호스트의 델타만큼 `Transform3D` 가 +X 로 가며(4 틱에 0.8), 같은 오브젝트의 `Light3D` 세기를 핸들로 쓴다.

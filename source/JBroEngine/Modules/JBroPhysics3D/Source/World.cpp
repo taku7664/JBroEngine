@@ -14,6 +14,13 @@
 #include <Jolt/Physics/Collision/Shape/StaticCompoundShape.h>
 #include <Jolt/Physics/Collision/ContactListener.h>
 #include <Jolt/Physics/Body/BodyLock.h>
+#include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
+#include <JBro/Types/Table.h>
+#include <mutex>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 
@@ -244,23 +251,213 @@ namespace JBro::Physics3D
 
     struct World::Impl
     {
-        // 접촉의 마찰과 반발을 닿은 두 잎 도형의 값으로 섞는다. Jolt 의 워커에서 불리고 읽기만 한다.
-        class SurfaceMixer final : public JPH::ContactListener
+        // 접촉을 듣는다: (1) 마찰과 반발을 닿은 두 잎 도형의 값으로 섞고, (2) 바디 쌍마다 시작·유지·끝 사건을 모은다.
+        // Jolt 는 잎 도형 쌍마다 알리므로 쌍마다 닿은 잎 수를 세어 0 에서 1 이 될 때가 시작, 1 에서 0 이 될 때가 끝이다.
+        // 콜백은 Jolt 의 워커에서 올 수 있어 잠금 하나로 지킨다. 표와 배열은 미리 잡아 두어 흔한 경우 할당하지 않는다.
+        class ContactTracker final : public JPH::ContactListener
         {
         public:
+            struct Pair
+            {
+                ContactEvent event;
+                UInt32 touching = 0;
+                Bool reported = false;
+                // 바디가 잠들어 Jolt 가 접촉을 비웠다. 떨어진 것이 아니다 - 깨어 다시 닿으면 새 시작이 아니다.
+                Bool sleeping = false;
+            };
+
+            ContactTracker()
+            {
+                pairs.Reserve(256);
+                begins.Reserve(64);
+                stays.Reserve(256);
+                ends.Reserve(64);
+                pendingEnds.Reserve(64);
+            }
+
             void OnContactAdded(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
                 JPH::ContactSettings& settings) override
             {
                 Mix(first, second, manifold, settings);
+                std::lock_guard<std::mutex> lock(mutex);
+                const UInt64 key = Key(first.GetID(), second.GetID());
+                Pair* pair = pairs.Find(key);
+                if (pair == nullptr)
+                {
+                    Pair fresh;
+                    fresh.event.bodyA = BodyId{first.GetID().GetIndexAndSequenceNumber()};
+                    fresh.event.bodyB = BodyId{second.GetID().GetIndexAndSequenceNumber()};
+                    fresh.event.userDataA = first.GetUserData();
+                    fresh.event.userDataB = second.GetUserData();
+                    fresh.event.isTrigger = first.IsSensor() || second.IsSensor();
+                    pairs.TryAdd(key, fresh);
+                    pair = pairs.Find(key);
+                }
+                const Bool waking = pair->touching == 0 && pair->sleeping;
+                pair->sleeping = false;
+                if (pair->touching++ == 0 && false == waking)
+                {
+                    ContactEvent event = pair->event;
+                    Locate(first, manifold, event);
+                    begins.Add(event);
+                    // 시작한 스텝에는 시작만 있다(2D 와 같다).
+                    pair->reported = true;
+                }
             }
 
             void OnContactPersisted(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
                 JPH::ContactSettings& settings) override
             {
                 Mix(first, second, manifold, settings);
+                std::lock_guard<std::mutex> lock(mutex);
+                Pair* pair = pairs.Find(Key(first.GetID(), second.GetID()));
+                if (pair == nullptr || pair->reported)
+                {
+                    return;
+                }
+                pair->reported = true;
+                ContactEvent event = pair->event;
+                Locate(first, manifold, event);
+                stays.Add(event);
             }
 
+            // **잠들어도 Jolt 는 접촉을 "제거" 로 알린다** - 잠든 바디의 접촉 캐시를 비우기 때문이다. 그래서 여기서는 세기만 줄이고,
+            // 끝인지는 스텝 뒤(`Resolve`)에 바디가 잠들었는지 보고 정한다. 이 콜백 안에서는 바디를 볼 수 없다(Jolt 가 잠그고 있다).
+            void OnContactRemoved(const JPH::SubShapeIDPair& removed) override
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                const UInt64 key = Key(removed.GetBody1ID(), removed.GetBody2ID());
+                Pair* pair = pairs.Find(key);
+                if (pair == nullptr || pair->touching == 0)
+                {
+                    return;
+                }
+                if (--pair->touching == 0)
+                {
+                    emptied.Add(key);
+                }
+            }
+
+            // 스텝 뒤: 이번 스텝에 닿은 잎이 0 이 된 쌍을 가린다. 한쪽이라도 잠들었으면 잠든 쌍으로 두고, 아니면 끝이다.
+            // 잠든 쌍인데 둘 다 깨어 있고 다시 닿지 않았으면(깨워서 옮겼다) 그때 끝이다.
+            void Resolve(const JPH::BodyInterface& bodies)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                // 정적 바디는 Jolt 에서 늘 활성이 아니다 - 잠듦은 움직이는 바디에만 따진다.
+                const auto asleep = [&bodies](const BodyId& id) {
+                    const JPH::BodyID body(id.value);
+                    return bodies.IsAdded(body) && bodies.GetMotionType(body) != JPH::EMotionType::Static && false == bodies.IsActive(body);
+                };
+                for (const UInt64 key : emptied)
+                {
+                    Pair* pair = pairs.Find(key);
+                    if (pair == nullptr || pair->touching != 0)
+                    {
+                        continue;
+                    }
+                    if (asleep(pair->event.bodyA) || asleep(pair->event.bodyB))
+                    {
+                        pair->sleeping = true;
+                        continue;
+                    }
+                    ends.Add(pair->event);
+                    pairs.Remove(key);
+                }
+                emptied.Clear();
+                removals.Clear();
+                for (auto& entry : pairs)
+                {
+                    const Pair& pair = entry.MappedValue;
+                    if (pair.sleeping && pair.touching == 0 && false == asleep(pair.event.bodyA) && false == asleep(pair.event.bodyB))
+                    {
+                        ends.Add(pair.event);
+                        removals.Add(entry.KeyValue);
+                    }
+                }
+                for (const UInt64 key : removals)
+                {
+                    pairs.Remove(key);
+                }
+            }
+
+            // 스텝 앞: 지난 사건을 비우고, 그 사이 지운 바디의 끝을 이번 끝으로 넘긴다.
+            void BeginStep()
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                begins.Clear();
+                stays.Clear();
+                ends.Clear();
+                for (const ContactEvent& event : pendingEnds)
+                {
+                    ends.Add(event);
+                }
+                pendingEnds.Clear();
+                for (auto& entry : pairs)
+                {
+                    entry.MappedValue.reported = false;
+                }
+            }
+
+            // 바디를 지우기 전에: 그 바디가 닿아 있던 쌍을 끝으로 알린다. Jolt 는 지운 바디의 접촉을 따로 알리지 않는다.
+            void ForgetBody(JPH::BodyID body)
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                removals.Clear();
+                for (auto& entry : pairs)
+                {
+                    const ContactEvent& event = entry.MappedValue.event;
+                    if (event.bodyA.value == body.GetIndexAndSequenceNumber() || event.bodyB.value == body.GetIndexAndSequenceNumber())
+                    {
+                        pendingEnds.Add(event);
+                        removals.Add(entry.KeyValue);
+                    }
+                }
+                for (const UInt64 key : removals)
+                {
+                    pairs.Remove(key);
+                }
+            }
+
+            Array<ContactEvent> begins;
+            Array<ContactEvent> stays;
+            Array<ContactEvent> ends;
+
         private:
+            static UInt64 Key(JPH::BodyID a, JPH::BodyID b)
+            {
+                std::uint64_t low = a.GetIndexAndSequenceNumber();
+                std::uint64_t high = b.GetIndexAndSequenceNumber();
+                if (low > high)
+                {
+                    const std::uint64_t swap = low;
+                    low = high;
+                    high = swap;
+                }
+                return (high << 32) | low;
+            }
+
+            // 사건을 처음 만든 쪽(bodyA)에서 본 접촉점과 A→B 법선으로 채운다. Jolt 의 법선은 콜백의 첫 바디에서 둘째로 간다.
+            static void Locate(const JPH::Body& first, const JPH::ContactManifold& manifold, ContactEvent& event)
+            {
+                Vector3 normal = FromJolt(manifold.mWorldSpaceNormal);
+                if (first.GetID().GetIndexAndSequenceNumber() != event.bodyA.value)
+                {
+                    normal = {-normal.x, -normal.y, -normal.z};
+                }
+                event.normal = normal;
+                if (manifold.mRelativeContactPointsOn1.size() > 0)
+                {
+                    const JPH::RVec3 point = manifold.GetWorldSpaceContactPointOn1(0);
+                    event.point = {static_cast<Float>(point.GetX()), static_cast<Float>(point.GetY()), static_cast<Float>(point.GetZ())};
+                }
+            }
+
+            std::mutex mutex;
+            Table<UInt64, Pair> pairs;
+            Array<ContactEvent> pendingEnds;
+            Array<UInt64> removals;
+            Array<UInt64> emptied;
+
             static void Mix(const JPH::Body& first, const JPH::Body& second, const JPH::ContactManifold& manifold,
                 JPH::ContactSettings& settings)
             {
@@ -353,7 +550,7 @@ namespace JBro::Physics3D
             physics.Init(settings.maxBodies, 0, settings.maxBodyPairs, settings.maxContactConstraints, broadPhaseLayers,
                 objectVsBroadPhase, objectPairs);
             physics.SetGravity(ToJolt(settings.gravity));
-            physics.SetContactListener(&surfaces);
+            physics.SetContactListener(&contacts);
         }
 
         // 동적 바디의 질량을 도형의 관성 모양 그대로 `mass` 로 맞춘다. 축 고정도 여기서 먹는다(Jolt 는 둘을 함께 받는다).
@@ -396,8 +593,39 @@ namespace JBro::Physics3D
         BroadPhaseLayers broadPhaseLayers;
         ObjectVsBroadPhase objectVsBroadPhase;
         ObjectPairs objectPairs;
-        SurfaceMixer surfaces;
+        ContactTracker contacts;
         JPH::PhysicsSystem physics;
+
+        // 질의가 레이어 마스크로 거르는 자리다. 표의 조합 번호에서 그 바디의 레이어를 찾는다.
+        class QueryLayers final : public JPH::ObjectLayerFilter
+        {
+        public:
+            QueryLayers(const Impl& owner, UInt32 mask) : m_owner(owner), m_mask(mask)
+            {
+            }
+
+            bool ShouldCollide(JPH::ObjectLayer layer) const override
+            {
+                return (m_owner.combos[layer].layer & m_mask) != 0;
+            }
+
+        private:
+            const Impl& m_owner;
+            UInt32 m_mask;
+        };
+
+        // 맞은 바디의 userData 와 그 자리의 표면 법선을 채운다.
+        void FillHit(const JPH::BodyID& id, const JPH::SubShapeID& subShape, JPH::RVec3Arg point, QueryHit& hit) const
+        {
+            hit.body = BodyId{id.GetIndexAndSequenceNumber()};
+            hit.point = {static_cast<Float>(point.GetX()), static_cast<Float>(point.GetY()), static_cast<Float>(point.GetZ())};
+            JPH::BodyLockRead lock(physics.GetBodyLockInterfaceNoLock(), id);
+            if (lock.Succeeded())
+            {
+                hit.userData = lock.GetBody().GetUserData();
+                hit.normal = FromJolt(lock.GetBody().GetWorldSpaceSurfaceNormal(subShape, point));
+            }
+        }
     };
 
     World::World(const WorldSettings& settings) : m_impl(MakeOwnerPtr<Impl>(settings))
@@ -446,6 +674,8 @@ namespace JBro::Physics3D
         JPH::BodyCreationSettings settings(shape.GetPtr(), JPH::RVec3(def.position.x, def.position.y, def.position.z),
             ToJolt(def.rotation), motion, layer);
         settings.mIsSensor = def.isTrigger;
+        // 센서 바디는 키네마틱이라 그대로 두면 동적인 몸과만 겹친다. 움직이는 오브젝트의 트리거는 정적·키네마틱 몸도 보게 한다.
+        settings.mCollideKinematicVsNonDynamic = def.isTrigger && def.triggerSeesStatic;
         // 바디의 마찰·반발은 첫 도형의 것이다. 실제 접촉은 `SurfaceMixer` 가 닿은 도형마다 다시 섞는다.
         settings.mFriction = shapes[0].friction;
         settings.mRestitution = shapes[0].restitution;
@@ -482,6 +712,7 @@ namespace JBro::Physics3D
         {
             return;
         }
+        m_impl->contacts.ForgetBody(ToJolt(body));
         JPH::BodyInterface& bodyInterface = m_impl->physics.GetBodyInterfaceNoLock();
         bodyInterface.RemoveBody(ToJolt(body));
         bodyInterface.DestroyBody(ToJolt(body));
@@ -666,6 +897,216 @@ namespace JBro::Physics3D
         {
             return;
         }
+        m_impl->contacts.BeginStep();
         m_impl->physics.Update(deltaTime, 1, &m_impl->temp, &m_impl->jobs);
+        m_impl->contacts.Resolve(m_impl->physics.GetBodyInterfaceNoLock());
+    }
+
+    ArrayView<const ContactEvent> World::GetBeginEvents() const
+    {
+        return m_impl->contacts.begins.View();
+    }
+
+    ArrayView<const ContactEvent> World::GetStayEvents() const
+    {
+        return m_impl->contacts.stays.View();
+    }
+
+    ArrayView<const ContactEvent> World::GetEndEvents() const
+    {
+        return m_impl->contacts.ends.View();
+    }
+
+    namespace
+    {
+        // 방향과 거리를 Jolt 가 받는 "끝까지의 벡터" 로. 쓸 수 없으면 거짓이다.
+        Bool SweepVector(const Vector3& direction, Float distance, JPH::Vec3& sweep)
+        {
+            const JPH::Vec3 raw = ToJolt(direction);
+            const float length = raw.Length();
+            if (false == (length > 1.0e-6f) || false == (distance > 0.0f) || false == std::isfinite(distance.Get()))
+            {
+                return false;
+            }
+            sweep = raw * (distance.Get() / length);
+            return true;
+        }
+
+        // 질의 하나에서 바디마다 한 번만 담는다.
+        void AddUnique(Array<UInt64>& userData, Array<JPH::uint32>& seen, const JPH::BodyID& id, UInt64 data)
+        {
+            const JPH::uint32 raw = id.GetIndexAndSequenceNumber();
+            for (const JPH::uint32 known : seen)
+            {
+                if (known == raw)
+                {
+                    return;
+                }
+            }
+            seen.Add(raw);
+            userData.Add(data);
+        }
+    }
+
+    Bool World::Raycast(const Vector3& origin, const Vector3& direction, Float distance, UInt32 layerMask, QueryHit& hit) const
+    {
+        hit = {};
+        JPH::Vec3 sweep;
+        if (false == SweepVector(direction, distance, sweep))
+        {
+            return false;
+        }
+        const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), sweep);
+        JPH::RayCastResult result;
+        const Impl::QueryLayers layers(*m_impl, layerMask);
+        if (false == m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, result, {}, layers))
+        {
+            return false;
+        }
+        m_impl->FillHit(result.mBodyID, result.mSubShapeID2, ray.GetPointOnRay(result.mFraction), hit);
+        hit.distance = result.mFraction * distance;
+        return true;
+    }
+
+    void World::RaycastAll(const Vector3& origin, const Vector3& direction, Float distance, UInt32 layerMask, Array<QueryHit>& hits) const
+    {
+        hits.Clear();
+        JPH::Vec3 sweep;
+        if (false == SweepVector(direction, distance, sweep))
+        {
+            return;
+        }
+        const JPH::RRayCast ray(JPH::RVec3(origin.x, origin.y, origin.z), sweep);
+        JPH::RayCastSettings settings;
+        // 뒷면은 맞지 않는다 - 상자 안에서 쏘면 그 상자의 안쪽 면에 걸리지 않는다.
+        settings.mBackFaceModeConvex = JPH::EBackFaceMode::IgnoreBackFaces;
+        JPH::AllHitCollisionCollector<JPH::CastRayCollector> collector;
+        const Impl::QueryLayers layers(*m_impl, layerMask);
+        m_impl->physics.GetNarrowPhaseQueryNoLock().CastRay(ray, settings, collector, {}, layers);
+        collector.Sort();
+        for (const JPH::RayCastResult& result : collector.mHits)
+        {
+            // 한 바디의 잎 여럿에 맞으면 가장 가까운 것 하나다.
+            Bool seen = false;
+            for (const QueryHit& known : hits)
+            {
+                seen = seen || known.body.value == result.mBodyID.GetIndexAndSequenceNumber();
+            }
+            if (seen)
+            {
+                continue;
+            }
+            QueryHit hit;
+            m_impl->FillHit(result.mBodyID, result.mSubShapeID2, ray.GetPointOnRay(result.mFraction), hit);
+            hit.distance = result.mFraction * distance;
+            hits.Add(hit);
+        }
+    }
+
+    void World::OverlapSphere(const Vector3& center, Float radius, UInt32 layerMask, Array<UInt64>& userData) const
+    {
+        userData.Clear();
+        if (false == (radius > 0.0f))
+        {
+            return;
+        }
+        const JPH::SphereShape sphere(radius);
+        JPH::CollideShapeSettings settings;
+        JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+        const Impl::QueryLayers layers(*m_impl, layerMask);
+        m_impl->physics.GetNarrowPhaseQueryNoLock().CollideShape(&sphere, JPH::Vec3::sOne(),
+            JPH::RMat44::sTranslation(JPH::RVec3(center.x, center.y, center.z)), settings, JPH::RVec3::sZero(), collector, {}, layers);
+        Array<JPH::uint32> seen;
+        for (const JPH::CollideShapeResult& result : collector.mHits)
+        {
+            JPH::BodyLockRead lock(m_impl->physics.GetBodyLockInterfaceNoLock(), result.mBodyID2);
+            if (lock.Succeeded())
+            {
+                AddUnique(userData, seen, result.mBodyID2, lock.GetBody().GetUserData());
+            }
+        }
+    }
+
+    void World::OverlapBox(const Vector3& center, const Vector3& halfExtents, const Quaternion& rotation, UInt32 layerMask,
+        Array<UInt64>& userData) const
+    {
+        userData.Clear();
+        if (false == (halfExtents.x > 0.0f && halfExtents.y > 0.0f && halfExtents.z > 0.0f))
+        {
+            return;
+        }
+        const JPH::BoxShape box(ToJolt(halfExtents), 0.0f);
+        JPH::CollideShapeSettings settings;
+        JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+        const Impl::QueryLayers layers(*m_impl, layerMask);
+        m_impl->physics.GetNarrowPhaseQueryNoLock().CollideShape(&box, JPH::Vec3::sOne(),
+            JPH::RMat44::sRotationTranslation(ToJolt(rotation), JPH::RVec3(center.x, center.y, center.z)), settings, JPH::RVec3::sZero(),
+            collector, {}, layers);
+        Array<JPH::uint32> seen;
+        for (const JPH::CollideShapeResult& result : collector.mHits)
+        {
+            JPH::BodyLockRead lock(m_impl->physics.GetBodyLockInterfaceNoLock(), result.mBodyID2);
+            if (lock.Succeeded())
+            {
+                AddUnique(userData, seen, result.mBodyID2, lock.GetBody().GetUserData());
+            }
+        }
+    }
+
+    namespace
+    {
+        // 구현 타입을 템플릿 인자로 받는다 - `World::Impl` 은 World 의 비공개 이름이라 밖의 함수가 이름을 쓸 수 없다.
+        template<typename ImplT>
+        Bool CastOne(const ImplT& impl, const JPH::Shape& shape, JPH::RMat44Arg start,
+            const JPH::Vec3& sweep, Float distance, UInt32 layerMask, QueryHit& hit)
+        {
+            const JPH::RShapeCast cast(&shape, JPH::Vec3::sOne(), start, sweep);
+            JPH::ShapeCastSettings settings;
+            settings.mBackFaceModeConvex = JPH::EBackFaceMode::IgnoreBackFaces;
+            JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+            const typename ImplT::QueryLayers layers(impl, layerMask);
+            impl.physics.GetNarrowPhaseQueryNoLock().CastShape(cast, settings, JPH::RVec3::sZero(), collector, {}, layers);
+            if (false == collector.HadHit())
+            {
+                return false;
+            }
+            const JPH::ShapeCastResult& result = collector.mHit;
+            impl.FillHit(result.mBodyID2, result.mSubShapeID2, JPH::RVec3(result.mContactPointOn2), hit);
+            // 맞은 순간의 법선은 밀어낸 방향의 반대다(쏜 쪽을 향한다).
+            const JPH::Vec3 axis = result.mPenetrationAxis;
+            if (axis.LengthSq() > 1.0e-12f)
+            {
+                hit.normal = FromJolt(-axis.Normalized());
+            }
+            hit.distance = result.mFraction * distance;
+            return true;
+        }
+    }
+
+    Bool World::SphereCast(const Vector3& origin, Float radius, const Vector3& direction, Float distance, UInt32 layerMask, QueryHit& hit) const
+    {
+        hit = {};
+        JPH::Vec3 sweep;
+        if (false == (radius > 0.0f) || false == SweepVector(direction, distance, sweep))
+        {
+            return false;
+        }
+        const JPH::SphereShape sphere(radius);
+        return CastOne(*m_impl, sphere, JPH::RMat44::sTranslation(JPH::RVec3(origin.x, origin.y, origin.z)), sweep,
+            distance, layerMask, hit);
+    }
+
+    Bool World::BoxCast(const Vector3& center, const Vector3& halfExtents, const Quaternion& rotation, const Vector3& direction,
+        Float distance, UInt32 layerMask, QueryHit& hit) const
+    {
+        hit = {};
+        JPH::Vec3 sweep;
+        if (false == (halfExtents.x > 0.0f && halfExtents.y > 0.0f && halfExtents.z > 0.0f) || false == SweepVector(direction, distance, sweep))
+        {
+            return false;
+        }
+        const JPH::BoxShape box(ToJolt(halfExtents), 0.0f);
+        return CastOne(*m_impl, box,
+            JPH::RMat44::sRotationTranslation(ToJolt(rotation), JPH::RVec3(center.x, center.y, center.z)), sweep, distance, layerMask, hit);
     }
 }

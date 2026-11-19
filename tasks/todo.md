@@ -3058,6 +3058,21 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-417. 3D 스크립트가 충돌·트리거 훅과 물리 질의를 받는다 - 2D 와 같은 이름이고, 잠든 접촉은 끝이 아니다.** (2026-11-19, physics3d-plan §3 의 3 단계·§3.3)
+  Updates: D-363(`GameScript3D` 의 훅), D-224(3D 서비스·시스템 컨텍스트), D-416.
+  (1) `GameScript3D::OnCollisionEnter/Stay/Exit`·`OnTriggerEnter/Stay/Exit(const Collision3D&)`, `Service::Physics3DService`(`Raycast`·`RaycastAll`·`OverlapSphere`·`OverlapBox`·`SphereCast`·`BoxCast`, 마스크 기본 전부),
+  `System::IPhysics3DSystem`, 값 타입 `Collision3D`·`RaycastHit3D`. 판번호 `Framework3DSystemContextAbiVersion` 2·`Framework3DServiceContextAbiVersion` 4.
+  (2) 커널이 바디 쌍마다 시작·유지·끝을 모은다. Jolt 는 바디가 잠들 때 접촉을 "제거" 로 알려 처음에는 바닥에 놓인 상자가 잠드는 순간 끝이 나왔다 - 제거는 스텝 뒤에 가려 잠든 쌍으로 둔다.
+  정적 바디는 Jolt 에서 늘 활성이 아니라 잠듦 판단에서 뺐다. 지운 바디의 접촉은 커널이 끝으로 만든다.
+  (3) 움직이는 오브젝트의 트리거만 정적·키네마틱 몸과의 겹침을 본다(`triggerSeesStatic`) - 정적인 트리거와 정적인 바닥은 2D 처럼 만나지 않는다.
+  (4) 어댑터가 스텝 뒤 끝 → 시작 → 유지 차례로 훅을 부르고, 질의는 마지막 스텝의 바디를 본다(2D 와 다른 점, physics3d-plan §4).
+  확인: `Physics3DWorld` 열, `ScriptHotReload` 의 `TestA3DScriptHearsCollisionsAndQueries`(3D 시험 DLL 의 `ProbeContact3D`).
+  뮤테이션 열다섯 중 열넷이 잡혔다. 처음 돌림에서 넷이 살아 시험을 보강했다 - 바닥에도 듣는 스크립트(`ProbeListener3D`)를 붙여 양쪽이 상대를 아는지, 상자 아래로 삐져나온 트리거 구로
+  움직이는 트리거가 정적인 바닥을 듣는지 본다(트리거는 콜라이더 쌍마다라 들어감 3·나감 2 다). 하나(빌드가 실행 파일 잠김으로 멈춘 변이)는 다시 돌려 잡혔다.
+  살아남은 하나는 유지 사건의 법선을 A 쪽으로 돌리는 줄이다 - 유지 법선까지 보게 했지만 Jolt 가 유지 콜백에서도 시작 콜백과 같은 차례로 바디를 주어 쓰이지 않는다. 지키는 코드로 둔다.
+  넓은 묶음(Physics3DWorld·Physics2D 둘·BuiltinComponentProperty·CanvasFile·Framework3DSystem·ScriptHotReload·ScriptDLLLoader·ScriptModuleEntry·EditorApplication 전체)이 지난다.
+  UserScenario 는 시나리오 E 의 Ctrl+C 클립보드 시험 하나가 떨어진다 - 이 PC 의 OS 클립보드가 지금 쓰지도 읽지도 못한다(PowerShell `Set-Clipboard` 뒤 `Get-Clipboard` 가 빈 값). 3D 물리와 닿지 않는 2D 글자 칸 시험이다.
+
 - **D-416. 3D 물리 컴포넌트와 어댑터 - 에디터에서 재생하면 3D 오브젝트가 떨어져 선다. 한 오브젝트의 콜라이더 여럿은 2D 처럼 받는다.** (2026-11-19, physics3d-plan §3 의 2 단계·§3.2)
   Updates: D-53(3D 물리 컴포넌트의 골격), D-233(`PhysicsLayerMask` 를 Core 로), D-415.
   (1) 사용자 결정("2D 처럼 여럿"): 한 오브젝트의 고체 `Collider3D` 는 그 바디 하나의 복합 도형, 마찰·반발은 콜라이더마다(커널이 잎 도형 userData 에 싣고 접촉 콜백이 섞는다),

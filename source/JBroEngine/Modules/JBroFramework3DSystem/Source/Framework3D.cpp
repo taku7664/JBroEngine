@@ -118,6 +118,8 @@ namespace JBro
         m_scriptSystems = {};
         // 텍스트 시스템은 늘 선다(CreateDefaultSystems). 없으면 서비스가 아무것도 하지 않을 뿐이다.
         m_scriptSystems.Text3D = m_canvas->GetSystems().FindSystem<System::Text3DSystem>();
+        // 3D 물리의 질의 슬롯(D-417). 물리 시스템도 늘 선다.
+        m_scriptSystems.Physics3D = m_canvas->GetSystems().FindSystem<System::Physics3DSystem>();
         m_scriptServices = {};
         BindFramework3DSystemContext(m_scriptSystems);
         BindFramework3DServiceContext(m_scriptServices);
