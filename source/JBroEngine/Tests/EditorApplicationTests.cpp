@@ -7249,6 +7249,58 @@ namespace
         editor.Shutdown();
     }
 
+    // **3D 질의는 지금의 컴포넌트를 본다**(D-422, 2D 와 같다). 재생 중에 새로 만든 콜라이더, 옮긴 오브젝트, 키운 콜라이더, 지운 오브젝트가
+    // 고정 스텝을 기다리지 않고 바로 질의에 걸린다(스크립트가 같은 프레임에 만들고 묻는 경우).
+    void TestQueriesSeeTheCurrentComponentsIn3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; current 3D queries not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "Queries3DProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        Check(editor.Tick(Frame), "the editor must tick once while playing");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>();
+        Check(physics != nullptr, "the 3D framework has a physics system");
+        const auto hitsAt = [&](JBro::Float x, JBro::RaycastHit3D& hit) {
+            return physics->Raycast({x, 10.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 20.0f, hit, JBro::AllPhysicsLayers);
+        };
+        JBro::RaycastHit3D hit;
+        Check(false == hitsAt(0.0f, hit), "an empty canvas has nothing to hit");
+
+        // 만들자마자 걸린다.
+        JBro::Object::GameObject* wall = canvas->CreateObject("Wall");
+        canvas->AttachComponent<JBro::Component::Transform3D>(wall)->position = {0.0f, 1.0f, 0.0f};
+        auto* collider = canvas->AttachComponent<JBro::Component::Collider3D>(wall);
+        Check(hitsAt(0.0f, hit) && std::fabs(hit.point.y - 1.5f) < 1.0e-3f && hit.other.IsValid(),
+            "a collider made this frame is hit at once, on its top face");
+        // 옮기자마자 걸린다.
+        canvas->FindComponentRaw<JBro::Component::Transform3D>(wall)->position = {5.0f, 1.0f, 0.0f};
+        Check(false == hitsAt(0.0f, hit) && hitsAt(5.0f, hit), "moving its object moves what the query hits");
+        // 키우자마자 걸린다.
+        collider->size = {1.0f, 3.0f, 1.0f};
+        Check(hitsAt(5.0f, hit) && std::fabs(hit.point.y - 2.5f) < 1.0e-3f, "a collider grown this frame is hit at its new top");
+        // 지우자마자 빠진다.
+        canvas->DestroyObject(wall);
+        canvas->FlushPendingDestroy();
+        Check(false == hitsAt(5.0f, hit), "a destroyed object is no longer hit");
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
     void TestThePhysicsThreadsSettingReachesPlayIn3D()
     {
         namespace fs = std::filesystem;
@@ -20749,6 +20801,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestThePhysicsThreadsSettingReachesPlayIn3D());
     JBRO_CASE(TestForcesAndImpulsesReachA3DBody());
     JBRO_CASE(TestTheLayerTableAndPerColliderLayersReachPlayIn3D());
+    JBRO_CASE(TestQueriesSeeTheCurrentComponentsIn3D());
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());

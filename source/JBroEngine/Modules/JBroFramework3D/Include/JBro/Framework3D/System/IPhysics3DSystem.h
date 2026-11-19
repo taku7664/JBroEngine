@@ -12,7 +12,7 @@ namespace JBro::System
     // 스크립트 서비스가 호스트의 3D 물리에 묻는 길이다(D-417, 2D 의 `IPhysics2DSystem` 자리). 가상 함수 표가 스크립트 DLL 과의 ABI 이므로
     // 바꾸면 `Framework3DSystemContextAbiVersion` 을 올린다.
     //
-    // Main-thread only. 질의는 마지막 고정 스텝에서 맞춘 물리를 본다(2D 는 지금의 컴포넌트를 본다 - 3D 는 Jolt 의 바디가 곧 도형이다).
+    // Main-thread only. 질의는 **지금의** 컴포넌트를 본다(D-422, 2D 와 같다) - 이번 프레임에 만든 콜라이더와 스크립트가 옮긴 오브젝트가 바로 걸린다.
     // `direction` 은 정규화하지 않아도 되고 0 이면 맞지 않는다. `layerMask` 와 콜라이더의 `layer` 가 겹치는 것만 대상이고 트리거도 든다.
     // 결과 배열은 비운 뒤 채우며 부르는 쪽의 용량은 남긴다. 시스템이 없으면 결과를 비우고 거짓이다.
     class IPhysics3DSystem

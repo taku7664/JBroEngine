@@ -25,7 +25,7 @@ namespace JBro::System
     // `Rigidbody3D` 가 있으면 그 종류·성질을, 없으면 정적으로 둔다. (2) 커널을 한 스텝 돌리고, (3) 움직이는 몸의 자세와 속도를
     // `Transform3D`·`Rigidbody3D` 에 되쓴다. 커널 타입은 이 헤더에 나오지 않는다 - 에디터·호스트가 커널의 include 경로를 갖지 않아도 된다.
     // (4) 스텝이 끝나면 커널의 접촉 사건을 두 오브젝트의 `GameScript3D` 충돌·트리거 훅으로 보낸다(D-417). 질의(`IPhysics3DSystem`)는
-    // 마지막 스텝에서 맞춘 바디를 본다.
+    // 묻기 전에 바디를 맞추므로 지금의 컴포넌트를 본다(D-422, 2D 와 같다).
     class Physics3DSystem final : public GameSystem, public IPhysics3DSystem
     {
     public:
@@ -67,6 +67,11 @@ namespace JBro::System
 
         // 커널의 시작·유지·끝 사건을 두 오브젝트의 GameScript3D 훅으로 보낸다(D-417).
         void DispatchEvents(Canvas& canvas);
+        // 켜진 콜라이더를 커널의 바디·센서에 맞춘다(D-422). 고정 스텝과 질의가 함께 쓴다. 힘을 먹이지도 사건을 내지도 않는다.
+        void SyncBodies(Canvas& canvas);
+        void SyncForQuery() const;
+        // 스크립트가 쌓은 힘·충격량을 이번 스텝에 먹인다(D-420). 고정 스텝에서만.
+        void ApplyPendingForces();
 
         Canvas* m_canvas = nullptr;
         const AssetSystem* m_assets = nullptr;

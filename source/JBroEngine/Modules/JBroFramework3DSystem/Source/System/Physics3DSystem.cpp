@@ -384,15 +384,10 @@ namespace JBro::System
         m_state = MakeOwnerPtr<State>();
     }
 
-    void Physics3DSystem::OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime)
+    void Physics3DSystem::SyncBodies(Canvas& canvas)
     {
-        if (false == (fixedDeltaTime > 0.0f))
-        {
-            return;
-        }
         State& state = *m_state;
         Physics3D::World& world = state.world;
-        ++state.stamp;
         const auto markOwner = [&state](Object::GameObject* object) {
             State::Owner* owner = state.owners.Find(object->GetInstanceId());
             if (owner == nullptr)
@@ -657,41 +652,6 @@ namespace JBro::System
                     }
                 }
             }
-            if (rigidbody != nullptr)
-            {
-                // 스크립트가 쌓은 힘·충격량을 이번 스텝에 먹인다(D-420). 위치를 준 것의 토크는 지금의 질량 중심으로 푼다:
-                // 점 p 의 힘 F 가 질량 중심 c 에 주는 토크는 (p - c) x F = p x F - c x F 이고, p x F 는 컴포넌트가 이미 모아 두었다.
-                const Component::PendingForces3D pending = rigidbody->TakePendingForces();
-                if (type == Physics3D::BodyType::Dynamic)
-                {
-                    const Vector3 center = world.GetCenterOfMass(link->body);
-                    const Vector3 force = Add(pending.forceAtCenter, pending.forceAtPoints);
-                    const Vector3 torque = Subtract(Add(pending.torque, pending.forceMoment), Cross(center, pending.forceAtPoints));
-                    const Vector3 impulse = Add(pending.impulseAtCenter, pending.impulseAtPoints);
-                    const Vector3 angular = Subtract(Add(pending.angularImpulse, pending.impulseMoment), Cross(center, pending.impulseAtPoints));
-                    const Vector3 zero{};
-                    if (false == SameVector(force, zero))
-                    {
-                        world.ApplyForce(link->body, force);
-                    }
-                    if (false == SameVector(torque, zero))
-                    {
-                        world.ApplyTorque(link->body, torque);
-                    }
-                    if (false == SameVector(impulse, zero))
-                    {
-                        world.ApplyImpulse(link->body, impulse);
-                    }
-                    if (false == SameVector(angular, zero))
-                    {
-                        world.ApplyAngularImpulse(link->body, angular);
-                    }
-                    if (pending.wake)
-                    {
-                        world.SetAwake(link->body, true);
-                    }
-                }
-            }
             link->seen = true;
             link->object = object;
             link->transform = transform;
@@ -751,6 +711,71 @@ namespace JBro::System
         {
             state.groups.Remove(id);
         }
+
+    }
+
+    void Physics3DSystem::ApplyPendingForces()
+    {
+        State& state = *m_state;
+        Physics3D::World& world = state.world;
+        for (auto& entry : state.bodies)
+        {
+            State::BodyLink* link = &entry.MappedValue;
+            if (false == link->seen || link->rigidbodyComponent == nullptr)
+            {
+                continue;
+            }
+            Component::Rigidbody3D* rigidbody = link->rigidbodyComponent;
+            const Physics3D::BodyType type = link->type;
+            {
+                // 스크립트가 쌓은 힘·충격량을 이번 스텝에 먹인다(D-420). 위치를 준 것의 토크는 지금의 질량 중심으로 푼다:
+                // 점 p 의 힘 F 가 질량 중심 c 에 주는 토크는 (p - c) x F = p x F - c x F 이고, p x F 는 컴포넌트가 이미 모아 두었다.
+                const Component::PendingForces3D pending = rigidbody->TakePendingForces();
+                if (type == Physics3D::BodyType::Dynamic)
+                {
+                    const Vector3 center = world.GetCenterOfMass(link->body);
+                    const Vector3 force = Add(pending.forceAtCenter, pending.forceAtPoints);
+                    const Vector3 torque = Subtract(Add(pending.torque, pending.forceMoment), Cross(center, pending.forceAtPoints));
+                    const Vector3 impulse = Add(pending.impulseAtCenter, pending.impulseAtPoints);
+                    const Vector3 angular = Subtract(Add(pending.angularImpulse, pending.impulseMoment), Cross(center, pending.impulseAtPoints));
+                    const Vector3 zero{};
+                    if (false == SameVector(force, zero))
+                    {
+                        world.ApplyForce(link->body, force);
+                    }
+                    if (false == SameVector(torque, zero))
+                    {
+                        world.ApplyTorque(link->body, torque);
+                    }
+                    if (false == SameVector(impulse, zero))
+                    {
+                        world.ApplyImpulse(link->body, impulse);
+                    }
+                    if (false == SameVector(angular, zero))
+                    {
+                        world.ApplyAngularImpulse(link->body, angular);
+                    }
+                    if (pending.wake)
+                    {
+                        world.SetAwake(link->body, true);
+                    }
+                }
+            }
+        }
+    }
+
+    void Physics3DSystem::OnFixedUpdate(Canvas& canvas, Float fixedDeltaTime)
+    {
+        if (false == (fixedDeltaTime > 0.0f))
+        {
+            return;
+        }
+        State& state = *m_state;
+        Physics3D::World& world = state.world;
+        ++state.stamp;
+        // **동기화는 스텝과 따로다**(D-422). 질의도 같은 동기화를 거쳐 지금의 컴포넌트를 본다. 힘을 먹이는 것과 사건은 스텝에만 있다.
+        SyncBodies(canvas);
+        ApplyPendingForces();
 
         // ── 4. 스텝 ─────────────────────────────────────────────────────────────────
         world.SetGravity(m_gravity);
@@ -933,6 +958,17 @@ namespace JBro::System
     }
 
     // ── 질의 ─────────────────────────────────────────────────────────────────────
+    // **질의는 지금의 컴포넌트를 본다**(D-422, 2D 와 같다). 묻기 전에 바디를 컴포넌트에 맞춘다 - 이번 프레임에 만든 콜라이더, 스크립트가 옮긴 오브젝트,
+    // 바꾼 크기가 바로 걸린다. 맞추기는 바뀐 것만 커널에 먹이지만 콜라이더를 한 번 훑는다(2D 의 질의도 콜라이더를 훑는다).
+    void Physics3DSystem::SyncForQuery() const
+    {
+        if (m_canvas == nullptr)
+        {
+            return;
+        }
+        const_cast<Physics3DSystem*>(this)->SyncBodies(*m_canvas);
+    }
+
     namespace
     {
         template<typename StateT>
@@ -975,6 +1011,7 @@ namespace JBro::System
 
     Bool Physics3DSystem::Raycast(Vector3 origin, Vector3 direction, Float distance, RaycastHit3D& hit, UInt32 layerMask) const
     {
+        SyncForQuery();
         Physics3D::QueryHit found;
         if (false == m_state->world.Raycast(origin, direction, distance, layerMask, found))
         {
@@ -987,6 +1024,7 @@ namespace JBro::System
 
     void Physics3DSystem::RaycastAll(Vector3 origin, Vector3 direction, Float distance, Array<RaycastHit3D>& hits, UInt32 layerMask) const
     {
+        SyncForQuery();
         hits.Clear();
         m_state->world.RaycastAll(origin, direction, distance, layerMask, m_state->queryHits);
         for (const Physics3D::QueryHit& found : m_state->queryHits)
@@ -999,6 +1037,7 @@ namespace JBro::System
 
     void Physics3DSystem::OverlapSphere(Vector3 center, Float radius, Array<Handle::GameObject>& results, UInt32 layerMask) const
     {
+        SyncForQuery();
         m_state->world.OverlapSphere(center, radius, layerMask, m_state->queryData);
         ToHandles(*m_state, m_state->queryData, results);
     }
@@ -1006,6 +1045,7 @@ namespace JBro::System
     void Physics3DSystem::OverlapBox(Vector3 center, Vector3 halfExtents, Quaternion rotation, Array<Handle::GameObject>& results,
         UInt32 layerMask) const
     {
+        SyncForQuery();
         m_state->world.OverlapBox(center, halfExtents, rotation, layerMask, m_state->queryData);
         ToHandles(*m_state, m_state->queryData, results);
     }
@@ -1013,6 +1053,7 @@ namespace JBro::System
     Bool Physics3DSystem::SphereCast(Vector3 origin, Float radius, Vector3 direction, Float distance, RaycastHit3D& hit,
         UInt32 layerMask) const
     {
+        SyncForQuery();
         Physics3D::QueryHit found;
         if (false == m_state->world.SphereCast(origin, radius, direction, distance, layerMask, found))
         {
@@ -1026,6 +1067,7 @@ namespace JBro::System
     Bool Physics3DSystem::BoxCast(Vector3 center, Vector3 halfExtents, Quaternion rotation, Vector3 direction, Float distance,
         RaycastHit3D& hit, UInt32 layerMask) const
     {
+        SyncForQuery();
         Physics3D::QueryHit found;
         if (false == m_state->world.BoxCast(center, halfExtents, rotation, direction, distance, layerMask, found))
         {
