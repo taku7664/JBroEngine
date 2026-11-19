@@ -942,7 +942,7 @@ namespace JBro
         choices->revision = registry.GetRevision();
         choices->names.Clear();
         choices->ids.Clear();
-        // **빌트인 도형이 메시 목록의 앞에 선다**(D-335 우선순위 2). 레지스트리에 없는 아이디라, 넣지 않으면 새 프로젝트의 큐브가
+        // **빌트인 도형이 메시 목록의 앞에 선다**(D-388 우선순위 2). 레지스트리에 없는 아이디라, 넣지 않으면 새 프로젝트의 큐브가
         // `(없는 에셋)` 으로 보였다(시나리오 D). 파일 에셋과 겹치지 않게 이름에 경로가 없다.
         if (type == AssetType::Mesh || also == AssetType::Mesh)
         {
@@ -960,7 +960,7 @@ namespace JBro
             {
                 continue;
             }
-            // 모델의 하위 에셋(D-338)은 경로가 모델과 같다. 이름을 붙여야 칸에서 갈린다.
+            // 모델의 하위 에셋(D-391)은 경로가 모델과 같다. 이름을 붙여야 칸에서 갈린다.
             if (record.name.empty())
             {
                 choices->names.Add(record.relativePath);
@@ -1674,7 +1674,7 @@ namespace JBro
                 subIndex = index;
             }
         }
-        // **모델의 재질은 보이되 고치지 않는다**(D-346 (2)). 파일에서 온 값이라 여기서 고쳐도 다시 가져오면 사라진다 - 고치려면 재질을 꺼내야 한다(뒤).
+        // **모델의 재질은 보이되 고치지 않는다**(D-399 (2)). 파일에서 온 값이라 여기서 고쳐도 다시 가져오면 사라진다 - 고치려면 재질을 꺼내야 한다(뒤).
         if (record.type == AssetType::Material)
         {
             const MaterialDesc* shown = m_editor->GetSelectedMaterial();
@@ -1827,7 +1827,7 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorMaterial, "Material"),
                 TypeDescriptorOf<MaterialDesc>::Get(), &material, Block::Material);
         }
-        // 모델의 임포트 옵션(D-339). 고치면 하위 목록을 새 옵션으로 다시 맞춰 같은 커맨드에 담는다 - `importMaterials` 를 끄면 재질 하위 에셋이 빠지고, 되돌리면 같은 아이디로 돌아온다.
+        // 모델의 임포트 옵션(D-392). 고치면 하위 목록을 새 옵션으로 다시 맞춰 같은 커맨드에 담는다 - `importMaterials` 를 끄면 재질 하위 에셋이 빠지고, 되돌리면 같은 아이디로 돌아온다.
         if (meta.type == AssetType::Model)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorModelImportOptions, "Model Import Options"),

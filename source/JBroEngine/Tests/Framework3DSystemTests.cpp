@@ -265,7 +265,7 @@ namespace
         transforms.Update(canvas, 1.0f / 60.0f);
         meshes.Update(canvas, 1.0f / 60.0f);
 
-        // 메시가 빈 렌더러는 정육면체로 뜬다 - 2D 의 빈 스프라이트가 흰 사각형인 것과 같다(D-335 우선순위 2).
+        // 메시가 빈 렌더러는 정육면체로 뜬다 - 2D 의 빈 스프라이트가 흰 사각형인 것과 같다(D-388 우선순위 2).
         Check(world.GetMeshCount() == 2, "the visible, placed meshes are extracted, the empty one as the cube");
         Check(world.GetMesh(0).owner == shown, "the first is the shown one");
         Check(world.GetMesh(1).owner == unnamed && world.GetMesh(1).mesh.index == 7 && world.GetMesh(1).mesh.generation == 3,
@@ -274,7 +274,7 @@ namespace
             "but the fallback is not written back - a mesh chosen later must still be looked up");
         Check(world.GetMesh(0).mesh.index == 7 && world.GetMesh(0).mesh.generation == 3,
             "with its handle resolved from the id");
-        // 컴포넌트의 `mesh` 칸은 해석 패스가 채우는 에셋 핸들이다(D-342) - 이 시스템이 렌더러 핸들을 되써서 두 종류의 핸들이 섞이지 않는다.
+        // 컴포넌트의 `mesh` 칸은 해석 패스가 채우는 에셋 핸들이다(D-395) - 이 시스템이 렌더러 핸들을 되써서 두 종류의 핸들이 섞이지 않는다.
         Check(shownMesh->mesh.generation == 0 && hiddenMesh->mesh.generation == 0,
             "the system never writes renderer handles into the component's asset handle");
         Check(Near(world.GetMesh(0).tint.G, 0.5f), "carrying the tint");

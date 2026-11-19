@@ -147,7 +147,7 @@ namespace JBro
         // **제어 포트**(D-270, `EditorControlPort`). 0 이 아니면 이 번호로 루프백에 열어 밖의 프로세스가 가이드를 켜게 한다.
         // 실제 에디터가 `EditorControlPort::DefaultPort` 를 준다. 테스트는 열지 않는 것이 기본이다 - 에디터 여럿이 한 포트를 다툰다.
         std::uint16_t controlPort = 0;
-        // **`.jproject` 연결을 쓸 자리**(D-336, `FileTypeAssociation::classesKey`). 널이면 현재 사용자의 진짜 자리다.
+        // **`.jproject` 연결을 쓸 자리**(D-389, `FileTypeAssociation::classesKey`). 널이면 현재 사용자의 진짜 자리다.
         // 테스트는 사람의 연결을 덮지 않으려고 제 자리를 준다.
         const char* fileTypeClassesKey = nullptr;
         JMemoryContext memory;
@@ -379,7 +379,7 @@ namespace JBro
         // 고른 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다. 고른 것이 없으면 거짓이다.
         Bool DescribeSelectedAssetMeta(AssetFileTarget& target) const;
         // **고른 재질**(material-plan 4 단계). 고른 에셋이 재질이면 그 값이다 - `.jmat` 은 파일을 읽은 것이고, 모델의 하위 Material 은
-        // 모델의 재질을 옮긴 것이라 읽기 전용이다(D-346 (2)). 재질이 아니거나 읽히지 않으면 nullptr. 커맨드가 돈 뒤 디스크에서 다시 읽는다.
+        // 모델의 재질을 옮긴 것이라 읽기 전용이다(D-399 (2)). 재질이 아니거나 읽히지 않으면 nullptr. 커맨드가 돈 뒤 디스크에서 다시 읽는다.
         const MaterialDesc* GetSelectedMaterial() const;
         Bool IsSelectedMaterialReadOnly() const;
         // 고른 `.jmat` 을 고치는 커맨드의 대상과 지금 파일의 글자(되돌릴 값)다. 고른 것이 고칠 수 있는 재질 파일이 아니면 거짓.
@@ -807,7 +807,7 @@ namespace JBro
         void NotifyUnresolvedScripts();
         // 새 프로젝트 이름을 검사한다(`CheckProjectName`). 새 프로젝트 팝업이 치는 동안 묻는다.
         ProjectCreateFailure CheckProjectName(const char* parentFolder, const char* name);
-        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 3D 는 원점의 큐브 하나를 더 둔다(D-335). 비어 있지 않으면 아무것도 하지 않는다.
+        // 새 프로젝트의 빈 캔버스에 주 카메라 하나를 둔다. 3D 는 원점의 큐브 하나를 더 둔다(D-388). 비어 있지 않으면 아무것도 하지 않는다.
         void AddStarterObjects();
         // 오류 줄을 여는 편집기다(D-299). 에디터 설정에 저장된다.
         ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
@@ -847,20 +847,20 @@ namespace JBro
         // 연 것" 으로 적어 두면 다음에 열 때 그 파일이 없거나 옛 것이다.
         void RequestSaveProject();
         // 프로젝트를 골라 연다. 대화상자는 프레임 밖에서 뜬다.
-        // **파일로 연 프로젝트가 있으면 아무것도 하지 않는다**(D-336) - 다른 프로젝트는 그 파일을 두 번 눌러 새 에디터로 연다.
+        // **파일로 연 프로젝트가 있으면 아무것도 하지 않는다**(D-389) - 다른 프로젝트는 그 파일을 두 번 눌러 새 에디터로 연다.
         void RequestOpenProject();
         // **새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 프레임 밖에서 폴더를 고르고,
-        // 이름과 프레임워크를 받는 팝업을 띄운다. 프로젝트 열기와 같이 파일로 연 프로젝트가 있으면 아무것도 하지 않는다(D-336).
+        // 이름과 프레임워크를 받는 팝업을 띄운다. 프로젝트 열기와 같이 파일로 연 프로젝트가 있으면 아무것도 하지 않는다(D-389).
         void RequestNewProject();
-        // **다른 프로젝트를 열거나 만들 수 있는가**(D-336). 파일로 연 프로젝트가 없을 때만 참이다 - 파일 메뉴의 `새 프로젝트`·`프로젝트 열기` 가
+        // **다른 프로젝트를 열거나 만들 수 있는가**(D-389). 파일로 연 프로젝트가 없을 때만 참이다 - 파일 메뉴의 `새 프로젝트`·`프로젝트 열기` 가
         // 이때만 보인다. 열린 프로젝트를 다른 것으로 바꾸는 길을 두지 않는다.
         Bool CanSwitchProject() const;
-        // **`.jproject` 를 이 에디터와 잇는다**(D-336). 탐색기에서 두 번 누르면 이 실행 파일이 그 프로젝트를 연다.
+        // **`.jproject` 를 이 에디터와 잇는다**(D-389). 탐색기에서 두 번 누르면 이 실행 파일이 그 프로젝트를 연다.
         // 현재 사용자의 자리에만 쓴다. 결과는 팝업으로 알린다.
         Bool RegisterProjectFileType();
         // `<parentFolder>/<name>/` 에 프로젝트를 세우고, 이 프레임이 끝나면 그 프로젝트로 넘어간다.
         // 실패하면 거짓이고 `failure` 에 까닭이 온다. 팝업이 그것으로 번역된 문장을 고른다.
-        // 파일로 연 프로젝트가 있으면 아무것도 쓰지 않고 거짓이다(D-336, `failure` 는 그대로다).
+        // 파일로 연 프로젝트가 있으면 아무것도 쓰지 않고 거짓이다(D-389, `failure` 는 그대로다).
         Bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
             ProjectCreateFailure* failure = nullptr);
         // ── 스프라이트 프레임 고르기(D-165, 기존 `SpriteFramePick`) ─────────────────────────────

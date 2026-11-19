@@ -35,7 +35,7 @@ namespace JBro
             return Vector3{vertex.position[0], vertex.position[1], vertex.position[2]};
         }
 
-        // **법선을 계산한다**(D-339 `normals`·`smoothingAngle`). 같은 자리의 꼭짓점들 가운데 면 법선이 `smoothingAngle` 안에 드는 면들의 법선을
+        // **법선을 계산한다**(D-392 `normals`·`smoothingAngle`). 같은 자리의 꼭짓점들 가운데 면 법선이 `smoothingAngle` 안에 드는 면들의 법선을
         // 넓이 가중으로 더한다 - 상자의 모서리는 각지고 공은 매끈하다. 파일의 감김(반시계)으로 잰 면 법선이 바깥쪽이다.
         void CalculateNormals(Array<ModelVertex>& corners, Float smoothingAngleDegrees)
         {
@@ -149,7 +149,7 @@ namespace JBro
             return mesh;
         }
 
-        // 한 파일 안에서 하위 에셋 이름이 겹치지 않게 한다. 겹치면 뒤에 ` (2)` 를 붙인다 - `.jmeta` 의 하위 아이디가 이름으로 붙는다(D-338).
+        // 한 파일 안에서 하위 에셋 이름이 겹치지 않게 한다. 겹치면 뒤에 ` (2)` 를 붙인다 - `.jmeta` 의 하위 아이디가 이름으로 붙는다(D-391).
         String UniqueName(const Array<RawMesh>& meshes, const String& wanted)
         {
             const auto taken = [&](const String& name) {

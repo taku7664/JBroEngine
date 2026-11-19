@@ -80,7 +80,7 @@ namespace JBro
         Float layerParallax = 1.0f;
     };
 
-    // 3D 라이트 하나다(D-353). 자리와 방향은 월드다. 브리지가 레이어마다 연 뷰 모두에 렌더러의 `Light3DSubmit` 으로 옮긴다 - 라이트는 레이어를 가리지 않는다.
+    // 3D 라이트 하나다(D-407). 자리와 방향은 월드다. 브리지가 레이어마다 연 뷰 모두에 렌더러의 `Light3DSubmit` 으로 옮긴다 - 라이트는 레이어를 가리지 않는다.
     struct Light3DRenderItem
     {
         Object::GameObject* owner = nullptr;
@@ -107,7 +107,7 @@ namespace JBro
         // 3D 텍스트의 글자다. 용량(`ReserveTexts`)을 넘으면 세고 버린다.
         Bool ReserveTexts(std::size_t capacity);
         Bool SubmitText(const WorldTextRenderItem& item);
-        // 3D 라이트다(D-353). 용량(`ReserveLights`)을 넘으면 세고 버린다.
+        // 3D 라이트다(D-407). 용량(`ReserveLights`)을 넘으면 세고 버린다.
         Bool ReserveLights(std::size_t capacity);
         Bool SubmitLight(const Light3DRenderItem& item);
         std::size_t GetLightCount() const;

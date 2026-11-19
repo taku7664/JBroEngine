@@ -34,7 +34,7 @@ namespace
     constexpr JBro::Int32 ExitInitializeFailed = 1;
     constexpr JBro::Int32 ExitProjectFailed = 2;
     constexpr JBro::Int32 ExitEditorUiFailed = 3;
-    // 확장자 연결을 바꾸지 못했다(D-336).
+    // 확장자 연결을 바꾸지 못했다(D-389).
     constexpr JBro::Int32 ExitFileTypeFailed = 4;
     constexpr JBro::Int32 ExitUsageError = 64;
 
@@ -59,7 +59,7 @@ namespace
             "4 file type not changed, 64 bad arguments\n");
     }
 
-    // **확장자 연결만 하고 끝낸다**(D-336). 창도 엔진도 띄우지 않는다 - 레지스트리 함수는 플랫폼의 초기화가 필요 없다.
+    // **확장자 연결만 하고 끝낸다**(D-389). 창도 엔진도 띄우지 않는다 - 레지스트리 함수는 플랫폼의 초기화가 필요 없다.
     JBro::Int32 ChangeProjectFileType(JBro::Bool add)
     {
         JBro::WindowsPlatform platform;
@@ -169,7 +169,7 @@ void AttachToParentConsole();
 // 같은 파일의 것이다. 넓은 문자 인자 하나를 UTF-8 로 바꾼다.
 JBro::String ToUtf8Argument(const wchar_t* argument);
 
-// **인자를 넓은 문자로 받는다**(D-336). 좁은 `main` 의 `argv` 는 이 기계의 ANSI 코드 페이지로 오고, 엔진은 경로를 UTF-8 로 읽는다 -
+// **인자를 넓은 문자로 받는다**(D-389). 좁은 `main` 의 `argv` 는 이 기계의 ANSI 코드 페이지로 오고, 엔진은 경로를 UTF-8 로 읽는다 -
 // 탐색기에서 `문서` 아래의 `.jproject` 를 두 번 누르면 경로가 깨져 열리지 않았다.
 int wmain(int argumentCount, wchar_t** wideArguments)
 {

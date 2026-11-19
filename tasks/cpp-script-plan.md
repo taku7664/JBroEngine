@@ -46,7 +46,7 @@
 | **핫 리로드를 거는 곳.** `ScriptDLLLoader::Reload` 를 호스트·에디터가 부르지 않는다. 폴더 감시(`WatchDirectory`)는 에셋 폴더에만 걸려 있다 | `EngineInstance.cpp` |
 | **스크립트가 오브젝트를 만들고 찾는 길.** `PrefabSpawner::Spawn` 은 선언만 있고 정의가 없으며, 스크립트가 그것을 얻을 자리도 없다 | `Framework2D/Prefab/Prefab.h` |
 | **`ReadOnly` 필드를 스크립트가 못 쓰게 하는 것.** `Transform2D` 의 월드 캐시(`worldPosition` 등)는 `ReadOnly()` 지만 이 표시는 인스펙터만 본다 | `Framework2D/Component/Transform2D.h` |
-| 3D 스크립트 베이스·충돌 훅 | 3D 프렐류드에 `GameScript3D` 가 없다. ~~3D 는 2D 뒤의 순서다(D-116)~~ → D-335 로 3D 가 먼저다. `todo-3d.md` 우선순위 7 |
+| 3D 스크립트 베이스·충돌 훅 | 3D 프렐류드에 `GameScript3D` 가 없다. ~~3D 는 2D 뒤의 순서다(D-116)~~ → D-388 로 3D 가 먼저다. `todo-3d.md` 우선순위 7 |
 
 ### 2.1 에디터·캔버스 쪽 연결 (2026-09-29, 코드로 확인)
 

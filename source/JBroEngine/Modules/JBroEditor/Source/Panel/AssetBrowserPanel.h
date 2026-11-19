@@ -55,7 +55,7 @@ namespace JBro
             String modifiedText;
             // 아이디의 글자(32 자리). 기존 목록의 넷째 열이다.
             String idText;
-            // **하위 에셋**(D-338). 이 파일에서 나온 레코드들이다(`AssetRecord::owner` 가 이 파일) - 그림의 Sprite, 모델의 메시·재질·내장 그림.
+            // **하위 에셋**(D-391). 이 파일에서 나온 레코드들이다(`AssetRecord::owner` 가 이 파일) - 그림의 Sprite, 모델의 메시·재질·내장 그림.
             // 있으면 ▶ 로 펼친다. 레지스트리가 바뀔 때만 모은다.
             Array<const AssetRecord*> children;
             // 참이면 이 줄은 하위 에셋 하나다. `record` 가 그 하위 레코드이고 `owner` 가 파일의 레코드다. 파일 손놀림(옮기기·지우기·이름 바꾸기)을 받지 않는다.
@@ -185,7 +185,7 @@ namespace JBro
         // 시작하도록 지난 프레임의 줄에서 잰다(트리 줄은 화살표 몫만큼 안으로 들어간다).
         Float m_rowTextOffset = 0.0f;
 
-        // 펼쳐 둔 파일들(D-338). 아이디다.
+        // 펼쳐 둔 파일들(D-391). 아이디다.
         Array<AssetId> m_expanded;
         // 고른 파일들의 상대경로다. 폴더는 여기 들어오지 않는다.
         Array<String> m_selection;

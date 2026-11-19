@@ -56,7 +56,7 @@ namespace JBro::System
             {
                 return;
             }
-            // **컴포넌트의 `mesh` 는 에셋 시스템의 핸들이다**(D-342) - 해석 패스(`BindCanvasAssets`)가 `meshId` 로 채운다. 이 시스템은 그것을 되쓰지 않고
+            // **컴포넌트의 `mesh` 는 에셋 시스템의 핸들이다**(D-395) - 해석 패스(`BindCanvasAssets`)가 `meshId` 로 채운다. 이 시스템은 그것을 되쓰지 않고
             // 라이브러리로 렌더러 메시를 푼다(2D 의 스프라이트와 같다). 모델의 메시가 아니면(빌트인 도형은 레지스트리에 없어 핸들이 빈다) 아이디로 빌트인 표를 본다.
             AssetHandle mesh;
             if (m_library != nullptr)
@@ -66,7 +66,7 @@ namespace JBro::System
                 {
                     mesh = m_library->Resolve(renderer.meshId);
                 }
-                // **풀리지 않으면 정육면체다**(D-337). 2D 의 `SpriteRenderer2D` 가 스프라이트가 비었거나 풀리지 않으면 흰 사각형을 그리는 것과 같다.
+                // **풀리지 않으면 정육면체다**(D-390). 2D 의 `SpriteRenderer2D` 가 스프라이트가 비었거나 풀리지 않으면 흰 사각형을 그리는 것과 같다.
                 if (mesh.generation == 0)
                 {
                     mesh = m_library->Resolve(MeshLibrary::BuiltinCubeId());
@@ -82,7 +82,7 @@ namespace JBro::System
             item.rotation = world->worldRotation;
             item.scale = world->worldScale;
             item.mesh = mesh;
-            // **재질은 칸 → 메시의 재질 → 기본 재질 차례다**(D-346 (3)). 칸이 비면 모델의 메시를 고르기만 해도 파일의 재질이 입혀진다.
+            // **재질은 칸 → 메시의 재질 → 기본 재질 차례다**(D-399 (3)). 칸이 비면 모델의 메시를 고르기만 해도 파일의 재질이 입혀진다.
             // 둘 다 없으면 빈 핸들이고 렌더러가 기본 재질로 그린다.
             AssetHandle material;
             if (m_materials != nullptr)

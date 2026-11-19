@@ -1,5 +1,5 @@
-// Mesh materials (material-plan stage 3, D-346): Standard is glTF metallic-roughness PBR lit by the view's light
-// block (D-353, lighting3d-plan); Unlit is base colour plus emissive. Both share the vertex stage.
+// Mesh materials (material-plan stage 3, D-399): Standard is glTF metallic-roughness PBR lit by the view's light
+// block (D-407, lighting3d-plan); Unlit is base colour plus emissive. Both share the vertex stage.
 //
 // Colour space: material colours, the instance tint and sRGB-viewed textures arrive linear. Lighting is linear
 // and the result is encoded to sRGB on the way out, because the frame targets are UNORM (no HDR target or tone map
@@ -34,7 +34,7 @@ cbuffer MaterialConstants : register(b1)
     float4 gParams;
 };
 
-// The view's lights (D-353). Layout mirrors GpuLightConstants in Renderer.h. A view that submitted no 3D light gets
+// The view's lights (D-407). Layout mirrors GpuLightConstants in Renderer.h. A view that submitted no 3D light gets
 // the renderer's default block: the fixed directional light and ambient that came before light components.
 struct Light
 {

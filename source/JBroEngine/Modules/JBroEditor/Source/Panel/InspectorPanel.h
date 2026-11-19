@@ -80,7 +80,7 @@ namespace JBro
             // 이번 프레임의 편집본. 원본은 `EditorApplication::GetSelectedAssetMeta` 다.
             AssetMetaFile* scratch = nullptr;
             // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다. 블록마다 불 값을 두던 것을 하나로 모았다 -
-            // 블록이 늘 때마다 불 값과 그 판정 사슬이 함께 늘었다(D-338 의 모델 블록을 더하며 바꿨다).
+            // 블록이 늘 때마다 불 값과 그 판정 사슬이 함께 늘었다(D-391 의 모델 블록을 더하며 바꿨다).
             // `SubTexture` 는 모델 내장 그림 하나의 옵션이다 - 모델 메타의 하위 목록 `subIndex` 번째 항목에 적는다(model-import-plan 5 단계).
             // `Material` 은 `.jmat` 본문의 값이다(material-plan 4 단계) - 메타가 아니라 그 파일을 고친다.
             enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model, SubTexture, Material };

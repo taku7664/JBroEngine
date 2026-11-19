@@ -2518,7 +2518,7 @@ namespace JBro
         const std::byte flat[4] = {std::byte{128}, std::byte{128}, std::byte{255}, std::byte{255}};
         m_defaultMaterial = {};
         m_defaultMaterial.constants = CreateMaterialConstants(m_defaultMaterial.desc);
-        // 라이트 블록은 뷰마다 하나다(D-353). 링의 한 자리는 블록을 정렬로 올린 크기다.
+        // 라이트 블록은 뷰마다 하나다(D-407). 링의 한 자리는 블록을 정렬로 올린 크기다.
         const std::size_t alignment = m_device->GetCaps().constantBufferAlignment;
         const std::size_t blockSlot = (sizeof(GpuLightConstants) + alignment - 1) / alignment * alignment;
         if (false == m_lightRing.Create(*m_device, blockSlot * m_config.maxViews.Get()))

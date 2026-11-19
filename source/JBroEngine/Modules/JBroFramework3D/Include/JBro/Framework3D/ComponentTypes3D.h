@@ -20,7 +20,7 @@ namespace JBro
 
 namespace JBro::Component
 {
-    // 3D 라이트의 종류다(D-353). 값의 차례는 파일과 렌더러의 `Light3DKind` 가 함께 쓰므로 뒤에만 더한다.
+    // 3D 라이트의 종류다(D-407). 값의 차례는 파일과 렌더러의 `Light3DKind` 가 함께 쓰므로 뒤에만 더한다.
     enum class Light3DType : std::uint8_t
     {
         // 캔버스 전체에 같은 빛이다(환경광). 자리·방향을 보지 않는다. 여럿이면 더한다. 2D 의 `Global` 이다.

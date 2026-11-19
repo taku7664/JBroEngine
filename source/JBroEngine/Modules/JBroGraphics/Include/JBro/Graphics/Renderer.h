@@ -36,7 +36,7 @@ namespace JBro
         UInt32 maxLights2D = 1024;
         // 한 프레임의 그림자 변(`SubmitShadowEdges2D`) 상한이다(D-291). 0 이면 그림자를 그리지 않는다.
         UInt32 maxShadowEdges2D = 16384;
-        // 한 프레임의 3D 라이트(`SubmitLight3D` 의 `Directional`·`Point`·`Spot`) 상한이다(D-353). 레이어마다 뷰가 열려 같은 라이트를 다시 내므로
+        // 한 프레임의 3D 라이트(`SubmitLight3D` 의 `Directional`·`Point`·`Spot`) 상한이다(D-407). 레이어마다 뷰가 열려 같은 라이트를 다시 내므로
         // 뷰 수의 몫까지 잡는다. 뷰 하나는 `Renderer::MaxLights3DPerView` 를 넘지 않는다. `Ambient` 는 세지 않는다.
         UInt32 maxLights3D = 1024;
         Bool validation = false;
@@ -235,7 +235,7 @@ namespace JBro
         Spot,
     };
 
-    // **3D 라이트 하나**(D-353, tasks/lighting3d-plan.md §2.3). 뷰 안에서 낸다. 값은 월드다. 뷰에 3D 라이트가 하나도 없으면 그 뷰의 메시는
+    // **3D 라이트 하나**(D-407, tasks/lighting3d-plan.md §2.3). 뷰 안에서 낸다. 값은 월드다. 뷰에 3D 라이트가 하나도 없으면 그 뷰의 메시는
     // 렌더러의 기본 빛(라이트 기능 전의 고정 방향광과 주변광)을 받는다 - 하나라도(`Ambient` 포함) 있으면 낸 라이트만 빛이다.
     struct Light3DSubmit
     {
@@ -276,7 +276,7 @@ namespace JBro
         std::uint8_t outlineColor[4] = {0, 0, 0, 0};
     };
 
-    // 텍스처를 올릴 때의 선택이다(material-plan 3 단계, D-339 의 효과). 기본값은 지금까지와 같다 - 2D 그림은 UNORM 한 장이다.
+    // 텍스처를 올릴 때의 선택이다(material-plan 3 단계, D-392 의 효과). 기본값은 지금까지와 같다 - 2D 그림은 UNORM 한 장이다.
     struct TextureUploadOptions
     {
         // 참이면 sRGB 로 본다 - 셰이더가 읽을 때 선형으로 풀린다. 기본색·발광 그림이 그렇다.
@@ -287,7 +287,7 @@ namespace JBro
 
     enum class MeshShading : std::uint8_t
     {
-        // metallic-roughness PBR, 고정 방향광 하나와 주변광(D-346 (1)).
+        // metallic-roughness PBR, 고정 방향광 하나와 주변광(D-399 (1)).
         Standard,
         // 빛을 받지 않는다.
         Unlit
@@ -309,13 +309,13 @@ namespace JBro
         Bool nearestFilter = false;
         AssetHandle baseColorTexture;
         AssetHandle metallicRoughnessTexture;
-        // 탄젠트가 있는 메시(`RegisterMesh` 의 `hasTangents`)에만 쓰인다(D-346 (5)).
+        // 탄젠트가 있는 메시(`RegisterMesh` 의 `hasTangents`)에만 쓰인다(D-399 (5)).
         AssetHandle normalTexture;
         AssetHandle occlusionTexture;
         AssetHandle emissiveTexture;
     };
 
-    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV·탄젠트(material-plan 1 단계, D-346). 모델의 CPU 정점(`ModelVertex`)과 같은 모양이라
+    // 렌더러가 GPU 에 올리는 메시 정점이다. 위치·법선·UV·탄젠트(material-plan 1 단계, D-399). 모델의 CPU 정점(`ModelVertex`)과 같은 모양이라
     // 모델 메시는 통째로 옮긴다(`MeshLibrary` 가 단언한다). UV 는 왼쪽 위가 0 이고, 탄젠트의 w 는 바이탄젠트의 방향(±1)이다.
     // 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
     struct MeshVertex
@@ -365,7 +365,7 @@ namespace JBro
         // 라이트맵이 아직 없어 빛을 받는 스프라이트를 빛 없이 그린 뷰다. 그 크기의 라이트맵은 다음 프레임을 열 때 생긴다.
         // 깊이가 달린 뷰(3D)도 여기 든다 - 그 뷰는 라이팅을 보지 않는다.
         UInt32 viewsWithoutLightMapCount = 0;
-        // 받은 3D 라이트다(`Ambient` 포함, D-353).
+        // 받은 3D 라이트다(`Ambient` 포함, D-407).
         UInt32 light3DCount = 0;
         // 뷰마다의 상한(`Renderer::MaxLights3DPerView`)이나 프레임 상한(`RendererConfig::maxLights3D`)을 넘어 버린 라이트다.
         UInt32 droppedLight3DCount = 0;
@@ -409,7 +409,7 @@ namespace JBro
         // 곱해 그린다 - 빛을 받는 레이어의 구간이다. 뷰마다 거짓으로 시작한다. 레이어 묶음(`BeginLayer`)과 겹쳐도 된다.
         // 깊이가 달린 뷰(3D)에서는 보지 않는다.
         Bool SetSpriteLighting(Bool lit);
-        // **3D 라이트를 낸다**(D-353). 뷰 안에서만 받는다. 그 뷰의 메시가 빛을 받는다. `Ambient` 는 뷰의 환경광에 더한다.
+        // **3D 라이트를 낸다**(D-407). 뷰 안에서만 받는다. 그 뷰의 메시가 빛을 받는다. `Ambient` 는 뷰의 환경광에 더한다.
         // 뷰 하나에 `MaxLights3DPerView` 를 넘는 것은 버리고 센다 - 셰이더의 라이트 배열 길이다.
         static constexpr UInt32 MaxLights3DPerView = 64;
         Bool SubmitLight3D(const Light3DSubmit& light);
@@ -420,7 +420,7 @@ namespace JBro
         // **핸들 모양이 `AssetHandle` 인 것은 `MeshSubmit` 이 그 타입이기 때문이다.** 발급자가 렌더러라는
         // 것은 `MeshLibrary`(Framework3DSystem)만 안다 - `AssetSystem` 이 실제로 로드하게 되면 그쪽이
         // 발급한다(`[가정]`, framework3d-plan §2.3).
-        // `hasTangents` 가 거짓이면 그 메시는 노멀맵을 읽지 않는다 - 탄젠트가 없는 모델 파일이다(D-346 (5)).
+        // `hasTangents` 가 거짓이면 그 메시는 노멀맵을 읽지 않는다 - 탄젠트가 없는 모델 파일이다(D-399 (5)).
         AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices, Bool hasTangents = true);
         void UnregisterMesh(AssetHandle mesh);
         UInt32 GetMeshCount() const;
@@ -532,7 +532,7 @@ namespace JBro
             Bool lighting = false;
             // 빛을 받는 스프라이트 구간이 있는가. 업로드가 채운다.
             Bool hasLitRun = false;
-            // 이 뷰의 3D 라이트(`m_lights3D`)와 `Ambient` 의 합이다(D-353). `lighting3D` 가 거짓이면 기본 빛을 받는다.
+            // 이 뷰의 3D 라이트(`m_lights3D`)와 `Ambient` 의 합이다(D-407). `lighting3D` 가 거짓이면 기본 빛을 받는다.
             UInt32 light3DOffset = 0;
             UInt32 light3DCount = 0;
             Float ambient3D[3] = {0.0f, 0.0f, 0.0f};
@@ -703,7 +703,7 @@ namespace JBro
             Float cameraAndFlags[4];
         };
         static_assert(sizeof(MeshPushConstants) == 80, "the mesh push constants are part of the shader ABI");
-        // 3D 라이트 하나(D-353). `BuiltinMesh.hlsl` 의 `Light` 와 같은 모양이다.
+        // 3D 라이트 하나(D-407). `BuiltinMesh.hlsl` 의 `Light` 와 같은 모양이다.
         struct GpuLight3D
         {
             // xyz 자리, w 는 `range`(0 이면 무한).
@@ -898,7 +898,7 @@ namespace JBro
         GraphicsPipelineHandle m_litSdfTextPipeline;
         BufferHandle m_lightInstanceBuffers[MaxFrameSlots];
         Array<Light2DSubmit> m_lights;
-        // 3D 라이트(D-353). 낸 차례대로 GPU 모양으로 담는다. 라이트 블록은 뷰를 그릴 때 `m_lightBlock` 에 짓고 링에 올린다 - 앞 뷰와 같으면 그 구간을 다시 쓴다.
+        // 3D 라이트(D-407). 낸 차례대로 GPU 모양으로 담는다. 라이트 블록은 뷰를 그릴 때 `m_lightBlock` 에 짓고 링에 올린다 - 앞 뷰와 같으면 그 구간을 다시 쓴다.
         Array<GpuLight3D> m_lights3D;
         ConstantRing m_lightRing;
         GpuLightConstants m_lightBlock{};

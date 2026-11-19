@@ -13,7 +13,7 @@ namespace JBro
 
     // **GPU 메시를 든다**(framework3d-plan §2.3, asset-plan §2.5). 두 갈래다.
     // - 빌트인 도형: 레지스트리에 없어 `AssetId → 렌더러 핸들` 표로 판다(`Resolve(AssetId)`).
-    // - 모델의 메시(D-338): 컴포넌트의 `mesh` 칸에는 해석 패스가 채운 **에셋 시스템의 핸들**이 있다. `ResolveAsset` 이 그 CPU 자료를
+    // - 모델의 메시(D-391): 컴포넌트의 `mesh` 칸에는 해석 패스가 채운 **에셋 시스템의 핸들**이 있다. `ResolveAsset` 이 그 CPU 자료를
     //   처음 만날 때 렌더러에 올리고, 자료 세대가 오르면(in-place 재로드) 다시 올린다. 2D 의 `SpriteLibrary` 와 같은 자리·같은 모양이다 -
     //   전에는 이 라이브러리가 렌더러 핸들을 컴포넌트에 되써서 같은 칸에 두 종류의 핸들이 섞였다.
     class MeshLibrary
@@ -22,7 +22,7 @@ namespace JBro
         // 빌트인 정육면체의 아이디. `MeshRenderer3D::meshId` 에 넣으면 그 도형이 그려진다.
         static AssetId BuiltinCubeId();
 
-        // **빌트인 도형 표**(D-335 우선순위 2). 정육면체·구·캡슐·원기둥·평면이고, 아이디는 `Uuid::FromName("builtin/<이름>")` 이다.
+        // **빌트인 도형 표**(D-388 우선순위 2). 정육면체·구·캡슐·원기둥·평면이고, 아이디는 `Uuid::FromName("builtin/<이름>")` 이다.
         // 레지스트리에 없는 아이디라 에디터의 메시 칸·만들기 메뉴가 이 표에서 이름을 얻는다. 이름은 번역하지 않는다.
         struct BuiltinMesh
         {

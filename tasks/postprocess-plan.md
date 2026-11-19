@@ -132,9 +132,9 @@
 
 각 단계는 빌드·시험·뮤테이션 뒤 커밋한다. 픽셀 시험은 세 백엔드(D3D12·D3D11·Vulkan)에서 **디버그 레이어를 켜고** 잰다.
 
-1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14). Vulkan 의 그리기 시험도 섰다(D-352, 2026-11-17, §3.6).**
-2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **섰다(D-326·D-327, 2026-10-15). Vulkan 의 그리기 시험도 섰다(D-352, §3.6).**
-3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`. **컴퓨트·UAV·구조화 버퍼·자동 배리어가 섰다(D-328, 2026-10-15). 명시 `Barrier` API 는 5 단계로 옮겼다(사용자 결정). Vulkan 의 디스패치 시험도 섰다(D-352, §3.6).**
+1. RHI 바인딩 레이아웃·상수 버퍼·업로드 링·비인덱스 `Draw`·포맷. **섰다(D-325, 2026-10-14). Vulkan 의 그리기 시험도 섰다(D-405, 2026-11-17, §3.6).**
+2. RHI 서브리소스(mip 첨부·읽기)·서브리소스 상태·깊이 읽기·3D 텍스처. **섰다(D-326·D-327, 2026-10-15). Vulkan 의 그리기 시험도 섰다(D-405, §3.6).**
+3. RHI 컴퓨트·UAV·구조화 버퍼·`Barrier`. **컴퓨트·UAV·구조화 버퍼·자동 배리어가 섰다(D-328, 2026-10-15). 명시 `Barrier` API 는 5 단계로 옮겼다(사용자 결정). Vulkan 의 디스패치 시험도 섰다(D-405, §3.6).**
 4. 셰이더 매니페스트와 Shader 에셋(빌트인 셰이더를 옮긴다). **매니페스트와 셰이더 자료형 `ShaderData` 가 섰다(D-329, 2026-10-15, §3.5). `.jshader` 에셋 파일과 에디터의 즉석 굽기는 11 단계로 옮겼다(사용자 결정).**
 5. 렌더 그래프와 지금 패스 옮기기. 그림이 바뀌지 않는 것을 기존 픽셀 시험이 잰다. **명시 `Barrier` API 도 여기서 연다(D-328).**
 6. 효과 종류 표·주입 지점·HDR 장면 색·톤맵. 시험대로 노출과 톤맵.
@@ -198,7 +198,7 @@
 
 남은 것:
 
-- ~~**Vulkan 의 그리기 시험.** 이 기계에는 Vulkan SDK 의 dxc 가 없어 `ConstantProbe*_SPV.generated.h` 를 굽지 못했다.~~ → 섰다(D-352, §3.6).
+- ~~**Vulkan 의 그리기 시험.** 이 기계에는 Vulkan SDK 의 dxc 가 없어 `ConstantProbe*_SPV.generated.h` 를 굽지 못했다.~~ → 섰다(D-405, §3.6).
 - ~~이 기계의 Vulkan 에는 검증 레이어가 없다.~~ → Vulkan SDK 1.4.363.1 을 깔아(2026-11-17) `TextureBinding` 의 "검증 손잡이가 실제로 말하는지" 가 Vulkan 에서도 지난다.
 
 ### 3.2 2 단계 - 서브리소스·서브리소스 상태·깊이 읽기 (D-326)
@@ -313,7 +313,7 @@ Vulkan 은 `VK_PIPELINE_BIND_POINT_COMPUTE`, `STORAGE_IMAGE`(GENERAL 레이아�
 
 남은 것: Vulkan 의 디스패치 시험(SPIR-V), 명시 `Barrier`(5 단계), 그래픽 단계의 UAV(픽셀 셰이더의 쓰기)와 3D·배열 UAV, 읽기 전용 구조화 버퍼(`StructuredBuffer`, t#), 같은 디스패치에서 같은 mip 을
 읽고 쓰는 묶음의 거절(지금은 부르는 쪽의 몫이다), D3D12 프레임 폐기 때 버퍼 상태 되돌리기(텍스처만 되돌린다).
-- ~~Vulkan 의 그리기 시험(§3.1 과 같은 까닭).~~ → 섰다(D-352, §3.6).
+- ~~Vulkan 의 그리기 시험(§3.1 과 같은 까닭).~~ → 섰다(D-405, §3.6).
 
 ### 3.5 4 단계 - 셰이더 매니페스트와 셰이더 자료형 (D-329)
 
@@ -357,9 +357,9 @@ Vulkan 은 `VK_PIPELINE_BIND_POINT_COMPUTE`, `STORAGE_IMAGE`(GENERAL 레이아�
 남은 것: SPIR-V 헤더를 매니페스트로 다시 굽기(Vulkan SDK 가 있는 기계에서 `Compile.ps1` 을 `-SkipSpirv` 없이), 컴퓨트 프로그램을 매니페스트에 받기(첫 효과가 6·7 단계에서),
 파라미터 블록 레이아웃(6 단계), `.jshader` 에셋 파일과 에디터의 즉석 굽기(11 단계).
 
-### 3.6 Vulkan 의 그리기·디스패치 시험 (D-352)
+### 3.6 Vulkan 의 그리기·디스패치 시험 (D-405)
 
-2026-11-17. 이 기계에 Vulkan SDK 1.4.363.1 이 깔려(D-347), 1~3 단계의 탐침 셰이더를 SPIR-V 로 굽고(`Tests\Shaders\Compile.ps1`, `*_SPV.generated.h` 열하나)
+2026-11-17. 이 기계에 Vulkan SDK 1.4.363.1 이 깔려(D-400), 1~3 단계의 탐침 셰이더를 SPIR-V 로 굽고(`Tests\Shaders\Compile.ps1`, `*_SPV.generated.h` 열하나)
 네 시험 파일(`ConstantBufferTests.cpp`·`RenderTargetFormatTests.cpp`·`SubresourceTests.cpp`·`ComputeTests.cpp`)의 `HasProbeShaders`·API 검사에 Vulkan 을 넣었다.
 바이트코드는 파일마다 `Pick(api, dxil, sm5, spv)` 하나가 고른다. DXIL·DXBC 헤더와 `TexturedQuad*_SPV` 는 다시 구워도 같은 바이트였다.
 

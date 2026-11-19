@@ -86,7 +86,7 @@ namespace JBro
         }
     };
 
-    // `.jmeta` 의 `Model.ImportOptions` 가 이 표로 읽히고 쓰인다(D-339).
+    // `.jmeta` 의 `Model.ImportOptions` 가 이 표로 읽히고 쓰인다(D-392).
     template <>
     struct TypeDescriptorOf<ModelImportOptions>
     {

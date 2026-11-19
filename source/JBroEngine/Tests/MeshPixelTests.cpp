@@ -71,7 +71,7 @@ namespace
         return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
     }
 
-    // **3D 라이트의 셈**(D-353, `BuiltinMesh.hlsl` 의 라이트 루프). 렌더러가 `Light3DSubmit` 을 옮기는 셈(방향의 정규화, 원뿔 반각의 cos 에서 scale·offset)과
+    // **3D 라이트의 셈**(D-407, `BuiltinMesh.hlsl` 의 라이트 루프). 렌더러가 `Light3DSubmit` 을 옮기는 셈(방향의 정규화, 원뿔 반각의 cos 에서 scale·offset)과
     // 셰이더의 감쇠(거리 제곱, glTF 창, 원뿔의 제곱)를 CPU 로 다시 쓴다. 환경광은 기본색 × 환경광이다.
     Pixel ExpectLit(const float base[3], JBro::Vector3 normal, JBro::Vector3 position, JBro::Vector3 camera, float metallic, float roughnessFactor,
         const float ambient[3], const JBro::Light3DSubmit* lights, int count)
@@ -229,7 +229,7 @@ namespace
             frameTarget.texture = target;
             frameTarget.extent = {TargetWidth, TargetHeight};
             // **호스트와 같은 차례다** - 갱신(Update)이 먼저, 렌더 프레임이 나중이다(`EngineInstance::Tick`). 렌더러는 프레임 안의 등록을 거절하므로
-            // 갱신에서 처음 만난 모델 메시를 올리는 길(D-342)은 이 차례에서만 선다. 전에는 거꾸로 불러도 빌트인만 있어 드러나지 않았다.
+            // 갱신에서 처음 만난 모델 메시를 올리는 길(D-395)은 이 차례에서만 선다. 전에는 거꾸로 불러도 빌트인만 있어 드러나지 않았다.
             JBro::Testing::Tick(framework, 1.0f / 60.0f);
             Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
             Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit its view");
@@ -710,7 +710,7 @@ namespace
 
 namespace
 {
-    // **빌트인 도형마다 카메라를 향한 면이 빛을 받는다**(D-335 우선순위 2). 흰 도형 하나를 가운데 두고 가운데 픽셀이 고정 광원의
+    // **빌트인 도형마다 카메라를 향한 면이 빛을 받는다**(D-388 우선순위 2). 흰 도형 하나를 가운데 두고 가운데 픽셀이 고정 광원의
     // 램버트 값인지 본다. 감김이 뒤집히면 바깥 면이 컬링되고 안쪽 면(앰비언트 0.25)이 보인다 - 정육면체 때 실제로 그랬다(D-108).
     // 기대색은 흰 기본 재질의 `Standard` 식(`ExpectStandard`)이다 - 구·캡슐·원기둥은 옆에서(+Z) 본 앞 법선 (0,0,1), 평면은 위에서 내려다본 법선 (0,1,0).
     template <typename TModule>
@@ -799,7 +799,7 @@ namespace
         file << text;
     }
 
-    // **모델의 메시가 그려진다**(D-338·D-342, model-import-plan 4 단계). 레지스트리 스캔 → 해석 패스(`BindCanvasAssets`)가 `meshId` 로 에셋 핸들을 채움 →
+    // **모델의 메시가 그려진다**(D-391·D-395, model-import-plan 4 단계). 레지스트리 스캔 → 해석 패스(`BindCanvasAssets`)가 `meshId` 로 에셋 핸들을 채움 →
     // `MeshLibrary` 가 CPU 자료를 처음 만날 때 렌더러에 올림. 삼각형은 화면 왼쪽 위에 있어, 정육면체 대체(가운데)와 갈린다.
     // 파일을 고쳐 다시 읽으면(in-place 재로드, 자료 세대가 오른다) 라이브러리가 다시 올려 그림이 오른쪽 아래로 옮겨진다.
     template <typename TModule>
@@ -1204,7 +1204,7 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
-    // **3D 라이트가 메시를 비춘다**(D-353, lighting3d-plan 1 단계). 위에서 직교로 내려다본 바닥(흰 재질 × 회색 틴트)에 라이트를 내고, 다섯 자리의 픽셀을
+    // **3D 라이트가 메시를 비춘다**(D-407, lighting3d-plan 1 단계). 위에서 직교로 내려다본 바닥(흰 재질 × 회색 틴트)에 라이트를 내고, 다섯 자리의 픽셀을
     // 셰이더 식의 CPU 판(`ExpectLit`)과 견준다. 라이트가 없는 뷰는 기본 빛이고, 하나라도(환경광만이라도) 내면 낸 라이트만이다. 점광은 `range` 밖이 검고,
     // 스포트는 바깥 각 밖이 검다. 한 프레임의 두 뷰는 제 라이트를 따로 받고, 뷰 하나의 상한을 넘는 라이트는 버리고 센다.
     template <typename TModule>
@@ -1399,7 +1399,7 @@ namespace
         renderer.UnregisterMesh(floor);
         stage.Close();
     }
-    // **`Light3D` 컴포넌트가 캔버스를 비춘다**(D-353, lighting3d-plan 2 단계). 위에서 직교로 내려다본 바닥(빌트인 평면)을 프레임워크로 그린다.
+    // **`Light3D` 컴포넌트가 캔버스를 비춘다**(D-407, lighting3d-plan 2 단계). 위에서 직교로 내려다본 바닥(빌트인 평면)을 프레임워크로 그린다.
     // (1) 새 프로젝트의 시작 라이트와 같은 방향광(오브젝트 회전으로 돌린 -Z)·환경광은 라이트가 없을 때의 기본 빛과 같은 그림이다 - 회전이 방향이 된다.
     // (2) 감춘 레이어의 라이트는 꺼진다. 점광과 스포트(회전으로 아래를 본다)가 셰이더 식의 CPU 판과 같다.
     // (3) 캔버스 파일로 쓰고 다시 읽어도 라이트의 값과 그림이 같다.

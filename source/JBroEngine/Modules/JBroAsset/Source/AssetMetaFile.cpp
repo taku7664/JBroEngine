@@ -195,7 +195,7 @@ namespace JBro
             {
                 return false;
             }
-            // 모델 블록: 옵션과 하위 에셋 목록(D-338). 목록의 항목은 `Key` 와 `Id` 이고 키는 겹치지 않으며 아이디는 모델·서로와 겹치지 않는다.
+            // 모델 블록: 옵션과 하위 에셋 목록(D-391). 목록의 항목은 `Key` 와 `Id` 이고 키는 겹치지 않으며 아이디는 모델·서로와 겹치지 않는다.
             const UInt32 model = document.Find(root, "Model");
             if (false == ReadOptions(document, model, TypeDescriptorOf<ModelImportOptions>::Get(),
                     &parsed.modelOptions, parsed.hasModelOptions, error))

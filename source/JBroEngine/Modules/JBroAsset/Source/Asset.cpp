@@ -935,7 +935,7 @@ namespace JBro
             }
             return true;
         }
-        // 모델의 하위 Material 은 모델의 재질을 옮긴 것이다(읽기 전용, D-346 (2)).
+        // 모델의 하위 Material 은 모델의 재질을 옮긴 것이다(읽기 전용, D-399 (2)).
         if (const AssetRecord* model = OwnerModelOf(record))
         {
             const ModelData* decoded = DecodeOwnerModel(*model);

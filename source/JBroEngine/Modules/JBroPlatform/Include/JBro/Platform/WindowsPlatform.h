@@ -44,7 +44,7 @@ namespace JBro
         Bool GetFileWriteTime(const char* utf8Path, Int64& outUnixSeconds) const override;
         Bool OpenPathWithShell(const char* utf8Path) override;
         Bool RevealInFileBrowser(const char* utf8Path) override;
-        // `WindowsFileType.cpp` 의 것이다(D-336).
+        // `WindowsFileType.cpp` 의 것이다(D-389).
         Bool RegisterFileType(const FileTypeAssociation& desc) override;
         Bool UnregisterFileType(const FileTypeAssociation& desc) override;
         String ReadFileTypeCommand(const char* classesKey, const char* extension) const override;

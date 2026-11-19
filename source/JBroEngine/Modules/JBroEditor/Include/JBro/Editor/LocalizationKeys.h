@@ -171,7 +171,7 @@ namespace JBro::LocKeys
     inline constexpr const char* NewProjectInvalidName = "new_project.invalid_name";
     inline constexpr const char* NewProjectAlreadyExists = "new_project.already_exists";
     inline constexpr const char* NewProjectCannotWrite = "new_project.cannot_write";
-    // `.jproject` 를 이 에디터와 잇기(D-336). 프로젝트가 없을 때의 파일 메뉴에 있다.
+    // `.jproject` 를 이 에디터와 잇기(D-389). 프로젝트가 없을 때의 파일 메뉴에 있다.
     inline constexpr const char* MenuRegisterProjectFileType = "menu.register_project_file_type";
     inline constexpr const char* PopupProjectFileTypeRegistered = "popup.project_file_type_registered";
     inline constexpr const char* PopupProjectFileTypeFailed = "popup.project_file_type_failed";

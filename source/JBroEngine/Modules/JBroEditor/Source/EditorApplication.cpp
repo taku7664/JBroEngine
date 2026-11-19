@@ -2492,7 +2492,7 @@ namespace JBro
         }
         if (m_frameworkKind == FrameworkKind::Framework3D)
         {
-            // **3D 의 카메라는 캔버스 뷰가 처음 서는 궤도 자리에 선다**(D-335). 원점에 회전 없이 두면 -Z 만 보고 바닥도 큐브도 비껴,
+            // **3D 의 카메라는 캔버스 뷰가 처음 서는 궤도 자리에 선다**(D-388). 원점에 회전 없이 두면 -Z 만 보고 바닥도 큐브도 비껴,
             // 실행해도 바탕색만 보였다. 편집 화면과 실행 화면이 같아야 둘을 오가며 헷갈리지 않는다(2D 의 크기 5 와 같은 까닭).
             // 자리는 `EditorViewDesc` 의 처음 값에서 `SubmitEditorView3D` 와 같은 식으로 낸다.
             const EditorViewDesc view;
@@ -2521,7 +2521,7 @@ namespace JBro
             {
                 mesh->meshId = MeshLibrary::BuiltinCubeId();
             }
-            // **빛 하나**(D-353 (3)). 라이트가 없을 때의 기본 빛과 같은 방향광(빛 쪽 (0.4, 0.8, 0.45), 0.75)과 환경광(0.25)을 한 오브젝트에 둔다 -
+            // **빛 하나**(D-407 (3)). 라이트가 없을 때의 기본 빛과 같은 방향광(빛 쪽 (0.4, 0.8, 0.45), 0.75)과 환경광(0.25)을 한 오브젝트에 둔다 -
             // 새 프로젝트의 그림이 라이트 기능 전과 같고, 사용자는 처음부터 빛을 고칠 자리를 본다(Unity 의 새 씬에 방향광이 있는 것과 같다).
             Object::GameObject* light = canvas->CreateObject("Light");
             if (light == nullptr)
@@ -2747,7 +2747,7 @@ namespace JBro
     Bool EditorApplication::CreateProject(
         const char* parentFolder, const char* name, FrameworkKind framework, ProjectCreateFailure* failure)
     {
-        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-336). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
+        // **만들고 넘어가는 길이므로 다른 프로젝트로 바꾸는 길이다**(D-389). 파일로 연 프로젝트가 있으면 파일도 쓰지 않는다.
         if (false == CanSwitchProject())
         {
             Log::Write(LogLevel::Warning, "project", "a project is open; a new project starts from an editor with no project");
@@ -6051,7 +6051,7 @@ namespace JBro
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             // 기존과 같은 차례다: 새 프로젝트 · 구분선 · 열기 · 저장.
-            // **프로젝트가 열려 있으면 다른 프로젝트를 들이는 항목은 없다**(D-336). 다른 프로젝트는 그 `.jproject` 를 두 번 눌러 새 에디터로 연다.
+            // **프로젝트가 열려 있으면 다른 프로젝트를 들이는 항목은 없다**(D-389). 다른 프로젝트는 그 `.jproject` 를 두 번 눌러 새 에디터로 연다.
             if (CanSwitchProject())
             {
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
@@ -7110,7 +7110,7 @@ namespace JBro
                 }
                 popup.OnDraw(*this);
                 // **붙드는 프레임이 지난 뒤에 크기가 바뀌어도, 사람이 옮기지 않았으면 다시 가운데에 붙든다.** 내용에 맞추는 높이가
-                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-336 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
+                // 몇 프레임 늦게 줄어 새 프로젝트 팝업이 5 픽셀 넘게 위로 치우쳤다(D-389 시험이 잡았다). 끌어 옮긴 팝업은 그대로 둔다.
                 const ImVec2 size = ImGui::GetWindowSize();
                 const ImVec2 pos = ImGui::GetWindowPos();
                 const ImVec2 center = ImGui::GetMainViewport()->GetCenter();

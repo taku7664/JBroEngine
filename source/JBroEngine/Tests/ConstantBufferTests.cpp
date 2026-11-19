@@ -35,7 +35,7 @@ namespace Spv
 
 // 후처리 계획 1 단계(postprocess-plan §3)의 RHI 를 잰다 - 바인딩 레이아웃·상수 버퍼·업로드 링·인덱스 없는 그리기·새 포맷.
 //
-// 세 백엔드 모두 픽셀까지 잰다. Vulkan 의 SPIR-V 탐침은 Vulkan SDK 의 dxc 로 구웠다(2026-11-17, D-352) - 그 전에는
+// 세 백엔드 모두 픽셀까지 잰다. Vulkan 의 SPIR-V 탐침은 Vulkan SDK 의 dxc 로 구웠다(2026-11-17, D-405) - 그 전에는
 // 셰이더가 필요 없는 것만 Vulkan 에서 돌았다.
 namespace
 {

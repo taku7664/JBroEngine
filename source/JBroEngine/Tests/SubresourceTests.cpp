@@ -45,7 +45,7 @@ namespace Spv
 //
 // D3D12 와 D3D11 은 그려서 잰다. **D3D12 의 검증 레이어가 이 시험의 반이다** - mip 마다 상태를 들지 않으면 그림은 맞게 나와도
 // "mip 0 을 읽는 동안 mip 1 이 렌더 타깃" 같은 자리에서 검증 오류가 난다. Vulkan 도 그려서 잰다 - SPIR-V 탐침은
-// 2026-11-17 에 구웠다(D-352). Vulkan 은 검증 레이어가 레이아웃 전이를 잰다.
+// 2026-11-17 에 구웠다(D-405). Vulkan 은 검증 레이어가 레이아웃 전이를 잰다.
 namespace
 {
     void Check(JBro::Bool condition, const char* message)

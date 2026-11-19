@@ -1,6 +1,6 @@
 ﻿# 3D 조명 계획 (Light3D)
 
-결정은 D-353. 2026-11-19 사용자와 정했다(todo-3d 우선순위 5, "다 추천안대로"). 그림자는 이 계획에 없다 - 그 뒤의 일이다.
+결정은 D-407. 2026-11-19 사용자와 정했다(todo-3d 우선순위 5, "다 추천안대로"). 그림자는 이 계획에 없다 - 그 뒤의 일이다.
 
 > 상태: **진행** (2026-11-19 시작).
 
@@ -8,7 +8,7 @@
 
 ### 1.1 지금 엔진 (2026-11-19 실측)
 
-- 3D 의 빛은 `BuiltinMesh.hlsl` 의 상수 셋이다: 고정 방향광(`normalize(0.4, 0.8, 0.45)` 쪽으로, 세기 0.75)과 주변광 0.25. `Standard` 재질(D-346)이
+- 3D 의 빛은 `BuiltinMesh.hlsl` 의 상수 셋이다: 고정 방향광(`normalize(0.4, 0.8, 0.45)` 쪽으로, 세기 0.75)과 주변광 0.25. `Standard` 재질(D-399)이
   그 빛으로 metallic-roughness PBR 을 셈하고, `Unlit` 은 빛을 받지 않는다.
 - 메시 패스는 b0 푸시 상수(뷰-투영·카메라 위치·탄젠트 있음)와 b1 재질 상수 블록을 묶는다. 렌더러는 프레임마다 바뀌는 상수를 올리는 `ConstantRing`(D-325)을
   아직 쓰지 않는다.
@@ -29,7 +29,7 @@
 - 출처: KHR_lights_punctual README(Khronos), Godot 문서(GLTFLight·OmniLight3D·물리 단위·환경), Unreal 문서(Point Light·`bUseInverseSquaredFalloff`),
   Unity 문서(Light 컴포넌트·Forward+·라이트 제한). Filament 문서는 읽지 못했다(리디렉트).
 
-## 2. 설계 (D-353, 2026-11-19 사용자 확인)
+## 2. 설계 (D-407, 2026-11-19 사용자 확인)
 
 ### 2.1 정한 것
 
@@ -39,7 +39,7 @@
 2. **거리 감쇠는 glTF 권장식, 필드는 `range` 하나.** 2D 의 안·밖 반지름과 다르다 - 선형 감쇠는 PBR 과 섞이면 어색하고, glTF 와 같으면 모델의 라이트를 그대로 가져온다.
    `range` 가 0 이면 무한(감쇠는 거리 제곱만)이다. 거리는 0.01 아래로 내려가지 않는다(라이트 바로 곁의 무한대 방지).
 3. **라이트가 없는 캔버스는 지금의 고정 빛이다.** "라이트가 없으면 라이트 기능 전과 같다" 는 2D 규칙과 같은 뜻이다. Godot 는 에디터에서만 이렇게 하지만,
-   여기는 게임도 같다 - 에디터와 게임이 같은 그림을 내는 것을 시험이 바이트로 본다(D-351). `Light3D` 가 하나라도(종류 무관) 뷰에 오면 놓인 라이트만 빛을 낸다.
+   여기는 게임도 같다 - 에디터와 게임이 같은 그림을 내는 것을 시험이 바이트로 본다(D-404). `Light3D` 가 하나라도(종류 무관) 뷰에 오면 놓인 라이트만 빛을 낸다.
    새 3D 프로젝트의 시작 오브젝트(`AddStarterObjects`)에 `Directional` 라이트 하나를 더한다.
 4. **포워드, 뷰마다 라이트 목록 하나.** 상수 블록(b2)에 `Ambient` 합과 라이트 최대 64 를 담아 픽셀마다 모두 돈다. 넘치면 버리고 센다
    (`RendererFrameStats`, 2D 의 `maxLights2D` 와 같은 꼴). 클러스터는 재 본 뒤다.
@@ -83,8 +83,8 @@
 
 | 단계 | 내용 | 완료 조건 | 상태 |
 |---|---|---|---|
-| 1 | 렌더러: `Light3DSubmit`·b2 라이트 블록·셰이더 루프·기본 빛·넘침 세기 | 세 백엔드 픽셀 시험 - 라이트 없음은 전과 같은 그림, 방향광의 방향, 점광의 `range` 밖은 환경광만, 스포트의 안·밖, `Ambient` 만, 넘침 셈. 뮤테이션 | `[완료]` 2026-11-19 · D-354 · `Light3DSubmit`·`SubmitLight3D(s)`·`RendererConfig::maxLights3D`(1024)·`Renderer::MaxLights3DPerView`(64)·`RendererFrameStats::light3DCount`/`droppedLight3DCount`, 메시 셰이더의 라이트 루프와 b2 블록(`ShaderManifest` 의 `Mesh` 상수 버퍼 둘), 뷰마다 `ConstantRing` 에 한 번(앞 뷰와 같은 바이트면 그 구간을 다시 묶는다), 기본 빛 블록 · 시험 `MeshPixel` 의 `TestLightsLightTheMeshes`(세 백엔드) |
-| 2 | `Light3D` 컴포넌트·`Light3DSystem`·브리지·스크립트 핸들·시작 오브젝트의 방향광 | 캔버스로 그린 픽셀 시험, 감춘 레이어의 라이트, 캔버스 파일 왕복, 새 3D 프로젝트의 라이트 | `[완료]` 2026-11-19 · D-355 · `Component::Light3D`(`Light3DType`)·`Handle::Light3D`·`Light3DSystem`·`RenderWorld3D` 의 라이트·브리지의 `PushLights`(레이어 뷰마다)·시작 오브젝트 `Light`(방향광 0.75 + 환경광 0.25)·새 스크립트 창의 `Light3D` 필드 · 시험 `MeshPixel` 의 `TestLightComponentsLightTheCanvas`(세 백엔드), `UserScenario` 의 시나리오 D |
+| 1 | 렌더러: `Light3DSubmit`·b2 라이트 블록·셰이더 루프·기본 빛·넘침 세기 | 세 백엔드 픽셀 시험 - 라이트 없음은 전과 같은 그림, 방향광의 방향, 점광의 `range` 밖은 환경광만, 스포트의 안·밖, `Ambient` 만, 넘침 셈. 뮤테이션 | `[완료]` 2026-11-19 · D-408 · `Light3DSubmit`·`SubmitLight3D(s)`·`RendererConfig::maxLights3D`(1024)·`Renderer::MaxLights3DPerView`(64)·`RendererFrameStats::light3DCount`/`droppedLight3DCount`, 메시 셰이더의 라이트 루프와 b2 블록(`ShaderManifest` 의 `Mesh` 상수 버퍼 둘), 뷰마다 `ConstantRing` 에 한 번(앞 뷰와 같은 바이트면 그 구간을 다시 묶는다), 기본 빛 블록 · 시험 `MeshPixel` 의 `TestLightsLightTheMeshes`(세 백엔드) |
+| 2 | `Light3D` 컴포넌트·`Light3DSystem`·브리지·스크립트 핸들·시작 오브젝트의 방향광 | 캔버스로 그린 픽셀 시험, 감춘 레이어의 라이트, 캔버스 파일 왕복, 새 3D 프로젝트의 라이트 | `[완료]` 2026-11-19 · D-409 · `Component::Light3D`(`Light3DType`)·`Handle::Light3D`·`Light3DSystem`·`RenderWorld3D` 의 라이트·브리지의 `PushLights`(레이어 뷰마다)·시작 오브젝트 `Light`(방향광 0.75 + 환경광 0.25)·새 스크립트 창의 `Light3D` 필드 · 시험 `MeshPixel` 의 `TestLightComponentsLightTheCanvas`(세 백엔드), `UserScenario` 의 시나리오 D |
 | 3 | 에디터: 전구 표시·기즈모(`range` 구·원뿔 손잡이·방향 화살표) | 손잡이를 끌어 값이 바뀌고 되돌리기 한 번, 시험 스크린숏 | |
 
 ## 4. `[열림]`

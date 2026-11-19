@@ -187,7 +187,7 @@ namespace JBro
                 ++report.metaCreated;
             }
 
-            // **모델의 하위 목록**(D-338). 에디터만, 목록이 아직 없을 때만 모델을 읽어 채운다 - 프로젝트를 열 때마다 모든 모델을 다시 읽지 않는다.
+            // **모델의 하위 목록**(D-391). 에디터만, 목록이 아직 없을 때만 모델을 읽어 채운다 - 프로젝트를 열 때마다 모든 모델을 다시 읽지 않는다.
             // 파일이 바뀐 것은 파일 감시가, 옵션이 바뀐 것은 옵션 편집이 다시 맞춘다. 게임은 메타의 목록만 본다.
             if (meta.type == AssetType::Model && false == meta.hasSubAssets && options.createMissingMeta)
             {

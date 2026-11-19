@@ -136,7 +136,7 @@ namespace JBro
         Bool pickFolder = false;
     };
 
-    // 확장자 하나를 프로그램과 잇는 것이다(D-336). 글자는 전부 UTF-8 이다.
+    // 확장자 하나를 프로그램과 잇는 것이다(D-389). 글자는 전부 UTF-8 이다.
     struct FileTypeAssociation
     {
         // `.jproject` 처럼 점을 붙여 쓴다.
@@ -401,7 +401,7 @@ namespace JBro
             (void)utf8Path;
             return false;
         }
-        // **확장자를 이 프로그램과 잇는다**(D-336). 탐색기에서 그 확장자의 파일을 두 번 누르면 `desc.command` 가 돈다.
+        // **확장자를 이 프로그램과 잇는다**(D-389). 탐색기에서 그 확장자의 파일을 두 번 누르면 `desc.command` 가 돈다.
         // 현재 사용자의 자리(Windows 는 `HKEY_CURRENT_USER` 아래 `desc.classesKey`)에만 쓰고 관리자 권한을 묻지 않는다.
         // 없는 플랫폼이면 거짓이다.
         virtual Bool RegisterFileType(const FileTypeAssociation& desc)
@@ -422,7 +422,7 @@ namespace JBro
             (void)extension;
             return String();
         }
-        // **실행 파일 자체의 경로**다(D-336). `GetExecutableFolder` 와 달리 구분자를 운영체제의 것(Windows 는 `\`)으로 둔다 -
+        // **실행 파일 자체의 경로**다(D-389). `GetExecutableFolder` 와 달리 구분자를 운영체제의 것(Windows 는 `\`)으로 둔다 -
         // 운영체제에 넘길 명령줄을 짓는 데 쓴다. 없는 플랫폼이면 빈 글자다.
         virtual String GetExecutablePath() const
         {
