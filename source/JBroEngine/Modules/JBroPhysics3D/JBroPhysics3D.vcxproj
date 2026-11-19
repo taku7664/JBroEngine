@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a00005a-0000-4000-8000-0000000f3d30}</ProjectGuid>
+    <RootNamespace>JBroPhysics3D</RootNamespace>
+    <ProjectName>JBroPhysics3D</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!--
+    3D 물리 커널이다(D-414, physics3d-plan §2.1). Tier E 이고 캔버스·컴포넌트를 모른다. JBroCore 만 본다.
+    **Jolt 의 include 경로를 받는 엔진 모듈은 이것 하나다** - 공개 헤더는 Jolt 를 include 하지 않고 Source/ 만 Jolt 를 본다.
+    JPH_* 매크로는 Jolt 라이브러리와 같은 값(JBro.Common.props 의 JBroJoltDefines)을 받아야 구조체 모양이 같다.
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroPhysics3D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroThirdPartyDir)Jolt;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>$(JBroJoltDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Include\**\*.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
+      <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)Jolt\Jolt.vcxproj">
+      <Project>{1b000004-0000-4000-8000-0000000301e7}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

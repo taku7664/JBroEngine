@@ -329,6 +329,7 @@
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | 렉서·파서·의미 분석·공용 API DTO·들여쓰기 포맷·2D C++ 이미터. `JBroCore` 에만 기댄다 (D-104·D-316·D-317) |
   | Tier E | `JBroShaderCompiler` | 머티리얼 셰이더를 그 자리에서 굽는 `ShaderCompiler`(`IShaderCompiler` 구현). Windows 전용이고 `d3dcompiler_47.dll`·`dxcompiler.dll` 을 실행 중에 연다. Core·Asset 에 기대고 에디터·시험·게임 빌드가 든다 - 게임 실행 파일은 들지 않는다 (D-347) |
+  | Tier E | `JBroPhysics3D` | 3D 물리 커널. 캔버스를 모르고 `JBroCore` 에만 기댄다. **Jolt(`ThirdParty/Jolt`)의 include 경로를 받는 유일한 엔진 모듈**이고 공개 헤더는 Jolt 를 include 하지 않는다 - 컴포넌트·스크립트는 Jolt 타입을 보지 못한다. Jolt 의 할당은 이 모듈의 훅과 재사용 풀을 거친다 (D-414·D-415) |
   | Tier E | `JBroNodeGraph` | 노드 그래프 모델(노드·핀·링크·도메인·YAML)과 샘플 도메인 `Math`. `JBroCore` 에만 기대고 에디터·셰이더 그래프 컴파일러가 함께 쓴다 (D-323) |
   | Tier E | `JBroScriptApiCatalog2D` | 실제 공용/2D Tier S 타입과 명시적 공개 선언을 분석용 카탈로그로 변환. 엔진 호스트는 실행하지 않는다 (D-316) |
   | Tier E | `JBroScriptLanguageServer` | LSP 프로토콜·문서 상태·공용 분석 조회. Core·ScriptCompiler·nlohmann-json에 기댄다 (D-316) |

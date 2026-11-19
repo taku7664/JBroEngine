@@ -50,6 +50,7 @@ JBro::Int32 RunPhysics2DGeometryTests();
 JBro::Int32 RunPhysics2DCollisionTests();
 JBro::Int32 RunPhysics2DWorldTests();
 JBro::Int32 RunPhysics2DSystemTests();
+JBro::Int32 RunPhysics3DWorldTests();
 JBro::Int32 RunPolygonEditModelTests();
 JBro::Int32 RunNodeGraphTests();
 JBro::Int32 RunNodeGraphViewTests();
@@ -299,6 +300,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("Physics2DWorld", &RunPhysics2DWorldTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Physics3DWorld", &RunPhysics3DWorldTests))
         {
             return 1;
         }
