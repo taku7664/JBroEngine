@@ -1,7 +1,9 @@
 ﻿#include "TestCases.h"
 #include <JBro/Physics3D/World.h>
 
+#include <chrono>
 #include <cmath>
+#include <thread>
 #include <iostream>
 #include <stdexcept>
 #include <JBro/Types/Bool.h>
@@ -575,6 +577,58 @@ namespace
     }
 }
 
+namespace
+{
+    // **워커**(D-419, physics3d-plan 5 단계). 상자 1000 개가 쌓여 부딪히는 장면을 워커 0 과 넷으로 돌려, 워커가 있으면 스텝이 빨라지는지 잰다.
+    // 같은 장면이 같은 결과를 내는지도 본다(Jolt 는 워커 수와 무관하게 같은 차례로 푼다).
+    JBro::Float TimePile(JBro::UInt32 workers, JBro::Float& settledHeight)
+    {
+        World world;
+        world.SetWorkerCount(workers);
+        Check(world.GetWorkerCount() == workers, "the world takes the worker count");
+        MakeGround(world);
+        BodyId top;
+        for (JBro::Int32 index = 0; index < 1000; ++index)
+        {
+            const JBro::Float x = static_cast<JBro::Float>(index % 10) * 1.05f - 4.7f;
+            const JBro::Float z = static_cast<JBro::Float>((index / 10) % 10) * 1.05f - 4.7f;
+            const JBro::Float y = 0.5f + static_cast<JBro::Float>(index / 100) * 1.05f;
+            BodyDef box = BoxAt({x, y, z});
+            box.canSleep = false;
+            top = world.CreateBody(box);
+        }
+        // 처음 몇 스텝은 워커가 일어나고 접촉 표가 자리를 잡는다.
+        Run(world, 0.25f);
+        const auto start = std::chrono::steady_clock::now();
+        Run(world, 1.0f);
+        const auto end = std::chrono::steady_clock::now();
+        settledHeight = world.GetPosition(top).y;
+        return static_cast<JBro::Float>(std::chrono::duration<double, std::milli>(end - start).count());
+    }
+
+    void TestWorkersSpeedUpALargePile()
+    {
+        Check(JBro::Physics3D::RecommendWorkerCount(100, 16) == 0, "a small canvas runs on the main thread alone");
+        Check(JBro::Physics3D::RecommendWorkerCount(1000, 16) == 3, "a thousand colliders get three workers");
+        Check(JBro::Physics3D::RecommendWorkerCount(100000, 16) == 15 && JBro::Physics3D::RecommendWorkerCount(100000, 64) == 16,
+            "never more than the spare cores or the cap");
+        Check(JBro::Physics3D::RecommendWorkerCount(100000, 1) == 0, "a single core has no spare");
+        const JBro::UInt32 cores = std::thread::hardware_concurrency();
+        if (cores < 4)
+        {
+            std::cout << "  [skip] fewer than four cores; the worker speed-up not measured" << '\n';
+            return;
+        }
+        JBro::Float singleTop = 0.0f;
+        JBro::Float pooledTop = 0.0f;
+        const JBro::Float single = TimePile(0, singleTop);
+        const JBro::Float pooled = TimePile(4, pooledTop);
+        std::cout << "  1000 boxes, 60 steps: main thread " << single << " ms, four workers " << pooled << " ms" << '\n';
+        Check(pooled < single * 0.8f, "four workers step a thousand touching boxes noticeably faster than the main thread alone");
+        Check(std::fabs(singleTop - pooledTop) < 0.05f, "and the pile ends up the same height");
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -588,6 +642,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestContactEventsFollowTouchingPairs());
     JBRO_CASE(TestQueriesFindBodies());
     JBRO_CASE(TestMeshesAndHulls());
+    JBRO_CASE(TestWorkersSpeedUpALargePile());
     std::cout << "Physics3D world tests passed.\n";
     return 0;
 }

@@ -75,7 +75,10 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 - 고정 스텝은 2D 와 같은 `OnFixedUpdate`(호스트 `TimeSystem`). 한 고정 스텝에 Jolt `Update` 한 번, 충돌 스텝 1.
 - **할당:** Jolt 의 할당 훅(`JPH::Allocate` 등)을 등록하고, 스텝 임시 메모리는 미리 잡은 `TempAllocatorImpl` 하나를 쓴다 - 프레임 경로에 힙 할당이 없다(ProjectRule).
   바디·도형을 만들 때의 할당은 프레임 경로가 아니다.
-- **스레드:** 1 단계는 Jolt 의 `JobSystemSingleThreaded` 로 시작한다. 그다음 `JBroTask` 위에 Jolt `JobSystem` 을 구현해 `Build.PhysicsThreads`(D-223)를 따른다.
+- **스레드:** 1 단계는 Jolt 의 `JobSystemSingleThreaded` 로 시작한다. ~~그다음 `JBroTask` 위에 Jolt `JobSystem` 을 구현해 `Build.PhysicsThreads`(D-223)를 따른다.~~
+  → D-419 에서 바꿨다: 워커는 **물리 전용 Jolt 스레드 풀**(`JobSystemThreadPool`)이고 `Build.PhysicsThreads` 를 따른다. `TaskManager` 는 공개 함수가 메인 스레드 전용이고
+  넣을 때마다 `OwnerPtr<TaskGroup>` 을 힙에 만든다 - Jolt 는 워커 안에서 잡을 만들고 스텝마다 수십 개를 넣으므로 그 위에 세우면 계약(메인 전용)과 규칙(프레임 경로 힙 할당 금지)을 둘 다 어긴다.
+  2D 물리도 같은 까닭으로 제 워커를 든다(D-223). Jolt 의 풀은 시작할 때만 할당하고(잡·장벽 고정 표) 그 할당도 커널의 훅을 지난다.
 - 결정론(`JPH_CROSS_PLATFORM_DETERMINISTIC`)은 켜지 않는다 - 네트워크 복제(network-plan)는 스냅숏 델타라 필요하지 않다 `[열림]`.
 
 ### 2.4 스크립트 (확정, D-415) - 2D 와 같은 이름
@@ -98,7 +101,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 | 2 | 컴포넌트 필드(§2.2)·`PhysicsLayerMask` 를 Core 로·어댑터 `Physics3DSystem` | 에디터에서 재생하면 상자가 떨어져 바닥에 서고, 멈추면 제자리. 레이어·마스크가 거른다 | `[완료]` 2026-11-19 · D-416 · §3.2 |
 | 3 | 접촉 사건과 스크립트 훅·`Physics3DService` 질의 | 3D 시험 DLL 의 스크립트가 `OnCollisionEnter`·`OnTriggerEnter` 를 받고 `Raycast` 가 맞는다 | `[완료]` 2026-11-19 · D-417 · §3.3 |
 | 4 | 에디터: 콜라이더 그리기·메시 콜라이더 | 캔버스 뷰 스크린숏에 콜라이더 선, 메시 바닥 위에 상자가 선다 | `[완료]` 2026-11-20 · D-418 · §3.4 |
-| 5 | 잡 시스템을 `JBroTask` 위로·`Build.PhysicsThreads` | 바디 1000 개에서 워커 수에 따라 스텝 시간이 준다 | |
+| 5 | 잡 시스템을 `JBroTask` 위로·`Build.PhysicsThreads` | 바디 1000 개에서 워커 수에 따라 스텝 시간이 준다 | `[완료]` 2026-11-20 · D-419 · §3.5 (`JBroTask` 대신 Jolt 풀 - §2.3) |
 | 6 | 뒤의 것: 조인트·캐릭터 컨트롤러(`CharacterVirtual`)·CCD(`EMotionQuality::LinearCast`) | 항목마다 따로 정한다 | |
 
 ### 3.1 1 단계에서 한 것과 실측 (D-415)
@@ -167,6 +170,16 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
   경고 한 줄, 공중의 정적 정육면체 안에서 위로 쏜 반직선 - 볼록이면 그 자리에서 맞고 삼각형이면 뒷면을 지나 빠져나간다), `TestTheCanvasViewDrawsColliders3D`(상자·구·캡슐 트리거·메시를 놓고 단추를 끄고 켜면 14509 픽셀씩 바뀐다).
 - **단일 `Raycast` 의 뒷면:** 설정 없는 Jolt 길은 삼각형의 뒷면도 맞아 메시 상자 안에서 쏜 반직선이 윗면 안쪽에 걸렸고 `RaycastAll` 과 달랐다. 설정을 받는 길로 바꿔 볼록은 속이 찬 것, 삼각형은 뒷면을 맞지 않는다.
 - `[열림]` 모델 메시(빌트인이 아닌) 콜라이더는 시험하지 않았다 - 감기 뒤집기는 빌트인과 같은 함수를 지난다.
+
+### 3.5 5 단계에서 한 것과 실측 (D-419)
+
+- **커널:** `World::SetWorkerCount`(0 이면 `JobSystemSingleThreaded`, 그 위면 그 수의 `JobSystemThreadPool`, 상한 `MaxWorkerCount` 16 - 2D 와 같은 값), 같은 수면 아무것도 하지 않는다.
+  `RecommendWorkerCount(일감, 코어 수)`: 256 미만이면 0, 그 위로 256 마다 하나, `코어 - 1` 과 16 을 넘지 않는다. `[가정]` 기준 256 은 실측 하나(아래)에서 고른 것이다 - 2D 의 1024 보다 낮은 까닭은
+  Jolt 가 넓은 판정·섬 풀이까지 나눠 같은 일감에서 더 많이 얻기 때문이다.
+- **실측(디버그 빌드, 16 스레드 PC):** 서로 닿은 상자 1000 개의 60 스텝이 메인 한 스레드 5172 ms, 워커 넷 1174 ms(4.4 배). 더미의 높이는 같다(시험 `TestWorkersSpeedUpALargePile`).
+- **설정:** 빌드 캔버스를 읽어 일감을 세는 길을 2D 코드에서 떼어 `JBroHost` 의 `SumBuildCanvasWork` 로 옮겼다 - 2D·3D 가 함께 쓰고 세는 것만 다르다. 3D 는 `PhysicsThreads3D.h`
+  (`CountPhysicsWork3D` = 켜진 `Collider3D` 수, `RecommendProjectPhysicsWorkers3D`, `ResolvePhysicsWorkerCount3D`)와 `Framework3D::SetPhysicsWorkerCount`. 에디터(프로젝트 열기·설정 저장·"추천 값 사용"·게임 빌드의 고정 값)와
+  게임 호스트(3D 구성)가 3D 에도 연결된다. 시험 `TestThePhysicsThreadsSettingReachesPlayIn3D`(Single 0·Auto 는 600 콜라이더의 3D 기준·Workers 3).
 
 ## 4. `[열림]`
 

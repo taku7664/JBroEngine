@@ -5,6 +5,7 @@
 #include <Jolt/Jolt.h>
 
 #include <Jolt/Core/JobSystemSingleThreaded.h>
+#include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
@@ -614,7 +615,7 @@ namespace JBro::Physics3D
         explicit Impl(const WorldSettings& settings)
             : runtime()
             , temp(settings.tempAllocatorBytes)
-            , jobs(JPH::cMaxPhysicsJobs)
+            , singleThreaded(JPH::cMaxPhysicsJobs)
             , broadPhaseLayers(*this)
             , objectVsBroadPhase(*this)
             , objectPairs(*this)
@@ -661,7 +662,15 @@ namespace JBro::Physics3D
         LayerCombo combos[MaxLayerCombos];
         UInt32 comboCount = 0;
         JPH::TempAllocatorImpl temp;
-        JPH::JobSystemSingleThreaded jobs;
+        // 워커가 0 이면 이것으로 돈다. 워커가 있으면 `pool` 이다(D-419).
+        JPH::JobSystemSingleThreaded singleThreaded;
+        OwnerPtr<JPH::JobSystemThreadPool> pool;
+        UInt32 workerCount = 0;
+
+        JPH::JobSystem* Jobs()
+        {
+            return pool.Get() != nullptr ? static_cast<JPH::JobSystem*>(pool.Get()) : static_cast<JPH::JobSystem*>(&singleThreaded);
+        }
         BroadPhaseLayers broadPhaseLayers;
         ObjectVsBroadPhase objectVsBroadPhase;
         ObjectPairs objectPairs;
@@ -979,8 +988,42 @@ namespace JBro::Physics3D
             return;
         }
         m_impl->contacts.BeginStep();
-        m_impl->physics.Update(deltaTime, 1, &m_impl->temp, &m_impl->jobs);
+        m_impl->physics.Update(deltaTime, 1, &m_impl->temp, m_impl->Jobs());
         m_impl->contacts.Resolve(m_impl->physics.GetBodyInterfaceNoLock());
+    }
+
+    void World::SetWorkerCount(UInt32 count)
+    {
+        const UInt32 clamped = count < MaxWorkerCount ? count : MaxWorkerCount;
+        if (clamped == m_impl->workerCount)
+        {
+            return;
+        }
+        // 풀은 스텝 밖(메인 스레드)에서만 세우고 허문다. 허무는 동안 워커가 끝나기를 기다린다.
+        m_impl->pool.Reset();
+        if (clamped != 0)
+        {
+            m_impl->pool = MakeOwnerPtr<JPH::JobSystemThreadPool>(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, static_cast<int>(clamped.Get()));
+        }
+        m_impl->workerCount = clamped;
+    }
+
+    UInt32 World::GetWorkerCount() const
+    {
+        return m_impl->workerCount;
+    }
+
+    UInt32 RecommendWorkerCount(UInt32 work, UInt32 hardwareThreads)
+    {
+        constexpr UInt32 WorkPerWorker = 256;
+        if (work < WorkPerWorker || hardwareThreads <= 1)
+        {
+            return 0;
+        }
+        UInt32 workers = work / WorkPerWorker;
+        const UInt32 spare = hardwareThreads - 1;
+        workers = workers < spare ? workers : spare;
+        return workers < MaxWorkerCount ? workers : MaxWorkerCount;
     }
 
     ArrayView<const ContactEvent> World::GetBeginEvents() const

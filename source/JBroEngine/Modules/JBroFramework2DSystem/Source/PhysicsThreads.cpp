@@ -4,6 +4,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
+#include <JBro/Host/BuildCanvasWork.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Physics2D/World.h>
 #include <JBro/Platform/Platform.h>
@@ -39,33 +40,8 @@ namespace JBro
 
     UInt32 CountProjectPhysicsWork(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)
     {
-        Array<String> canvases = project.build.buildCanvases;
-        if (canvases.IsEmpty() && false == project.build.startupCanvas.empty())
-        {
-            canvases.Add(project.build.startupCanvas);
-        }
-        UInt32 work = 0;
-        Array<std::byte> text;
-        for (const String& relative : canvases)
-        {
-            const String path = ResolveProjectRelativePath(relative.c_str(), projectFilePath);
-            if (false == platform.ReadWholeFile(path.c_str(), text))
-            {
-                Log::Write(LogLevel::Info, "physics", "a build canvas could not be read for the physics threads: %s", path.c_str());
-                continue;
-            }
-            // 따로 세운 캔버스에 읽어 센다. 열린 캔버스와 섞이지 않고, 읽은 뒤 바로 버린다.
-            Canvas scratch(CreateDefaultAllocator());
-            CanvasFileError error;
-            if (false == ReadCanvasText(scratch, reinterpret_cast<const char*>(text.Data()), text.Size(), error))
-            {
-                Log::Write(LogLevel::Info, "physics", "a build canvas could not be counted for the physics threads: %s (%s)",
-                    path.c_str(), error.message.c_str());
-                continue;
-            }
-            work += CountPhysicsWork(scratch);
-        }
-        return work;
+        // 빌드 캔버스를 읽는 길은 3D 와 함께 쓴다(D-419). 세는 것만 2D 다.
+        return SumBuildCanvasWork(platform, project, projectFilePath, &CountPhysicsWork);
     }
 
     UInt32 RecommendProjectPhysicsWorkers(IPlatform& platform, const ProjectFile& project, const char* projectFilePath)

@@ -333,6 +333,16 @@ namespace JBro::System
         m_gravity = gravity;
     }
 
+    void Physics3DSystem::SetWorkerCount(UInt32 count)
+    {
+        m_workerCount = count;
+    }
+
+    UInt32 Physics3DSystem::GetWorkerCount() const
+    {
+        return m_state->world.GetWorkerCount();
+    }
+
     void Physics3DSystem::SetAssets(const AssetSystem* assets)
     {
         m_assets = assets;
@@ -712,6 +722,8 @@ namespace JBro::System
 
         // ── 4. 스텝 ─────────────────────────────────────────────────────────────────
         world.SetGravity(m_gravity);
+        // 같은 수면 커널이 아무것도 하지 않는다 - 스텝마다 풀을 세웠다 허물지 않는다.
+        world.SetWorkerCount(m_workerCount);
         world.Step(fixedDeltaTime);
 
         // ── 5. 되쓰기 ───────────────────────────────────────────────────────────────

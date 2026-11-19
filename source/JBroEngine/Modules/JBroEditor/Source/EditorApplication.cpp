@@ -35,6 +35,7 @@
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/PhysicsThreads.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
+#include <JBro/Framework3DSystem/PhysicsThreads3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/AssetLoad.h>
 #include <JBro/Host/DebugDrawSystem.h>
@@ -1615,16 +1616,31 @@ namespace JBro
 
     UInt32 EditorApplication::RecommendPhysicsWorkers()
     {
-        if (m_frameworkKind != FrameworkKind::Framework2D || m_framework.Get() == nullptr || m_projectFilePath.empty())
+        if (m_framework.Get() == nullptr || m_projectFilePath.empty())
         {
             return 0;
+        }
+        // 3D 는 제 일감(Collider3D)과 제 기준으로 고른다(D-419).
+        if (m_frameworkKind == FrameworkKind::Framework3D)
+        {
+            return RecommendProjectPhysicsWorkers3D(*m_platform, GetProjectFile(), m_projectFilePath.c_str());
         }
         return RecommendProjectPhysicsWorkers(*m_platform, GetProjectFile(), m_projectFilePath.c_str());
     }
 
     void EditorApplication::ApplyPhysicsSettings()
     {
-        if (m_frameworkKind != FrameworkKind::Framework2D || m_framework.Get() == nullptr || m_projectFilePath.empty())
+        if (m_framework.Get() == nullptr || m_projectFilePath.empty())
+        {
+            return;
+        }
+        if (m_frameworkKind == FrameworkKind::Framework3D)
+        {
+            Framework3D& framework3D = *static_cast<Framework3D*>(m_framework.Get());
+            framework3D.SetPhysicsWorkerCount(ResolvePhysicsWorkerCount3D(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
+            return;
+        }
+        if (m_frameworkKind != FrameworkKind::Framework2D)
         {
             return;
         }
@@ -4899,6 +4915,11 @@ namespace JBro
         {
             options.physicsWorkers = static_cast<JBro::Int32>(
                 ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
+        }
+        else if (m_frameworkKind == FrameworkKind::Framework3D)
+        {
+            options.physicsWorkers = static_cast<JBro::Int32>(
+                ResolvePhysicsWorkerCount3D(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
         }
         const Bool built = BuildGame(*m_platform, GetProjectFile(), m_projectFilePath.c_str(), options, report);
         if (false == built)

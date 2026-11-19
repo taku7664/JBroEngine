@@ -80,6 +80,7 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
+#include <JBro/Physics3D/World.h>
 #include <JBro/Framework3DSystem/System/Physics3DSystem.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
@@ -7082,6 +7083,84 @@ namespace
         settings.build.physicsWorkers = 2;
         Check(editor.SaveProjectSettings(settings, error), "two workers save");
         Check(workersInPlay() == 2, "and a fixed count plays on that many");
+        editor.Shutdown();
+    }
+
+    // **3D 의 물리 스레드 설정도 재생까지 간다**(D-419). 빌드 캔버스에 상자 콜라이더 600 개를 저장해 두면 Auto 가 3D 의 기준으로 워커를 고르고,
+    // Single·워커 수를 저장할 때마다 재생의 워커 수가 따라온다.
+    void TestThePhysicsThreadsSettingReachesPlayIn3D()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroPhysicsThreads3DProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Scenes", ignored);
+        const JBro::String projectPath = TempPath("JBroPhysicsThreads3DProbe\\Threads.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: Threads3DProbe\n"
+            "  BuildCanvases:\n"
+            "    - Scenes/Pile.jcanvas\n"
+            "  PhysicsThreads: Single\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the 3D physics threads setting not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the 3D probe project must open");
+        Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D, "as a 3D project");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.RecommendPhysicsWorkers() == 0, "with no build canvas on disk there is nothing to count");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        for (JBro::Int32 i = 0; i < 600; ++i)
+        {
+            JBro::Object::GameObject* box = canvas->CreateObject("Box");
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(box);
+            transform->position = JBro::Vector3{static_cast<JBro::Float>(i % 30) * 2.0f, 0.0f, static_cast<JBro::Float>(i / 30) * 2.0f};
+            canvas->AttachComponent<JBro::Component::Collider3D>(box);
+        }
+        JBro::CanvasFileError canvasError;
+        const JBro::String canvasPath = TempPath("JBroPhysicsThreads3DProbe\\Scenes\\Pile.jcanvas");
+        Check(editor.SaveCanvas(canvasPath.c_str(), canvasError), "the build canvas must save");
+        const JBro::UInt32 expected = JBro::Physics3D::RecommendWorkerCount(600, std::thread::hardware_concurrency());
+        Check(editor.RecommendPhysicsWorkers() == expected, "the recommendation counts the 600 3D colliders on disk by the 3D rule");
+
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>();
+        Check(physics != nullptr, "the 3D framework has a physics system");
+        const auto workersInPlay = [&]() {
+            Check(editor.StartSimulation(), "play must start");
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while playing");
+            }
+            const JBro::UInt32 workers = physics->GetWorkerCount();
+            editor.StopSimulation();
+            Check(editor.Tick(Frame), "the editor must tick after play");
+            return workers;
+        };
+        Check(workersInPlay() == 0, "Single plays on the main thread alone");
+        JBro::ProjectFile settings = editor.GetProjectFile();
+        settings.build.physicsThreadMode = JBro::PhysicsThreadMode::Auto;
+        Check(editor.SaveProjectSettings(settings, error), "Auto saves");
+        Check(workersInPlay() == expected, "Auto plays on the recommended count, resolved from the build canvas");
+        settings.build.physicsThreadMode = JBro::PhysicsThreadMode::Workers;
+        settings.build.physicsWorkers = 3;
+        Check(editor.SaveProjectSettings(settings, error), "three workers save");
+        Check(workersInPlay() == 3, "and a fixed count plays on that many");
         editor.Shutdown();
     }
 
@@ -20506,6 +20585,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestAScriptFaultStopsPlayAndTellsTheUser());
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBack());
     JBRO_CASE(TestPlayingRunsPhysicsAndStoppingPutsItBackIn3D());
+    JBRO_CASE(TestThePhysicsThreadsSettingReachesPlayIn3D());
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());
     JBRO_CASE(TestSteppingAPausedGameAndTheDebugLineToggles());

@@ -422,6 +422,18 @@ namespace JBro
         return m_meshMaterials;
     }
 
+    void Framework3D::SetPhysicsWorkerCount(UInt32 count)
+    {
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        if (System::Physics3DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics3DSystem>())
+        {
+            physics->SetWorkerCount(count);
+        }
+    }
+
     MeshLibrary& Framework3D::GetMeshLibrary()
     {
         return m_meshes;

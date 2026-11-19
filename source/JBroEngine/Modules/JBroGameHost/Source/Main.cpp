@@ -13,6 +13,7 @@
 #include <JBro/Framework2DSystem/PhysicsThreads.h>
 #elif defined(JBRO_GAME_DIMENSION_3D)
 #include <JBro/Framework3DSystem/Framework3D.h>
+#include <JBro/Framework3DSystem/PhysicsThreads3D.h>
 #else
 #error A game dimension must be selected.
 #endif
@@ -163,6 +164,10 @@ namespace
                         JBro::UInt32 ignoredLayers[32] = {};
                         JBro::ResolvePhysicsIgnoredLayers(engine.GetProjectFile(), ignoredLayers);
                         framework.SetPhysicsIgnoredLayers(ignoredLayers);
+#elif defined(JBRO_GAME_DIMENSION_3D)
+                        // 3D 도 게임이 시작할 때 한 번 정한다(D-419).
+                        framework.SetPhysicsWorkerCount(
+                            JBro::ResolvePhysicsWorkerCount3D(platform, engine.GetProjectFile(), projectFile.c_str()));
 #endif
                         LoadStartupCanvas(framework, platform, engine, engine.IsRunningFromPackage()
                                 ? JBro::ResolvePackagedStartupCanvas(arguments, engine.GetProjectFile())

@@ -40,6 +40,13 @@ namespace JBro::Physics3D
 
     inline constexpr UInt32 InvalidBodyValue = 0xFFFFFFFFu;
 
+    // 물리 전용 워커의 상한이다(D-419, 2D 의 `Physics2D::MaxWorkerCount` 와 같은 값). 명시한 값도 여기서 자른다.
+    inline constexpr UInt32 MaxWorkerCount = 16;
+
+    // 3D 물리 일감(켜진 콜라이더 수)에 맞는 워커 수(D-419). 실측(physics3d-plan §3.5)으로 정한 기준이다: 256 미만이면 0(메인 한 스레드),
+    // 그 위로는 256 마다 하나씩 더하되 `hardwareThreads - 1` 과 `MaxWorkerCount` 를 넘지 않는다.
+    UInt32 RecommendWorkerCount(UInt32 work, UInt32 hardwareThreads);
+
     // Jolt 의 바디 번호(자리 + 세대)를 그대로 싣는다. 지운 바디의 번호는 같은 자리를 다시 쓴 바디와 갈린다.
     struct BodyId
     {
@@ -183,6 +190,12 @@ namespace JBro::Physics3D
 
         // 시간을 deltaTime 만큼 진행한다. 0 이하면 아무것도 하지 않는다.
         void Step(Float deltaTime);
+
+        // 스텝을 나눌 물리 전용 워커 수(D-419). 0 이면 메인 한 스레드이고 워커를 세우지 않는다. `MaxWorkerCount` 에서 자른다.
+        // 워커는 Jolt 의 스레드 풀이다 - 엔진의 `TaskManager` 는 메인 스레드에서만 일을 받고 넣을 때마다 묶음을 힙에 만들어, Jolt 가 워커 안에서
+        // 스텝마다 잡을 수십 개 만드는 길에 맞지 않는다(2D 물리도 같은 까닭으로 제 워커를 든다, D-223). 같은 수를 다시 주면 아무것도 하지 않는다.
+        void SetWorkerCount(UInt32 count);
+        UInt32 GetWorkerCount() const;
 
         // 마지막 Step 의 접촉 사건. 다음 Step 이 비운다. 끝에는 그 사이 지운 바디의 접촉도 든다.
         ArrayView<const ContactEvent> GetBeginEvents() const;

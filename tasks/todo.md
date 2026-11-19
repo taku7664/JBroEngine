@@ -3058,6 +3058,15 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-419. 3D 물리 워커는 Jolt 의 스레드 풀이고 `Build.PhysicsThreads` 를 따른다 - `JBroTask` 위가 아니다.** (2026-11-20, physics3d-plan §3 의 5 단계·§3.5)
+  Updates: D-415(§2.3 의 "`JBroTask` 위에 잡 시스템"), D-223(물리 스레드 설정을 3D 에도). 사용자 지시("권고안대로, 장기적으로 건강한 구조").
+  (1) `TaskManager` 는 공개 함수가 메인 스레드 전용이고 넣을 때마다 묶음을 힙에 만든다. Jolt 는 워커 안에서 스텝마다 잡을 수십 개 만든다 - 그 위에 세우면 메인 전용 계약과 프레임 경로 힙 금지를 둘 다 어긴다.
+  2D 처럼 물리 전용 워커를 두되, 직접 짜지 않고 Jolt 가 그 잡 모양에 맞춰 둔 `JobSystemThreadPool` 을 쓴다(시작할 때만 할당, 그 할당도 커널의 훅을 지난다).
+  (2) 커널 `World::SetWorkerCount`·`RecommendWorkerCount`(256 마다 하나, 코어 - 1·16 상한). 실측: 상자 1000 개 60 스텝이 5172 ms → 워커 넷 1174 ms.
+  (3) 빌드 캔버스를 세는 길을 `JBroHost::SumBuildCanvasWork` 로 떼어 2D·3D 가 함께 쓴다. 3D 의 `PhysicsThreads3D.h` 와 `Framework3D::SetPhysicsWorkerCount`, 에디터·게임 빌드·게임 호스트 연결.
+  확인: `Physics3DWorld` 의 `TestWorkersSpeedUpALargePile`, 에디터 `TestThePhysicsThreadsSettingReachesPlayIn3D`(2D 의 같은 시험도 지난다).
+  뮤테이션 넷이 모두 잡혔다(커널이 워커를 세우지 않음·어댑터가 수를 넘기지 않음·에디터가 3D 설정을 먹이지 않음·3D 추천을 2D 기준으로). Physics3DWorld·Physics2D 둘·EditorApplication 전체가 지나고, 게임 호스트 2D·3D 구성이 빌드된다.
+
 - **D-418. 캔버스 뷰가 3D 콜라이더를 그리고, 메시 콜라이더가 선다 - `convex` 칸과 껍질, 빈 `meshId` 는 렌더러의 메시.** (2026-11-20, physics3d-plan §3 의 4 단계·§3.4)
   사용자 결정 둘: (1) `Collider3D.convex` - 켜면 볼록 껍질로 어떤 몸에도, 끈 채 움직이는 몸·트리거에 붙으면 껍질로 바꾸고 경고 한 번. (2) 빈 `meshId` 는 같은 오브젝트의 `MeshRenderer3D` 메시.
   Updates: D-416(콜라이더 모양에 `Mesh`), D-395(해석 패스의 `meshId`/`mesh` 짝).
