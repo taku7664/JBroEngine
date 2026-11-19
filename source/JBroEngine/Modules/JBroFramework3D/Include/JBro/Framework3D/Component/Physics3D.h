@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Rigidbody3D`·`Collider3D`)로만 만진다(D-302).
+// 컴포넌트 데이터다. **스크립트는 이 헤더에 닿지 않는다** - 프렐류드의 핸들(`Rigidbody3D`·`Collider3D`·`DistanceJoint3D`·`HingeJoint3D`)로만 만진다(D-302).
 // 정규화한 이름으로 써도 스크립트 대상 빌드에서는 여기서 컴파일이 실패한다.
 #if defined(JBRO_SCRIPT_TARGET)
 #error "A script reaches the 3D physics components through its handle in <JBro/ScriptAPI.h>, not the component data header."
@@ -10,7 +10,11 @@
 #include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Reflection/PhysicsLayerMaskReflection.h>
+#include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/GameObjectHandle.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
+#include <JBro/Types/Angle.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 
@@ -161,9 +165,76 @@ namespace JBro::Component
         JBRO_FIELD(Bool, isTrigger) = false;
         JBRO_FIELD(Float, friction, Range(0.0f, 2.0f)) = 0.6f;
         JBRO_FIELD(Float, restitution, Range(0.0f, 1.0f)) = 0.0f;
-        // 이 콜라이더가 속한 레이어와 만나는 레이어(2D 와 같다). Jolt 는 레이어를 바디마다 하나 두므로, 한 오브젝트의 고체 콜라이더 여럿은
-        // 그중 첫 콜라이더의 값을 쓴다(physics3d-plan §4). 트리거는 저마다의 값이다.
+        // 이 콜라이더가 속한 레이어와 만나는 레이어(2D 와 같다). 한 오브젝트의 고체 콜라이더 여럿도 저마다의 값으로 거른다(D-421).
         JBRO_FIELD(PhysicsLayerMask, layer) = 0x00000001u;
         JBRO_FIELD(PhysicsLayerMask, mask) = 0xFFFFFFFFu;
+    };
+
+    // **거리 조인트**(D-426, 2D 의 `DistanceJoint2D` 와 같은 필드·같은 뜻). 이 오브젝트의 몸을 connectedObject 의 몸과 일정한 거리로 잇는다.
+    // connectedObject 가 비었으면 connectedAnchor 는 월드의 점이다. 두 오브젝트 모두 물리 몸(Rigidbody3D 나 Collider3D)이 있어야
+    // 이어진다. 앵커는 오브젝트 로컬이고 트랜스폼의 크기를 곱한다.
+    class DistanceJoint3D final : public ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::DistanceJoint3D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(DistanceJoint3D)
+
+        JBRO_FIELD(Handle::GameObject, connectedObject);
+        JBRO_FIELD(JBro::Vector3, anchor);
+        JBRO_FIELD(JBro::Vector3, connectedAnchor);
+        // 참이면 조인트가 처음 이어지는 순간 두 앵커 사이의 거리를 distance 에 적는다.
+        JBRO_FIELD(Bool, autoDistance) = true;
+        JBRO_FIELD(Float, distance, Range(0.0f, 1000.0f)) = 1.0f;
+        // 참이면 밧줄이다: distance 보다 멀어지지만 않게 하고 가까워지는 것은 막지 않는다.
+        JBRO_FIELD(Bool, maxDistanceOnly) = false;
+        // 0 보다 크면 용수철이다(초당 떨림 수). 0 이면 단단하다. 밧줄에는 쓰지 않는다.
+        JBRO_FIELD(Float, frequency, Range(0.0f, 30.0f)) = 0.0f;
+        JBRO_FIELD(Float, dampingRatio, Range(0.0f, 1.0f)) = 0.0f;
+        // 거짓이면 이은 두 오브젝트의 콜라이더가 서로 부딪히지 않는다.
+        JBRO_FIELD(Bool, collideConnected) = false;
+    };
+
+    // **경첩 조인트**(D-426, 2D 의 `HingeJoint2D` 에 축 하나를 더했다). 두 몸이 한 점을 함께 쓰고 axis(이 오브젝트 로컬) 둘레로만 돈다.
+    // 각도는 도(°)이고 axis 둘레로 오른손으로 도는 쪽이 양수다. 한계는 조인트가 처음 이어질 때 이 오브젝트가 상대에 대해 놓인 자세를 0 으로 잰다.
+    // **한계는 -180~180 이다** - 2D 는 ±360 까지 받지만 3D 커널(Jolt)의 경첩이 반 바퀴까지다. 아래 0 보다 큰 lowerAngle·위 0 보다 작은 upperAngle 은 0 으로 본다.
+    class HingeJoint3D final : public ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::HingeJoint3D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(HingeJoint3D)
+
+        JBRO_FIELD(Handle::GameObject, connectedObject);
+        JBRO_FIELD(JBro::Vector3, anchor);
+        JBRO_FIELD(JBro::Vector3, connectedAnchor);
+        // 참이면 조인트가 처음 이어지는 순간 anchor 가 놓인 자리를 상대의 로컬(없으면 월드)로 connectedAnchor 에 적는다.
+        JBRO_FIELD(Bool, autoConnectedAnchor) = true;
+        // 도는 축(이 오브젝트 로컬). 0 이면 X 다.
+        JBRO_FIELD(JBro::Vector3, axis) { 1.0f, 0.0f, 0.0f };
+        JBRO_FIELD(Bool, useLimits) = false;
+        JBRO_FIELD(Degree, lowerAngle, Range(-180.0f, 0.0f)) = -45.0f;
+        JBRO_FIELD(Degree, upperAngle, Range(0.0f, 180.0f)) = 45.0f;
+        // 모터는 이 오브젝트를 상대에 대해 motorSpeed(도/초)로 돌린다. 그러려고 쓸 수 있는 가장 큰 토크가 maxMotorTorque 다.
+        JBRO_FIELD(Bool, useMotor) = false;
+        JBRO_FIELD(Degree, motorSpeed) = 0.0f;
+        JBRO_FIELD(Float, maxMotorTorque, Range(0.0f, 100000.0f)) = 1000.0f;
+        JBRO_FIELD(Bool, collideConnected) = false;
     };
 }

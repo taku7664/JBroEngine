@@ -36,6 +36,8 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Text3D>()         && all;
             all = RegisterBuiltinProperties<Rigidbody3D>()    && all;
             all = RegisterBuiltinProperties<Collider3D>()     && all;
+            all = RegisterBuiltinProperties<DistanceJoint3D>() && all;
+            all = RegisterBuiltinProperties<HingeJoint3D>()   && all;
             all = RegisterBuiltinProperties<AudioListener3D>() && all;
             all = RegisterBuiltinProperties<Light3D>()        && all;
             // 소스는 차원과 무관한 모듈의 것이다(D-197). 두 프레임워크가 함께 부르고 한 번만 등록된다.

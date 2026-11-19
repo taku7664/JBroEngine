@@ -53,6 +53,16 @@ namespace JBro::Physics3D
         UInt32 value = InvalidBodyValue;
     };
 
+    inline constexpr UInt32 InvalidJointIndex = 0xFFFFFFFFu;
+
+    // 조인트 번호(D-426). 자리와 세대다 - 지운 조인트의 번호는 같은 자리를 다시 쓴 조인트와 갈린다.
+    // 바디를 지우면 그 바디에 걸린 조인트도 함께 지워진다(`IsValid` 가 거짓이 된다).
+    struct JointId
+    {
+        UInt32 index = InvalidJointIndex;
+        UInt32 generation = 0;
+    };
+
     struct ShapeDesc
     {
         ShapeType type = ShapeType::Box;
@@ -106,6 +116,46 @@ namespace JBro::Physics3D
         Bool freezeRotationZ = false;
         Bool canSleep = true;
         UInt64 userData = 0;
+    };
+
+    // **거리 조인트**(D-426, 2D 의 `DistanceJointDef` 와 같은 뜻). 두 앵커 사이 거리를 [minDistance, maxDistance] 에 둔다.
+    // 앵커는 바디 원점 기준 로컬이다(크기를 곱한 값). bodyB 가 비었으면 localAnchorB 는 월드의 점이다.
+    // frequency 가 0 보다 크면 한계가 용수철이다(초당 떨림 수, dampingRatio 는 0~1).
+    struct DistanceJointDef
+    {
+        BodyId bodyA;
+        BodyId bodyB;
+        Vector3 localAnchorA;
+        Vector3 localAnchorB;
+        Float minDistance = 1.0f;
+        Float maxDistance = 1.0f;
+        Float frequency = 0.0f;
+        Float dampingRatio = 0.0f;
+        // 거짓이면 두 바디의 도형이 서로 부딪히지 않는다.
+        Bool collideConnected = false;
+    };
+
+    // **경첩 조인트**(D-426). 두 앵커가 한 점에 붙고, 축 둘레로만 돈다. 축과 법선은 바디마다 로컬이고(B 가 없으면 월드),
+    // 두 바디의 법선이 월드에서 겹칠 때가 각 0 이다 - 그래서 처음 이을 때 B 쪽 축·법선을 A 의 것으로 떠 두면 그때의 자세가 0 이다.
+    // **각은 A 가 B 에 대해** 축 둘레로 오른손으로 돈 것이다(라디안). 한계는 [-pi, 0]·[0, pi] 에서 자른다(Jolt 의 경첩이 반 바퀴까지 받는다).
+    struct HingeJointDef
+    {
+        BodyId bodyA;
+        BodyId bodyB;
+        Vector3 localAnchorA;
+        Vector3 localAnchorB;
+        Vector3 localAxisA{1.0f, 0.0f, 0.0f};
+        Vector3 localNormalA{0.0f, 1.0f, 0.0f};
+        Vector3 localAxisB{1.0f, 0.0f, 0.0f};
+        Vector3 localNormalB{0.0f, 1.0f, 0.0f};
+        Bool enableLimit = false;
+        Float lowerAngle = -0.785398f;
+        Float upperAngle = 0.785398f;
+        // 모터는 A 를 B 에 대해 motorSpeed(라디안/초)로 돌리고, 그러려고 쓸 수 있는 가장 큰 토크가 maxMotorTorque 다.
+        Bool enableMotor = false;
+        Float motorSpeed = 0.0f;
+        Float maxMotorTorque = 1000.0f;
+        Bool collideConnected = false;
     };
 
     // 두 바디가 닿기 시작했거나(시작) 계속 닿아 있거나(유지) 떨어졌다(끝). 바디 쌍마다 하나다 - 복합 도형의 잎 여럿이 닿아도 하나다.
@@ -208,6 +258,20 @@ namespace JBro::Physics3D
 
         void SetGravity(const Vector3& gravity);
         Vector3 GetGravity() const;
+
+        // ── 조인트(D-426) ────────────────────────────────────────────────
+        // 바디가 없거나(B 는 비울 수 있다) A 와 B 가 같으면 빈 번호다. 걸면 두 바디를 깨운다.
+        // 바디의 도형을 바꾸면(`SetShapes`) 그 바디의 조인트를 같은 정의로 다시 세운다 - 질량 중심이 옮겨도 앵커는 바디 원점 기준이다.
+        JointId CreateDistanceJoint(const DistanceJointDef& def);
+        JointId CreateHingeJoint(const HingeJointDef& def);
+        // 성질을 바꾼다. 두 바디는 만들 때와 같아야 한다(다르면 아무것도 하지 않는다 - 지우고 새로 만든다).
+        void SetDistanceJoint(JointId joint, const DistanceJointDef& def);
+        void SetHingeJoint(JointId joint, const HingeJointDef& def);
+        void DestroyJoint(JointId joint);
+        Bool IsValid(JointId joint) const;
+        UInt32 GetJointCount() const;
+        // 경첩의 지금 각(라디안, A 가 B 에 대해). 경첩이 아니면 0 이다.
+        Float GetHingeAngle(JointId joint) const;
 
         // 시간을 deltaTime 만큼 진행한다. 0 이하면 아무것도 하지 않는다.
         void Step(Float deltaTime);

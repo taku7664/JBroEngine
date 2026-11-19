@@ -293,6 +293,24 @@ namespace JBro::System
             Bool seen = false;
         };
 
+        // 조인트 컴포넌트 하나의 연결이다(D-426, 2D 의 `JointLink` 와 같다). 두 몸의 오브젝트가 바뀌면 새로 만들고, 성질만 바뀌면 제자리에서 바꾼다.
+        struct JointLink
+        {
+            Physics3D::JointId joint;
+            InstanceId bodyObject = InvalidInstanceId;
+            InstanceId connectedObject = InvalidInstanceId;
+            UInt64 signature = 0;
+            // 경첩의 기준 자세: 처음 이어질 때(상대나 축이 바뀔 때) 이 오브젝트의 축·법선과 그것을 상대 로컬(없으면 월드)로 옮긴 것.
+            // 몸이 다시 만들어져도 그대로 써서 각 0 이 옮기지 않는다(2D 의 기준 각과 같은 일).
+            Vector3 measuredAxis;
+            Vector3 axisA;
+            Vector3 normalA;
+            Vector3 axisB;
+            Vector3 normalB;
+            Bool hinge = false;
+            Bool seen = false;
+        };
+
         // 사건과 질의가 커널의 userData(오브젝트 아이디)에서 오브젝트를 찾는 표다. 스텝마다 본 오브젝트의 표시를 새로 하고,
         // 사건을 보낸 뒤 이번에 보지 못한 것을 지운다 - 이번 스텝에 지운 오브젝트의 끝 훅까지는 남는다.
         struct Owner
@@ -313,6 +331,7 @@ namespace JBro::System
         Table<InstanceId, BodyLink> bodies;
         Table<InstanceId, SensorLink> sensors;
         Table<InstanceId, MeshCache> meshes;
+        Table<InstanceId, JointLink> joints;
         Array<InstanceId> removals;
     };
 
@@ -358,6 +377,11 @@ namespace JBro::System
     Vector3 Physics3DSystem::GetGravity() const
     {
         return m_gravity;
+    }
+
+    std::size_t Physics3DSystem::GetJointCount() const
+    {
+        return m_state->world.GetJointCount();
     }
 
     std::size_t Physics3DSystem::GetBodyCount() const
@@ -713,6 +737,231 @@ namespace JBro::System
             state.groups.Remove(id);
         }
 
+        SyncJoints(canvas);
+    }
+
+    // ── 4. 조인트를 맞춘다(D-426) ──────────────────────────────────────────────
+    // 2D 어댑터와 같은 길이다: 두 몸이 없으면 연결을 두지 않고(보이지 않은 연결은 지운다), 처음 이어질 때 자동 값(거리·상대 앵커)을 한 번 적고,
+    // 지문이 바뀌면 제자리에서 바꾼다. 앵커는 오브젝트 로컬에 월드 크기를 곱한 것이고 바디 원점 기준이다(커널이 질량 중심으로 옮긴다).
+    void Physics3DSystem::SyncJoints(Canvas& canvas)
+    {
+        State& state = *m_state;
+        Physics3D::World& world = state.world;
+        for (auto& entry : state.joints)
+        {
+            entry.MappedValue.seen = false;
+        }
+        const auto bodyOf = [&](InstanceId objectId) -> State::BodyLink* {
+            State::BodyLink* link = objectId != InvalidInstanceId ? state.bodies.Find(objectId) : nullptr;
+            return link != nullptr && world.IsValid(link->body) ? link : nullptr;
+        };
+        const auto toWorld = [&](Physics3D::BodyId body, const Vector3& local) {
+            return Add(world.GetPosition(body), Rotate(world.GetRotation(body), local));
+        };
+        const auto toLocal = [&](Physics3D::BodyId body, const Vector3& point) {
+            return Rotate(Conjugate(world.GetRotation(body)), Subtract(point, world.GetPosition(body)));
+        };
+        const auto unscaled = [](const Vector3& value, const Vector3& scale) {
+            return Vector3{scale.x != 0.0f ? value.x / scale.x : Float(0.0f), scale.y != 0.0f ? value.y / scale.y : Float(0.0f),
+                scale.z != 0.0f ? value.z / scale.z : Float(0.0f)};
+        };
+        // 조인트 하나를 맞춘다. configure 는 처음 이어질 때 한 번, measure 는 기준 자세를 다시 잴 때, make 는 커널 정의를 짓는다.
+        const auto syncJoint = [&](ComponentBase& component, Handle::GameObject connected, Bool hinge, const auto& configure,
+                                   const auto& needsMeasure, const auto& measure, const auto& signatureOf, const auto& create,
+                                   const auto& update) {
+            if (false == component.IsActiveComponent())
+            {
+                return;
+            }
+            Object::GameObject* object = Internal::CanvasAccess::GetOwner(component);
+            State::BodyLink* own = object != nullptr ? bodyOf(object->GetInstanceId()) : nullptr;
+            const InstanceId connectedId = connected.GetInstanceId();
+            State::BodyLink* other = bodyOf(connectedId);
+            if (own == nullptr || (connectedId != InvalidInstanceId && other == nullptr) || own == other)
+            {
+                return;
+            }
+            Pose ownPose;
+            WorldPose(canvas, object, ownPose);
+            Pose otherPose;
+            if (other != nullptr)
+            {
+                WorldPose(canvas, other->object, otherPose);
+            }
+            const Physics3D::BodyId otherBody = other != nullptr ? other->body : Physics3D::BodyId{};
+            const InstanceId componentId = component.GetInstanceId();
+            State::JointLink* link = state.joints.Find(componentId);
+            const Bool fresh = link == nullptr;
+            if (fresh)
+            {
+                configure(own->body, otherBody, ownPose.scale, otherPose.scale);
+                state.joints.TryAdd(componentId, State::JointLink{});
+                link = state.joints.Find(componentId);
+            }
+            link->seen = true;
+            const Bool newBodies = link->bodyObject != object->GetInstanceId() || link->connectedObject != connectedId;
+            if (fresh || newBodies || needsMeasure(*link))
+            {
+                measure(*link, own->body, otherBody);
+            }
+            const UInt64 signature = signatureOf(*link, ownPose.scale, otherPose.scale);
+            const Bool sameBodies = world.IsValid(link->joint) && false == newBodies && link->hinge == hinge;
+            if (sameBodies)
+            {
+                if (link->signature != signature)
+                {
+                    update(*link, own->body, otherBody, ownPose.scale, otherPose.scale);
+                    link->signature = signature;
+                }
+                return;
+            }
+            world.DestroyJoint(link->joint);
+            link->joint = create(*link, own->body, otherBody, ownPose.scale, otherPose.scale);
+            link->bodyObject = object->GetInstanceId();
+            link->connectedObject = connectedId;
+            link->hinge = hinge;
+            link->signature = signature;
+        };
+        const auto noMeasure = [](const State::JointLink&) {
+            return false;
+        };
+        const auto measureNothing = [](State::JointLink&, Physics3D::BodyId, Physics3D::BodyId) {
+        };
+
+        canvas.ForEach<Component::DistanceJoint3D>([&](Component::DistanceJoint3D& joint) {
+            const auto makeDef = [&](Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA, const Vector3& scaleB) {
+                Physics3D::DistanceJointDef def;
+                def.bodyA = bodyA;
+                def.bodyB = bodyB;
+                def.localAnchorA = Multiply(joint.anchor, scaleA);
+                def.localAnchorB = bodyB.value != Physics3D::InvalidBodyValue ? Multiply(joint.connectedAnchor, scaleB) : joint.connectedAnchor;
+                const Float length = std::fmax(joint.distance, 0.0f);
+                def.minDistance = joint.maxDistanceOnly ? Float(0.0f) : length;
+                def.maxDistance = length;
+                // 밧줄에는 용수철을 쓰지 않는다(2D 와 같다).
+                def.frequency = joint.maxDistanceOnly ? Float(0.0f) : Float(std::fmax(joint.frequency, 0.0f));
+                def.dampingRatio = joint.dampingRatio.Clamp(0.0f, 1.0f);
+                def.collideConnected = joint.collideConnected;
+                return def;
+            };
+            syncJoint(joint, joint.connectedObject, false,
+                [&](Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA, const Vector3& scaleB) {
+                    if (false == joint.autoDistance)
+                    {
+                        return;
+                    }
+                    const Vector3 a = toWorld(bodyA, Multiply(joint.anchor, scaleA));
+                    const Vector3 b = bodyB.value != Physics3D::InvalidBodyValue ? toWorld(bodyB, Multiply(joint.connectedAnchor, scaleB))
+                                                                                 : joint.connectedAnchor;
+                    joint.distance = Length(Subtract(b, a));
+                },
+                noMeasure, measureNothing,
+                [&](const State::JointLink&, const Vector3& scaleA, const Vector3& scaleB) {
+                    Fingerprint print;
+                    print.Mix(joint.anchor);
+                    print.Mix(joint.connectedAnchor);
+                    print.Mix(joint.distance);
+                    print.Mix(joint.frequency);
+                    print.Mix(joint.dampingRatio);
+                    print.Mix(scaleA);
+                    print.Mix(scaleB);
+                    print.Mix(joint.maxDistanceOnly);
+                    print.Mix(joint.collideConnected);
+                    return print.value;
+                },
+                [&](State::JointLink&, Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA, const Vector3& scaleB) {
+                    return world.CreateDistanceJoint(makeDef(bodyA, bodyB, scaleA, scaleB));
+                },
+                [&](State::JointLink& link, Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA, const Vector3& scaleB) {
+                    world.SetDistanceJoint(link.joint, makeDef(bodyA, bodyB, scaleA, scaleB));
+                });
+        });
+
+        canvas.ForEach<Component::HingeJoint3D>([&](Component::HingeJoint3D& joint) {
+            const auto makeDef = [&](const State::JointLink& link, Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA,
+                                     const Vector3& scaleB) {
+                Physics3D::HingeJointDef def;
+                def.bodyA = bodyA;
+                def.bodyB = bodyB;
+                def.localAnchorA = Multiply(joint.anchor, scaleA);
+                def.localAnchorB = bodyB.value != Physics3D::InvalidBodyValue ? Multiply(joint.connectedAnchor, scaleB) : joint.connectedAnchor;
+                def.localAxisA = link.axisA;
+                def.localNormalA = link.normalA;
+                def.localAxisB = link.axisB;
+                def.localNormalB = link.normalB;
+                def.enableLimit = joint.useLimits;
+                def.lowerAngle = Radian(joint.lowerAngle).Get();
+                def.upperAngle = Radian(joint.upperAngle).Get();
+                def.enableMotor = joint.useMotor;
+                def.motorSpeed = Radian(joint.motorSpeed).Get();
+                def.maxMotorTorque = std::fmax(joint.maxMotorTorque, 0.0f);
+                def.collideConnected = joint.collideConnected;
+                return def;
+            };
+            syncJoint(joint, joint.connectedObject, true,
+                [&](Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA, const Vector3& scaleB) {
+                    if (false == joint.autoConnectedAnchor)
+                    {
+                        return;
+                    }
+                    const Vector3 pin = toWorld(bodyA, Multiply(joint.anchor, scaleA));
+                    joint.connectedAnchor = bodyB.value != Physics3D::InvalidBodyValue ? unscaled(toLocal(bodyB, pin), scaleB) : pin;
+                },
+                [&](const State::JointLink& link) {
+                    return false == SameVector(link.measuredAxis, joint.axis);
+                },
+                [&](State::JointLink& link, Physics3D::BodyId bodyA, Physics3D::BodyId bodyB) {
+                    // 이 오브젝트의 축과 그에 수직인 법선을 정하고, 지금 자세로 상대 로컬(없으면 월드)로 옮긴다 - 지금의 놓임이 각 0 이다.
+                    link.measuredAxis = joint.axis;
+                    const Vector3 axis = Length(joint.axis) > 1.0e-6f ? Normalize(joint.axis) : Vector3{1.0f, 0.0f, 0.0f};
+                    const Vector3 helper = std::fabs(axis.y) < 0.9f ? Vector3{0.0f, 1.0f, 0.0f} : Vector3{0.0f, 0.0f, 1.0f};
+                    const Vector3 normal = Normalize(Cross(Cross(axis, helper), axis));
+                    link.axisA = axis;
+                    link.normalA = normal;
+                    const Quaternion rotationA = world.GetRotation(bodyA);
+                    const Quaternion toB = bodyB.value != Physics3D::InvalidBodyValue ? Conjugate(world.GetRotation(bodyB)) : Quaternion{};
+                    link.axisB = Rotate(toB, Rotate(rotationA, axis));
+                    link.normalB = Rotate(toB, Rotate(rotationA, normal));
+                },
+                [&](const State::JointLink& link, const Vector3& scaleA, const Vector3& scaleB) {
+                    Fingerprint print;
+                    print.Mix(joint.anchor);
+                    print.Mix(joint.connectedAnchor);
+                    print.Mix(link.axisB);
+                    print.Mix(link.normalB);
+                    print.Mix(link.axisA);
+                    print.Mix(Float(joint.lowerAngle.Get()));
+                    print.Mix(Float(joint.upperAngle.Get()));
+                    print.Mix(Float(joint.motorSpeed.Get()));
+                    print.Mix(joint.maxMotorTorque);
+                    print.Mix(scaleA);
+                    print.Mix(scaleB);
+                    print.Mix(joint.useLimits);
+                    print.Mix(joint.useMotor);
+                    print.Mix(joint.collideConnected);
+                    return print.value;
+                },
+                [&](State::JointLink& link, Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA, const Vector3& scaleB) {
+                    return world.CreateHingeJoint(makeDef(link, bodyA, bodyB, scaleA, scaleB));
+                },
+                [&](State::JointLink& link, Physics3D::BodyId bodyA, Physics3D::BodyId bodyB, const Vector3& scaleA, const Vector3& scaleB) {
+                    world.SetHingeJoint(link.joint, makeDef(link, bodyA, bodyB, scaleA, scaleB));
+                });
+        });
+
+        state.removals.Clear();
+        for (const auto& entry : state.joints)
+        {
+            if (false == entry.MappedValue.seen)
+            {
+                state.removals.Add(entry.KeyValue);
+            }
+        }
+        for (const InstanceId id : state.removals)
+        {
+            world.DestroyJoint(state.joints.Find(id)->joint);
+            state.joints.Remove(id);
+        }
     }
 
     void Physics3DSystem::ApplyPendingForces()

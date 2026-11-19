@@ -54,6 +54,8 @@ namespace JBro
             MeshRenderer3D,
             Rigidbody3D,
             Collider3D,
+            DistanceJoint3D,
+            HingeJoint3D,
             Text3D,
             AudioListener3D,
             Light3D,

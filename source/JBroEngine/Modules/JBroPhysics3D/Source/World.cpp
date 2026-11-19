@@ -22,6 +22,8 @@
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
+#include <Jolt/Physics/Constraints/DistanceConstraint.h>
+#include <Jolt/Physics/Constraints/HingeConstraint.h>
 #include <JBro/Types/Table.h>
 #include <mutex>
 #include <Jolt/Physics/PhysicsSettings.h>
@@ -424,6 +426,11 @@ namespace JBro::Physics3D
                 const JPH::CollideShapeResult& result) override
             {
                 (void)baseOffset;
+                // 조인트가 충돌을 끈 쌍(D-426). 표는 스텝 밖에서만 바뀐다 - 여기서는 읽기만 한다.
+                if (unconnected->Find(Key(first.GetID(), second.GetID())) != nullptr)
+                {
+                    return JPH::ValidateResult::RejectAllContactsForThisBodyPair;
+                }
                 const LeafInfo* a = leaves->Find(first.GetID(), first.GetShape()->GetSubShapeUserData(result.mSubShapeID1));
                 const LeafInfo* b = leaves->Find(second.GetID(), second.GetShape()->GetSubShapeUserData(result.mSubShapeID2));
                 if (a == nullptr || b == nullptr || leaves->Meet(*a, *b))
@@ -610,8 +617,10 @@ namespace JBro::Physics3D
             Array<ContactEvent> ends;
             // 잎 표. Impl 이 만들 때 걸어 둔다.
             const LeafTable* leaves = nullptr;
+            // 조인트가 충돌을 끈 바디 쌍(키 → 그 쌍의 조인트 수, D-426).
+            const Table<UInt64, UInt32>* unconnected = nullptr;
 
-        private:
+            // 바디 쌍의 키(순서와 무관). 조인트가 충돌을 끈 쌍의 표도 이 키다(D-426).
             static UInt64 Key(JPH::BodyID a, JPH::BodyID b)
             {
                 std::uint64_t low = a.GetIndexAndSequenceNumber();
@@ -624,6 +633,8 @@ namespace JBro::Physics3D
                 }
                 return (high << 32) | low;
             }
+
+        private:
 
             // 사건을 처음 만든 쪽(bodyA)에서 본 접촉점과 A→B 법선으로 채운다. Jolt 의 법선은 콜백의 첫 바디에서 둘째로 간다.
             static void Locate(const JPH::Body& first, const JPH::ContactManifold& manifold, ContactEvent& event)
@@ -742,6 +753,7 @@ namespace JBro::Physics3D
                 objectVsBroadPhase, objectPairs);
             physics.SetGravity(ToJolt(settings.gravity));
             contacts.leaves = &leaves;
+            contacts.unconnected = &unconnected;
             physics.SetContactListener(&contacts);
         }
 
@@ -807,6 +819,23 @@ namespace JBro::Physics3D
         ObjectVsBroadPhase objectVsBroadPhase;
         ObjectPairs objectPairs;
         LeafTable leaves;
+        // ── 조인트(D-426) ── 자리마다 정의를 들고 있어 바디의 도형이 바뀌면 같은 정의로 다시 세운다.
+        struct JointSlot
+        {
+            JPH::Ref<JPH::TwoBodyConstraint> constraint;
+            JPH::BodyID a;
+            // 비었으면 월드에 잇는다.
+            JPH::BodyID b;
+            UInt32 generation = 0;
+            Bool alive = false;
+            Bool hinge = false;
+            DistanceJointDef distance;
+            HingeJointDef hingeDef;
+        };
+        Array<JointSlot> joints;
+        Array<UInt32> freeJoints;
+        UInt32 jointCount = 0;
+        Table<UInt64, UInt32> unconnected;
         // 빠른 트리거의 쓸기(D-423). 스텝 앞의 질량 중심 자세다. 표는 미리 잡아 두어 흔한 경우 할당하지 않는다.
         struct Sweep
         {
@@ -866,6 +895,226 @@ namespace JBro::Physics3D
         };
 
         // ── 빠른 트리거(D-423) ───────────────────────────────────────────
+        // ── 조인트(D-426) ───────────────────────────────────────────────
+        // B 가 비면 월드다(Jolt 의 고정 바디). 지운 바디면 null.
+        JPH::Body* JointBody(JPH::BodyID id)
+        {
+            if (id.IsInvalid())
+            {
+                return &JPH::Body::sFixedToWorld;
+            }
+            return physics.GetBodyLockInterfaceNoLock().TryGetBody(id);
+        }
+
+        // 바디 원점 기준 앵커를 Jolt 의 "질량 중심 기준" 으로. 월드의 고정 바디는 원점이 곧 월드다.
+        static JPH::Vec3 FromOrigin(const JPH::Body& body, const Vector3& anchor)
+        {
+            if (&body == &JPH::Body::sFixedToWorld)
+            {
+                return ToJolt(anchor);
+            }
+            return ToJolt(anchor) - body.GetShape()->GetCenterOfMass();
+        }
+
+        // 경첩의 축과 법선: 축은 단위로, 법선은 축에 수직인 단위로 맞춘다(0 이면 축에 수직인 아무 방향).
+        static void HingeFrame(const Vector3& axisIn, const Vector3& normalIn, JPH::Vec3& axis, JPH::Vec3& normal)
+        {
+            axis = ToJolt(axisIn);
+            axis = axis.LengthSq() > 1.0e-12f ? axis.Normalized() : JPH::Vec3::sAxisX();
+            normal = ToJolt(normalIn);
+            normal = normal - axis * axis.Dot(normal);
+            normal = normal.LengthSq() > 1.0e-12f ? normal.Normalized() : axis.GetNormalizedPerpendicular();
+        }
+
+        void CountUnconnected(const JointSlot& slot, Bool add)
+        {
+            const Bool collide = slot.hinge ? slot.hingeDef.collideConnected : slot.distance.collideConnected;
+            if (collide || slot.b.IsInvalid())
+            {
+                return;
+            }
+            const UInt64 key = ContactTracker::Key(slot.a, slot.b);
+            UInt32* count = unconnected.Find(key);
+            if (add)
+            {
+                if (count != nullptr)
+                {
+                    ++*count;
+                }
+                else
+                {
+                    unconnected.TryAdd(key, UInt32(1u));
+                }
+                return;
+            }
+            if (count != nullptr)
+            {
+                *count = *count - 1u;
+                if (*count == 0u)
+                {
+                    unconnected.Remove(key);
+                }
+            }
+        }
+
+        // 자리의 정의로 Jolt 제약을 세워 넣는다. 두 바디가 없으면 거짓.
+        Bool BuildJoint(JointSlot& slot)
+        {
+            JPH::Body* a = JointBody(slot.a);
+            JPH::Body* b = JointBody(slot.b);
+            if (a == nullptr || b == nullptr || a == b)
+            {
+                return false;
+            }
+            // Jolt 의 body1 은 B(상대·월드), body2 는 A 다 - 경첩의 각이 "body2 가 body1 에 대해" 라 A 가 B 에 대해가 된다.
+            if (slot.hinge)
+            {
+                const HingeJointDef& def = slot.hingeDef;
+                JPH::HingeConstraintSettings settings;
+                settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                settings.mPoint1 = JPH::RVec3(FromOrigin(*b, def.localAnchorB));
+                settings.mPoint2 = JPH::RVec3(FromOrigin(*a, def.localAnchorA));
+                HingeFrame(def.localAxisB, def.localNormalB, settings.mHingeAxis1, settings.mNormalAxis1);
+                HingeFrame(def.localAxisA, def.localNormalA, settings.mHingeAxis2, settings.mNormalAxis2);
+                if (def.enableLimit)
+                {
+                    const float low = std::fmin(def.lowerAngle, def.upperAngle);
+                    const float high = std::fmax(def.lowerAngle, def.upperAngle);
+                    settings.mLimitsMin = std::fmax(std::fmin(low, 0.0f), -JPH::JPH_PI);
+                    settings.mLimitsMax = std::fmin(std::fmax(high, 0.0f), JPH::JPH_PI);
+                    // 한계가 한 점이면 Jolt 가 고정 조인트를 권하며 멈춘다 - 아주 좁은 틈을 둔다.
+                    if (settings.mLimitsMax - settings.mLimitsMin < 1.0e-4f)
+                    {
+                        settings.mLimitsMax = settings.mLimitsMin + 1.0e-4f;
+                    }
+                }
+                settings.mMotorSettings.SetTorqueLimit(std::fmax(def.maxMotorTorque, 0.0f));
+                JPH::HingeConstraint* hinge = static_cast<JPH::HingeConstraint*>(settings.Create(*b, *a));
+                if (def.enableMotor)
+                {
+                    hinge->SetMotorState(JPH::EMotorState::Velocity);
+                    hinge->SetTargetAngularVelocity(def.motorSpeed);
+                }
+                slot.constraint = hinge;
+            }
+            else
+            {
+                const DistanceJointDef& def = slot.distance;
+                JPH::DistanceConstraintSettings settings;
+                settings.mSpace = JPH::EConstraintSpace::LocalToBodyCOM;
+                settings.mPoint1 = JPH::RVec3(FromOrigin(*b, def.localAnchorB));
+                settings.mPoint2 = JPH::RVec3(FromOrigin(*a, def.localAnchorA));
+                settings.mMinDistance = std::fmax(def.minDistance, 0.0f);
+                settings.mMaxDistance = std::fmax(def.maxDistance, settings.mMinDistance);
+                settings.mLimitsSpringSettings.mFrequency = std::fmax(def.frequency, 0.0f);
+                settings.mLimitsSpringSettings.mDamping = std::fmax(def.dampingRatio, 0.0f);
+                slot.constraint = static_cast<JPH::TwoBodyConstraint*>(settings.Create(*b, *a));
+            }
+            physics.AddConstraint(slot.constraint.GetPtr());
+            CountUnconnected(slot, true);
+            JPH::BodyInterface& bodies = physics.GetBodyInterfaceNoLock();
+            for (const JPH::BodyID& id : {slot.a, slot.b})
+            {
+                if (false == id.IsInvalid() && bodies.GetMotionType(id) != JPH::EMotionType::Static)
+                {
+                    bodies.ActivateBody(id);
+                }
+            }
+            return true;
+        }
+
+        // 자리의 Jolt 제약을 뺀다. 자리와 정의는 남는다.
+        void DropJoint(JointSlot& slot)
+        {
+            if (slot.constraint == nullptr)
+            {
+                return;
+            }
+            physics.RemoveConstraint(slot.constraint.GetPtr());
+            slot.constraint = nullptr;
+            CountUnconnected(slot, false);
+        }
+
+        void FreeJoint(UInt32 index)
+        {
+            JointSlot& slot = joints[index];
+            DropJoint(slot);
+            slot.alive = false;
+            slot.generation = slot.generation + 1u;
+            freeJoints.Add(index);
+            jointCount = jointCount - 1u;
+        }
+
+        // 바디를 지우기 앞서 그 바디의 조인트를 지운다(Jolt 의 제약은 바디를 가리킨다).
+        void FreeJointsOf(JPH::BodyID body)
+        {
+            for (UInt32 index = 0; index < joints.Size(); ++index)
+            {
+                if (joints[index].alive && (joints[index].a == body || joints[index].b == body))
+                {
+                    FreeJoint(index);
+                }
+            }
+        }
+
+        // 도형이 바뀐 바디의 조인트를 같은 정의로 다시 세운다 - 질량 중심 기준 앵커를 새 질량 중심으로.
+        void RebuildJointsOf(JPH::BodyID body)
+        {
+            for (UInt32 index = 0; index < joints.Size(); ++index)
+            {
+                JointSlot& slot = joints[index];
+                if (slot.alive && (slot.a == body || slot.b == body))
+                {
+                    DropJoint(slot);
+                    BuildJoint(slot);
+                }
+            }
+        }
+
+        JointSlot* FindJoint(JointId id)
+        {
+            if (id.index >= joints.Size() || false == joints[id.index].alive || joints[id.index].generation != id.generation)
+            {
+                return nullptr;
+            }
+            return &joints[id.index];
+        }
+
+        JointId AddJoint(JPH::BodyID a, JPH::BodyID b, Bool hinge, const DistanceJointDef* distance, const HingeJointDef* hingeDef)
+        {
+            UInt32 index = 0;
+            if (freeJoints.Size() > 0)
+            {
+                index = freeJoints[freeJoints.Size() - 1];
+                freeJoints.RemoveAt(freeJoints.Size() - 1);
+            }
+            else
+            {
+                index = static_cast<UInt32>(joints.Size());
+                joints.Add(JointSlot{});
+            }
+            JointSlot& slot = joints[index];
+            slot.a = a;
+            slot.b = b;
+            slot.hinge = hinge;
+            slot.alive = true;
+            if (distance != nullptr)
+            {
+                slot.distance = *distance;
+            }
+            if (hingeDef != nullptr)
+            {
+                slot.hingeDef = *hingeDef;
+            }
+            jointCount = jointCount + 1u;
+            if (false == BuildJoint(slot))
+            {
+                FreeJoint(index);
+                return {};
+            }
+            return JointId{index, slot.generation};
+        }
+
         // 스텝 앞: 깨어 있는 동적인 고체 몸의 질량 중심 자세를 떠 둔다. `MoveContinuously` 가 옮긴 트리거는 그때 이미 떠 두었다.
         void RecordMovingBodies()
         {
@@ -1005,6 +1254,11 @@ namespace JBro::Physics3D
 
     World::~World()
     {
+        // 조인트를 먼저 뺀다 - Jolt 의 제약은 바디를 가리킨다.
+        for (Impl::JointSlot& slot : m_impl->joints)
+        {
+            m_impl->DropJoint(slot);
+        }
         // 남은 바디를 지운다. PhysicsSystem 은 지울 때 바디를 놓아주지만 도형의 참조 계수는 바디가 지워져야 내려간다.
         JPH::BodyIDVector bodies;
         m_impl->physics.GetBodies(bodies);
@@ -1093,6 +1347,7 @@ namespace JBro::Physics3D
         {
             return;
         }
+        m_impl->FreeJointsOf(ToJolt(body));
         m_impl->contacts.ForgetBody(ToJolt(body));
         JPH::BodyInterface& bodyInterface = m_impl->physics.GetBodyInterfaceNoLock();
         bodyInterface.RemoveBody(ToJolt(body));
@@ -1311,6 +1566,8 @@ namespace JBro::Physics3D
             const float mass = locked.GetMotionProperties()->GetInverseMass() > 0.0f ? 1.0f / locked.GetMotionProperties()->GetInverseMass() : 1.0f;
             Impl::ApplyMass(locked, mass, locked.GetMotionProperties()->GetAllowedDOFs());
         }
+        lock.ReleaseLock();
+        m_impl->RebuildJointsOf(ToJolt(body));
         return true;
     }
 
@@ -1378,6 +1635,99 @@ namespace JBro::Physics3D
         m_impl->physics.Update(deltaTime, 1, &m_impl->temp, m_impl->Jobs());
         m_impl->contacts.Resolve(m_impl->physics.GetBodyInterfaceNoLock());
         m_impl->SweepAfterStep();
+    }
+
+    namespace
+    {
+        // 조인트의 B: 비었으면 월드, 아니면 살아 있어야 한다.
+        Bool ResolveJointBodies(const World& world, BodyId bodyA, BodyId bodyB, JPH::BodyID& a, JPH::BodyID& b)
+        {
+            if (false == world.IsValid(bodyA) || (bodyB.value != InvalidBodyValue && false == world.IsValid(bodyB)))
+            {
+                return false;
+            }
+            a = ToJolt(bodyA);
+            b = bodyB.value != InvalidBodyValue ? ToJolt(bodyB) : JPH::BodyID();
+            return a != b;
+        }
+    }
+
+    JointId World::CreateDistanceJoint(const DistanceJointDef& def)
+    {
+        JPH::BodyID a;
+        JPH::BodyID b;
+        if (false == ResolveJointBodies(*this, def.bodyA, def.bodyB, a, b))
+        {
+            return {};
+        }
+        return m_impl->AddJoint(a, b, false, &def, nullptr);
+    }
+
+    JointId World::CreateHingeJoint(const HingeJointDef& def)
+    {
+        JPH::BodyID a;
+        JPH::BodyID b;
+        if (false == ResolveJointBodies(*this, def.bodyA, def.bodyB, a, b))
+        {
+            return {};
+        }
+        return m_impl->AddJoint(a, b, true, nullptr, &def);
+    }
+
+    void World::SetDistanceJoint(JointId joint, const DistanceJointDef& def)
+    {
+        Impl::JointSlot* slot = m_impl->FindJoint(joint);
+        JPH::BodyID a;
+        JPH::BodyID b;
+        if (slot == nullptr || slot->hinge || false == ResolveJointBodies(*this, def.bodyA, def.bodyB, a, b) || a != slot->a || b != slot->b)
+        {
+            return;
+        }
+        m_impl->DropJoint(*slot);
+        slot->distance = def;
+        m_impl->BuildJoint(*slot);
+    }
+
+    void World::SetHingeJoint(JointId joint, const HingeJointDef& def)
+    {
+        Impl::JointSlot* slot = m_impl->FindJoint(joint);
+        JPH::BodyID a;
+        JPH::BodyID b;
+        if (slot == nullptr || false == slot->hinge || false == ResolveJointBodies(*this, def.bodyA, def.bodyB, a, b) || a != slot->a || b != slot->b)
+        {
+            return;
+        }
+        m_impl->DropJoint(*slot);
+        slot->hingeDef = def;
+        m_impl->BuildJoint(*slot);
+    }
+
+    void World::DestroyJoint(JointId joint)
+    {
+        if (m_impl->FindJoint(joint) != nullptr)
+        {
+            m_impl->FreeJoint(joint.index);
+        }
+    }
+
+    Bool World::IsValid(JointId joint) const
+    {
+        return m_impl->FindJoint(joint) != nullptr;
+    }
+
+    UInt32 World::GetJointCount() const
+    {
+        return m_impl->jointCount;
+    }
+
+    Float World::GetHingeAngle(JointId joint) const
+    {
+        const Impl::JointSlot* slot = m_impl->FindJoint(joint);
+        if (slot == nullptr || false == slot->hinge || slot->constraint == nullptr)
+        {
+            return 0.0f;
+        }
+        return static_cast<const JPH::HingeConstraint*>(slot->constraint.GetPtr())->GetCurrentAngle();
     }
 
     void World::SetWorkerCount(UInt32 count)

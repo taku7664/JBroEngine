@@ -81,6 +81,8 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Handle/Rigidbody3D.h>
+#include <JBro/Framework3D/Handle/DistanceJoint3D.h>
+#include <JBro/Framework3D/Handle/HingeJoint3D.h>
 #include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Physics3D/World.h>
 #include <JBro/Framework3DSystem/System/Physics3DSystem.h>
@@ -7377,6 +7379,99 @@ namespace
         Check(counter->enters == 1, "the box hears the trigger that swept past it in one frame");
         Check(editor.Tick(Frame), "the editor must tick once more");
         Check(counter->exits == 1, "and hears it leave on the next step");
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
+    // **3D 조인트**(D-426). 월드에 박은 경첩 문과 기둥에 매단 추: 처음 이을 때 자동 값(상대 앵커·거리)을 적고, 재생하면 핀과 거리를 지킨다.
+    // 스크립트 핸들로 칸을 읽고 쓰며, 끈 조인트는 풀린다.
+    void TestJointsIn3D()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; 3D joints not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "Joint3DProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        project.framework = JBro::FrameworkKind::Framework3D;
+        Check(editor.OpenProject(project), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        Check(editor.StartSimulation(), "play must start");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto body = [&](const char* tag, JBro::Vector3 position, JBro::Bool dynamic) {
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
+            canvas->AttachComponent<JBro::Component::Transform3D>(object)->position = position;
+            canvas->AttachComponent<JBro::Component::Collider3D>(object);
+            if (dynamic)
+            {
+                canvas->AttachComponent<JBro::Component::Rigidbody3D>(object);
+            }
+            return object;
+        };
+        // 문: 원점 기준 (-1, 0, 0) 을 월드에 Z 축으로 박는다. 상대가 없어 자동 상대 앵커는 그 월드 자리다.
+        JBro::Object::GameObject* door = body("Door", {1.0f, 2.0f, 0.0f}, true);
+        auto* hinge = canvas->AttachComponent<JBro::Component::HingeJoint3D>(door);
+        hinge->anchor = {-1.0f, 0.0f, 0.0f};
+        hinge->axis = {0.0f, 0.0f, 1.0f};
+        // 추: 기둥 아래 2 에 매단다. 자동 거리는 처음 이을 때의 2 다. 처음 자리를 옆으로 비켜 흔들리게 한다.
+        JBro::Object::GameObject* post = body("Post", {6.0f, 4.0f, 0.0f}, false);
+        JBro::Object::GameObject* weight = body("Weight", {7.2f, 2.4f, 0.0f}, true);
+        auto* rope = canvas->AttachComponent<JBro::Component::DistanceJoint3D>(weight);
+        rope->connectedObject = post->GetScriptHandle();
+        // 밧줄: 기둥 아래 1 에서 길이 2 로 매달면 처음에는 늘어져 그냥 떨어진다.
+        JBro::Object::GameObject* slack = body("Slack", {10.0f, 3.0f, 0.0f}, true);
+        JBro::Object::GameObject* hook = body("Hook", {10.0f, 4.0f, 0.0f}, false);
+        auto* line = canvas->AttachComponent<JBro::Component::DistanceJoint3D>(slack);
+        line->connectedObject = hook->GetScriptHandle();
+        line->autoDistance = false;
+        line->distance = 2.0f;
+        line->maxDistanceOnly = true;
+        JBro::Float lowestDoor = 2.0f;
+        for (JBro::Int32 frame = 0; frame < 90; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+            if (frame == 2)
+            {
+                const JBro::Float early = JBro::Length(JBro::Subtract(canvas->FindComponentRaw<JBro::Component::Transform3D>(slack)->position, {10.0f, 4.0f, 0.0f}));
+                Check(early < 1.3f, "a slack rope lets its weight fall freely");
+            }
+            lowestDoor = std::fmin(lowestDoor, canvas->FindComponentRaw<JBro::Component::Transform3D>(door)->position.y);
+        }
+        const auto positionOf = [&](JBro::Object::GameObject* object) {
+            return canvas->FindComponentRaw<JBro::Component::Transform3D>(object)->position;
+        };
+        const auto rotationOf = [&](JBro::Object::GameObject* object) {
+            return canvas->FindComponentRaw<JBro::Component::Transform3D>(object)->rotation;
+        };
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics3DSystem>();
+        Check(physics != nullptr && physics->GetJointCount() == 3, "all three joints are made");
+        Check(JBro::Length(JBro::Subtract(hinge->connectedAnchor, {0.0f, 2.0f, 0.0f})) < 1.0e-3f, "the hinge wrote where its pin sits in the world");
+        Check(std::fabs(rope->distance - 2.0f) < 1.0e-3f, "the rope wrote its starting length");
+        const JBro::Vector3 pin = JBro::Add(positionOf(door), JBro::Rotate(rotationOf(door), {-1.0f, 0.0f, 0.0f}));
+        Check(JBro::Length(JBro::Subtract(pin, {0.0f, 2.0f, 0.0f})) < 0.05f, "the door keeps its pin");
+        Check(lowestDoor < 1.1f, "and swings down about it");
+        Check(std::fabs(JBro::Length(JBro::Subtract(positionOf(weight), positionOf(post))) - 2.0f) < 0.05f, "the weight stays two from the post");
+        Check(positionOf(weight).x < 7.1f, "and swings");
+        // 스크립트 핸들이 칸을 읽고 쓴다.
+        JBro::Handle::HingeJoint3D handle = door->GetScriptHandle().GetComponent<JBro::Handle::HingeJoint3D>();
+        Check(handle.IsValid() && JBro::Length(JBro::Subtract(handle.GetAxis(), {0.0f, 0.0f, 1.0f})) < 1.0e-6f, "the hinge handle reads the axis");
+        handle.SetUseMotor(true);
+        handle.SetMotorSpeed(JBro::Degree(90.0f));
+        Check(hinge->useMotor && std::fabs(hinge->motorSpeed.Get() - 90.0f) < 1.0e-4f, "and writes the motor");
+        JBro::Handle::DistanceJoint3D ropeHandle = weight->GetScriptHandle().GetComponent<JBro::Handle::DistanceJoint3D>();
+        Check(ropeHandle.IsValid() && ropeHandle.GetConnectedObject().GetInstanceId() == post->GetInstanceId(), "the rope handle reads its other end");
+        // 끈 조인트는 풀린다.
+        rope->SetEnabled(false);
+        Check(editor.Tick(Frame), "the editor must tick after the rope is turned off");
+        Check(physics->GetJointCount() == 2, "a disabled joint lets go");
         editor.StopSimulation();
         editor.Shutdown();
     }
@@ -20977,6 +21072,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheLayerTableAndPerColliderLayersReachPlayIn3D());
     JBRO_CASE(TestQueriesSeeTheCurrentComponentsIn3D());
     JBRO_CASE(TestAFastTriggerDoesNotSkipIn3D());
+    JBRO_CASE(TestJointsIn3D());
     JBRO_CASE(TestMeshCollidersIn3D());
     JBRO_CASE(TestModelMeshCollidersIn3D());
     JBRO_CASE(TestTheCanvasViewDrawsColliders3D());

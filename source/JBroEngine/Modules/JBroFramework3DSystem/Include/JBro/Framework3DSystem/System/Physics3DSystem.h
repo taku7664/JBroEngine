@@ -45,6 +45,8 @@ namespace JBro::System
 
         // 커널에 올라간 바디와 센서의 수. 동기화가 만들고 지우는 것을 시험이 붙잡는 손잡이다.
         std::size_t GetBodyCount() const;
+        // 이어진 조인트 수(D-426). 시험이 본다.
+        std::size_t GetJointCount() const;
         std::size_t GetSensorCount() const;
 
         Bool Raycast(Vector3 origin, Vector3 direction, Float distance, RaycastHit3D& hit, UInt32 layerMask) const override;
@@ -69,6 +71,8 @@ namespace JBro::System
         void DispatchEvents(Canvas& canvas);
         // 켜진 콜라이더를 커널의 바디·센서에 맞춘다(D-422). 고정 스텝과 질의가 함께 쓴다. 힘을 먹이지도 사건을 내지도 않는다.
         void SyncBodies(Canvas& canvas);
+        // 조인트 컴포넌트를 커널의 조인트에 맞춘다(D-426). 바디를 맞춘 뒤 `SyncBodies` 가 부른다.
+        void SyncJoints(Canvas& canvas);
         void SyncForQuery() const;
         // 스크립트가 쌓은 힘·충격량을 이번 스텝에 먹인다(D-420). 고정 스텝에서만.
         void ApplyPendingForces();

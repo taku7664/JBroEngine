@@ -826,6 +826,180 @@ namespace
     }
 }
 
+namespace
+{
+    JBro::Float DistanceBetween(const Vector3& a, const Vector3& b)
+    {
+        return JBro::Length(JBro::Subtract(a, b));
+    }
+
+    // **조인트**(D-426). 거리(단단함·밧줄)·경첩(핀·각의 부호·한계·모터)·충돌 끄기·바디와 함께 지워짐·도형이 바뀌어도 핀이 그 자리.
+    void TestJoints()
+    {
+        using JBro::Physics3D::DistanceJointDef;
+        using JBro::Physics3D::HingeJointDef;
+        using JBro::Physics3D::JointId;
+        const Vector3 origin{0.0f, 0.0f, 0.0f};
+        // 단단한 거리: 월드 원점에 3 으로 매단 상자는 흔들려 내려와도 원점에서 3 이다.
+        {
+            World world;
+            const BodyId bob = world.CreateBody(BoxAt({3.0f, 0.0f, 0.0f}));
+            DistanceJointDef def;
+            def.bodyA = bob;
+            def.minDistance = 3.0f;
+            def.maxDistance = 3.0f;
+            const JointId joint = world.CreateDistanceJoint(def);
+            Check(world.IsValid(joint) && world.GetJointCount() == 1, "a distance joint to the world is made");
+            for (JBro::Int32 step = 0; step < 60; ++step)
+            {
+                world.Step(Frame);
+            }
+            Check(world.GetPosition(bob).y < -1.5f, "the bob swings down");
+            Check(std::fabs(DistanceBetween(world.GetPosition(bob), origin) - 3.0f) < 0.05f, "and stays three from the pin");
+        }
+        // 밧줄: 가까이 있으면 그대로 떨어지고, 3 에서 멈춘다.
+        {
+            World world;
+            const BodyId bob = world.CreateBody(BoxAt({1.0f, 0.0f, 0.0f}));
+            DistanceJointDef def;
+            def.bodyA = bob;
+            def.minDistance = 0.0f;
+            def.maxDistance = 3.0f;
+            world.CreateDistanceJoint(def);
+            for (JBro::Int32 step = 0; step < 10; ++step)
+            {
+                world.Step(Frame);
+            }
+            Check(std::fabs(world.GetPosition(bob).x - 1.0f) < 0.01f, "a slack rope does not pull");
+            for (JBro::Int32 step = 0; step < 110; ++step)
+            {
+                world.Step(Frame);
+            }
+            const JBro::Float length = DistanceBetween(world.GetPosition(bob), origin);
+            Check(length < 3.05f && length > 2.8f, "a taut rope holds at its length");
+        }
+        // 경첩: 원점 기준 (-1, 0, 0) 을 월드의 그 자리에 Z 축으로 박은 상자는 핀 둘레로 떨어져 돈다. Z 를 오른손으로 도는 쪽이 양수라 각은 음수다.
+        const auto hingedBox = [&](World& world, JBro::Bool limited) {
+            const BodyId box = world.CreateBody(BoxAt(origin));
+            HingeJointDef def;
+            def.bodyA = box;
+            def.localAnchorA = {-1.0f, 0.0f, 0.0f};
+            def.localAnchorB = {-1.0f, 0.0f, 0.0f};
+            def.localAxisA = {0.0f, 0.0f, 1.0f};
+            def.localAxisB = {0.0f, 0.0f, 1.0f};
+            def.enableLimit = limited;
+            def.lowerAngle = -0.3f;
+            def.upperAngle = 0.3f;
+            const JointId joint = world.CreateHingeJoint(def);
+            Check(world.IsValid(joint), "a hinge to the world is made");
+            return std::pair<BodyId, JointId>(box, joint);
+        };
+        const auto pinOf = [&](World& world, BodyId box) {
+            return JBro::Add(world.GetPosition(box), JBro::Rotate(world.GetRotation(box), Vector3{-1.0f, 0.0f, 0.0f}));
+        };
+        {
+            World world;
+            const auto [box, joint] = hingedBox(world, false);
+            JBro::Float lowest = 0.0f;
+            for (JBro::Int32 step = 0; step < 60; ++step)
+            {
+                world.Step(Frame);
+                lowest = std::fmin(lowest, world.GetPosition(box).y);
+            }
+            Check(DistanceBetween(pinOf(world, box), {-1.0f, 0.0f, 0.0f}) < 0.05f, "the hinge keeps its pin");
+            Check(world.GetHingeAngle(joint) < -0.5f, "the box swings clockwise about +Z, a negative angle");
+            Check(lowest < -0.9f, "and its centre swings down through the bottom, one below the pin");
+        }
+        {
+            World world;
+            const auto [box, joint] = hingedBox(world, true);
+            for (JBro::Int32 step = 0; step < 120; ++step)
+            {
+                world.Step(Frame);
+            }
+            Check(world.GetHingeAngle(joint) > -0.33f, "the limit stops the swing at -0.3");
+        }
+        // 도형을 바꿔 질량 중심이 옮겨도 핀은 그 자리다 - 조인트를 새 질량 중심으로 다시 세운다.
+        {
+            World world;
+            const auto [box, joint] = hingedBox(world, false);
+            world.Step(Frame);
+            JBro::Physics3D::ShapeDesc shifted;
+            shifted.halfExtents = {0.5f, 0.5f, 0.5f};
+            shifted.offset = {0.6f, 0.0f, 0.0f};
+            Check(world.SetShapes(box, JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(&shifted, 1)), "the shape changes in place");
+            for (JBro::Int32 step = 0; step < 30; ++step)
+            {
+                world.Step(Frame);
+            }
+            Check(DistanceBetween(pinOf(world, box), {-1.0f, 0.0f, 0.0f}) < 0.05f, "a moved centre of mass keeps the pin in place");
+            Check(world.IsValid(joint), "and the joint keeps its number");
+        }
+        // 모터: 중력 없이 Y 축 경첩이 상자를 +2 rad/s 로 돌린다 - 각도 양수다.
+        {
+            World world;
+            world.SetGravity({0.0f, 0.0f, 0.0f});
+            const BodyId box = world.CreateBody(BoxAt(origin));
+            HingeJointDef def;
+            def.bodyA = box;
+            def.localAxisA = {0.0f, 1.0f, 0.0f};
+            def.localNormalA = {1.0f, 0.0f, 0.0f};
+            def.localAxisB = {0.0f, 1.0f, 0.0f};
+            def.localNormalB = {1.0f, 0.0f, 0.0f};
+            def.enableMotor = true;
+            def.motorSpeed = 2.0f;
+            const JointId joint = world.CreateHingeJoint(def);
+            for (JBro::Int32 step = 0; step < 30; ++step)
+            {
+                world.Step(Frame);
+            }
+            Check(std::fabs(world.GetAngularVelocity(box).y - 2.0f) < 0.05f, "the motor turns the box at its speed");
+            Check(world.GetHingeAngle(joint) > 0.5f, "a positive speed turns it the positive way");
+        }
+        // 충돌 끄기: 바닥과 그 위의 상자를 긴 밧줄로 이었다. 끄면(기본) 상자가 바닥을 지나 떨어지고, 켜면 선다.
+        for (const JBro::Bool collide : {false, true})
+        {
+            World world;
+            const BodyId ground = MakeGround(world);
+            const BodyId box = world.CreateBody(BoxAt({0.0f, 1.0f, 0.0f}));
+            DistanceJointDef def;
+            def.bodyA = box;
+            def.bodyB = ground;
+            def.minDistance = 0.0f;
+            def.maxDistance = 10.0f;
+            def.collideConnected = collide;
+            world.CreateDistanceJoint(def);
+            for (JBro::Int32 step = 0; step < 90; ++step)
+            {
+                world.Step(Frame);
+            }
+            if (collide)
+            {
+                Check(world.GetPosition(box).y > 0.4f, "joined bodies that may collide still rest on each other");
+            }
+            else
+            {
+                Check(world.GetPosition(box).y < -1.0f, "joined bodies do not collide by default");
+            }
+        }
+        // 바디를 지우면 그 조인트도 지워진다. 같은 자리를 다시 쓴 조인트와 번호가 갈린다.
+        {
+            World world;
+            const BodyId bob = world.CreateBody(BoxAt({3.0f, 0.0f, 0.0f}));
+            DistanceJointDef def;
+            def.bodyA = bob;
+            const JointId first = world.CreateDistanceJoint(def);
+            world.DestroyBody(bob);
+            Check(false == world.IsValid(first) && world.GetJointCount() == 0, "destroying a body destroys its joints");
+            def.bodyA = world.CreateBody(BoxAt({3.0f, 0.0f, 0.0f}));
+            const JointId second = world.CreateDistanceJoint(def);
+            Check(world.IsValid(second) && false == world.IsValid(first), "a reused slot does not revive the old number");
+            def.bodyB = def.bodyA;
+            Check(false == world.IsValid(world.CreateDistanceJoint(def)), "a body is not joined to itself");
+        }
+    }
+}
+
 JBro::Int32 RunPhysics3DWorldTests()
 {
     JBRO_CASE(TestABoxFallsAndRestsOnTheGround());
@@ -843,6 +1017,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestForcesAndImpulses());
     JBRO_CASE(TestEachShapeHasItsOwnLayer());
     JBRO_CASE(TestFastTriggersDoNotSkip());
+    JBRO_CASE(TestJoints());
     JBRO_CASE(TestFastBodiesDoNotTunnel());
     std::cout << "Physics3D world tests passed.\n";
     return 0;

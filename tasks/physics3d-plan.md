@@ -68,7 +68,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 | `isTrigger`·`friction`·`restitution`·`layer`·`mask` | 2D 와 같은 이름·범위 |
 
 - **`PhysicsLayerMask` 를 JBroCore 로 옮긴다.** 차원과 무관한 공개 값 타입은 Core 에 한 번이다(ProjectRule). 지금은 Framework2D 에 있다.
-- 2D 의 조인트(`DistanceJoint2D`·`HingeJoint2D`)는 뒤로 둔다(§3 의 6).
+- ~~2D 의 조인트(`DistanceJoint2D`·`HingeJoint2D`)는 뒤로 둔다(§3 의 6).~~ → D-426: `DistanceJoint3D`·`HingeJoint3D`(§3.6).
 
 ### 2.3 스텝과 스레드 (확정, D-415)
 
@@ -102,7 +102,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 | 3 | 접촉 사건과 스크립트 훅·`Physics3DService` 질의 | 3D 시험 DLL 의 스크립트가 `OnCollisionEnter`·`OnTriggerEnter` 를 받고 `Raycast` 가 맞는다 | `[완료]` 2026-11-19 · D-417 · §3.3 |
 | 4 | 에디터: 콜라이더 그리기·메시 콜라이더 | 캔버스 뷰 스크린숏에 콜라이더 선, 메시 바닥 위에 상자가 선다 | `[완료]` 2026-11-20 · D-418 · §3.4 |
 | 5 | 잡 시스템을 `JBroTask` 위로·`Build.PhysicsThreads` | 바디 1000 개에서 워커 수에 따라 스텝 시간이 준다 | `[완료]` 2026-11-20 · D-419 · §3.5 (`JBroTask` 대신 Jolt 풀 - §2.3) |
-| 6 | 뒤의 것: 조인트·캐릭터 컨트롤러(`CharacterVirtual`)·CCD(`EMotionQuality::LinearCast`) | 항목마다 따로 정한다 | `[진행]` CCD D-425 · §3.6 |
+| 6 | 뒤의 것: 조인트·캐릭터 컨트롤러(`CharacterVirtual`)·CCD(`EMotionQuality::LinearCast`) | 항목마다 따로 정한다 | `[진행]` CCD D-425 · 조인트 D-426 · §3.6 |
 
 ### 3.1 1 단계에서 한 것과 실측 (D-415)
 
@@ -189,6 +189,19 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 - **CCD(D-425):** 동적인 몸은 모두 Jolt 의 `LinearCast` 다. 켜는 칸은 없다 - 2D 도 동적인 몸 모두에 저절로다(D-234). Jolt 는 한 스텝에 제 안쪽 반지름의 일정 몫보다 멀리 가는 몸만
   쓸어 보아 느린 몸에는 값이 거의 들지 않는다. 2D 와 달리 **동적인 몸끼리도** 본다(Jolt 가 그렇게 한다 - 2D 의 `[열림]` 하나를 3D 는 처음부터 넘는다). 트리거·키네마틱은 받지 않는다(트리거는 D-423 의 쓸기).
   시험 `TestFastBodiesDoNotTunnel`: 반지름 0.05 의 공이 한 스텝에 3 을 가며 두께 0.1 의 벽 앞에서 서고, 떠 있는 얇은 상자를 지나치지 않고 민다. `[열림]` 회전으로만 빠른 몸(도는 긴 막대의 끝)은 보지 않는다 - Jolt 의 `LinearCast` 가 이동만 쓴다.
+
+- **조인트(D-426):** 2D 와 같은 두 컴포넌트·같은 필드 이름(`DistanceJoint3D`·`HingeJoint3D`, 앵커는 `Vector3`), 경첩에만 `axis`(이 오브젝트 로컬, 기본 X) 하나를 더했다.
+  스크립트 핸들과 스크립트 필드 타입(`FieldType::DistanceJoint3D`·`HingeJoint3D`)도 2D 처럼 둔다. 2D 에 없는 조인트 종류(고정·슬라이더·원뿔)는 넣지 않았다 - 2D 와 짝이 맞는 것만.
+  - 커널: `World::CreateDistanceJoint`·`CreateHingeJoint`·`Set*`·`DestroyJoint`·`GetHingeAngle`. 조인트는 자리마다 정의를 들고 Jolt 의 `LocalToBodyCOM` 공간으로 세운다.
+    앵커는 바디 원점 기준으로 받고 커널이 질량 중심으로 옮긴다 - 그래서 **바디의 도형이 바뀌면(`SetShapes`) 그 바디의 조인트를 같은 정의로 다시 세운다**(Jolt 의 `SetShape` 는 제약에 알리지 않아 핀이 어긋났다).
+    바디를 지우면 그 조인트도 지운다(Jolt 의 제약은 바디를 가리킨다).
+  - 경첩의 각 0 은 "두 바디의 법선이 겹칠 때" 다. 어댑터가 처음 이을 때(상대·축이 바뀔 때) 이 오브젝트의 축·법선을 지금 자세로 상대 로컬(없으면 월드)에 옮겨 두어, 몸이 다시 만들어져도 각 0 이 옮지 않는다(2D 의 기준 각과 같은 일).
+    Jolt 의 body1 을 상대, body2 를 이 오브젝트로 넣어 각과 모터가 "이 오브젝트가 상대에 대해, 축 둘레 오른손" 이다.
+  - **한계는 ±180° 다**(2D 는 ±360°). Jolt 의 경첩이 반 바퀴까지 받는다. 0 을 넘는 lowerAngle·0 아래의 upperAngle 은 0 으로 본다. 필드의 범위도 그렇게 좁혔다.
+  - `collideConnected` 가 거짓이면 두 바디의 접촉을 접촉 확인 콜백이 버린다(쌍마다 조인트 수를 센 표). 질의는 그대로 맞는다.
+  - 시험: `Physics3DWorld` 의 `TestJoints`(단단한 거리 3·밧줄·경첩의 핀과 각의 부호·한계·모터·충돌 끄기와 켜기·바디와 함께 지워짐·도형을 바꿔도 핀), 에디터 `TestJointsIn3D`(월드에 박은 문과 기둥에 매단 추,
+    자동 상대 앵커·자동 거리, 핸들, 끈 조인트가 풀림).
+  - `[열림]` 캔버스 뷰에 조인트를 그리지 않는다(2D 는 경첩 핀을 그린다). 조인트를 끊는 힘(break force)은 2D 에도 없다.
 
 ## 4. `[열림]`
 

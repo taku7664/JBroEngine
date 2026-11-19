@@ -200,6 +200,10 @@ namespace JBro::ScriptProject
             return "Rigidbody3D";
         case FieldType::Collider3D:
             return "Collider3D";
+        case FieldType::DistanceJoint3D:
+            return "DistanceJoint3D";
+        case FieldType::HingeJoint3D:
+            return "HingeJoint3D";
         case FieldType::Text3D:
             return "Text3D";
         case FieldType::AudioListener3D:
@@ -295,6 +299,8 @@ namespace JBro::ScriptProject
         case FieldType::MeshRenderer3D:
         case FieldType::Rigidbody3D:
         case FieldType::Collider3D:
+        case FieldType::DistanceJoint3D:
+        case FieldType::HingeJoint3D:
         case FieldType::Text3D:
         case FieldType::AudioListener3D:
         case FieldType::Light3D:
