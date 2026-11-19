@@ -8,6 +8,8 @@
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
+#include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Reflection/Field.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -19,6 +21,7 @@
 
 #include <Windows.h>
 
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -835,6 +838,112 @@ namespace
         Check(false == editor.IsScriptModuleLoaded(), "closing unloads the library");
         editor.Shutdown();
     }
+    // **3D 프로젝트가 제 스크립트 DLL 을 싣고 돌린다**(cpp-script-plan §3.7, D-412). 그때까지 3D 는 `Load` 를 실제로 부른 적이 없었다 -
+    // 진입점·컨텍스트 블록·`GameScript3D` 등록·필드 표·3D 핸들이 DLL 경계를 넘는지를 사용자 프로젝트와 같은 모양의 시험 DLL 로 본다.
+    void TestA3DProjectRunsItsScriptLibrary()
+    {
+        const fs::path root = FreshFolder(u8"삼차원");
+        fs::create_directories(root / "Contents" / "Assets");
+        const fs::path library = root / "x64" / "Debug" / "GameScript.dll";
+        fs::create_directories(library.parent_path());
+        fs::copy_file(ProbeLibrary(L"JBroScriptModuleProbe3D.dll"), library, fs::copy_options::overwrite_existing);
+        const fs::path projectPath = root / "Moving.jproject";
+        std::ofstream(projectPath, std::ios::binary) <<
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Contents/Assets\n"
+            "ScriptSourceDirectory: Contents\n"
+            "ScriptOutputLibraryPath: x64/Debug/GameScript.dll\n"
+            "Build:\n"
+            "  ProductName: Moving\n";
+
+        EditorApplication editor;
+        EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; a 3D script library not verified" << std::endl;
+            return;
+        }
+        ProjectFileError error;
+        Check(editor.OpenProjectFile(Utf8(projectPath).c_str(), error), "the 3D project opens");
+        Check(editor.GetFrameworkKind() == FrameworkKind::Framework3D, "as a 3D project");
+        Check(editor.IsScriptModuleLoaded(), "with its script library loaded");
+        using GetCount = UInt32 (*)() noexcept;
+        const auto startCount = reinterpret_cast<GetCount>(editor.GetScriptModule()->GetSymbol("JBroScriptProbe3D_GetStartCount"));
+        const auto updateCount = reinterpret_cast<GetCount>(editor.GetScriptModule()->GetSymbol("JBroScriptProbe3D_GetUpdateCount"));
+        Check(startCount != nullptr && updateCount != nullptr, "the probe exports its counters");
+
+        Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the editor has a canvas");
+        Object::GameObject* object = canvas->CreateObject("Mover");
+        Check(canvas->AttachComponent<Component::Transform3D>(object) != nullptr, "the mover has a 3D transform");
+        Component::Light3D* light = canvas->AttachComponent<Component::Light3D>(object);
+        Check(light != nullptr, "and a 3D light");
+        light->intensity = 1.0f;
+        Check(canvas->AttachScript(object, "ProbeMover3D") != nullptr, "the 3D script from the library attaches");
+        const PropertyInfo* speed = FindField("ProbeMover3D", "Speed");
+        Check(speed != nullptr, "the 3D script's field reaches the host's table");
+        Check(*static_cast<const Float*>(speed->ConstAddress(OnlyScript(*canvas))) == 2.0f, "with its default");
+        *static_cast<Float*>(speed->Address(OnlyScript(*canvas))) = 4.0f;
+        Check(startCount() == 0 && updateCount() == 0, "nothing runs while editing");
+
+        Check(editor.StartSimulation(), "play starts");
+        constexpr Float Step = 0.05f;
+        constexpr Int32 Frames = 4;
+        for (Int32 frame = 0; frame < Frames; ++frame)
+        {
+            Check(editor.Tick(Step), "the editor ticks while playing");
+        }
+        Object::GameObject* played = nullptr;
+        editor.GetCanvas()->ForEachObject([&](Object::GameObject& candidate) {
+            if (std::strcmp(candidate.GetName(), "Mover") == 0)
+            {
+                played = &candidate;
+            }
+        });
+        Check(played != nullptr, "the mover is in the playing canvas");
+        Check(startCount() == 1, "the script starts once");
+        Check(updateCount() >= 1, "and updates");
+        const Component::Transform3D* moved = editor.GetCanvas()->FindComponentRaw<Component::Transform3D>(played);
+        // 재생은 첫 틱부터 스크립트를 돌린다. 몇 틱을 돌렸는지는 DLL 이 센 수로 재고, 한 틱은 `Step` 이다.
+        const Float expected = 4.0f * Step * static_cast<Float>(updateCount());
+        Check(moved != nullptr && moved->position.x > 0.0f && std::fabs((moved->position.x - expected).Get()) < 1e-4f,
+            "the script moved its object along +X by speed times the host's delta");
+        std::cout << "  3D script: " << updateCount().Get() << " updates moved the object to x " << moved->position.x.Get() << std::endl;
+        const Component::Light3D* lit = editor.GetCanvas()->FindComponentRaw<Component::Light3D>(played);
+        Check(lit != nullptr && lit->intensity == 4.0f, "and wrote the 3D light through its handle");
+
+        editor.StopSimulation();
+        Object::GameObject* restored = nullptr;
+        editor.GetCanvas()->ForEachObject([&](Object::GameObject& candidate) {
+            if (std::strcmp(candidate.GetName(), "Mover") == 0)
+            {
+                restored = &candidate;
+            }
+        });
+        Check(restored != nullptr, "stopping brings the edited canvas back");
+        const Component::Transform3D* back = editor.GetCanvas()->FindComponentRaw<Component::Transform3D>(restored);
+        Check(back != nullptr && back->position.x == 0.0f, "where the mover has not moved");
+        speed = FindField("ProbeMover3D", "Speed");
+        Check(speed != nullptr && OnlyScript(*editor.GetCanvas()) != nullptr
+            && *static_cast<const Float*>(speed->ConstAddress(OnlyScript(*editor.GetCanvas()))) == 4.0f,
+            "and the script keeps its edited speed");
+        String saved;
+        CanvasFileError canvasError;
+        Check(WriteCanvasText(*editor.GetCanvas(), saved, canvasError) && Contains(saved, "ProbeMover3D") && Contains(saved, "Speed: 4"),
+            "the canvas file writes the 3D script with its value");
+
+        editor.CloseProject();
+        Check(false == editor.IsScriptModuleLoaded(), "closing unloads the 3D library");
+        editor.Shutdown();
+    }
 }
 
 Int32 RunScriptHotReloadTests()
@@ -846,6 +955,7 @@ Int32 RunScriptHotReloadTests()
     TestALayerAndTheClipboardReadAScriptThatLostAField();
     TestTheEditorWarnsWhenWhatItInsertsLostAField();
     TestTheEditorReloadsTheLibraryUnderItsScripts();
+    TestA3DProjectRunsItsScriptLibrary();
     std::cout << "Script hot reload tests passed.\n";
     return 0;
 }

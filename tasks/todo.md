@@ -3058,6 +3058,15 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-412. 3D 스크립트 DLL 을 실제로 싣고 돌린다 - 3D 시험 DLL 과 3D 게임 호스트 실측.** (2026-11-19, todo-3d 우선순위 7·10, cpp-script-plan §3.7)
+  Updates: D-265(3D 는 `Load` 를 실제로 부르지 않았다 - §3.2 의 남은 것), D-363(3D 스크립트 런타임), D-404(3D 게임 빌드의 남은 것: 호스트).
+  (1) 시험 DLL `Tests/ScriptModuleProbe3D/JBroScriptModuleProbe3D`(`JBroScriptDimension` 3D, 시험 실행 파일 옆에 빌드). 사용자 프로젝트와 같은 모양이다 - `<JBro/ScriptAPI.h>` 한 줄, `GameScript3D` 를 잇는 `ProbeMover3D`
+  (`Speed` 필드, `OnUpdate` 에서 `Transform3D` 를 +X 로 `Speed × DeltaTime`, 같은 오브젝트의 `Light3D` 세기를 `Speed` 로), `JBRO_REGISTER_SCRIPT_3D`, `JBRO_SCRIPT_MODULE_3D()`. 시작·갱신 수를 내보낸다.
+  (2) 시험 `ScriptHotReload` 의 `TestA3DProjectRunsItsScriptLibrary`: 에디터가 3D 프로젝트를 열며 DLL 을 싣고, 스크립트를 붙이고, 필드 기본값을 호스트 표로 읽고 고치고, 재생 4 틱에 큐브가 0.8 간 것(DLL 이 센 틱 × 속도 × 델타)과
+  라이트 세기, 멈추면 되돌아온 캔버스, 캔버스 파일의 스크립트와 값, 닫으면 내려간 DLL 을 본다. 뮤테이션 넷 중 셋이 잡혔고 하나(`InitializePendingScriptSchemas` 빼기)는 C++ 스크립트에 같은 동작이다.
+  (3) 3D 게임 호스트를 손으로 띄웠다(임시 시험은 커밋하지 않음): 새 3D 프로젝트의 시작 오브젝트에 스크립트를 붙여 구운 게임을 다른 자리로 옮겨 띄우니 라이트 받은 큐브가 시간에 따라 +X 로 움직였다(3 초·7 초 스크린숏).
+  확인: ScriptHotReload·ScriptDLLLoader·ScriptModuleEntry·ScriptProject·Framework3DSystem·EditorApplication·UserScenario.
+
 - **D-411. 깊이 텍스처는 프레임 슬롯마다 두지 않는다 - 패스 사이 쓰기 순서는 Vulkan RHI 가 배리어로 잡는다.** (2026-11-19, todo-3d 우선순위 6)
   Updates: D-106(깊이 텍스처, framework3d-plan §2.11 의 `[열림]`), D-288(크기마다 하나).
   (1) 지금 코드를 다시 읽었다. 깊이는 렌더 그래프(D-339)의 중간 텍스처이고 모든 패스가 `LoadOperation::Clear` 로 단다. Vulkan `BeginRenderPass` 는 지우는 첨부를 `UNDEFINED` 에서 옮기므로

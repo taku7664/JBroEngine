@@ -152,7 +152,7 @@ JBRO_SCRIPT_MODULE_2D()
 - 뮤테이션: 네트워크·로컬라이징 시스템 바인딩 빼기, `Load` 의 등록 빼기, 목록에 걸기 빼기, 등록 거절 무시, 3D 요구 블록 바꾸기, `JBRO_SCRIPT_BODY` 가 모든 타입에 같은 이름을 주기가 잡혔다.
   오디오·입력·세이브 **서비스** 컨텍스트와 2D 서비스 컨텍스트 바인딩 빼기는 살아남았다 - 그 서비스 객체들에는 멤버가 없어(헤더로 확인) 묶든 안 묶든 DLL 쪽 바이트가 같다.
   같은 동작의 변이로 보고, 상태를 드는 시스템 컨텍스트 쪽 검사로 갈음한다.
-- 남은 것: 3D 는 시험 DLL 이 없어 `Load` 를 실제로 부르지 않았다(호스트 프로세스에서 부르면 공통 컨텍스트를 비운다). 3D 게임 스크립트를 쓰기 시작할 때 3D 시험 DLL 을 둔다.
+- ~~남은 것: 3D 는 시험 DLL 이 없어 `Load` 를 실제로 부르지 않았다~~ → 3D 시험 DLL `JBroScriptModuleProbe3D` 로 실제 `Load` 를 부른다(2026-11-19, D-412, §3.7).
 
 ### 3.3 사용자 스크립트 프로젝트
 
@@ -281,6 +281,16 @@ JBRO_SCRIPT_MODULE_2D()
 `GameScript3D` 와 충돌 훅. 3D 물리가 없으므로 [todo-3d.md](./todo-3d.md) 의 순서를 따른다.
 - ~~`GameScript3D`·3D 스크립트 런타임~~ **섰다**(2026-11-01, D-363): 3D 스크립트는 그때까지 돌지 않았다. `ScriptSystem` 을 공용 모듈 `JBroScriptRuntime` 으로 옮겨 `Framework3D` 가 세우고,
   `GameScript3D` 가 화면 UI 훅을 든다(기록은 [ui-plan.md](./ui-plan.md) §7.9). 충돌 훅은 3D 물리를 기다린다.
+- ~~3D 시험 DLL·실제 `Load`·3D 게임 호스트~~ **섰다**(2026-11-19, D-412). 시험 DLL `Tests/ScriptModuleProbe3D`(`JBroScriptDimension` 3D, 사용자 프로젝트와 같은 모양 - 프렐류드 한 줄·`GameScript3D` 를 잇는
+  `ProbeMover3D`·`JBRO_REGISTER_SCRIPT_3D`·`JBRO_SCRIPT_MODULE_3D()`)를 에디터가 3D 프로젝트로 열어 싣는다(`ScriptHotReload` 의 `TestA3DProjectRunsItsScriptLibrary`).
+  스크립트가 붙고, 필드 기본값이 호스트 표에 보이고, 재생하면 DLL 이 센 틱 수 × 속도 × 호스트의 델타만큼 `Transform3D` 가 +X 로 가며(4 틱에 0.8), 같은 오브젝트의 `Light3D` 세기를 핸들로 쓴다.
+  멈추면 편집하던 캔버스가 돌아오고(자리 0, 고친 속도 그대로), 캔버스 파일이 스크립트와 값을 적고, 닫으면 DLL 이 내려간다.
+  뮤테이션: 3D 모듈의 타입 등록 빼기·`Light3D` 핸들이 세기를 무시·3D 프레임워크가 스크립트 시스템을 세우지 않기가 잡혔다. 3D 모듈의 `InitializePendingScriptSchemas` 빼기는 살아남았다 -
+  그것은 JBroScript 의 스키마만 돌리고 C++ 스크립트의 필드 표(`JBRO_FIELD`)와 무관해 같은 동작의 변이다.
+  **3D 게임 호스트 실측**(손으로, 커밋하지 않은 임시 시험으로 만들었다): 에디터의 `CreateProject`(3D)가 둔 카메라·큐브·라이트에 시험 DLL 의 `ProbeMover3D`(속도 0.25)를 큐브에 붙여 시작 캔버스로 두고
+  `BuildGameForProject` 로 구웠다(`Debug_Game3D` 의 `JBroGameHost.exe` 가 `Space Probe.exe` 로, `GameScript.dll`·`Content/game.jpak`). 내놓은 폴더를 다른 자리로 옮겨 인자 없이 띄웠더니
+  1280x720 창에 라이트를 받은 큐브를 그렸고, 3 초와 7 초의 화면에서 큐브가 +X 로 옮겨 갔다 - 패키지의 캔버스·DLL 의 스크립트·3D 렌더링이 게임 호스트에서 함께 돈다.
+  겪은 것: 시작 캔버스는 에셋 폴더 안이어야 한다(밖이면 빌드가 "the startup canvas is not inside the asset folder" 로 거절한다).
 
 ## 4. 열림
 
