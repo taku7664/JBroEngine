@@ -658,6 +658,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsPhysicsThreadsHelp = "project_settings.physics_threads_help";
     inline constexpr const char* ProjectSettingsPhysicsRecommend = "project_settings.physics_recommend";
     inline constexpr const char* ProjectSettingsPhysicsRecommendHelp = "project_settings.physics_recommend_help";
+    inline constexpr const char* ProjectSettingsPhysicsCollisionStepsHelp = "project_settings.physics_collision_steps_help";
     inline constexpr const char* ProjectSettingsPhysics = "project_settings.physics";
     inline constexpr const char* ProjectSettingsPhysicsLayers = "project_settings.physics_layers";
     inline constexpr const char* ProjectSettingsPhysicsLayersHelp = "project_settings.physics_layers_help";

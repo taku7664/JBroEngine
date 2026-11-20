@@ -895,6 +895,7 @@ namespace JBro::Physics3D
         JPH::JobSystemSingleThreaded singleThreaded;
         TaskJobSystem taskJobs;
         UInt32 workerCount = 0;
+        UInt32 collisionSteps = 1;
 
         JPH::JobSystem* Jobs()
         {
@@ -1912,7 +1913,7 @@ namespace JBro::Physics3D
         m_impl->contacts.BeginStep();
         m_impl->MoveCharacters(deltaTime);
         m_impl->RecordMovingBodies();
-        m_impl->physics.Update(deltaTime, 1, &m_impl->temp, m_impl->Jobs());
+        m_impl->physics.Update(deltaTime, static_cast<int>(m_impl->collisionSteps.Get()), &m_impl->temp, m_impl->Jobs());
         m_impl->contacts.Resolve(m_impl->physics.GetBodyInterfaceNoLock());
         m_impl->SweepAfterStep();
     }
@@ -2184,6 +2185,20 @@ namespace JBro::Physics3D
     UInt32 World::GetWorkerCount() const
     {
         return m_impl->workerCount;
+    }
+
+    void World::SetCollisionSteps(UInt32 steps)
+    {
+        if (steps < 1u)
+        {
+            steps = 1u;
+        }
+        m_impl->collisionSteps = steps < MaxCollisionSteps ? steps : MaxCollisionSteps;
+    }
+
+    UInt32 World::GetCollisionSteps() const
+    {
+        return m_impl->collisionSteps;
     }
 
     UInt32 RecommendWorkerCount(UInt32 work, UInt32 hardwareThreads)

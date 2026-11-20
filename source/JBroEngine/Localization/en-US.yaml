@@ -287,6 +287,7 @@ Entries:
   project_settings.physics_threads_help: "Auto picks the worker count from the colliders in the build canvases when the game starts. Platforms without threads (web) always run on a single thread"
   project_settings.physics_recommend: "Use Recommended"
   project_settings.physics_recommend_help: "Counts the colliders in the build canvases and fixes the recommended worker count"
+  project_settings.physics_collision_steps_help: "Splits each physics step into this many collision steps. Raise it when fast-spinning bodies pass through thin walls - the cost grows about as much"
   project_settings.physics: "Physics"
   project_settings.physics_layers: "Layer Names"
   project_settings.physics_layers_help: "The names colliders' layer and mask fields pick from. The number in front is the bit"

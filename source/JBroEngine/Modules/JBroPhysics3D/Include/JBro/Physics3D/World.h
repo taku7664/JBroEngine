@@ -42,6 +42,8 @@ namespace JBro::Physics3D
 
     // 물리 전용 워커의 상한이다(D-419, 2D 의 `Physics2D::MaxWorkerCount` 와 같은 값). 명시한 값도 여기서 자른다.
     inline constexpr UInt32 MaxWorkerCount = 16;
+    // 한 스텝을 나누는 충돌 스텝의 상한이다(D-436). 값이 곧 비용의 배수에 가깝다.
+    inline constexpr UInt32 MaxCollisionSteps = 8;
 
     // 3D 물리 일감(켜진 콜라이더 수)에 맞는 워커 수(D-419). 실측(physics3d-plan §3.5)으로 정한 기준이다: 256 미만이면 0(메인 한 스레드),
     // 그 위로는 256 마다 하나씩 더하되 `hardwareThreads - 1` 과 `MaxWorkerCount` 를 넘지 않는다.
@@ -332,6 +334,11 @@ namespace JBro::Physics3D
         // 같은 수를 다시 주면 아무것도 하지 않는다.
         void SetWorkerCount(UInt32 count);
         UInt32 GetWorkerCount() const;
+        // **충돌 스텝**(D-436). 한 `Step` 을 이만큼 나눠 충돌을 다시 찾고 푼다(Jolt 의 collisionSteps, 2D 의 서브스텝과 같은 뜻).
+        // 기본 1. 연속 충돌(D-425)은 이동만 보므로, 회전만 빠른 몸(빨리 도는 긴 막대)이 얇은 벽을 뚫으면 이것을 올린다 - 비용은 거의 그 배수다.
+        // 1 아래는 1, `MaxCollisionSteps` 위는 그 값으로 자른다.
+        void SetCollisionSteps(UInt32 steps);
+        UInt32 GetCollisionSteps() const;
 
         // 마지막 Step 의 접촉 사건. 다음 Step 이 비운다. 끝에는 그 사이 지운 바디의 접촉도 든다.
         //

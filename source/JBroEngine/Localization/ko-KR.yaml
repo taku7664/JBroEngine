@@ -287,6 +287,7 @@ Entries:
   project_settings.physics_threads_help: "자동이면 게임이 시작할 때 빌드 캔버스의 콜라이더 수로 워커 수를 정합니다. 스레드를 쓸 수 없는 플랫폼(웹)은 늘 단일 스레드로 돕니다"
   project_settings.physics_recommend: "추천 값 사용"
   project_settings.physics_recommend_help: "빌드 캔버스의 콜라이더를 세어 추천 워커 수로 고정합니다"
+  project_settings.physics_collision_steps_help: "물리 스텝 하나를 이만큼 나눠 충돌을 다시 계산합니다. 빠르게 도는 물체가 얇은 벽을 뚫을 때 올리세요. 올린 만큼 물리 비용도 늘어납니다"
   project_settings.physics: "물리"
   project_settings.physics_layers: "레이어 이름"
   project_settings.physics_layers_help: "콜라이더의 layer·mask 칸에서 고를 레이어 이름입니다. 앞의 번호가 비트 번호입니다"

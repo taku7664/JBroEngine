@@ -77,6 +77,9 @@ namespace JBro
         // 물리 스레드(D-223). Workers 일 때만 physicsWorkers 를 쓴다. 스레드가 없는 플랫폼(웹)은 무엇이든 메인 한 스레드다.
         PhysicsThreadMode physicsThreadMode = PhysicsThreadMode::Auto;
         UInt32     physicsWorkers = 0;
+        // 3D 물리의 충돌 스텝(D-436, 키 `PhysicsCollisionSteps3D`). 1 이 기본이고 그때는 파일에 적지 않는다. 회전이 빠른 몸이 얇은 벽을 뚫는 게임만 올린다 - 비용은 거의 그 배수다.
+        // 2D 는 커널의 서브스텝(4)을 늘 쓴다.
+        UInt32     physicsCollisionSteps3D = 1;
     };
 
     // 오디오 버스 하나다(D-197). 키는 기존 엔진과 같다 - `AudioBuses` 아래 `- Name:`·`Volume:` 의 맵 시퀀스다.

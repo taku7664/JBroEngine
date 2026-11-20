@@ -38,6 +38,8 @@ namespace JBro
     {
         // 물리 워커 수의 상한이다. 커널의 `Physics2D::MaxWorkerCount` 와 같다(D-223).
         constexpr UInt32 MaxPhysicsWorkers = 16;
+        // `Physics3D::MaxCollisionSteps` 와 같은 값(D-436). 커널도 이 값에서 자른다.
+        constexpr UInt32 MaxPhysicsCollisionSteps = 8;
     }
 
     namespace
@@ -1249,6 +1251,18 @@ namespace JBro
                     [] { Widget::Text("PhysicsWorkers"); },
                     [&] {
                         Widget::DragField("##physicsWorkers", m_draft.build.physicsWorkers).Range(1u, MaxPhysicsWorkers)();
+                    });
+            }
+            // **3D 충돌 스텝**(D-436). 3D 프로젝트에만 있다 - 2D 는 커널의 서브스텝을 늘 쓴다.
+            if (m_draft.framework == FrameworkKind::Framework3D)
+            {
+                layout.Row(
+                    [] { Widget::Text("PhysicsCollisionSteps3D"); },
+                    [&] {
+                        Widget::DragField("##physicsCollisionSteps3D", m_draft.build.physicsCollisionSteps3D)
+                            .Range(1u, MaxPhysicsCollisionSteps)();
+                        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsPhysicsCollisionStepsHelp,
+                            "Splits each physics step into this many collision steps. Raise it when fast-spinning bodies pass through thin walls - the cost grows about as much"));
                     });
             }
         }

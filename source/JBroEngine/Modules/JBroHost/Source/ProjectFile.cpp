@@ -875,6 +875,10 @@ namespace JBro
                 {
                     recognized = ParsePhysicsThreads(value, parsed.build.physicsThreadMode, parsed.build.physicsWorkers);
                 }
+                else if (key == "PhysicsCollisionSteps3D")
+                {
+                    recognized = ParseUInt(value, parsed.build.physicsCollisionSteps3D) && parsed.build.physicsCollisionSteps3D > 0;
+                }
                 // Build 의 나머지 키는 아직 쓰지 않는다. 값을 두고 지나간다.
             }
             else if (key == "Version") { recognized = ParseUInt(value, parsed.version); }
@@ -1186,6 +1190,7 @@ namespace JBro
             else if (key == "StartupCanvas") { value = project.build.startupCanvas; }
             else if (key == "ScriptOutputLibraryPath") { value = project.build.scriptOutputLibraryPath; }
             else if (key == "PhysicsThreads") { value = FormatPhysicsThreads(project.build); }
+            else if (key == "PhysicsCollisionSteps3D") { value = String(std::to_string(project.build.physicsCollisionSteps3D.Get()).c_str()); }
             else
             {
                 return false;
@@ -1196,7 +1201,8 @@ namespace JBro
         // 파일에 없던 Build 키 가운데 기본값인 것은 새로 적지 않는다 - 손대지 않은 프로젝트가 저장만으로 길어지지 않게 한다.
         Bool IsUnwrittenDefault(const ProjectFile& project, const String& key)
         {
-            return key == "PhysicsThreads" && project.build.physicsThreadMode == PhysicsThreadMode::Auto;
+            return (key == "PhysicsThreads" && project.build.physicsThreadMode == PhysicsThreadMode::Auto)
+                || (key == "PhysicsCollisionSteps3D" && project.build.physicsCollisionSteps3D == 1u);
         }
 
         // 아는 최상위 키의 차례다. 없던 키를 더할 때 이 차례로 붙는다.
@@ -1210,7 +1216,7 @@ namespace JBro
             "FixedDeltaTime", "MaxFixedSteps", "MaxDeltaTime", "RandomSeed"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
-            "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath", "PhysicsThreads"};
+            "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath", "PhysicsThreads", "PhysicsCollisionSteps3D"};
 
         // `  Key: value` 에서 들여쓰기·키·값을 가른다. 값이 비어 있으면(블록·시퀀스의 머리)
         // `hasValue` 가 거짓이다.

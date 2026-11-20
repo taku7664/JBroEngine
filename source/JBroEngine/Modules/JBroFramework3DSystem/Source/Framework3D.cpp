@@ -434,6 +434,18 @@ namespace JBro
         }
     }
 
+    void Framework3D::SetPhysicsCollisionSteps(UInt32 steps)
+    {
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        if (System::Physics3DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics3DSystem>())
+        {
+            physics->SetCollisionSteps(steps);
+        }
+    }
+
     void Framework3D::SetPhysicsIgnoredLayers(const UInt32 (&rows)[32])
     {
         if (m_canvas.Get() == nullptr)

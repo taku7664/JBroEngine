@@ -391,6 +391,16 @@ namespace JBro::System
         m_workerCount = count;
     }
 
+    void Physics3DSystem::SetCollisionSteps(UInt32 steps)
+    {
+        m_collisionSteps = steps;
+    }
+
+    UInt32 Physics3DSystem::GetCollisionSteps() const
+    {
+        return m_state->world.GetCollisionSteps();
+    }
+
     UInt32 Physics3DSystem::GetWorkerCount() const
     {
         return m_state->world.GetWorkerCount();
@@ -1166,6 +1176,7 @@ namespace JBro::System
         world.SetIgnoredLayers(m_ignoredLayers);
         // 같은 수면 커널이 아무것도 하지 않는다 - 스텝마다 풀을 세웠다 허물지 않는다.
         world.SetWorkerCount(m_workerCount);
+        world.SetCollisionSteps(m_collisionSteps);
         world.Step(fixedDeltaTime);
 
         // ── 5. 되쓰기 ───────────────────────────────────────────────────────────────

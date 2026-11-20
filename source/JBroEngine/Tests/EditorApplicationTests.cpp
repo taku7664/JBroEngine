@@ -7624,6 +7624,53 @@ namespace
         settings.build.physicsWorkers = 3;
         Check(editor.SaveProjectSettings(settings, error), "three workers save");
         Check(workersInPlay() == 3, "and a fixed count plays on that many");
+
+        // 충돌 스텝(D-436): 기본 1 은 파일에 적지 않고, 4 로 저장하면 파일에 적히고 재생이 그 값으로 돈다.
+        const auto readText = [&]() {
+            std::ifstream in(fs::path(projectPath.c_str()), std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const auto stepsInPlay = [&]() {
+            Check(editor.StartSimulation(), "play must start");
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+            const JBro::UInt32 steps = physics->GetCollisionSteps();
+            editor.StopSimulation();
+            Check(editor.Tick(Frame), "the editor must tick after play");
+            return steps;
+        };
+        Check(stepsInPlay() == 1, "3D physics plays one collision step by default");
+        Check(readText().find("PhysicsCollisionSteps3D") == std::string::npos, "and the default is not written to the project");
+        settings.build.physicsCollisionSteps3D = 4;
+        Check(editor.SaveProjectSettings(settings, error), "four collision steps save");
+        const std::string saved = readText();
+        Check(saved.find("PhysicsCollisionSteps3D: 4") != std::string::npos, "the project file keeps the collision steps");
+        Check(stepsInPlay() == 4, "and play splits each step into four");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(saved.data(), saved.size(), reread, error) && reread.build.physicsCollisionSteps3D == 4u,
+            "the value reads back from the file");
+        // 설정 창의 Build 갈래에 3D 프로젝트만의 줄이 선다. `JBRO_EDITOR_SHOT` 이 있으면 찍어 사람이 본다.
+        JBro::EditorPanel* settingsPanel = editor.FindPanel("ProjectSettings");
+        Check(settingsPanel != nullptr, "the settings panel exists");
+        settingsPanel->SetOpen(true);
+        settingsPanel->RequestFocus();
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the settings open");
+        }
+        JBro::String settingsLabel = settingsPanel->GetDisplayTitle();
+        settingsLabel += "###ProjectSettings";
+        if (ImGuiWindow* window = ImGui::FindWindowByName(settingsLabel.c_str()))
+        {
+            ImGui::SetScrollY(window, window->ScrollMax.y);
+        }
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the scrolled settings");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "physics3d_project_settings");
+        }
         editor.Shutdown();
     }
 

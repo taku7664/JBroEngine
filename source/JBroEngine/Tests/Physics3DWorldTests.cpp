@@ -862,6 +862,46 @@ namespace
             moving.Step(Frame);
         }
         Check(moving.GetLinearVelocity(box).x > 0.1f, "a fast ball pushes a thin floating box instead of passing it");
+
+        // **회전만 빠른 몸**(D-436). 연속 충돌은 이동만 본다 - 초당 40 라디안으로 도는 두께 2 cm 의 막대는 한 충돌 스텝으로는 두께 2 cm 의 판을 지나치고,
+        // 충돌 스텝 4 면 판에 막혀 회전이 크게 준다.
+        const auto spin = [](JBro::UInt32 steps, JBro::Int32& begins) {
+            World world;
+            world.SetGravity({0.0f, 0.0f, 0.0f});
+            world.SetCollisionSteps(steps);
+            BodyDef plate;
+            plate.type = BodyType::Static;
+            plate.shape.halfExtents = {0.45f, 1.0f, 0.01f};
+            plate.position = {0.95f, 0.0f, -0.6f};
+            plate.userData = 9;
+            world.CreateBody(plate);
+            BodyDef rod;
+            rod.shape.halfExtents = {1.5f, 0.01f, 0.01f};
+            rod.angularVelocity = {0.0f, 40.0f, 0.0f};
+            const BodyId spinner = world.CreateBody(rod);
+            begins = 0;
+            JBro::Float slowest = 40.0f;
+            for (JBro::Int32 step = 0; step < 12; ++step)
+            {
+                world.Step(Frame);
+                for (const JBro::Physics3D::ContactEvent& event : world.GetBeginEvents())
+                {
+                    begins += event.userDataA == 9u || event.userDataB == 9u ? 1 : 0;
+                }
+                slowest = std::fmin(slowest, std::fabs(world.GetAngularVelocity(spinner).y));
+            }
+            return slowest;
+        };
+        JBro::Int32 begins = 0;
+        const JBro::Float once = spin(1u, begins);
+        Check(once > 39.0f && begins >= 2, "one collision step lets a fast-spinning thin rod pass a thin plate again and again (the known limit)");
+        const JBro::Float four = spin(4u, begins);
+        Check(four < 20.0f && begins == 1, "four collision steps stop it at the plate");
+        World clamp;
+        clamp.SetCollisionSteps(0u);
+        Check(clamp.GetCollisionSteps() == 1u, "zero collision steps is read as one");
+        clamp.SetCollisionSteps(100u);
+        Check(clamp.GetCollisionSteps() == JBro::Physics3D::MaxCollisionSteps, "and too many is cut to the limit");
     }
 }
 
