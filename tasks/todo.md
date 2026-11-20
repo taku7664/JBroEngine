@@ -3070,6 +3070,7 @@ EditorApplication::Tick
   (2) 3D 조인트는 2D(`DrawJoints`)와 같은 뜻·같은 색: 거리 조인트는 두 앵커를 잇는 선과 점, 경첩은 핀의 고리와 축(길이 1), 자동 상대 앵커가 아니면 상대 핀까지의 선.
   확인: 에디터 `TestTheCanvasViewDrawsCharactersAndJoints3D`(캐릭터만 2072 픽셀, 조인트만 679 픽셀이 단추로 바뀐다, 거리 조인트 하나만도 바뀐다), 기존 `TestTheCanvasViewDrawsColliders3D`(14509 픽셀 그대로).
   뮤테이션은 돌리지 않았다(시간). 시험은 그리는 것 각각을 따로 켜고 꺼 본다.
+  EditorApplication 전체 회귀는 D-429 끝에 적은 실행에서 지났다.
 
 - **D-429. 2D 물리의 워커도 `JBroTask` 의 `WorkerPool` 위로 - 물리 모듈은 제 스레드를 들지 않는다.** (2026-11-20, D-428 의 열림)
   Updates: D-223(2D 물리 전용 워커는 커널의 `WorkerPool`), D-209(모듈마다 스레드를 들지 않는다 - 예외에서 2D 물리를 뺐다).
@@ -3079,6 +3080,7 @@ EditorApplication::Tick
   (3) `JBroPhysics2D` 의 `Internal::WorkerPool` 을 지우고 `World` 가 `JBroTask` 의 것을 든다. `JBroPhysics2D` 가 `JBroTask` 에 기댄다. 결과는 워커 수와 관계없이 비트까지 같다(기존 시험 그대로).
   확인: `TaskManager` 의 `TestWorkerPoolParallelForVisitsEachIndexOnce`(2 만 칸을 200 번, 칸마다 꼭 한 번, 워커가 실제로 돕는다, 워커 없으면 한 번에), `Physics2DWorld` 의 `TestWorkersGiveTheSameResult`.
   뮤테이션 다섯 가운데 넷이 잡혔다(돕는 일을 보내지 않음·부른 쪽이 기다리지 않음·칸이 겹침·2D 가 워커를 세우지 않음). "부른 쪽이 돕지 않음" 은 결과가 같은 변이라 남았다(속도만 다르다). 회귀는 TaskManager·Physics2D·Physics3DWorld 가 지났고, EditorApplication 전체는 시간이 없어 다시 돌리지 않았다(이 변경은 에디터 코드를 건드리지 않는다).
+  → 2026-11-20 다른 PC 에서 main `d76ad8b8`(D-429·D-430 포함) 을 빌드해 `JBRO_TESTS=EditorApplication` 을 돌렸고 지났다(실패 0, 1605 초).
 
 - **D-428. 3D 물리의 워커를 `JBroTask` 위로 - 나눴다 합치는 일의 `WorkerPool`.** (2026-11-20, physics3d-plan §2.3·§3.5)
   Updates: D-419(Jolt 의 스레드 풀). Obsoletes: D-419 (1) 의 "`JBroTask` 위가 아니다". 사용자 지시의 원문이 "`JBroTask` 위에 세워" 였고, D-419 는 그것을 바꾸며 ProjectRule 의
