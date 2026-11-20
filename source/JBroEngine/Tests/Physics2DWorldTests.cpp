@@ -1472,6 +1472,74 @@ namespace
         }
     }
 
+    // **빠른 몸이 얇은 트리거를 건너뛰지 않는다**(D-434, 3D 의 D-423 과 같은 길). 스텝 뒤에 지나온 길을 쓸어, 끝 자리에서 닿지 않은 트리거는
+    // 그 스텝에 시작하고 다음 스텝에 끝난다. 트리거를 단 빠른 몸도 지나친 도형을 알린다. 순간 이동은 쓸지 않는다.
+    void TestFastBodiesDoNotSkipTriggers()
+    {
+        ShapeDef trigger;
+        trigger.isTrigger = true;
+        const auto countTriggers = [](ArrayView<const JBro::Physics2D::ContactEvent> events) {
+            JBro::Int32 count = 0;
+            for (const JBro::Physics2D::ContactEvent& event : events)
+            {
+                count += event.isTrigger ? 1 : 0;
+            }
+            return count;
+        };
+        {
+            World world;
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId gate = AddBody(world, BodyType::Static, { 5.0f, 0.0f });
+            AddPolygon(world, gate, BoxOutline(0.05f, 3.0f), trigger);
+            const BodyId bullet = AddBody(world, BodyType::Dynamic, { 0.0f, 0.0f });
+            world.CreateCircleShape(bullet, MakeBall(0.05f), {});
+            world.SetLinearVelocity(bullet, { 200.0f, 0.0f });
+            JBro::Int32 begins = 0;
+            JBro::Int32 ends = 0;
+            JBro::Int32 sameStep = 0;
+            for (JBro::Int32 i = 0; i < 6; ++i)
+            {
+                world.Step(Frame);
+                const JBro::Int32 began = countTriggers(world.GetBeginEvents());
+                const JBro::Int32 ended = countTriggers(world.GetEndEvents());
+                sameStep += began > 0 && ended > 0 ? 1 : 0;
+                begins += began;
+                ends += ended;
+            }
+            Check(world.GetPosition(bullet).x > 6.0f, "the bullet flies past the thin trigger");
+            Check(begins == 1 && ends == 1, "a fast ball that jumps over a thin trigger enters and leaves it once");
+            Check(sameStep == 0, "the pass begins in one step and ends in the next");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId post = AddBody(world, BodyType::Static, { 5.0f, 0.0f });
+            AddPolygon(world, post, BoxOutline(0.05f, 3.0f));
+            const BodyId sensor = AddBody(world, BodyType::Kinematic, { 0.0f, 0.0f });
+            AddPolygon(world, sensor, BoxOutline(0.05f, 0.5f), trigger);
+            world.SetLinearVelocity(sensor, { 200.0f, 0.0f });
+            JBro::Int32 begins = 0;
+            for (JBro::Int32 i = 0; i < 6; ++i)
+            {
+                world.Step(Frame);
+                begins += countTriggers(world.GetBeginEvents());
+            }
+            Check(world.GetPosition(sensor).x > 6.0f && begins == 1, "a fast trigger that jumps over a thin post enters it once");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0.0f, 0.0f };
+            const BodyId gate = AddBody(world, BodyType::Static, { 5.0f, 0.0f });
+            AddPolygon(world, gate, BoxOutline(0.05f, 3.0f), trigger);
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0.0f, 0.0f });
+            world.CreateCircleShape(ball, MakeBall(0.05f), {});
+            world.Step(Frame);
+            world.SetTransform(ball, { 10.0f, 0.0f }, 0.0f);
+            world.Step(Frame);
+            Check(countTriggers(world.GetBeginEvents()) == 0, "a teleport sweeps nothing");
+        }
+    }
+
     // **큰 장면의 접촉은 색으로 나눠 푼다(D-234).** 상자 600 개(기둥 24 개 × 25 층)는 풀 접촉이 512 를 넘어 색칠되고, 워커 셋이
     // 색 묶음을 나눠 풀어도 워커 없이 푼 것과 비트까지 같다. 더미는 무너지지 않는다.
     void TestColoredContactsSolveTheSameOnAnyWorkerCount()
@@ -1559,6 +1627,7 @@ JBro::Int32 RunPhysics2DWorldTests()
     JBRO_CASE(TestHingeJoints());
     JBRO_CASE(TestJointedBodiesSleepTogether());
     JBRO_CASE(TestFastBodiesDoNotTunnel());
+    JBRO_CASE(TestFastBodiesDoNotSkipTriggers());
     JBRO_CASE(TestColoredContactsSolveTheSameOnAnyWorkerCount());
     JBRO_CASE(TestStayEventsFollowTouchingPairs());
     std::cout << "Physics2D world tests passed.\n";

@@ -104,6 +104,46 @@ namespace JBro::Physics2D
             }
             return a3 < b3;
         }
+
+        // 볼록 조각이 품은 가장 얇은 두께의 절반: 중심에서 가장 가까운 변까지 + 둥근 두께. 선분은 둥근 두께뿐이다.
+        Float HalfThickness(const ConvexPolygon& piece)
+        {
+            Vector2 middle;
+            for (UInt32 i = 0; i < piece.count; ++i)
+            {
+                middle = Add(middle, piece.points[i]);
+            }
+            middle = Scale(middle, 1.0f / static_cast<JBro::Float>(piece.count));
+            Float nearest = piece.count > 2 ? FLT_MAX : 0.0f;
+            for (UInt32 i = 0; piece.count > 2 && i < piece.count; ++i)
+            {
+                const Vector2 a = piece.points[i];
+                const Vector2 edge = Subtract(piece.points[(i + 1) % piece.count], a);
+                const Float length = Length(edge);
+                if (length > 0.0f)
+                {
+                    nearest = std::fmin(nearest, std::fabs(Cross(edge, Subtract(middle, a))) / length);
+                }
+            }
+            return (nearest == FLT_MAX ? Float(0.0f) : nearest) + piece.radius;
+        }
+
+        // 닿은 쌍 목록의 순서: 도형 번호 둘, 그다음 generation 둘. 목록은 이 순서로 정렬되어 있어 이분 검색을 한다.
+        constexpr auto TouchingOrder = [](const auto& left, const auto& right) {
+            if (left.shapeA != right.shapeA)
+            {
+                return left.shapeA < right.shapeA;
+            }
+            if (left.shapeB != right.shapeB)
+            {
+                return left.shapeB < right.shapeB;
+            }
+            if (left.generationA != right.generationA)
+            {
+                return left.generationA < right.generationA;
+            }
+            return left.generationB < right.generationB;
+        };
     }
 
     UInt32 RecommendWorkerCount(UInt32 work, UInt32 hardwareThreads)
@@ -665,24 +705,7 @@ namespace JBro::Physics2D
             }
             for (const ConvexPolygon& piece : shape.pieces)
             {
-                Vector2 middle;
-                for (UInt32 i = 0; i < piece.count; ++i)
-                {
-                    middle = Add(middle, piece.points[i]);
-                }
-                middle = Scale(middle, 1.0f / static_cast<JBro::Float>(piece.count));
-                Float nearest = piece.count > 2 ? FLT_MAX : 0.0f;
-                for (UInt32 i = 0; piece.count > 2 && i < piece.count; ++i)
-                {
-                    const Vector2 a = piece.points[i];
-                    const Vector2 edge = Subtract(piece.points[(i + 1) % piece.count], a);
-                    const Float length = Length(edge);
-                    if (length > 0.0f)
-                    {
-                        nearest = std::fmin(nearest, std::fabs(Cross(edge, Subtract(middle, a))) / length);
-                    }
-                }
-                keep((nearest == FLT_MAX ? Float(0.0f) : nearest) + piece.radius);
+                keep(HalfThickness(piece));
             }
         }
 
@@ -942,6 +965,7 @@ namespace JBro::Physics2D
             }
             m_lastGravity = m_settings.gravity;
         }
+        RecordStepStarts();
         const UInt32 subSteps = std::max<UInt32>(1u, m_settings.subSteps);
         const Float h = deltaTime / static_cast<JBro::Float>(subSteps);
         for (UInt32 step = 0; step < subSteps; ++step)
@@ -1626,13 +1650,10 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const UInt32 ownPieces = own.isCircle ? UInt32(1u) : static_cast<JBro::UInt32>(own.pieces.Size());
+            const UInt32 ownPieces = PieceCount(own);
             for (UInt32 p = 0; p < ownPieces; ++p)
             {
-                Rect swept = own.isCircle ? ComputeCircleBounds(own.circle, start) : ComputePolygonBounds(own.pieces[p], start);
-                const Rect finish = own.isCircle ? ComputeCircleBounds(own.circle, end) : ComputePolygonBounds(own.pieces[p], end);
-                swept.min = { std::fmin(swept.min.x, finish.min.x), std::fmin(swept.min.y, finish.min.y) };
-                swept.max = { std::fmax(swept.max.x, finish.max.x), std::fmax(swept.max.y, finish.max.y) };
+                const Rect swept = SweptPieceBounds(own, p, start, end);
                 for (UInt32 targetIndex = 0; targetIndex < m_shapes.Size(); ++targetIndex)
                 {
                     const Shape& target = m_shapes[targetIndex];
@@ -1650,44 +1671,11 @@ namespace JBro::Physics2D
                         continue;
                     }
                     const Pose targetPose{ other.origin, other.rotation };
-                    const UInt32 children = target.isCircle ? UInt32(1u)
-                        : static_cast<JBro::UInt32>(target.isChain ? UInt32(target.segments.Size()) : UInt32(target.pieces.Size()));
+                    const UInt32 children = ChildCount(target);
                     for (UInt32 c = 0; c < children; ++c)
                     {
-                        ConvexPolygon segment;
-                        const ConvexPolygon* piece = nullptr;
-                        if (target.isChain)
-                        {
-                            segment.points[0] = target.segments[c].p1;
-                            segment.points[1] = target.segments[c].p2;
-                            segment.count = 2;
-                            piece = &segment;
-                        }
-                        else if (false == target.isCircle)
-                        {
-                            piece = &target.pieces[c];
-                        }
-                        const Rect box = piece != nullptr ? ComputePolygonBounds(*piece, targetPose) : ComputeCircleBounds(target.circle, targetPose);
-                        if (false == box.Intersects(swept))
-                        {
-                            continue;
-                        }
                         Float distance = 0.0f;
-                        Vector2 normal;
-                        Bool found = false;
-                        if (own.isCircle)
-                        {
-                            const Vector2 center = TransformPoint(start, own.circle.center);
-                            found = piece != nullptr
-                                ? CastCircle(center, own.circle.radius, direction, best, *piece, targetPose, distance, normal)
-                                : CastCircle(center, own.circle.radius, direction, best, target.circle, targetPose, distance, normal);
-                        }
-                        else
-                        {
-                            found = piece != nullptr
-                                ? CastPolygon(own.pieces[p], start, direction, best, *piece, targetPose, distance, normal)
-                                : CastPolygon(own.pieces[p], start, direction, best, target.circle, targetPose, distance, normal);
-                        }
+                        const Bool found = CastPieceAgainst(own, p, start, direction, best, swept, target, c, targetPose, distance);
                         // 출발부터 닿아 있던 것(거리 0)은 이미 접촉이 맡고 있다. 그것으로 멈추면 바닥 위를 미끄러지는 몸이 서 버린다.
                         if (found && distance > 0.0f && distance < best)
                         {
@@ -1705,6 +1693,63 @@ namespace JBro::Physics2D
         // 닿는 자리에서 LinearSlop 만큼 앞에 세운다. 다음 서브스텝의 미리 만든 접촉이 거기서 받는다.
         body.center = Add(startCenter, Scale(direction, std::fmax(best - LinearSlop, 0.0f)));
         ++m_lastStats.continuousHits;
+    }
+
+    UInt32 World::PieceCount(const Shape& shape)
+    {
+        return shape.isCircle ? UInt32(1u) : static_cast<JBro::UInt32>(shape.pieces.Size());
+    }
+
+    UInt32 World::ChildCount(const Shape& shape)
+    {
+        if (shape.isCircle)
+        {
+            return 1u;
+        }
+        return static_cast<JBro::UInt32>(shape.isChain ? shape.segments.Size() : shape.pieces.Size());
+    }
+
+    Rect World::SweptPieceBounds(const Shape& own, UInt32 ownPiece, const Pose& start, const Pose& end)
+    {
+        Rect swept = own.isCircle ? ComputeCircleBounds(own.circle, start) : ComputePolygonBounds(own.pieces[ownPiece], start);
+        const Rect finish = own.isCircle ? ComputeCircleBounds(own.circle, end) : ComputePolygonBounds(own.pieces[ownPiece], end);
+        swept.min = { std::fmin(swept.min.x, finish.min.x), std::fmin(swept.min.y, finish.min.y) };
+        swept.max = { std::fmax(swept.max.x, finish.max.x), std::fmax(swept.max.y, finish.max.y) };
+        return swept;
+    }
+
+    Bool World::CastPieceAgainst(const Shape& own, UInt32 ownPiece, const Pose& start, Vector2 direction, Float maxDistance,
+        const Rect& swept, const Shape& target, UInt32 child, const Pose& targetPose, Float& distance)
+    {
+        ConvexPolygon segment;
+        const ConvexPolygon* piece = nullptr;
+        if (target.isChain)
+        {
+            segment.points[0] = target.segments[child].p1;
+            segment.points[1] = target.segments[child].p2;
+            segment.count = 2;
+            piece = &segment;
+        }
+        else if (false == target.isCircle)
+        {
+            piece = &target.pieces[child];
+        }
+        const Rect box = piece != nullptr ? ComputePolygonBounds(*piece, targetPose) : ComputeCircleBounds(target.circle, targetPose);
+        if (false == box.Intersects(swept))
+        {
+            return false;
+        }
+        Vector2 normal;
+        if (own.isCircle)
+        {
+            const Vector2 center = TransformPoint(start, own.circle.center);
+            return piece != nullptr
+                ? CastCircle(center, own.circle.radius, direction, maxDistance, *piece, targetPose, distance, normal)
+                : CastCircle(center, own.circle.radius, direction, maxDistance, target.circle, targetPose, distance, normal);
+        }
+        return piece != nullptr
+            ? CastPolygon(own.pieces[ownPiece], start, direction, maxDistance, *piece, targetPose, distance, normal)
+            : CastPolygon(own.pieces[ownPiece], start, direction, maxDistance, target.circle, targetPose, distance, normal);
     }
 
     void World::SolvePositions()
@@ -1977,22 +2022,7 @@ namespace JBro::Physics2D
             m_touching.Add(pair);
         }
 
-        const auto byShapes = [](const TouchingPair& left, const TouchingPair& right)
-        {
-            if (left.shapeA != right.shapeA)
-            {
-                return left.shapeA < right.shapeA;
-            }
-            if (left.shapeB != right.shapeB)
-            {
-                return left.shapeB < right.shapeB;
-            }
-            if (left.generationA != right.generationA)
-            {
-                return left.generationA < right.generationA;
-            }
-            return left.generationB < right.generationB;
-        };
+        const auto byShapes = TouchingOrder;
         std::sort(m_touching.begin(), m_touching.end(), byShapes);
         // 조각 여럿이 같은 도형 쌍에 닿으면 하나로 줄인다.
         std::size_t unique = 0;
@@ -2014,7 +2044,21 @@ namespace JBro::Physics2D
         }
         m_touching.Resize(unique);
 
-        const auto toEvent = [](const TouchingPair& pair)
+        // 지난 스텝에 지나친 쌍(D-434)은 지난 목록에 든 것으로 본다 - 이번에 닿아 있지 않으면 끝, 닿아 있으면 이어짐이다.
+        if (false == m_passed.IsEmpty())
+        {
+            for (const TouchingPair& passed : m_passed)
+            {
+                if (false == std::binary_search(m_previousTouching.begin(), m_previousTouching.end(), passed, byShapes))
+                {
+                    m_previousTouching.Add(passed);
+                }
+            }
+            std::sort(m_previousTouching.begin(), m_previousTouching.end(), byShapes);
+            m_passed.Clear();
+        }
+
+        const auto toEvent =[](const TouchingPair& pair)
         {
             ContactEvent event;
             event.shapeA = { pair.shapeA, pair.generationA };
@@ -2063,6 +2107,120 @@ namespace JBro::Physics2D
                 }
                 ++i;
                 ++j;
+            }
+        }
+        SweepPassedTriggers();
+    }
+
+    void World::RecordStepStarts()
+    {
+        m_stepStarts.Clear();
+        for (UInt32 index = 0; index < m_bodies.Size(); ++index)
+        {
+            const Body& body = m_bodies[index];
+            if (body.alive && body.type != BodyType::Static && body.awake)
+            {
+                m_stepStarts.Add(StepStart{ index, body.generation, body.center });
+            }
+        }
+    }
+
+    // 스텝 앞 자리에서 끝 자리까지 곧게 민다(서브스텝 사이의 꺾임은 보지 않는다 - 3D 와 같다). 도형은 끝 각도로 본다(CCD 와 같다).
+    // 고르는 쌍은 접촉과 같은 규칙이다: 한쪽이 트리거, 레이어·마스크·레이어 충돌 표, 조인트가 끈 쌍은 뺀다.
+    // 끝 자리에서 닿아 있거나 지난 스텝에도 닿아 있던 쌍은 보통 사건이 맡는다.
+    void World::SweepPassedTriggers()
+    {
+        for (const StepStart& start : m_stepStarts)
+        {
+            const Body& body = m_bodies[start.body];
+            if (false == body.alive || body.generation != start.generation)
+            {
+                continue;
+            }
+            const Vector2 move = Subtract(body.center, start.center);
+            const Float length = Length(move);
+            if (length <= LinearSlop)
+            {
+                continue;
+            }
+            const Vector2 direction = Scale(move, 1.0f / length);
+            const Pose from{ Subtract(start.center, RotateVector(body.rotation, body.localCenter)), body.rotation };
+            const Pose to{ Subtract(body.center, RotateVector(body.rotation, body.localCenter)), body.rotation };
+            for (const UInt32 ownIndex : body.shapes)
+            {
+                const Shape& own = m_shapes[ownIndex];
+                if (own.isChain)
+                {
+                    continue;
+                }
+                const UInt32 ownPieces = PieceCount(own);
+                for (UInt32 p = 0; p < ownPieces; ++p)
+                {
+                    // 제 두께의 절반보다 덜 갔으면 시작과 끝 자리가 길을 덮는다 - 쓸지 않는다.
+                    const Float thickness = own.isCircle ? own.circle.radius : HalfThickness(own.pieces[p]);
+                    if (length <= thickness)
+                    {
+                        continue;
+                    }
+                    const Rect swept = SweptPieceBounds(own, p, from, to);
+                    for (UInt32 targetIndex = 0; targetIndex < m_shapes.Size(); ++targetIndex)
+                    {
+                        const Shape& target = m_shapes[targetIndex];
+                        if (false == target.alive || target.body == start.body || (false == own.isTrigger && false == target.isTrigger))
+                        {
+                            continue;
+                        }
+                        if ((own.layer & target.mask) == 0u || (target.layer & own.mask) == 0u || false == LayersMeet(own.layer, target.layer))
+                        {
+                            continue;
+                        }
+                        if (false == m_jointFilters.IsEmpty() && m_jointFilters.Contains(JointPairKey(start.body, target.body)))
+                        {
+                            continue;
+                        }
+                        TouchingPair pair;
+                        pair.shapeA = std::min(ownIndex, targetIndex);
+                        pair.shapeB = std::max(ownIndex, targetIndex);
+                        pair.generationA = m_shapes[pair.shapeA].generation;
+                        pair.generationB = m_shapes[pair.shapeB].generation;
+                        pair.userDataA = m_shapes[pair.shapeA].userData;
+                        pair.userDataB = m_shapes[pair.shapeB].userData;
+                        pair.isTrigger = true;
+                        if (std::binary_search(m_touching.begin(), m_touching.end(), pair, TouchingOrder)
+                            || std::binary_search(m_previousTouching.begin(), m_previousTouching.end(), pair, TouchingOrder))
+                        {
+                            continue;
+                        }
+                        Bool known = false;
+                        for (const TouchingPair& passed : m_passed)
+                        {
+                            known = known || (false == TouchingOrder(passed, pair) && false == TouchingOrder(pair, passed));
+                        }
+                        if (known)
+                        {
+                            continue;
+                        }
+                        const Body& other = m_bodies[target.body];
+                        const Pose targetPose{ other.origin, other.rotation };
+                        const UInt32 children = ChildCount(target);
+                        for (UInt32 c = 0; c < children; ++c)
+                        {
+                            Float distance = 0.0f;
+                            if (CastPieceAgainst(own, p, from, direction, length, swept, target, c, targetPose, distance))
+                            {
+                                ContactEvent event;
+                                event.shapeA = { pair.shapeA, pair.generationA };
+                                event.shapeB = { pair.shapeB, pair.generationB };
+                                event.userDataA = pair.userDataA;
+                                event.userDataB = pair.userDataB;
+                                event.isTrigger = true;
+                                m_beginEvents.Add(event);
+                                m_passed.Add(pair);
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
     }

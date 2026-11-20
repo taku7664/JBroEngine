@@ -449,6 +449,26 @@ namespace JBro::Physics2D
         static void SolvePositionJob(void* context, UInt32 begin, UInt32 end);
         // 빠른 몸을 정적·키네마틱 도형 앞에서 멈춘다(D-234). startCenter 는 이 서브스텝이 시작할 때의 질량 중심이다.
         void ClampToFirstHit(Body& body, UInt32 bodyIndex, Vector2 startCenter);
+        // 도형의 볼록 조각 수(원은 1)와 상대로서의 자식 수(체인은 선분 수).
+        static UInt32 PieceCount(const Shape& shape);
+        static UInt32 ChildCount(const Shape& shape);
+        // 조각 하나가 start 에서 end 까지 쓴 경계.
+        static Rect SweptPieceBounds(const Shape& own, UInt32 ownPiece, const Pose& start, const Pose& end);
+        // 조각 하나를 direction 으로 maxDistance 까지 밀어 상대 도형의 자식 하나에 닿는 거리를 찾는다. 경계가 swept 와 겹치지 않으면 보지 않는다.
+        // CCD(D-234)와 트리거 쓸기(D-434)가 같이 쓴다.
+        static Bool CastPieceAgainst(const Shape& own, UInt32 ownPiece, const Pose& start, Vector2 direction, Float maxDistance,
+            const Rect& swept, const Shape& target, UInt32 child, const Pose& targetPose, Float& distance);
+
+        // **빠른 트리거 쓸기**(D-434, 3D 의 D-423 과 같은 길). 스텝 앞의 질량 중심을 떠 두고, 스텝 뒤에 지나온 길에서 트리거 쌍을 찾는다.
+        // 끝 자리에서 닿아 있지 않으면 "지나쳤다" - 그 스텝에 시작, 다음 스텝에 끝.
+        struct StepStart
+        {
+            UInt32  body = 0;
+            UInt32  generation = 0;
+            Vector2 center;
+        };
+        void RecordStepStarts();
+        void SweepPassedTriggers();
 
         enum class JointType : std::uint8_t
         {
@@ -521,6 +541,9 @@ namespace JBro::Physics2D
         Array<Contact>       m_previousContacts;
         Array<TouchingPair>  m_touching;
         Array<TouchingPair>  m_previousTouching;
+        // 빠른 트리거 쓸기(D-434). 스텝 앞의 자리와, 지난 스텝에 지나쳐 이번 스텝에 끝날 쌍.
+        Array<StepStart>     m_stepStarts;
+        Array<TouchingPair>  m_passed;
         Array<ContactEvent>  m_beginEvents;
         Array<Candidate>     m_candidates;
         Array<Manifold>      m_candidateManifolds;
