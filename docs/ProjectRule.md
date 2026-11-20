@@ -1875,11 +1875,6 @@ Updates: D-312의 한국어 우선 적용 범위와 D-314의 워크스페이스 
 
 ## 15. 관련 문서
 
-- [GitHub Wiki](https://github.com/taku7664/JBroEngine/wiki) — 이 규칙과 Decisions 를 읽기 전에 그림을 잡는 설명서(2026-09-15).
-  모듈 구조, 오브젝트 모델, 참조와 식별자, 스크립트 경계와 API 명세, 리플렉션, 렌더링·플랫폼, 에디터, 결정의 근거를 담는다.
-  **잘 바뀌지 않는 것만 적는다.** 진행 현황·남은 일·오늘의 어긋남은 `tasks/todo.md` 가 갖고 위키에 옮기지 않는다 —
-  옮기면 하루 만에 틀린 말이 된다. 미구현 기능(JBroScript 등)은 위키에 싣지 않고 `tasks/` 에 둔다. (SHOULD)
-  계약의 원문은 이 문서와 Decisions 이며, 계약이 바뀌면 위키의 해당 쪽도 같은 작업에서 고친다. (SHOULD)
 - [tasks/structural-refactor-plan.md](../tasks/structural-refactor-plan.md) — 2026-09-12 구조 검토와 D-42~D-55의 근거·단계 계획.
   이 문서의 규칙 중 `(D-42)`~`(D-55)`가 붙은 것은 그 계획의 단계가 끝나기 전까지 현재 코드와 다를 수 있다.
 - [tasks/jbroscript-plan.md](../tasks/jbroscript-plan.md) — JBroScript(`.jscript`)와 리플렉션 계획(D-56).
