@@ -150,7 +150,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
   바디를 지우면 Jolt 는 그 접촉을 따로 알리지 않으므로 커널이 지우기 전에 끝을 만들어 다음 스텝의 끝에 싣는다. 잠든 동안은 유지가 나오지 않는다(2D 와 같다).
 - **트리거:** 센서 바디는 키네마틱이라 그대로 두면 동적인 몸과만 겹친다. 움직이는(켜진 동적·키네마틱 몸이 있는) 오브젝트의 트리거만 `triggerSeesStatic` 으로 정적·키네마틱 몸과의 겹침도 본다 -
   정적인 트리거와 정적인 바닥은 2D 처럼 만나지 않는다. 한 오브젝트의 트리거와 그 오브젝트의 몸이 겹친 것은 알리지 않는다. 센서도 바디처럼 userData 가 오브젝트 아이디다.
-- **커널 질의:** `Raycast`·`RaycastAll`(바디마다 한 번, 거리 순)·`OverlapSphere`·`OverlapBox`(돌린 상자)·`SphereCast`·`BoxCast`. 레이어 마스크는 조합 표의 레이어로 거르고 트리거도 든다.
+- **커널 질의:** `Raycast`·`RaycastAll`(~~바디마다~~ 도형(콜라이더)마다 한 번 - D-435, 거리 순)·`OverlapSphere`·`OverlapBox`(돌린 상자)·`SphereCast`·`BoxCast`. 레이어 마스크는 조합 표의 레이어로 거르고 트리거도 든다.
   밀기의 법선은 Jolt 의 밀어낸 축의 반대(쏜 쪽을 향한다)이고 뒷면은 맞지 않는다.
 - **스크립트(Tier S, Framework3D):** `Collision3D`·`RaycastHit3D`(2D 와 같은 모양, `ComponentTypes3D.h`), `System::IPhysics3DSystem`, `Service::Physics3DService`(`GetFramework3DServices().Physics3D`),
   `GameScript3D::OnCollisionEnter/Stay/Exit`·`OnTriggerEnter/Stay/Exit`. 판번호: `Framework3DSystemContextAbiVersion` 2(물리 슬롯), `Framework3DServiceContextAbiVersion` 4(서비스와 훅의 가상 함수 표).
@@ -238,7 +238,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
 - ~~3D 질의는 마지막 고정 스텝에서 맞춘 바디를 본다(2D 는 지금의 컴포넌트를 본다).~~ → D-422: 어댑터의 동기화를 고정 스텝에서 떼어(`SyncBodies`) 질의가 묻기 전에 부른다.
   힘을 먹이는 것(`ApplyPendingForces`)과 사건은 고정 스텝에만 남는다. 맞추기는 바뀐 것만 커널에 먹이지만 질의마다 콜라이더를 한 번 훑는다 - 2D 의 질의도 콜라이더를 훑으므로 같은 값이다.
   `[열림]` 한 프레임에 질의를 아주 많이 하는 게임이면 "바뀐 것이 없으면 건너뛰기" 가 필요하다 - 컴포넌트가 바뀜을 알리는 길이 엔진에 생기면 그것으로 바꾼다.
-- `RaycastAll` 과 겹침은 한 오브젝트의 고체 콜라이더 여럿을 한 번으로 본다(한 바디다). 2D 의 `RaycastAll` 은 콜라이더마다 따로 든다.
+- ~~`RaycastAll` 과 겹침은 한 오브젝트의 고체 콜라이더 여럿을 한 번으로 본다(한 바디다). 2D 의 `RaycastAll` 은 콜라이더마다 따로 든다.~~ → D-435: `RaycastAll` 은 콜라이더마다(2D 와 같다). 겹침은 2D 도 오브젝트마다 한 번이라 원래 같았다.
 - SSE4·AVX2 같은 CPU 기능 매크로를 켤지 - 켜면 그 기능이 없는 CPU 에서 게임이 뜨지 않는다. 지금은 기본(SSE2)이다.
 - 웹(Emscripten)·안드로이드 빌드에 Jolt 를 넣는 것은 그 플랫폼 빌드를 세울 때 확인한다.
 - Jolt 를 올릴 때: `Jolt/` 를 통째로 바꾸고 `Jolt.vcxproj` 의 목록을 새 `Jolt.cmake` 에서 다시 뽑는다(ThirdParty/README).

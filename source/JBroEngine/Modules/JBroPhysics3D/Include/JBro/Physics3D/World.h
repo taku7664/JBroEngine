@@ -207,6 +207,8 @@ namespace JBro::Physics3D
     struct QueryHit
     {
         BodyId body;
+        // 맞은 도형 - 그 바디에 준 도형 목록(`CreateBody` 는 하나, `SetShapes` 는 여럿)에서의 자리다(D-435). 어댑터는 이것으로 콜라이더를 가린다.
+        UInt32 shape = 0;
         UInt64 userData = 0;
         Vector3 point;
         Vector3 normal;

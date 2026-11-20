@@ -122,6 +122,16 @@ namespace JBro::Physics3D
         constexpr JPH::uint64 LeafTag = 0x4C45414600000000ull;
         constexpr JPH::uint64 LeafTagMask = 0xFFFFFFFF00000000ull;
 
+        // 잎 도형의 userData 에서 도형 목록의 자리를 꺼낸다. 꼬리표가 없으면(도형 하나를 그대로 쓴 바디) 0 이다.
+        UInt32 LeafIndex(JPH::uint64 leafData)
+        {
+            if ((leafData & LeafTagMask) != LeafTag)
+            {
+                return UInt32(0u);
+            }
+            return UInt32(static_cast<std::uint32_t>(leafData & 0xFFFFFFFFull));
+        }
+
         struct LeafInfo
         {
             float friction = 0.6f;
@@ -1501,9 +1511,11 @@ namespace JBro::Physics3D
         {
             hit.body = BodyId{id.GetIndexAndSequenceNumber()};
             hit.point = {static_cast<Float>(point.GetX()), static_cast<Float>(point.GetY()), static_cast<Float>(point.GetZ())};
+            hit.shape = 0;
             JPH::BodyLockRead lock(physics.GetBodyLockInterfaceNoLock(), id);
             if (lock.Succeeded())
             {
+                hit.shape = LeafIndex(lock.GetBody().GetShape()->GetSubShapeUserData(subShape));
                 hit.userData = lock.GetBody().GetUserData();
                 hit.normal = FromJolt(lock.GetBody().GetWorldSpaceSurfaceNormal(subShape, point));
             }
@@ -2280,18 +2292,18 @@ namespace JBro::Physics3D
         collector.Sort();
         for (const JPH::RayCastResult& result : collector.mHits)
         {
-            // 한 바디의 잎 여럿에 맞으면 가장 가까운 것 하나다.
+            // 도형(콜라이더)마다 가장 가까운 것 하나다(D-435, 2D 와 같다). 한 도형의 삼각형 여럿에 맞아도 하나다 - 조각은 우리 사정이다.
+            QueryHit hit;
+            m_impl->FillHit(result.mBodyID, result.mSubShapeID2, ray.GetPointOnRay(result.mFraction), hit);
             Bool seen = false;
             for (const QueryHit& known : hits)
             {
-                seen = seen || known.body.value == result.mBodyID.GetIndexAndSequenceNumber();
+                seen = seen || (known.body.value == hit.body.value && known.shape == hit.shape);
             }
             if (seen)
             {
                 continue;
             }
-            QueryHit hit;
-            m_impl->FillHit(result.mBodyID, result.mSubShapeID2, ray.GetPointOnRay(result.mFraction), hit);
             hit.distance = result.mFraction * distance;
             hits.Add(hit);
         }

@@ -7297,6 +7297,13 @@ namespace
         // 키우자마자 걸린다.
         collider->size = {1.0f, 3.0f, 1.0f};
         Check(hitsAt(5.0f, hit) && std::fabs(hit.point.y - 2.5f) < 1.0e-3f, "a collider grown this frame is hit at its new top");
+        // `RaycastAll` 은 콜라이더마다 한 번이다(D-435, 2D 와 같다): 같은 오브젝트에 콜라이더를 하나 더 얹으면 두 번 걸린다.
+        auto* cap = canvas->AttachComponent<JBro::Component::Collider3D>(wall);
+        cap->offset = {0.0f, 4.0f, 0.0f};
+        JBro::Array<JBro::RaycastHit3D> all;
+        physics->RaycastAll({5.0f, 10.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 20.0f, all, JBro::AllPhysicsLayers);
+        Check(all.Size() == 2 && all[0].other.GetInstanceId() == all[1].other.GetInstanceId() && all[0].distance < all[1].distance,
+            "a ray through an object with two colliders hits each collider once, nearest first");
         // 지우자마자 빠진다.
         canvas->DestroyObject(wall);
         canvas->FlushPendingDestroy();

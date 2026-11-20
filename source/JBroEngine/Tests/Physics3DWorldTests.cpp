@@ -518,6 +518,26 @@ namespace
         JBro::Array<JBro::Physics3D::QueryHit> hits;
         world.RaycastAll({3.0f, 5.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 10.0f, all, hits);
         Check(hits.Size() == 2 && hits[0].userData == 2 && hits[1].userData == 1, "a ray through everything finds the block, then the floor");
+        // 도형(콜라이더)마다 한 번이다(D-435, 2D 와 같다): 두 상자를 포갠 몸 하나를 위에서 꿰면 위 상자, 아래 상자, 바닥.
+        {
+            BodyDef tower;
+            tower.type = BodyType::Static;
+            tower.position = {-3.0f, 0.0f, 0.0f};
+            tower.userData = 3;
+            const BodyId stack = world.CreateBody(tower);
+            JBro::Physics3D::ShapeDesc parts[2];
+            parts[0].halfExtents = {0.5f, 0.5f, 0.5f};
+            parts[0].offset = {0.0f, 0.5f, 0.0f};
+            parts[1].halfExtents = {0.5f, 0.5f, 0.5f};
+            parts[1].offset = {0.0f, 2.5f, 0.0f};
+            Check(world.SetShapes(stack, JBro::ArrayView<const JBro::Physics3D::ShapeDesc>(parts, 2)), "a body takes two boxes");
+            world.RaycastAll({-3.0f, 5.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 10.0f, all, hits);
+            Check(hits.Size() == 3 && hits[0].userData == 3 && hits[1].userData == 3 && hits[2].userData == 1,
+                "a ray through a body with two shapes finds each shape once, then the floor");
+            Check(hits.Size() == 3 && hits[0].shape == 1 && hits[1].shape == 0 && Near(hits[0].distance, 2.0f, 1.0e-3f) && Near(hits[1].distance, 4.0f, 1.0e-3f),
+                "the upper box first, then the lower one, each with its own place in the body's shape list");
+            world.DestroyBody(stack);
+        }
 
         JBro::Array<JBro::UInt64> found;
         world.OverlapSphere({3.0f, 0.5f, 0.0f}, 0.2f, all, found);
