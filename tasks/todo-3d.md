@@ -50,7 +50,7 @@ Camera·MeshRender·Text·Audio, 캔버스 뷰는 궤도 카메라·3D 집기·�
 
 ### P3 - 부딪히고 내보낸다
 
-9. `[진행]` **3D 물리**(아래 "프레임워크"). 2026-11-19 사용자 결정: 커널은 **Jolt Physics**(D-414), 설계는 제안대로 확정(D-415). 계획은 `physics3d-plan.md` - Jolt v5.7.0(0 단계)과
+9. ~~`[진행]`~~ `[완료]` **3D 물리**(아래 "프레임워크"). 2026-11-19 사용자 결정: 커널은 **Jolt Physics**(D-414), 설계는 제안대로 확정(D-415). 계획은 `physics3d-plan.md` - Jolt v5.7.0(0 단계)과
    커널 모듈 `JBroPhysics3D`(1 단계)와 컴포넌트·어댑터 `Physics3DSystem`(2 단계, D-416 - 에디터에서 재생하면 떨어져 선다), 충돌·트리거 훅과 `Physics3DService` 질의(3 단계, D-417), 캔버스 뷰의 3D 콜라이더 선과 메시 콜라이더(4 단계, D-418), 물리 워커와 `Build.PhysicsThreads`(5 단계, D-419)가 섰다.
    그 뒤로 스크립트의 힘·충격량(D-420), 콜라이더마다의 레이어와 레이어 충돌 표(D-421), 지금의 컴포넌트를 보는 질의(D-422), 빠른 트리거의 쓸기(D-423), 모델 메시 콜라이더 시험(D-424),
    6 단계의 CCD(D-425)·조인트 `DistanceJoint3D`·`HingeJoint3D`(D-426)·캐릭터 컨트롤러 `CharacterController3D`(D-427)가 섰다. 남은 것은 physics3d-plan §4 의 `[열림]` 이다.
@@ -93,8 +93,8 @@ Camera·MeshRender·Text·Audio, 캔버스 뷰는 궤도 카메라·3D 집기·�
 
 ## 프레임워크
 
-- `[열림]` 물리 3D 시스템이 없다. `Rigidbody3D`·`Collider3D` 는 골격이다.
-- `[열림]` 스크립트 3D 서비스(레이캐스트 등)가 없다. `ScriptAPI.h` 는 컴포넌트 헤더만 노출한다.
+- ~~`[열림]` 물리 3D 시스템이 없다. `Rigidbody3D`·`Collider3D` 는 골격이다.~~ → 완료 2026-11-19 · D-416 · 어댑터 `Physics3DSystem`(physics3d-plan §3 의 2 단계).
+- ~~`[열림]` 스크립트 3D 서비스(레이캐스트 등)가 없다. `ScriptAPI.h` 는 컴포넌트 헤더만 노출한다.~~ → 완료 2026-11-19 · D-417 · `Physics3DService` 질의와 충돌·트리거 훅(physics3d-plan §3 의 3 단계).
 
 ## 텍스트
 
