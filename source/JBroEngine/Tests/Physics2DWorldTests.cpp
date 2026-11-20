@@ -1167,6 +1167,44 @@ namespace
 
     // **거리 조인트(D-233).** 단단하면 월드의 점에서 늘 같은 거리로 흔들리고, 밧줄은 그 거리 안에서는 자유롭게 떨어지다가
     // 거기서 멈추며, 용수철은 중력에 늘어난 채 선다. 밧줄·용수철로 바꾸면 쌓인 임펄스를 비운다.
+    // **조인트가 건 힘과 돌림힘**(D-437, 끊는 힘을 견준다). 매달려 멈춘 질량 1 의 몸을 받치는 힘은 무게 mg 이고,
+    // 한계로 잠근 경첩에 수평으로 붙은 몸(질량 중심이 1 m 밖)을 받치는 돌림힘은 mgL 이다.
+    void TestJointForces()
+    {
+        using JBro::Physics2D::DistanceJointDef;
+        using JBro::Physics2D::HingeJointDef;
+        using JBro::Physics2D::JointId;
+        const JBro::Float weight = 9.81f;
+        {
+            World world;
+            const BodyId bob = AddBody(world, BodyType::Dynamic, { 0.0f, -1.5f });
+            AddPolygon(world, bob, BoxOutline(0.2f, 0.2f));
+            DistanceJointDef def;
+            def.bodyA = bob;
+            def.length = 1.5f;
+            const JointId rope = world.CreateDistanceJoint(def);
+            Check(world.GetJointForce(rope) == 0.0f, "a joint that has not stepped carries no force");
+            Run(world, 1.0f);
+            Check(Near(world.GetJointForce(rope), weight, 0.05f * weight), "a distance joint holding a hanging body carries its weight");
+            Check(world.GetJointTorque(rope) == 0.0f, "and no torque");
+        }
+        {
+            World world;
+            const BodyId arm = AddBody(world, BodyType::Dynamic, { 1.0f, 0.0f });
+            AddPolygon(world, arm, BoxOutline(1.0f, 0.05f));
+            HingeJointDef def;
+            def.bodyA = arm;
+            def.localAnchorA = { -1.0f, 0.0f };
+            def.enableLimit = true;
+            const JointId pin = world.CreateHingeJoint(def);
+            Run(world, 1.0f);
+            Check(Near(world.GetJointForce(pin), weight, 0.05f * weight), "a locked hinge carries the arm's weight");
+            Check(Near(world.GetJointTorque(pin), weight * 1.0f, 0.05f * weight), "and the torque of that weight one metre out");
+        }
+        World empty;
+        Check(empty.GetJointForce({}) == 0.0f && empty.GetJointTorque({}) == 0.0f, "a missing joint reads zero");
+    }
+
     void TestDistanceJoints()
     {
         using JBro::Physics2D::DistanceJointDef;
@@ -1623,6 +1661,7 @@ JBro::Int32 RunPhysics2DWorldTests()
     JBRO_CASE(TestWhatWakesASleepingBody());
     JBRO_CASE(TestOneWayPlatforms());
     JBRO_CASE(TestTheLayerTableSeparatesLayers());
+    JBRO_CASE(TestJointForces());
     JBRO_CASE(TestDistanceJoints());
     JBRO_CASE(TestHingeJoints());
     JBRO_CASE(TestJointedBodiesSleepTogether());

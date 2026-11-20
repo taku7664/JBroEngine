@@ -5,6 +5,7 @@
 #include <JBro/Runtime/ScriptRegistry.h>
 
 #include <type_traits>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -47,6 +48,8 @@ namespace JBro
         virtual void OnTriggerEnter(const Collision3D& hit);
         virtual void OnTriggerStay(const Collision3D& hit);
         virtual void OnTriggerExit(const Collision3D& hit);
+        // **이 오브젝트의 조인트가 끊겼다**(D-437, 2D 와 같은 이름·같은 때). 조인트 컴포넌트는 이미 꺼져 있다. 끊긴 조인트마다 한 번이다.
+        virtual void OnJointBreak(Float force, Float torque);
     };
 
     // 3D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다(cpp-script-plan §3.2). `GameScriptBase` 에서 바로 파생한 타입은 여기서

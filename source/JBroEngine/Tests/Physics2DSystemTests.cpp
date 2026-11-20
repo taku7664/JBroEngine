@@ -102,6 +102,16 @@ namespace
             ++triggerExit;
         }
 
+        void OnJointBreak(JBro::Float force, JBro::Float torque) override
+        {
+            ++jointBreaks;
+            lastBreakForce = force;
+            lastBreakTorque = torque;
+        }
+
+        JBro::Int32 jointBreaks = 0;
+        JBro::Float lastBreakForce = 0.0f;
+        JBro::Float lastBreakTorque = 0.0f;
         JBro::Int32 collisionEnter = 0;
         JBro::Int32 collisionStay = 0;
         JBro::Int32 collisionExit = 0;
@@ -1092,6 +1102,75 @@ namespace
         }
     }
 
+    // **끊는 힘**(D-437). 무게(질량 1, 9.81 N)보다 약한 줄은 끊겨 컴포넌트가 꺼지고 스크립트가 한 번 듣는다. 무게보다 센 줄은 버틴다.
+    // 한계로 잠근 경첩은 돌림힘으로 끊긴다. 기본값(무한)은 캔버스 파일에 `inf` 로 적히고 그대로 읽힌다.
+    void TestJointsBreak()
+    {
+        using JBro::Component::DistanceJoint2D;
+        using JBro::Component::HingeJoint2D;
+        const auto hang = [](Scene& scene, JBro::Float breakForce, ContactProbe*& probe, DistanceJoint2D*& joint) {
+            JBro::Object::GameObject* hook = scene.Object("hook", { 0.0f, 5.0f });
+            scene.Box(hook, { 0.2f, 0.2f });
+            JBro::Object::GameObject* weight = scene.Object("weight", { 0.0f, 3.0f });
+            scene.Box(weight, { 0.5f, 0.5f });
+            scene.Dynamic(weight);
+            joint = scene.canvas.AttachComponent<DistanceJoint2D>(weight);
+            joint->connectedObject = hook->GetScriptHandle();
+            joint->breakForce = breakForce;
+            probe = scene.Probe(weight);
+            return weight;
+        };
+        {
+            Scene scene;
+            ContactProbe* probe = nullptr;
+            DistanceJoint2D* joint = nullptr;
+            JBro::Object::GameObject* weight = hang(scene, 5.0f, probe, joint);
+            scene.Run(1.0f);
+            Check(false == joint->IsEnabled() && scene.physics.GetJointCount() == 0, "a rope weaker than the weight breaks: the component is off and the kernel joint is gone");
+            Check(probe->jointBreaks == 1 && probe->lastBreakForce > 5.0f, "the object's script hears it once, with the force that broke it");
+            Check(scene.TransformOf(weight)->position.y < 2.0f, "and the weight falls");
+        }
+        {
+            Scene scene;
+            ContactProbe* probe = nullptr;
+            DistanceJoint2D* joint = nullptr;
+            JBro::Object::GameObject* weight = hang(scene, 20.0f, probe, joint);
+            scene.Run(1.0f);
+            Check(joint->IsEnabled() && scene.physics.GetJointCount() == 1 && probe->jointBreaks == 0, "a rope stronger than the weight holds");
+            Check(Near(scene.TransformOf(weight)->position.y, 3.0f, 0.03f), "and the weight hangs there");
+        }
+        {
+            Scene scene;
+            JBro::Object::GameObject* rod = scene.Object("rod", { 1.0f, 0.0f });
+            scene.Box(rod, { 2.0f, 0.1f });
+            scene.Dynamic(rod);
+            HingeJoint2D* hinge = scene.canvas.AttachComponent<HingeJoint2D>(rod);
+            hinge->anchor = { -1.0f, 0.0f };
+            hinge->useLimits = true;
+            hinge->lowerAngle = 0.0f;
+            hinge->upperAngle = 0.0f;
+            hinge->breakTorque = 5.0f;
+            ContactProbe* probe = scene.Probe(rod);
+            scene.Run(0.5f);
+            Check(false == hinge->IsEnabled() && probe->jointBreaks == 1 && probe->lastBreakTorque > 5.0f,
+                "a locked hinge holding a rod one metre out breaks on torque");
+        }
+        Check(JBro::Component::RegisterBuiltinComponentTypes2D() && JBro::Component::RegisterBuiltinComponentProperties2D(), "the 2D components register");
+        JBro::Canvas canvas{ JBro::CreateDefaultAllocator() };
+        JBro::Object::GameObject* object = canvas.CreateObject("object");
+        DistanceJoint2D* unbreakable = canvas.AttachComponent<DistanceJoint2D>(object);
+        Check(std::isinf(unbreakable->breakForce) && std::isinf(unbreakable->breakTorque), "a new joint does not break");
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(canvas, text, error) && text.find("breakForce: inf") != JBro::String::npos, "the canvas file writes the default as inf");
+        JBro::Canvas read{ JBro::CreateDefaultAllocator() };
+        Check(JBro::ReadCanvasText(read, text.c_str(), text.size(), error), "the canvas reads back");
+        JBro::Object::GameObject* readObject = nullptr;
+        read.ForEachObject([&](JBro::Object::GameObject& found) { readObject = &found; });
+        DistanceJoint2D* readJoint = readObject != nullptr ? read.FindComponentRaw<DistanceJoint2D>(readObject) : nullptr;
+        Check(readJoint != nullptr && std::isinf(readJoint->breakForce), "and reads it back as unbreakable");
+    }
+
     // **오브젝트 참조는 캔버스 파일에 파일 안 번호로 적힌다(D-233).** 뒤에 오는 오브젝트를 가리켜도 읽힌 뒤 그 오브젝트를 잡고,
     // 빈 참조는 빈 채로 온다. 파일 밖(되돌리기 글자)에서는 이번 실행의 번호다.
     void TestAnObjectReferenceSurvivesTheCanvasFile()
@@ -1203,6 +1282,7 @@ JBro::Int32 RunPhysics2DSystemTests()
     JBRO_CASE(TestStayHooksComeEveryStepWhileTouching());
     JBRO_CASE(TestAOneWayColliderLetsThingsUpThrough());
     JBRO_CASE(TestJointComponents());
+    JBRO_CASE(TestJointsBreak());
     JBRO_CASE(TestTheLayerTableReachesTheKernel());
     JBRO_CASE(TestAnObjectReferenceSurvivesTheCanvasFile());
     JBRO_CASE(TestLosingAPartnerEndsTheContact());

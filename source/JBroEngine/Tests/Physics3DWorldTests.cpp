@@ -912,6 +912,62 @@ namespace
         return JBro::Length(JBro::Subtract(a, b));
     }
 
+    // **조인트가 건 힘과 돌림힘**(D-437, 2D 와 같은 뜻). 매달려 멈춘 질량 1 의 상자를 받치는 힘은 mg, 한계로 잠근 경첩에 수평으로 붙은
+    // 막대(질량 중심이 1 m 밖)를 받치는 돌림힘은 mgL 이다. 충돌 스텝을 바꿔도 같은 값이다.
+    void TestJointForces()
+    {
+        using JBro::Physics3D::DistanceJointDef;
+        using JBro::Physics3D::HingeJointDef;
+        using JBro::Physics3D::JointId;
+        const JBro::Float weight = 9.81f;
+        for (const JBro::UInt32 steps : {1u, 3u})
+        {
+            {
+                World world;
+                world.SetCollisionSteps(steps);
+                const BodyId bob = world.CreateBody(BoxAt({0.0f, -1.5f, 0.0f}));
+                DistanceJointDef def;
+                def.bodyA = bob;
+                def.minDistance = 1.5f;
+                def.maxDistance = 1.5f;
+                const JointId rope = world.CreateDistanceJoint(def);
+                Check(world.GetJointForce(rope) == 0.0f, "a joint in a world that has not stepped carries no force");
+                for (JBro::Int32 step = 0; step < 60; ++step)
+                {
+                    world.Step(Frame);
+                }
+                Check(Near(world.GetJointForce(rope), weight, 0.05f * weight), "a distance joint holding a hanging box carries its weight");
+                Check(world.GetJointTorque(rope) == 0.0f, "and no torque");
+            }
+            {
+                World world;
+                world.SetCollisionSteps(steps);
+                BodyDef rod = BoxAt({1.0f, 0.0f, 0.0f});
+                rod.shape.halfExtents = {1.0f, 0.05f, 0.05f};
+                const BodyId arm = world.CreateBody(rod);
+                HingeJointDef def;
+                def.bodyA = arm;
+                def.localAnchorA = {-1.0f, 0.0f, 0.0f};
+                def.localAxisA = {0.0f, 0.0f, 1.0f};
+                def.localNormalA = {1.0f, 0.0f, 0.0f};
+                def.localAxisB = {0.0f, 0.0f, 1.0f};
+                def.localNormalB = {1.0f, 0.0f, 0.0f};
+                def.enableLimit = true;
+                def.lowerAngle = 0.0f;
+                def.upperAngle = 0.0f;
+                const JointId pin = world.CreateHingeJoint(def);
+                for (JBro::Int32 step = 0; step < 60; ++step)
+                {
+                    world.Step(Frame);
+                }
+                Check(Near(world.GetJointForce(pin), weight, 0.05f * weight), "a locked hinge carries the rod's weight");
+                Check(Near(world.GetJointTorque(pin), weight * 1.0f, 0.05f * weight), "and the torque of that weight one metre out");
+            }
+        }
+        World empty;
+        Check(empty.GetJointForce({}) == 0.0f && empty.GetJointTorque({}) == 0.0f, "a missing joint reads zero");
+    }
+
     // **조인트**(D-426). 거리(단단함·밧줄)·경첩(핀·각의 부호·한계·모터)·충돌 끄기·바디와 함께 지워짐·도형이 바뀌어도 핀이 그 자리.
     void TestJoints()
     {
@@ -1299,6 +1355,7 @@ JBro::Int32 RunPhysics3DWorldTests()
     JBRO_CASE(TestForcesAndImpulses());
     JBRO_CASE(TestEachShapeHasItsOwnLayer());
     JBRO_CASE(TestFastTriggersDoNotSkip());
+    JBRO_CASE(TestJointForces());
     JBRO_CASE(TestJoints());
     JBRO_CASE(TestCharacters());
     JBRO_CASE(TestFastBodiesDoNotTunnel());

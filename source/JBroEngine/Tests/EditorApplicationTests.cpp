@@ -7338,8 +7338,18 @@ namespace
             ++exits;
         }
 
+        // 끊긴 조인트도 센다(D-437).
+        void OnJointBreak(JBro::Float force, JBro::Float torque) override
+        {
+            (void)torque;
+            ++breaks;
+            lastBreakForce = force;
+        }
+
         JBro::Int32 enters = 0;
         JBro::Int32 exits = 0;
+        JBro::Int32 breaks = 0;
+        JBro::Float lastBreakForce = 0.0f;
     };
 
     // **빠른 트리거가 사이의 것을 건너뛰지 않는다**(D-423). 스크립트가 트리거 오브젝트를 한 프레임에 멀리 옮겨도, 그 길에 떠 있는 상자가 들어감·나감을 듣는다.
@@ -7480,6 +7490,22 @@ namespace
         rope->SetEnabled(false);
         Check(editor.Tick(Frame), "the editor must tick after the rope is turned off");
         Check(physics->GetJointCount() == 2, "a disabled joint lets go");
+        // 끊는 힘(D-437): 무게(9.81 N)보다 약하게 스크립트 핸들로 정한 줄은 끊겨 꺼지고, 그 오브젝트의 스크립트가 한 번 듣는다.
+        JBro::Object::GameObject* beam = body("Beam", {14.0f, 4.0f, 0.0f}, false);
+        JBro::Object::GameObject* bob = body("Bob", {14.0f, 2.0f, 0.0f}, true);
+        auto* weak = canvas->AttachComponent<JBro::Component::DistanceJoint3D>(bob);
+        weak->connectedObject = beam->GetScriptHandle();
+        TriggerCounter3D* listener = canvas->AttachScript<TriggerCounter3D>(bob);
+        JBro::Handle::DistanceJoint3D weakHandle = bob->GetScriptHandle().GetComponent<JBro::Handle::DistanceJoint3D>();
+        Check(weakHandle.IsValid() && std::isinf(weakHandle.GetBreakForce()), "a new joint does not break, read through its handle");
+        weakHandle.SetBreakForce(5.0f);
+        Check(weak->breakForce == 5.0f, "and the handle writes the break force");
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the weak rope pulls");
+        }
+        Check(false == weak->IsEnabled() && physics->GetJointCount() == 2, "a rope weaker than its weight breaks and lets go");
+        Check(listener != nullptr && listener->breaks == 1 && listener->lastBreakForce > 5.0f, "the object's script hears it once, with the force");
         editor.StopSimulation();
         editor.Shutdown();
     }

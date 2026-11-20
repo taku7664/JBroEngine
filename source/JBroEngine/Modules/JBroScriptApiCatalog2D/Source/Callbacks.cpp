@@ -107,6 +107,11 @@ void AddCallbacks(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<void (GameScript2D::*)(Float, Float)>(&GameScript2D::OnJointBreak)>("OnJointBreak", Parameters(In("force"), In("torque")));
+        member.IsCallback = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareFunction<static_cast<void (GameScript2D::*)()>(&GameScript2D::OnPointerEnter)>("OnPointerEnter", Parameters());
         member.IsCallback = true;
         type.Members.Add(std::move(member));

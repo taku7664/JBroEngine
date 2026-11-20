@@ -3058,6 +3058,21 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-437. 조인트 끊는 힘 - 2D·3D 조인트 넷에 `breakForce`·`breakTorque`, 넘으면 컴포넌트를 끄고 `OnJointBreak` 를 부른다.** (2026-11-20, physics3d-plan §3.6·physics-plan §4 의 열림, 사용자 결정 "유니티와 같이")
+  (1) 사용자에게 세 길(유니티와 같이·훅 없이 끄기만·하지 않음)을 보이고 "유니티와 같이" 를 받았다. 유니티와 다른 점: 유니티는 조인트를 지우지만 여기서는 **컴포넌트를 끈다**(지우지 않는다 -
+  다시 켜면 다시 이어지고, 재생을 멈추면 캔버스가 되돌아온다). 훅 인자는 그 조인트가 건 힘과 돌림힘 둘이다(유니티 3D 는 힘 하나, 2D 는 조인트를 준다) - 새 타입을 만들지 않으려고 값 둘로 두었다.
+  (2) 커널: `GetJointForce`·`GetJointTorque`(크기, N·N·m). 2D 는 서브스텝마다 이어 드는 임펄스를 서브스텝 길이로 나눈다(거리는 축 임펄스 합, 경첩은 선 임펄스와 모터·한계 임펄스).
+  3D 는 Jolt 제약의 람다를 충돌 스텝 길이(`Step` 길이 ÷ 충돌 스텝 수, D-436)로 나눈다(경첩의 돌림힘은 축에 수직인 두 성분과 한계·모터를 합친 크기). 거리 조인트의 돌림힘은 0 이다.
+  (3) 컴포넌트: `DistanceJoint2D`·`HingeJoint2D`·`DistanceJoint3D`·`HingeJoint3D` 에 `breakForce`·`breakTorque`(Float, 기본 `inf`). 캔버스 파일에는 `inf` 로 적히고 그대로 읽힌다(`to_chars`·`from_chars`).
+  핸들 넷에 `Get/SetBreakForce`·`Get/SetBreakTorque`, 2D 스크립트 API 표(`JBroScriptApiCatalog2D` 의 `Handles`·`Callbacks`·`Definitions`)에도 더했다.
+  (4) 어댑터: 맞출 때마다 연결에 컴포넌트 자리와 두 값을 적고, 스텝과 충돌 훅 뒤에 커널의 값과 견준다. 넘으면 컴포넌트를 끄고(`SetEnabled(false)`) 커널의 조인트를 지운 뒤 그 오브젝트의 스크립트에
+  `OnJointBreak(force, torque)` 를 `ScriptCallGuard` 로 부른다(발송 동안 파괴를 미룬다). 끊긴 조인트마다 한 번이다.
+  (5) 훅을 더해 스크립트 ABI 를 올렸다: `Framework2DServiceContextAbiVersion` 6 → 7, `Framework3DServiceContextAbiVersion` 4 → 5. 옛 스크립트 DLL 은 다시 빌드해야 한다.
+  확인: 커널 `Physics2DWorld`·`Physics3DWorld` 의 `TestJointForces`(매단 질량 1 은 9.81 N, 한계로 잠근 경첩에 1 m 밖으로 붙은 막대는 9.81 N·m, 5% 안. 3D 는 충돌 스텝 1·3 모두, 없는 조인트·스텝 전은 0),
+  `Physics2DSystem` 의 `TestJointsBreak`(5 N 줄은 끊겨 꺼지고 훅 한 번·힘 > 5, 20 N 줄은 버팀, 잠근 경첩은 돌림힘 5 에 끊김, `inf` 를 쓰고 읽음), 에디터 `TestJointsIn3D`(핸들로 5 N 을 정한 줄이 끊겨 꺼지고 훅 한 번).
+  뮤테이션 "2D 가 훅을 부르지 않음" 이 "hears it once" 로, "3D 가 컴포넌트를 끄지 않음" 이 "breaks and lets go" 로 잡혔다. Physics2D 넷·Physics3DWorld·ScriptApiCatalog·ScriptApiPrelude·ContextBoundary·PublicHeaderComposition 이 지났다.
+  `[열림]` 에디터 인스펙터가 `inf` 칸을 어떻게 보이고 고치게 하는지는 화면으로 확인하지 않았다(리플렉션이 그대로 Float 칸으로 그린다). 훅이 어느 조인트인지 알려 주지 않는다 - 한 오브젝트에 조인트가 여럿이면 스크립트가 `enabled` 를 본다.
+
 - **D-436. 3D 물리의 충돌 스텝을 프로젝트 설정으로 둔다 - 기본 1, 회전이 빠른 몸이 벽을 뚫는 게임만 올린다.** (2026-11-20, physics3d-plan §3.6 의 열림, 사용자 결정 "설정으로 두기")
   Updates: D-425(연속 충돌은 이동만 본다 - 회전은 이 설정이 맡는다).
   (1) 잰 것: 연속 충돌(Jolt 의 `LinearCast`)은 이동만 쓸어, 충돌 스텝 1 에서는 초당 40 라디안 이상으로 도는 두께 2 cm·길이 3 m 의 막대가 두께 2 cm 의 판을 바퀴마다 지나쳤다(닿음 사건은 오지만 회전이 줄지 않는다).

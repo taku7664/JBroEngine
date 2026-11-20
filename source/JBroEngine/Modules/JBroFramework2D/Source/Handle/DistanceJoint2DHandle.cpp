@@ -188,4 +188,44 @@ namespace JBro::Handle
         }
         component->collideConnected = value;
     }
+
+    Float DistanceJoint2D::GetBreakForce() const
+    {
+        const Component::DistanceJoint2D* component = Resolve("GetBreakForce");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->breakForce;
+    }
+
+    void DistanceJoint2D::SetBreakForce(Float value)
+    {
+        Component::DistanceJoint2D* component = Resolve("SetBreakForce");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->breakForce = value;
+    }
+
+    Float DistanceJoint2D::GetBreakTorque() const
+    {
+        const Component::DistanceJoint2D* component = Resolve("GetBreakTorque");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->breakTorque;
+    }
+
+    void DistanceJoint2D::SetBreakTorque(Float value)
+    {
+        Component::DistanceJoint2D* component = Resolve("SetBreakTorque");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->breakTorque = value;
+    }
 }

@@ -248,4 +248,44 @@ namespace JBro::Handle
         }
         component->collideConnected = value;
     }
+
+    Float HingeJoint3D::GetBreakForce() const
+    {
+        const Component::HingeJoint3D* component = Resolve("GetBreakForce");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->breakForce;
+    }
+
+    void HingeJoint3D::SetBreakForce(Float value)
+    {
+        Component::HingeJoint3D* component = Resolve("SetBreakForce");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->breakForce = value;
+    }
+
+    Float HingeJoint3D::GetBreakTorque() const
+    {
+        const Component::HingeJoint3D* component = Resolve("GetBreakTorque");
+        if (component == nullptr)
+        {
+            return {};
+        }
+        return component->breakTorque;
+    }
+
+    void HingeJoint3D::SetBreakTorque(Float value)
+    {
+        Component::HingeJoint3D* component = Resolve("SetBreakTorque");
+        if (component == nullptr)
+        {
+            return;
+        }
+        component->breakTorque = value;
+    }
 }

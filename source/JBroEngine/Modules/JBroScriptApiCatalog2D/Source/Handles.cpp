@@ -3895,6 +3895,26 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Float (Handle::DistanceJoint2D::*)() const>(&Handle::DistanceJoint2D::GetBreakForce)>("GetBreakForce", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::DistanceJoint2D::*)(Float)>(&Handle::DistanceJoint2D::SetBreakForce)>("SetBreakForce", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::DistanceJoint2D::*)() const>(&Handle::DistanceJoint2D::GetBreakTorque)>("GetBreakTorque", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::DistanceJoint2D::*)(Float)>(&Handle::DistanceJoint2D::SetBreakTorque)>("SetBreakTorque", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::DistanceJoint2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -3940,6 +3960,14 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::DistanceJoint2D::GetCollideConnected, &Handle::DistanceJoint2D::SetCollideConnected>("collideConnected");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::DistanceJoint2D::GetBreakForce, &Handle::DistanceJoint2D::SetBreakForce>("breakForce");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::DistanceJoint2D::GetBreakTorque, &Handle::DistanceJoint2D::SetBreakTorque>("breakTorque");
         type.Members.Add(std::move(member));
     }
     }
@@ -4074,6 +4102,26 @@ void AddHandles(ApiCatalog& catalog)
         type.Members.Add(std::move(member));
     }
     {
+        auto member = DeclareFunction<static_cast<Float (Handle::HingeJoint2D::*)() const>(&Handle::HingeJoint2D::GetBreakForce)>("GetBreakForce", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::HingeJoint2D::*)(Float)>(&Handle::HingeJoint2D::SetBreakForce)>("SetBreakForce", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Float (Handle::HingeJoint2D::*)() const>(&Handle::HingeJoint2D::GetBreakTorque)>("GetBreakTorque", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Handle::HingeJoint2D::*)(Float)>(&Handle::HingeJoint2D::SetBreakTorque)>("SetBreakTorque", Parameters(In("value")));
+        member.MutatesReceiver = true;
+        member.MayInvalidateHandles = true;
+        type.Members.Add(std::move(member));
+    }
+    {
         auto member = DeclareProperty<&Handle::HingeJoint2D::IsValid>("valid");
         type.Members.Add(std::move(member));
     }
@@ -4127,6 +4175,14 @@ void AddHandles(ApiCatalog& catalog)
     }
     {
         auto member = DeclareProperty<&Handle::HingeJoint2D::GetCollideConnected, &Handle::HingeJoint2D::SetCollideConnected>("collideConnected");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::HingeJoint2D::GetBreakForce, &Handle::HingeJoint2D::SetBreakForce>("breakForce");
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareProperty<&Handle::HingeJoint2D::GetBreakTorque, &Handle::HingeJoint2D::SetBreakTorque>("breakTorque");
         type.Members.Add(std::move(member));
     }
     }

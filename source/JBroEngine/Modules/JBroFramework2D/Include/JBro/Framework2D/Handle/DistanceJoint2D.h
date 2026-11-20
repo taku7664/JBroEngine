@@ -48,6 +48,11 @@ namespace JBro::Handle
         void SetDampingRatio(Float value);
         Bool GetCollideConnected() const;
         void SetCollideConnected(Bool value);
+        // 끊는 힘·돌림힘(D-437). 기본은 무한이다.
+        Float GetBreakForce() const;
+        void SetBreakForce(Float value);
+        Float GetBreakTorque() const;
+        void SetBreakTorque(Float value);
 
     private:
         Component::DistanceJoint2D* Resolve(const char* operation) const;

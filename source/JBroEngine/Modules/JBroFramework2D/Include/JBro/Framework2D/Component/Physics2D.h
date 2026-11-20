@@ -20,6 +20,7 @@
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
+#include <limits>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
@@ -201,6 +202,10 @@ namespace JBro::Component
         JBRO_FIELD(Float, dampingRatio, Range(0.0f, 1.0f)) = 0.0f;
         // 거짓이면 이은 두 오브젝트의 콜라이더가 서로 부딪히지 않는다.
         JBRO_FIELD(Bool, collideConnected) = false;
+        // 이 힘(N)이나 돌림힘(N·m)을 넘으면 조인트가 끊긴다(D-437, 유니티의 breakForce·breakTorque 와 같은 칸): 컴포넌트가 꺼지고
+        // 같은 오브젝트의 스크립트가 `OnJointBreak` 를 받는다. 기본은 무한이다(끊기지 않는다).
+        JBRO_FIELD(Float, breakForce) = std::numeric_limits<float>::infinity();
+        JBRO_FIELD(Float, breakTorque) = std::numeric_limits<float>::infinity();
     };
 
     // **경첩 조인트**(D-233, 기존 엔진 `HingeJoint2D`). 두 몸이 한 점을 함께 쓰고 그 둘레로 돈다. 각도는 도(°)이고, 한계는
@@ -233,6 +238,10 @@ namespace JBro::Component
         JBRO_FIELD(Degree, motorSpeed) = 0.0f;
         JBRO_FIELD(Float, maxMotorTorque, Range(0.0f, 100000.0f)) = 1000.0f;
         JBRO_FIELD(Bool, collideConnected) = false;
+        // 이 힘(N)이나 돌림힘(N·m)을 넘으면 조인트가 끊긴다(D-437, 유니티의 breakForce·breakTorque 와 같은 칸): 컴포넌트가 꺼지고
+        // 같은 오브젝트의 스크립트가 `OnJointBreak` 를 받는다. 기본은 무한이다(끊기지 않는다).
+        JBRO_FIELD(Float, breakForce) = std::numeric_limits<float>::infinity();
+        JBRO_FIELD(Float, breakTorque) = std::numeric_limits<float>::infinity();
     };
 }
 

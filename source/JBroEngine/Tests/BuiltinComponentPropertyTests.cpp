@@ -87,8 +87,8 @@ namespace
             "Collider2D declares twelve fields - shape, size and trigger, then points, the chain loop of D-229, oneWay of D-233, and the surface and filter of D-199");
 
         // 두 번 불러도 된다. 부르는 쪽이 순서를 신경 쓰지 않아도 되게 한다.
-        Check(Table("Component::DistanceJoint2D").count == 9, "DistanceJoint2D declares nine fields (D-233)");
-        Check(Table("Component::HingeJoint2D").count == 11, "HingeJoint2D declares eleven fields (D-233)");
+        Check(Table("Component::DistanceJoint2D").count == 11, "DistanceJoint2D declares eleven fields (D-233, the break pair of D-437)");
+        Check(Table("Component::HingeJoint2D").count == 13, "HingeJoint2D declares thirteen fields (D-233, the break pair of D-437)");
 
         Check(JBro::Component::RegisterBuiltinComponentProperties2D(),
             "registering twice must not turn into a failure");

@@ -80,4 +80,10 @@ namespace JBro
         (void)hit;
     }
 
+    void GameScript3D::OnJointBreak(Float force, Float torque)
+    {
+        (void)force;
+        (void)torque;
+    }
+
 }

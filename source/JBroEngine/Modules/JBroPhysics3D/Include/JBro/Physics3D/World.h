@@ -305,6 +305,11 @@ namespace JBro::Physics3D
         UInt32 GetJointCount() const;
         // 경첩의 지금 각(라디안, A 가 B 에 대해). 경첩이 아니면 0 이다.
         Float GetHingeAngle(JointId joint) const;
+        // 조인트가 마지막 충돌 스텝에 두 바디 사이에 건 힘의 크기(N)와 돌림힘의 크기(N·m)다(D-437, 끊는 힘을 견준다. 2D 와 같은 뜻).
+        // Jolt 제약의 람다(임펄스)를 충돌 스텝 길이로 나눈다. 경첩의 돌림힘은 축에 수직인 두 성분과 한계·모터를 합친 크기다.
+        // 거리 조인트의 돌림힘은 0 이다. 없는 조인트와 아직 스텝을 돌지 않은 월드는 0 이다.
+        Float GetJointForce(JointId joint) const;
+        Float GetJointTorque(JointId joint) const;
 
         // ── 캐릭터(D-427) ────────────────────────────────────────────────
         // 크기가 틀렸거나 표가 찼으면 빈 번호다.

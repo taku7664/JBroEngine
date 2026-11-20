@@ -208,7 +208,7 @@ Framework3D 의 Physics3DService(스크립트) · GameScript3D 의 충돌 훅
   - `collideConnected` 가 거짓이면 두 바디의 접촉을 접촉 확인 콜백이 버린다(쌍마다 조인트 수를 센 표). 질의는 그대로 맞는다.
   - 시험: `Physics3DWorld` 의 `TestJoints`(단단한 거리 3·밧줄·경첩의 핀과 각의 부호·한계·모터·충돌 끄기와 켜기·바디와 함께 지워짐·도형을 바꿔도 핀), 에디터 `TestJointsIn3D`(월드에 박은 문과 기둥에 매단 추,
     자동 상대 앵커·자동 거리, 핸들, 끈 조인트가 풀림).
-  - ~~`[열림]` 캔버스 뷰에 조인트를 그리지 않는다.~~ → D-430: 거리는 두 앵커를 잇는 선, 경첩은 핀의 고리와 축 선(2D 와 같은 색). 조인트를 끊는 힘(break force)은 2D 에도 없다.
+  - ~~`[열림]` 캔버스 뷰에 조인트를 그리지 않는다.~~ → D-430: 거리는 두 앵커를 잇는 선, 경첩은 핀의 고리와 축 선(2D 와 같은 색). ~~조인트를 끊는 힘(break force)은 2D 에도 없다.~~ → D-437: 2D·3D 조인트 넷에 `breakForce`·`breakTorque`(기본 무한)와 스크립트 훅 `OnJointBreak` 를 더했다.
 - **캐릭터 컨트롤러(D-427):** 새 컴포넌트 `CharacterController3D`(유니티의 CharacterController 와 같은 자리·같은 칸 이름 - `center`·`radius`·`height`·`slopeLimit`·`stepOffset`, 그리고 2D 처럼 `layer`·`mask`).
   2D 에는 짝이 없다 - 2D 의 캐릭터는 지금처럼 키네마틱 몸으로 한다. 커널은 Jolt 의 `CharacterVirtual`.
   - **이동은 쌓아 두고 다음 고정 스텝이 먹인다**(`Move(motion)`, 힘·충격량 D-420 과 같은 길). 유니티의 `Move` 는 그 자리에서 옮기지만, 그러면 핸들이 물리에 닿아야 하고 고정 스텝의 차례(캐릭터 → 몸 → 사건)가 깨진다.

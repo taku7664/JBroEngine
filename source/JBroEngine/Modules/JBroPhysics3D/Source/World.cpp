@@ -896,6 +896,8 @@ namespace JBro::Physics3D
         TaskJobSystem taskJobs;
         UInt32 workerCount = 0;
         UInt32 collisionSteps = 1;
+        // 마지막 `Step` 의 길이(D-437). 조인트의 람다를 힘으로 바꾼다.
+        float lastStepDelta = 0.0f;
 
         JPH::JobSystem* Jobs()
         {
@@ -1910,6 +1912,7 @@ namespace JBro::Physics3D
         {
             return;
         }
+        m_impl->lastStepDelta = deltaTime.Get();
         m_impl->contacts.BeginStep();
         m_impl->MoveCharacters(deltaTime);
         m_impl->RecordMovingBodies();
@@ -2009,6 +2012,35 @@ namespace JBro::Physics3D
             return 0.0f;
         }
         return static_cast<const JPH::HingeConstraint*>(slot->constraint.GetPtr())->GetCurrentAngle();
+    }
+
+    Float World::GetJointForce(JointId joint) const
+    {
+        const Impl::JointSlot* slot = m_impl->FindJoint(joint);
+        if (slot == nullptr || slot->constraint == nullptr || false == (m_impl->lastStepDelta > 0.0f))
+        {
+            return 0.0f;
+        }
+        const float inverseStep = static_cast<float>(m_impl->collisionSteps.Get()) / m_impl->lastStepDelta;
+        if (slot->hinge)
+        {
+            return static_cast<const JPH::HingeConstraint*>(slot->constraint.GetPtr())->GetTotalLambdaPosition().Length() * inverseStep;
+        }
+        return std::fabs(static_cast<const JPH::DistanceConstraint*>(slot->constraint.GetPtr())->GetTotalLambdaPosition()) * inverseStep;
+    }
+
+    Float World::GetJointTorque(JointId joint) const
+    {
+        const Impl::JointSlot* slot = m_impl->FindJoint(joint);
+        if (slot == nullptr || slot->constraint == nullptr || false == slot->hinge || false == (m_impl->lastStepDelta > 0.0f))
+        {
+            return 0.0f;
+        }
+        const float inverseStep = static_cast<float>(m_impl->collisionSteps.Get()) / m_impl->lastStepDelta;
+        const JPH::HingeConstraint& hinge = *static_cast<const JPH::HingeConstraint*>(slot->constraint.GetPtr());
+        const JPH::Vector<2> across = hinge.GetTotalLambdaRotation();
+        const float axial = hinge.GetTotalLambdaRotationLimits() + hinge.GetTotalLambdaMotor();
+        return std::sqrt(across[0] * across[0] + across[1] * across[1] + axial * axial) * inverseStep;
     }
 
     CharacterId World::CreateCharacter(const CharacterDef& def)

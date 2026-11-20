@@ -412,7 +412,7 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      - 남긴 것 `[열림]`: 레이어 충돌 삼각형에 열 머리글이 없어 칸이 어느 쌍인지는 툴팁으로만 안다. (확인 중 에디터가 한 번 꺼진 것은
        같은 때 사용자가 카메라를 더하고 픽셀 퍼펙트를 켜다 난 것으로, 물리와 무관하다.) 목록·구조체 안의
        오브젝트 참조는 붙여넣을 때 옮기지 않는다(맨 위 필드만). 한 방향 발판은 한 발판 안에서 조각을 건너갈 때 새 조각을 다시 잰다. 스크립트가
-       레이어를 이름으로 찾는 API(`LayerMask("Enemy")`)는 없다. 조인트는 끊어짐(break force)과 반작용 힘 읽기가 없다.
+       레이어를 이름으로 찾는 API(`LayerMask("Enemy")`)는 없다. ~~조인트는 끊어짐(break force)과 반작용 힘 읽기가 없다.~~ → D-437: 커널이 조인트의 힘·돌림힘을 읽고(`GetJointForce`·`GetJointTorque`), 컴포넌트에 `breakForce`·`breakTorque`, 스크립트에 `OnJointBreak` 가 있다.
    - ~~**9-4. CCD·솔버 병렬·질의 경계 거르기(D-234)**~~ → 2026-09-27 · `099af29`·`34fbc1b`·`74547b8`·`204594c`·`85298f2` ·
      `JBroPhysics2D/Source/World.cpp`(`ClampToFirstHit`·`coreExtent`·`ColorContacts`·`ForEachColor`·`PushVelocity`/`PushPosition`),
      `Physics2DSystem.cpp`(`ForEachQueryShape` 의 영역과 경계 원, `SweptArea`).

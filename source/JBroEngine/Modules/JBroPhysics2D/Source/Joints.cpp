@@ -219,6 +219,30 @@ namespace JBro::Physics2D
         return angleB - m_bodies[joint->bodyA].angle - joint->hinge.referenceAngle;
     }
 
+    Float World::GetJointForce(JointId id) const
+    {
+        const Joint* joint = FindJoint(id);
+        if (joint == nullptr)
+        {
+            return 0.0f;
+        }
+        if (joint->type == JointType::Hinge)
+        {
+            return Length(joint->linearImpulse) * m_jointInverseH;
+        }
+        return std::fabs(joint->impulse + joint->lowerImpulse + joint->upperImpulse) * m_jointInverseH;
+    }
+
+    Float World::GetJointTorque(JointId id) const
+    {
+        const Joint* joint = FindJoint(id);
+        if (joint == nullptr || joint->type != JointType::Hinge)
+        {
+            return 0.0f;
+        }
+        return std::fabs(joint->motorImpulse + joint->lowerImpulse - joint->upperImpulse) * m_jointInverseH;
+    }
+
     World::Joint* World::FindJoint(JointId id)
     {
         if (id.index >= m_joints.Size())
@@ -291,6 +315,7 @@ namespace JBro::Physics2D
 
     void World::PrepareJoints(Float h)
     {
+        m_jointInverseH = h > 0.0f ? Float(1.0f / h) : Float(0.0f);
         for (Joint& joint : m_joints)
         {
             if (false == joint.alive)

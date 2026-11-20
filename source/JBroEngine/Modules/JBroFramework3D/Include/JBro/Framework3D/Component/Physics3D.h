@@ -17,6 +17,7 @@
 #include <JBro/Types/Angle.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
+#include <limits>
 
 // 3D 물리 컴포넌트다(D-416, physics3d-plan §2.2). 필드 이름과 뜻은 2D 의 `Rigidbody2D`·`Collider2D` 를 따른다 - 축이 하나 늘어난 것만 다르다.
 // 시뮬레이션은 `System::Physics3DSystem` 이 Jolt 커널(`JBroPhysics3D`)로 돌린다.
@@ -201,6 +202,10 @@ namespace JBro::Component
         JBRO_FIELD(Float, dampingRatio, Range(0.0f, 1.0f)) = 0.0f;
         // 거짓이면 이은 두 오브젝트의 콜라이더가 서로 부딪히지 않는다.
         JBRO_FIELD(Bool, collideConnected) = false;
+        // 이 힘(N)이나 돌림힘(N·m)을 넘으면 조인트가 끊긴다(D-437, 유니티의 breakForce·breakTorque 와 같은 칸): 컴포넌트가 꺼지고
+        // 같은 오브젝트의 스크립트가 `OnJointBreak` 를 받는다. 기본은 무한이다(끊기지 않는다).
+        JBRO_FIELD(Float, breakForce) = std::numeric_limits<float>::infinity();
+        JBRO_FIELD(Float, breakTorque) = std::numeric_limits<float>::infinity();
     };
 
     // **경첩 조인트**(D-426, 2D 의 `HingeJoint2D` 에 축 하나를 더했다). 두 몸이 한 점을 함께 쓰고 axis(이 오브젝트 로컬) 둘레로만 돈다.
@@ -236,6 +241,10 @@ namespace JBro::Component
         JBRO_FIELD(Degree, motorSpeed) = 0.0f;
         JBRO_FIELD(Float, maxMotorTorque, Range(0.0f, 100000.0f)) = 1000.0f;
         JBRO_FIELD(Bool, collideConnected) = false;
+        // 이 힘(N)이나 돌림힘(N·m)을 넘으면 조인트가 끊긴다(D-437, 유니티의 breakForce·breakTorque 와 같은 칸): 컴포넌트가 꺼지고
+        // 같은 오브젝트의 스크립트가 `OnJointBreak` 를 받는다. 기본은 무한이다(끊기지 않는다).
+        JBRO_FIELD(Float, breakForce) = std::numeric_limits<float>::infinity();
+        JBRO_FIELD(Float, breakTorque) = std::numeric_limits<float>::infinity();
     };
 
     // **캐릭터 컨트롤러**(D-427, 유니티의 CharacterController 와 같은 자리·같은 칸 이름). 힘으로 움직이는 몸이 아니라, 스크립트가 `Move` 로 준 이동을

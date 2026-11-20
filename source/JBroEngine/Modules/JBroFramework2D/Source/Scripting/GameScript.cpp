@@ -26,6 +26,10 @@ namespace JBro
     {
     }
 
+    void GameScript2D::OnJointBreak(Float, Float)
+    {
+    }
+
     void GameScript2D::OnPointerEnter()
     {
     }

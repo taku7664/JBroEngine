@@ -6,6 +6,7 @@
 
 #include <type_traits>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 
 namespace JBro
 {
@@ -29,6 +30,9 @@ namespace JBro
         virtual void OnTriggerEnter(const Collision2D& hit);
         virtual void OnTriggerStay(const Collision2D& hit);
         virtual void OnTriggerExit(const Collision2D& hit);
+        // **이 오브젝트의 조인트가 끊겼다**(D-437). 거리·경첩 조인트가 지난 고정 스텝에 건 힘(N)이나 돌림힘(N·m)이 그 조인트의 `breakForce`·`breakTorque` 를
+        // 넘은 스텝 끝에, 충돌 훅 다음에 불린다. 조인트 컴포넌트는 이미 꺼져 있다. 끊긴 조인트마다 한 번이다.
+        virtual void OnJointBreak(Float force, Float torque);
 
         // **같은 오브젝트의 `Button2D` 가 부른다**(D-237). 입력 체인 안에서(고정 스텝·`OnUpdate` 보다 먼저) 불린다.
         // 들어옴·나감은 포인터가 그 버튼의 가장 위에 오고 갈 때, 누름·뗌은 그 버튼에서 누른 것에만, `OnClick` 은 버튼 위에서 누르고 뗐을 때다.

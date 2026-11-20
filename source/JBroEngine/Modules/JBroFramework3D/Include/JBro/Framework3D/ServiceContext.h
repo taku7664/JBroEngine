@@ -13,7 +13,8 @@ namespace JBro
     // 1: `Text3DService` 가 첫 서비스다.
     // 2: `DebugDraw3DService` 를 더했고(D-243) 공통 훅이 인자를 잃었다(D-242).
     // 4: `Physics3DService` 를 더했고 `GameScript3D` 가 충돌·트리거 훅 여섯을 얻었다(D-417).
-    inline constexpr UInt32 Framework3DServiceContextAbiVersion = 4;
+    // 5: `GameScript3D` 가 `OnJointBreak` 를 얻었다(D-437).
+    inline constexpr UInt32 Framework3DServiceContextAbiVersion = 5;
 
     // Non-owning value services. Kept outside Runtime's dimension-independent context.
     struct Framework3DServiceContext

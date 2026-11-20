@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -320,6 +321,10 @@ namespace JBro::System
             Vector3 normalB;
             Bool hinge = false;
             Bool seen = false;
+            // 끊는 힘(D-437, 2D 와 같다). 맞출 때마다 이번 프레임의 컴포넌트 자리와 값을 적고, 스텝 뒤에 커널이 잰 힘과 견준다.
+            ComponentBase* component = nullptr;
+            Float breakForce = std::numeric_limits<float>::infinity();
+            Float breakTorque = std::numeric_limits<float>::infinity();
         };
 
         // 캐릭터 컨트롤러 하나가 커널의 캐릭터 하나다(D-427).
@@ -351,6 +356,14 @@ namespace JBro::System
         UInt64 stamp = 0;
         // 훅을 부를 스크립트를 먼저 모으는 자리와 질의 결과를 받는 자리. 멤버로 두어 부를 때마다 할당하지 않는다.
         Array<GameScript3D*> hookTargets;
+        // 이번 스텝에 끊긴 조인트(D-437). 모은 뒤 끄고 훅을 부른다.
+        struct BrokenJoint
+        {
+            ComponentBase* component = nullptr;
+            Float force = 0.0f;
+            Float torque = 0.0f;
+        };
+        Array<BrokenJoint> brokenJoints;
         Array<Physics3D::QueryHit> queryHits;
         Array<UInt64> queryData;
         Table<InstanceId, Group> groups;
@@ -1083,6 +1096,22 @@ namespace JBro::System
                 });
         });
 
+        // 끊는 힘(D-437)은 스텝 뒤에 견준다. 이번 프레임의 컴포넌트 자리와 값을 연결에 적어 둔다.
+        const auto rememberBreak = [&state](ComponentBase& component, Float breakForce, Float breakTorque) {
+            if (State::JointLink* link = state.joints.Find(component.GetInstanceId()))
+            {
+                link->component = &component;
+                link->breakForce = breakForce;
+                link->breakTorque = breakTorque;
+            }
+        };
+        canvas.ForEach<Component::DistanceJoint3D>([&](Component::DistanceJoint3D& joint) {
+            rememberBreak(joint, joint.breakForce, joint.breakTorque);
+        });
+        canvas.ForEach<Component::HingeJoint3D>([&](Component::HingeJoint3D& joint) {
+            rememberBreak(joint, joint.breakForce, joint.breakTorque);
+        });
+
         state.removals.Clear();
         for (const auto& entry : state.joints)
         {
@@ -1247,6 +1276,60 @@ namespace JBro::System
         for (const InstanceId id : state.removals)
         {
             state.owners.Remove(id);
+        }
+
+        // ── 7. 끊긴 조인트(D-437, 2D 와 같은 차례) ─────────────────────────────────────
+        // 커널이 이번 스텝에 잰 힘·돌림힘이 컴포넌트의 breakForce·breakTorque 를 넘으면 컴포넌트를 끄고 커널의 조인트를 지운 뒤
+        // 그 오브젝트의 스크립트에 `OnJointBreak` 를 부른다. 다음 맞추기는 꺼진 조인트의 연결을 거둔다.
+        state.brokenJoints.Clear();
+        for (auto& entry : state.joints)
+        {
+            State::JointLink& link = entry.MappedValue;
+            if (link.component == nullptr || false == link.seen || false == world.IsValid(link.joint))
+            {
+                continue;
+            }
+            const Float force = world.GetJointForce(link.joint);
+            const Float torque = world.GetJointTorque(link.joint);
+            if (force > link.breakForce || torque > link.breakTorque)
+            {
+                state.brokenJoints.Add(State::BrokenJoint{link.component, force, torque});
+            }
+        }
+        if (state.brokenJoints.IsEmpty())
+        {
+            return;
+        }
+        // 훅이 오브젝트를 지워도 지나간 객체 위에서 다음 훅이 불리지 않게 발송 내내 파괴를 미룬다(§8).
+        Canvas::IterationGuard guard(canvas);
+        for (const State::BrokenJoint& broken : state.brokenJoints)
+        {
+            broken.component->SetEnabled(false);
+            if (State::JointLink* link = state.joints.Find(broken.component->GetInstanceId()))
+            {
+                world.DestroyJoint(link->joint);
+                link->joint = {};
+            }
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(*broken.component);
+            if (owner == nullptr || false == owner->IsActiveInHierarchy())
+            {
+                continue;
+            }
+            state.hookTargets.Clear();
+            for (const ScriptSlot& slot : owner->GetScripts())
+            {
+                GameScriptBase* script = slot.reference.TryGet();
+                if (script != nullptr && script->IsActiveScript())
+                {
+                    state.hookTargets.Add(static_cast<GameScript3D*>(script));
+                }
+            }
+            const Float force = broken.force;
+            const Float torque = broken.torque;
+            for (GameScript3D* script : state.hookTargets)
+            {
+                ScriptCallGuard::Call("OnJointBreak", [script, force, torque] { script->OnJointBreak(force, torque); });
+            }
         }
     }
 

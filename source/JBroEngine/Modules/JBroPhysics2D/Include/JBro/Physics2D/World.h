@@ -279,6 +279,10 @@ namespace JBro::Physics2D
         std::size_t GetJointCount() const;
         // 경첩의 지금 상대 각도(B - A - 기준 각)다.
         Float GetHingeAngle(JointId id) const;
+        // 조인트가 마지막 서브스텝에 두 몸 사이에 건 힘의 크기(N)와 돌림힘의 크기(N·m)다(D-437, 끊는 힘을 견준다).
+        // 쌓인 임펄스를 서브스텝 길이로 나눈다(Box2D 와 같다). 거리 조인트의 돌림힘은 0 이다. 없는 조인트와 아직 스텝을 돌지 않은 조인트는 0 이다.
+        Float GetJointForce(JointId id) const;
+        Float GetJointTorque(JointId id) const;
 
         // 마지막 Step 의 이벤트. 다음 Step 이 비운다.
         ArrayView<const ContactEvent> GetBeginEvents() const;
@@ -574,6 +578,8 @@ namespace JBro::Physics2D
         Array<Joint>         m_joints;
         Array<UInt32> m_freeJoints;
         Table<UInt64, UInt32> m_jointFilters;
+        // 마지막 서브스텝 길이의 역수(D-437). 조인트의 임펄스를 힘으로 바꾼다.
+        Float m_jointInverseH = 0.0f;
         // 월드에 거는 조인트의 상대다. 정적이고 질량이 없다.
         Body                 m_ground;
     };
