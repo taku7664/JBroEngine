@@ -149,11 +149,13 @@ namespace JBro
         m_scriptBlocks[1] = MakeFramework2DServiceContextBlock(m_scriptServices);
         // 오브젝트 서비스(D-301). 공통 시스템 컨텍스트의 이 모듈 사본에 꽂는다 - DLL 은 싣는 순간 이 컨텍스트를 받아 간다.
         m_objects.Bind(m_canvas.Get(), "Component::Transform2D");
+        m_viewports.Bind(m_canvas.Get());
         // 스크립트가 월드 레이어에 붙이는 위젯의 픽셀 기본값은 유닛으로 나눈다(D-355, 에디터의 D-354 와 같다).
         m_objects.SetWorldPixelsPerUnit(DefaultPixelsPerUnit);
         {
             SystemContext systems = GetSystemContext();
             systems.Objects = &m_objects;
+            systems.Viewports = &m_viewports;
             systems.PostProcess = &m_postProcessSystem;
             systems.Material = &m_materialSystem;
             BindSystemContext(systems);
@@ -182,6 +184,12 @@ namespace JBro
             systems.PostProcess = nullptr;
             BindSystemContext(systems);
         }
+        if (GetSystemContext().Viewports == &m_viewports)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.Viewports = nullptr;
+            BindSystemContext(systems);
+        }
         if (GetSystemContext().Material == &m_materialSystem)
         {
             SystemContext systems = GetSystemContext();
@@ -189,6 +197,7 @@ namespace JBro
             BindSystemContext(systems);
         }
         m_objects.Bind(nullptr, nullptr);
+        m_viewports.Bind(nullptr);
         if (m_canvas.Get() == nullptr)
         {
             return;
@@ -566,6 +575,15 @@ namespace JBro
             return;
         }
         ForEachReflectedInstance(*m_canvas, &CollectComponentAssetIdsVisitor, &ids);
+        // 뷰포트의 렌더 텍스처도 게임 빌드에 든다(D-438).
+        const Array<CanvasViewport>& viewports = m_canvas->GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        {
+            if (false == viewports[index].renderTextureId.IsNull())
+            {
+                ids.Add(viewports[index].renderTextureId);
+            }
+        }
     }
 
     void Framework2D::BindCanvasAssets()
@@ -577,6 +595,26 @@ namespace JBro
         m_context.assets->ReleaseAll(m_canvasAssets);
         std::pair<AssetSystem*, Array<AssetHandle>*> binding(m_context.assets, &m_canvasAssets);
         ForEachReflectedInstance(*m_canvas, &BindComponentAssetsVisitor, &binding);
+        // 뷰포트의 렌더 텍스처(D-438). 컴포넌트가 아니라 캔버스의 값이라 리플렉션 패스가 보지 않는다.
+        m_viewportTextures.Clear();
+        const Array<CanvasViewport>& viewports = m_canvas->GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        {
+            AssetHandle texture;
+            if (false == viewports[index].renderTextureId.IsNull())
+            {
+                texture = m_context.assets->Load(viewports[index].renderTextureId);
+                if (texture.generation != 0)
+                {
+                    m_canvasAssets.Add(texture);
+                }
+            }
+            m_viewportTextures.Add(texture);
+        }
+        if (System::Camera2DSystem* cameras = m_canvas->GetSystems().FindSystem<System::Camera2DSystem>())
+        {
+            cameras->SetViewportTextures(ArrayView<const AssetHandle>(m_viewportTextures.Data(), m_viewportTextures.Size()));
+        }
         m_context.assets->CollectUnused();
     }
 
@@ -588,6 +626,7 @@ namespace JBro
             m_context.assets->ReleaseAll(m_canvasAssets);
         }
         m_canvasAssets.Clear();
+        m_viewportTextures.Clear();
         UnbindScriptContexts();
         // 네트워크가 캔버스를 잊는다. 트랜스포트는 남는다 - 연결은 캔버스보다 오래 산다.
         if (m_context.network != nullptr)

@@ -1,5 +1,8 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Viewport.h>
+#include <JBro/Types/ArrayView.h>
+
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
@@ -23,7 +26,8 @@ namespace JBro
         class GameObject;
     }
 
-    // 이번 프레임에 뜬 주 카메라다. 행렬이 아니라 값이다 - 행렬은 브리지가 만든다(§2.2).
+    // **뷰 하나다**(D-438) - 캔버스의 뷰포트 하나를 그 카메라로 그린다. 행렬이 아니라 값이다 - 행렬은 브리지가 만든다(§2.2).
+    // 투영·지우기 색·후처리는 카메라에서, 사각형·지우기·레이어는 뷰포트에서 온다.
     struct RenderCamera3D
     {
         Object::GameObject* owner = nullptr;
@@ -37,6 +41,11 @@ namespace JBro
         Color clearColor{0.08f, 0.09f, 0.11f, 1.0f};
         // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld3D::SetPostProcess` 로 건다.
         AssetHandle postProcessProfile;
+        // 뷰포트(D-438): 대상 안의 사각형(왼쪽 위 원점, 0..1), 앞 뷰가 그린 대상에서 제 사각형을 칠하는가, 그릴 레이어 차례.
+        Vector2 viewportOrigin;
+        Vector2 viewportSize{ 1.0f, 1.0f };
+        Bool clearViewport = true;
+        ViewLayerMask layers;
     };
 
     struct MeshRenderItem
@@ -110,6 +119,33 @@ namespace JBro
         Bool ReserveMeshes(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera3D& camera);
+        // **이번 프레임에 그릴 뷰 모두**(D-438). 캔버스 뷰포트 목록의 차례다. 비어 있으면 브리지는 `GetCamera` 하나를 대상 전체에 그린다(카메라를 직접 건 시험).
+        void ClearCameras();
+        void AddCamera(const RenderCamera3D& camera);
+        ArrayView<const RenderCamera3D> GetCameras() const;
+        // **뷰마다의 후처리**(D-438). `GetCameras` 의 차례와 같다. 자리가 없는 뷰는 `GetPostProcess`(주 카메라의 것)다.
+        void SetCameraPostProcessCount(std::size_t count)
+        {
+            if (m_cameraPostProcess.Size() < count)
+            {
+                m_cameraPostProcess.Resize(count);
+            }
+            while (m_cameraPostProcess.Size() > count)
+            {
+                m_cameraPostProcess.RemoveAt(m_cameraPostProcess.Size() - 1);
+            }
+        }
+        void SetCameraPostProcess(std::size_t index, const PostProcessStack& stack)
+        {
+            if (index < m_cameraPostProcess.Size())
+            {
+                m_cameraPostProcess[index] = stack;
+            }
+        }
+        const PostProcessStack& GetCameraPostProcess(std::size_t index) const
+        {
+            return index < m_cameraPostProcess.Size() ? m_cameraPostProcess[index] : m_postProcess;
+        }
         // **이번 카메라의 후처리**(D-344). 프레임워크가 카메라의 프로필을 풀어 건다 - 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다.
         // `BeginFrame` 이 비우지 않는다: 멈춘 동안의 추출(중단점)에서도 지난 값이 그대로 산다.
         void SetPostProcess(const PostProcessStack& stack)
@@ -177,6 +213,8 @@ namespace JBro
 
     private:
         RenderCamera3D m_camera;
+        Array<RenderCamera3D> m_cameras;
+        Array<PostProcessStack> m_cameraPostProcess;
         PostProcessStack m_postProcess;
         Array<PostProcessStack> m_layerPostProcess;
         Bool m_hasCamera = false;

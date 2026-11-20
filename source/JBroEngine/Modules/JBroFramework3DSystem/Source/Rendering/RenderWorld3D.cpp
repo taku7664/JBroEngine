@@ -129,6 +129,22 @@ namespace JBro
         m_hasCamera = true;
     }
 
+    void RenderWorld3D::ClearCameras()
+    {
+        m_cameras.Clear();
+    }
+
+    void RenderWorld3D::AddCamera(const RenderCamera3D& camera)
+    {
+        // 들어온 차례가 그리는 차례다(D-438). 용량은 한 번 자라면 남는다.
+        m_cameras.Add(camera);
+    }
+
+    ArrayView<const RenderCamera3D> RenderWorld3D::GetCameras() const
+    {
+        return ArrayView<const RenderCamera3D>(m_cameras.Data(), m_cameras.Size());
+    }
+
     Bool RenderWorld3D::SubmitMesh(const MeshRenderItem& item)
     {
         // 용량은 초기화 때 렌더러의 한도로 잡았다. 넘치면 세기만 하고 버린다 -

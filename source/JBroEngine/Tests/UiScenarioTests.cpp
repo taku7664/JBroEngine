@@ -1921,18 +1921,24 @@ namespace
     {
         Stage stage;
         Canvas* canvas = stage.canvas;
-        const auto makeCamera = [&](const char* name, JBro::Float x, JBro::Float originX, JBro::Bool primary) {
+        // 화면의 절반은 캔버스의 뷰포트다(D-438).
+        Array<CanvasViewport> halves;
+        const auto makeCamera = [&](const char* name, JBro::Float x, JBro::Float originX) {
             Object::GameObject* object = canvas->CreateObject(name);
             canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
             auto* camera = canvas->AttachComponent<Component::Camera2D>(object);
-            camera->primary = primary;
             camera->orthographicSize = 50.0f;
-            camera->viewportOrigin = {originX, 0.0f};
-            camera->viewportSize = {0.5f, 1.0f};
+            CanvasViewport half;
+            half.name = name;
+            half.camera = object->GetInstanceId();
+            half.origin = {originX, 0.0f};
+            half.size = {0.5f, 1.0f};
+            halves.Add(half);
             return camera;
         };
-        auto* left = makeCamera("left", -10.0f, 0.0f, true);
-        makeCamera("right", 10.0f, 0.5f, false);
+        makeCamera("left", -10.0f, 0.0f);
+        makeCamera("right", 10.0f, 0.5f);
+        canvas->SetViewports(halves);
         Object::GameObject* world = canvas->CreateObject("world");
         canvas->AttachComponent<Component::Transform2D>(world)->position = {10.0f, 0.0f};
         auto* button = canvas->AttachComponent<Component::Button2D>(world);
@@ -1956,14 +1962,20 @@ namespace
         // 월드 → 픽셀은 주 카메라다.
         Vector2 pixel;
         Check(screen.LayerToScreen({-10.0f, 0.0f}, world->GetScriptHandle(), pixel) && CloseTo(pixel.x, 50.0f) && CloseTo(pixel.y, 50.0f),
-            "layer to screen goes through the primary camera's viewport");
-        // 겹치면 depth 가 큰 카메라가 받는다. 빈 뷰포트의 카메라는 없는 것이다.
-        left->viewportSize = {1.0f, 1.0f};
-        left->depth = 5;
+            "layer to screen goes through the main (first) viewport");
+        // 겹치면 목록에서 뒤의 뷰포트가 받는다(나중에 그려 위에 보인다). 빈 뷰포트는 없는 것이다.
+        {
+            Array<CanvasViewport> reordered;
+            CanvasViewport wide = *canvas->GetViewportAt(0);
+            wide.size = {1.0f, 1.0f};
+            reordered.Add(*canvas->GetViewportAt(1));
+            reordered.Add(wide);
+            canvas->SetViewports(reordered);
+        }
         stage.Frame({});
         Check(screen.ScreenToLayer({150.0f, 50.0f}, world->GetScriptHandle(), point) && CloseTo(point.x, 40.0f),
-            "a deeper full-screen camera takes the right half from the shallower one");
-        left->viewportSize = {0.0f, 1.0f};
+            "a later full-screen viewport takes the right half from the earlier one");
+        canvas->GetViewportAt(1)->size = {0.0f, 1.0f};
         stage.Frame({});
         Check(screen.ScreenToLayer({150.0f, 50.0f}, world->GetScriptHandle(), point) && CloseTo(point.x, 10.0f), "an empty viewport is skipped");
     }

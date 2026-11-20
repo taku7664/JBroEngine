@@ -2,6 +2,7 @@
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasObjectSystem.h>
+#include <JBro/Canvas/CanvasViewportSystem.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
@@ -75,6 +76,8 @@ namespace JBro
         void ApplySimulationEnabled(Bool enabled);
         // 카메라의 프로필과 볼륨·덮어쓰기를 섞고 레이어 프로필을 건다(D-344~D-346). 추출 뒤에 부른다.
         void ResolvePostProcess();
+        // 카메라 하나의 프로필에 그 자리의 볼륨을 섞고 덮어쓰기를 얹는다(D-346). `overridesFrom` 이 있으면 그 섞기의 덮어쓰기를 옮겨 온다(D-438, 둘째 뷰부터).
+        void MixPostProcessFor(const RenderCamera3D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom);
 
         FrameworkContext m_context;
         OwnerPtr<Canvas> m_canvas;
@@ -95,6 +98,9 @@ namespace JBro
         PostProcessLibrary m_postProcess;
         // 카메라의 프로필에 볼륨을 섞고 스크립트의 덮어쓰기를 얹는다(D-346). 2D 와 같다.
         PostProcessMixer m_postMixer;
+        // 둘째 뷰부터의 섞기(D-438, 3D 여러 뷰). 주 카메라는 `m_postMixer` 다. 자리는 처음에 `MaxCameraMixers` 만큼 잡는다.
+        Array<PostProcessMixer> m_cameraMixers;
+        static constexpr UInt32 MaxCameraMixers = 8;
         PostProcessSystem m_postProcessSystem;
         // 스크립트의 머티리얼 파라미터 덮어쓰기(D-348). `m_materials` 에 묶인다.
         MaterialSystem m_materialSystem;
@@ -121,6 +127,8 @@ namespace JBro
         UInt32 m_scriptBlockCount = 0;
         // 스크립트의 오브젝트 만들기·찾기가 이 캔버스에 닿는 길이다(D-301). 스크립트 컨텍스트와 같은 수명이다.
         CanvasObjectSystem m_objects;
+        // 스크립트의 뷰포트 서비스(D-438).
+        CanvasViewportSystem m_viewports;
     };
 
     IFramework* CreateFramework3D();

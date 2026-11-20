@@ -5,7 +5,12 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Editor/Command/CanvasCommands.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2DSystem/System/Camera2DSystem.h>
+#include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3DSystem/System/Camera3DSystem.h>
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
@@ -513,8 +518,7 @@ namespace JBro
         return true;
     }
 
-    // **캔버스 자신의 값**이다(D-186, 기존 `DrawCanvasInspector`). 지금은 배경색 하나다 -
-    // 기존 엔진에는 뷰포트 목록도 있었지만 우리에게는 뷰포트라는 것이 없다.
+    // **캔버스 자신의 값**이다(D-186, 기존 `DrawCanvasInspector`). 배경색과 뷰포트 목록(D-438)이다.
     void InspectorPanel::DrawCanvas()
     {
         Canvas* canvas = m_editor->GetCanvas();
@@ -540,6 +544,308 @@ namespace JBro
                         MakeOwnerPtr<SetCanvasBackgroundCommand>(*canvas, color));
                 }
             });
+        DrawCanvasViewports(*canvas);
+    }
+
+    void InspectorPanel::DrawCanvasViewports(Canvas& canvas)
+    {
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorCanvasViewports, "Viewports")).SpacingBefore().Draw();
+        const Bool is3D = m_editor->GetFrameworkKind() == FrameworkKind::Framework3D;
+
+        // 카메라 고르기의 목록: 맨 앞이 자동이고, 그 차원의 카메라를 단 오브젝트가 캔버스 차례로 온다.
+        m_objectNames.Clear();
+        m_objectIds.Clear();
+        m_objectNames.Add(String(Loc::TextOr(LocKeys::InspectorViewportCameraAuto, "Auto")));
+        m_objectIds.Add(InvalidInstanceId);
+        const auto addCamera = [&](Object::GameObject* owner) {
+            if (owner == nullptr)
+            {
+                return;
+            }
+            for (std::size_t at = 0; at < m_objectIds.Size(); ++at)
+            {
+                if (m_objectIds[at] == owner->GetInstanceId())
+                {
+                    return;
+                }
+            }
+            const char* name = owner->GetName();
+            m_objectNames.Add(String(name != nullptr ? name : ""));
+            m_objectIds.Add(owner->GetInstanceId());
+        };
+        if (is3D)
+        {
+            canvas.ForEach<Component::Camera3D>([&](Component::Camera3D& camera) { addCamera(Internal::CanvasAccess::GetOwner(camera)); });
+        }
+        else
+        {
+            canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera) { addCamera(Internal::CanvasAccess::GetOwner(camera)); });
+        }
+        m_objectNamePointers.Clear();
+        for (const String& name : m_objectNames)
+        {
+            m_objectNamePointers.Add(name.c_str());
+        }
+        const UInt32 activeCameras = is3D ? System::Camera3DSystem::CountActiveCameras(canvas) : System::Camera2DSystem::CountActiveCameras(canvas);
+
+        // 레이어 고르기는 레이어 차례의 앞 32 개다(`LayerMaskField` 의 비트). 모두 켜면 "모든 레이어" 로 비운다.
+        constexpr std::size_t MaskLayers = 32;
+        const char* layerNames[MaskLayers] = {};
+        LayerId layerIds[MaskLayers] = {};
+        const std::size_t layerCount = canvas.GetLayerCount() < MaskLayers ? canvas.GetLayerCount() : MaskLayers;
+        for (std::size_t at = 0; at < layerCount; ++at)
+        {
+            const Layer* layer = canvas.GetLayerAt(at);
+            layerNames[at] = layer != nullptr ? layer->GetName() : "";
+            layerIds[at] = layer != nullptr ? layer->GetId() : InvalidLayerId;
+        }
+        const UInt32 allLayers = layerCount >= MaskLayers ? 0xFFFFFFFFu : ((1u << layerCount) - 1u);
+        const AssetChoices& textures = ChoicesFor(AssetType::RenderTexture);
+
+        if (canvas.GetViewportCount() == 0)
+        {
+            Widget::ValidationMessage(Widget::Severity::Warning, Loc::TextOr(LocKeys::InspectorViewportNone, "there is no viewport, so the world is not drawn")).Draw();
+        }
+
+        // **편집은 목록 전체를 앞뒤로 뜬 커맨드 하나다**(§11.5). 한 프레임에 하나만 낸다 - 낸 뒤에는 목록이 바뀌었으므로 그리기를 멈춘다.
+        Array<CanvasViewport> edited;
+        UInt32 mergeKey = 0;
+        Bool changed = false;
+        for (std::size_t index = 0; index < canvas.GetViewportCount() && false == changed; ++index)
+        {
+            const CanvasViewport& viewport = *canvas.GetViewportAt(index);
+            Widget::IdScope scope(static_cast<JBro::Int32>(index));
+            char title[160] = {};
+            std::snprintf(title, sizeof(title), "%s###viewport", viewport.name.empty() ? "Viewport" : viewport.name.c_str());
+            if (false == Widget::CollapsingSection(title, true))
+            {
+                continue;
+            }
+            CanvasViewport next = viewport;
+            UInt32 key = 0;
+            // 표는 소멸자에서 닫힌다 - 경고와 단추는 표가 닫힌 뒤 패널 폭 전체에 그린다(안에 두면 값 칸에서 시작해 잘린다).
+            {
+                Widget::FormLayout layout("##viewport");
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportName, "Name")), [&]() {
+                    if (m_namedViewport != static_cast<JBro::Int32>(index) || false == m_viewportNameEditing)
+                    {
+                        m_namedViewport = static_cast<JBro::Int32>(index);
+                        m_viewportName = viewport.name;
+                    }
+                    const Bool finished = Widget::TextField("##viewportName", m_viewportName).CommitOnFinish().Draw();
+                    m_viewportNameEditing = ImGui::IsItemActive();
+                    if (finished && m_viewportName != viewport.name)
+                    {
+                        next.name = m_viewportName;
+                        changed = true;
+                    }
+                });
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportActive, "Active")), [&]() {
+                    Bool active = viewport.active;
+                    if (Widget::Checkbox("##viewportActive", active))
+                    {
+                        next.active = active;
+                        changed = true;
+                    }
+                });
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportCamera, "Camera"))
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorViewportCameraTooltip, "the camera this viewport draws with - Auto uses the first active camera")),
+                    [&]() {
+                        Int32 chosen = viewport.HasCamera() ? -1 : 0;
+                        for (std::size_t at = 1; at < m_objectIds.Size(); ++at)
+                        {
+                            if (m_objectIds[at] == viewport.camera)
+                            {
+                                chosen = static_cast<JBro::Int32>(at);
+                            }
+                        }
+                        UInt64 dropped = 0;
+                        if (Widget::ObjectField("##viewportCamera",
+                                ArrayView<const char* const>(m_objectNamePointers.Data(), m_objectNamePointers.Size()), chosen,
+                                Widget::DragKind::HierarchyObject, dropped))
+                        {
+                            if (dropped != 0)
+                            {
+                                Object::GameObject* object = m_editor->GetObjectIds().Resolve(static_cast<EditorObjectId>(dropped));
+                                if (object != nullptr)
+                                {
+                                    next.camera = object->GetInstanceId();
+                                    changed = true;
+                                }
+                            }
+                            else if (chosen >= 0 && static_cast<std::size_t>(chosen) < m_objectIds.Size())
+                            {
+                                next.camera = m_objectIds[static_cast<std::size_t>(chosen)];
+                                changed = true;
+                            }
+                        }
+                    });
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportOrigin, "Position"))
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorViewportOriginTooltip, "the top-left corner on the screen, as a 0 to 1 ratio")),
+                    [&]() {
+                        Float values[2] = {viewport.origin.x, viewport.origin.y};
+                        if (Widget::ScalarRunField("##viewportOrigin", values, 2, 0.005f, true, 0.0f, 1.0f))
+                        {
+                            next.origin = Vector2{values[0], values[1]};
+                            key = static_cast<JBro::UInt32>(index) * 8u + 1u;
+                            changed = true;
+                        }
+                    });
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportSize, "Size"))
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorViewportSizeTooltip, "the width and height on the screen, as a 0 to 1 ratio")),
+                    [&]() {
+                        Float values[2] = {viewport.size.x, viewport.size.y};
+                        if (Widget::ScalarRunField("##viewportSize", values, 2, 0.005f, true, 0.0f, 1.0f))
+                        {
+                            next.size = Vector2{values[0], values[1]};
+                            key = static_cast<JBro::UInt32>(index) * 8u + 2u;
+                            changed = true;
+                        }
+                    });
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportClear, "Clear Background"))
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorViewportClearTooltip,
+                            "fill this rectangle with the camera's clear colour before drawing over earlier viewports")),
+                    [&]() {
+                        Bool clear = viewport.clearViewport;
+                        if (Widget::Checkbox("##viewportClear", clear))
+                        {
+                            next.clearViewport = clear;
+                            changed = true;
+                        }
+                    });
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportRenderTexture, "Render Texture"))
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorViewportRenderTextureTooltip, "draw into this render texture instead of the screen")),
+                    [&]() {
+                        AssetId texture = viewport.renderTextureId;
+                        if (Widget::AssetField("##viewportRenderTexture",
+                                ArrayView<const char* const>(textures.namePointers.Data(), textures.namePointers.Size()),
+                                ArrayView<const AssetId>(textures.ids.Data(), textures.ids.Size()), texture)
+                                .Draw())
+                        {
+                            next.renderTextureId = texture;
+                            changed = true;
+                        }
+                    });
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorViewportLayers, "Layers"))
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorViewportLayersTooltip,
+                            "the world layers this viewport draws - screen layers are always drawn over the whole screen")),
+                    [&]() {
+                        UInt32 mask = 0;
+                        for (std::size_t at = 0; at < layerCount; ++at)
+                        {
+                            if (viewport.DrawsLayer(layerIds[at]))
+                            {
+                                mask |= (1u << at);
+                            }
+                        }
+                        if (Widget::LayerMaskField("##viewportLayers", ArrayView<const char* const>(layerNames, MaskLayers), mask))
+                        {
+                            next.layers.Clear();
+                            if ((mask & allLayers) != allLayers)
+                            {
+                                for (std::size_t at = 0; at < layerCount; ++at)
+                                {
+                                    if ((mask & (1u << at)) != 0)
+                                    {
+                                        next.layers.Add(layerIds[at]);
+                                    }
+                                }
+                                // 하나도 고르지 않았으면 "모든 레이어" 가 되지 않게 없는 번호를 남긴다 - 아무것도 그리지 않는다.
+                                if (next.layers.IsEmpty())
+                                {
+                                    next.layers.Add(InvalidLayerId);
+                                }
+                            }
+                            changed = true;
+                        }
+                    });
+            }
+
+            // 경고: 못 찾는 카메라, 자동인데 켜진 카메라가 여럿, 3D 의 렌더 텍스처.
+            if (viewport.HasCamera())
+            {
+                const Bool found = is3D ? System::Camera3DSystem::ResolveViewportCamera(canvas, viewport) != nullptr
+                                        : System::Camera2DSystem::ResolveViewportCamera(canvas, viewport) != nullptr;
+                if (false == found)
+                {
+                    Widget::ValidationMessage(Widget::Severity::Warning,
+                        Loc::TextOr(LocKeys::InspectorViewportUnresolved, "the camera object is gone or has no active camera, so this viewport draws nothing")).Draw();
+                }
+            }
+            else if (activeCameras > 1)
+            {
+                char ambiguous[256] = {};
+                std::snprintf(ambiguous, sizeof(ambiguous),
+                    Loc::TextOr(LocKeys::InspectorViewportAmbiguous, "%u cameras are active - Auto draws with the first one"), static_cast<unsigned>(activeCameras.Get()));
+                Widget::ValidationMessage(Widget::Severity::Warning, ambiguous).Draw();
+            }
+            if (is3D && false == viewport.renderTextureId.IsNull())
+            {
+                Widget::ValidationMessage(Widget::Severity::Warning,
+                    Loc::TextOr(LocKeys::InspectorViewportNoRenderTexture3D, "3D does not draw into render textures yet - this viewport is skipped")).Draw();
+            }
+
+            // 차례 바꾸기와 빼기. 목록 차례가 그리는 차례다.
+            const Bool first = index == 0;
+            const Bool last = index + 1 == canvas.GetViewportCount();
+            // 아이콘 단추 셋이다 - 좁은 인스펙터에서 글자 단추는 한 줄을 넘어 잘린다. 뜻은 툴팁이 말한다.
+            Int32 move = 0;
+            Bool remove = false;
+            if (Widget::IconButton("##viewportUp", Icons::ArrowUp)
+                    .Tooltip(Loc::TextOr(LocKeys::InspectorViewportMoveUp, "Move Up")).Disabled(first).Draw())
+            {
+                move = -1;
+            }
+            ImGui::SameLine();
+            if (Widget::IconButton("##viewportDown", Icons::ArrowDown)
+                    .Tooltip(Loc::TextOr(LocKeys::InspectorViewportMoveDown, "Move Down")).Disabled(last).Draw())
+            {
+                move = 1;
+            }
+            ImGui::SameLine();
+            if (Widget::IconButton("##viewportRemove", Icons::Delete)
+                    .Tooltip(Loc::TextOr(LocKeys::InspectorViewportRemove, "Remove")).Draw())
+            {
+                remove = true;
+            }
+
+            if (changed || move != 0 || remove)
+            {
+                edited = canvas.GetViewports();
+                if (remove)
+                {
+                    edited.RemoveAt(index);
+                }
+                else if (move != 0)
+                {
+                    const std::size_t other = move < 0 ? index - 1 : index + 1;
+                    const CanvasViewport swapped = edited[other];
+                    edited[other] = edited[index];
+                    edited[index] = swapped;
+                }
+                else
+                {
+                    edited[index] = next;
+                }
+                mergeKey = key;
+                changed = true;
+            }
+        }
+
+        if (false == changed && Widget::Button(Loc::TextOr(LocKeys::InspectorViewportAdd, "Add Viewport"), Icons::Plus))
+        {
+            edited = canvas.GetViewports();
+            CanvasViewport added = Canvas::MakeDefaultViewport();
+            char name[32] = {};
+            std::snprintf(name, sizeof(name), "Viewport %u", static_cast<unsigned>(edited.Size() + 1));
+            added.name = name;
+            edited.Add(added);
+            changed = true;
+        }
+        if (changed)
+        {
+            m_editor->GetCommands().Execute(MakeOwnerPtr<SetCanvasViewportsCommand>(canvas, edited, mergeKey));
+        }
     }
 
     // **레이어의 값**이다(D-279, 기존 `DrawSelectedLayerInspector`). 이름·표시·혼합 모드·불투명도·공간을 한 자리에서 고친다 -

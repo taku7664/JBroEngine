@@ -6,6 +6,8 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
+#include <JBro/Framework3DSystem/System/Camera3DSystem.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Types/Math3D.h>
 
@@ -87,22 +89,16 @@ namespace JBro::System
         }
         if (listener == nullptr)
         {
-            Bool primaryFound = false;
-            canvas.ForEach<Component::Camera3D>([&](Component::Camera3D& camera)
+            // 리스너가 없으면 **주 카메라** 자리에서 듣는다(D-438) - 화면에 그리는 첫 뷰포트의 카메라다. 전에는 `primary`, 없으면 첫 카메라였다.
+            RenderCamera3D main;
+            if (Camera3DSystem::SelectCamera(canvas, main) && main.owner != nullptr)
             {
-                if (primaryFound || false == camera.IsActiveComponent())
+                const Component::Transform3D* world = canvas.FindComponentRaw<Component::Transform3D>(main.owner);
+                if (world != nullptr && world->IsActiveComponent() && world->worldValid)
                 {
-                    return;
+                    listener = world;
                 }
-                if (const Component::Transform3D* world = WorldOf(canvas, camera))
-                {
-                    if (listener == nullptr || camera.primary)
-                    {
-                        listener = world;
-                        primaryFound = camera.primary;
-                    }
-                }
-            });
+            }
         }
         Float position[3] = {0.0f, 0.0f, 0.0f};
         Float forward[3] = {0.0f, 0.0f, -1.0f};

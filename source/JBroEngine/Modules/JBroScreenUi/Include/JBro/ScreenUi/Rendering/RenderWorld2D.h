@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/ScreenSpace.h>
+#include <JBro/Canvas/Viewport.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
@@ -23,6 +24,7 @@ namespace JBro
         class GameObject;
     }
 
+    // **뷰 하나다**(D-438) - 캔버스의 뷰포트 하나를 그 카메라로 그린다. 투영·지우기 색·후처리는 카메라에서, 사각형·지우기·렌더 텍스처·레이어는 뷰포트에서 온다.
     struct RenderCamera2D
     {
         Object::GameObject* owner            = nullptr;
@@ -37,12 +39,13 @@ namespace JBro
         AssetHandle postProcessProfile;
         // 카메라의 월드 위치다. 후처리 볼륨(D-346)의 무게를 이 자리에서 잰다.
         Vector2 position;
-        // 뷰포트(D-359): 대상 안의 사각형(왼쪽 위 원점, 0..1)과 그리는 차례다.
+        // 뷰포트(D-359, D-438): 대상 안의 사각형(왼쪽 위 원점, 0..1)이다. 그리는 차례는 목록 차례다.
         Vector2 viewportOrigin;
         Vector2 viewportSize{ 1.0f, 1.0f };
-        Int32 depth = 0;
         // 앞 뷰가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
         Bool clearViewport = true;
+        // 이 뷰가 그릴 월드 레이어의 차례(D-438). 거르지 않으면 모두다.
+        ViewLayerMask layers;
         // **렌더 텍스처**(D-362). 에셋이 있으면 이 카메라는 화면이 아니라 그 텍스처에 그린다 - 프레임워크가 `target`·`targetExtent` 를 채우고, 브리지는 화면의 카메라보다 먼저 그린다.
         // 그런 카메라는 주 카메라·포인터의 카메라가 아니다.
         AssetHandle renderTexture;
@@ -144,7 +147,7 @@ namespace JBro
         Bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
-        // **이번 프레임에 그릴 카메라 모두**(D-359, 분할 화면). `depth` 차례다. 비어 있으면 브리지는 `GetCamera` 하나를 그린다(카메라를 직접 건 시험).
+        // **이번 프레임에 그릴 뷰 모두**(D-359, D-438). 캔버스 뷰포트 목록의 차례다. 비어 있으면 브리지는 `GetCamera` 하나를 그린다(카메라를 직접 건 시험).
         void ClearCameras();
         void AddCamera(const RenderCamera2D& camera);
         ArrayView<const RenderCamera2D> GetCameras() const;

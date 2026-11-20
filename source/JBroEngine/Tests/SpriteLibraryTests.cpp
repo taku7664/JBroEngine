@@ -276,7 +276,6 @@ namespace
             JBro::Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
             JBro::Object::GameObject* heroObject = canvas->CreateObject("hero");

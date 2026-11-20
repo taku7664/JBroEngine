@@ -114,7 +114,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("Camera");
         canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
-        camera->primary = true;
         camera->orthographicSize = 5.0f;
         camera->clearColor = {0.12f, 0.14f, 0.20f, 1.0f};
 

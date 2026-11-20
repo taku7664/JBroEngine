@@ -128,24 +128,4 @@ namespace JBro::Handle
         }
         component->clearColor = value;
     }
-
-    Bool Camera3D::GetPrimary() const
-    {
-        const Component::Camera3D* component = Resolve("GetPrimary");
-        if (component == nullptr)
-        {
-            return {};
-        }
-        return component->primary;
-    }
-
-    void Camera3D::SetPrimary(Bool value)
-    {
-        Component::Camera3D* component = Resolve("SetPrimary");
-        if (component == nullptr)
-        {
-            return;
-        }
-        component->primary = value;
-    }
 }

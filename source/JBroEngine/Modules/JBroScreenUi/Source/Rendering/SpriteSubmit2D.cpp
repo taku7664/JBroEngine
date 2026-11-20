@@ -159,6 +159,10 @@ namespace JBro::Internal
             {
                 continue;
             }
+            if (rule.layers != nullptr && false == rule.layers->Draws(item.layerOrder))
+            {
+                continue;
+            }
             const PostProcessStack* layerPost =
                 rule.composite && rule.layerPostProcess ? &world.GetLayerPostProcess(item.layerOrder) : nullptr;
             const Bool needsComposite = rule.composite

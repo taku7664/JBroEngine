@@ -296,7 +296,6 @@ namespace
         auto* brokenCamera = canvas.AttachComponent<JBro::Component::Camera2D>(broken);
         auto* spareCamera = canvas.AttachComponent<JBro::Component::Camera2D>(spare);
         Check(brokenCamera != nullptr && spareCamera != nullptr, "both cameras attach");
-        brokenCamera->primary = true;
         brokenCamera->orthographicSize = 0.0f;
         spareCamera->orthographicSize = 3.0f;
         JBro::System::Transform2DSystem transforms;
@@ -306,7 +305,7 @@ namespace
         JBro::UInt32 unusable = 0;
         Check(JBro::System::Camera2DSystem::SelectCamera(canvas, chosen, &unusable) && chosen.owner == spare
                 && Close(chosen.orthographicSize, 3.0f),
-            "a primary camera that cannot draw is passed over for the next one");
+            "the automatic viewport passes over a camera that cannot draw for the next one");
         Check(unusable == 1, "and counted, so the simulation view can say why");
 
         spareCamera->SetEnabled(false);

@@ -58,4 +58,57 @@ namespace JBro
         m_after = static_cast<const SetCanvasBackgroundCommand&>(newer).m_after;
         return true;
     }
+
+    SetCanvasViewportsCommand::SetCanvasViewportsCommand(Canvas& canvas, const Array<CanvasViewport>& after, UInt32 mergeKey)
+        : m_canvas(&canvas)
+        , m_before(canvas.GetViewports())
+        , m_after(after)
+        , m_mergeKey(mergeKey)
+    {
+    }
+
+    const char* SetCanvasViewportsCommand::GetName() const
+    {
+        return "Set Canvas Viewports";
+    }
+
+    Bool SetCanvasViewportsCommand::Execute()
+    {
+        if (m_canvas == nullptr)
+        {
+            return false;
+        }
+        m_canvas->SetViewports(m_after);
+        return true;
+    }
+
+    void SetCanvasViewportsCommand::Undo()
+    {
+        if (m_canvas != nullptr)
+        {
+            m_canvas->SetViewports(m_before);
+        }
+    }
+
+    void SetCanvasViewportsCommand::Redo()
+    {
+        Execute();
+    }
+
+    Bool SetCanvasViewportsCommand::CanMerge(const EditorCommand& newer) const
+    {
+        const auto* other = dynamic_cast<const SetCanvasViewportsCommand*>(&newer);
+        return other != nullptr && other->m_canvas == m_canvas && m_mergeKey != 0 && other->m_mergeKey == m_mergeKey;
+    }
+
+    Bool SetCanvasViewportsCommand::TryMerge(const EditorCommand& newer)
+    {
+        if (false == CanMerge(newer))
+        {
+            return false;
+        }
+        // 되살릴 값은 끌기가 시작되기 전의 것이다. 나중 값만 흡수한다.
+        m_after = static_cast<const SetCanvasViewportsCommand&>(newer).m_after;
+        return true;
+    }
 }

@@ -3365,22 +3365,22 @@ namespace
             "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
-        camera->primary = true;
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle with a camera");
         }
         Check(editor.DidGameSubmitLastFrame(), "with one, the game draws");
 
-        // **`primary` 를 꺼도 살아 있으면 계속 그린다**(D-187). 지정이 없으면 첫 활성
-        // 카메라로 떨어진다 - 카메라가 있는데 검은 화면이 나오는 것이 그전의 문제였다.
-        camera->primary = false;
+        // **뷰포트가 카메라를 정하면 그 카메라로 그린다**(D-438). 자동(기본)은 첫 활성 카메라다 - 카메라가 있는데 검은 화면이
+        // 나오는 것이 D-187 전의 문제였다. 뷰포트가 이 카메라를 정해도 계속 그린다.
+        canvas->GetViewportAt(0)->camera = eye->GetInstanceId();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must settle with the camera no longer primary");
+            Check(editor.Tick(Frame), "the editor must settle with the viewport naming the camera");
         }
         Check(editor.DidGameSubmitLastFrame(),
-            "an active camera keeps drawing even when nothing is marked primary");
+            "a viewport that names the camera keeps drawing with it");
+        canvas->GetViewportAt(0)->camera = JBro::InvalidInstanceId;
 
         // 컴포넌트를 끄면 그제야 낼 것이 없다.
         camera->SetEnabled(false);
@@ -3418,7 +3418,6 @@ namespace
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
-        camera->primary = true;
         JBro::EditorPanel* game = editor.FindPanel("Simulation");
         Check(game != nullptr, "the simulation view is a default panel");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
@@ -3473,7 +3472,6 @@ namespace
             "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
-        camera->primary = true;
         // 이 테스트가 재는 것은 **시뮬레이션 뷰**의 opt-in 이다. 편집 화면은 자기 텍스처에
         // 따로 그려 뷰를 하나 더 내므로(D-130), 세는 것이 섞이지 않게 닫아 둔다.
         if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
@@ -6464,7 +6462,6 @@ namespace
             "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
-        camera->primary = true;
         // 창의 어느 색과도 겹치지 않는 색이다. 이 색이 화면에 있으면 게임 화면이
         // 텍스처를 거쳐 패널까지 온 것이다.
         camera->clearColor = {0.0f, 0.85f, 0.35f, 1.0f};
@@ -6903,7 +6900,6 @@ namespace
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
-        camera->primary = true;
         JBro::Object::GameObject* box = canvas->CreateObject("Box");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
         Check(transform != nullptr, "the box needs a transform for the gizmo to hold");
@@ -11931,7 +11927,6 @@ namespace
         JBro::Object::GameObject* eye = canvas->CreateObject("Camera");
         canvas->AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
-        camera->primary = true;
         JBro::Object::GameObject* field = canvas->CreateObject("Field");
         canvas->AttachComponent<JBro::Component::Transform2D>(field);
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(field);
@@ -12104,7 +12099,6 @@ namespace
             JBro::Object::GameObject* eye = canvas->CreateObject("Camera");
             canvas->AttachComponent<JBro::Component::Transform2D>(eye);
             camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
-            camera->primary = true;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
             const JBro::String created = editor.CreatePostProcessProfileAsset("");
             const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(created.c_str());
@@ -13545,6 +13539,45 @@ namespace
             Check(painted > 5000, "the canvas view must clear with the canvas's own colour");
         }
 
+        // ── 뷰포트 목록(D-438) ───────────────────────────
+        // 캔버스를 고르면 인스펙터가 배경색 아래에 뷰포트 절을 그린다. 편집은 목록 전체를 뜬 커맨드 하나이고, 사각형 끌기는 합친다.
+        Check(canvas->GetViewportCount() == 1 && false == canvas->GetViewportAt(0)->HasCamera(),
+            "a new canvas has its one automatic viewport");
+        editor.SetCanvasSelected(true);
+        {
+            JBro::Array<JBro::CanvasViewport> two = canvas->GetViewports();
+            JBro::CanvasViewport minimap = JBro::Canvas::MakeDefaultViewport();
+            minimap.name = "Minimap";
+            minimap.origin = {0.75f, 0.0f};
+            minimap.size = {0.25f, 0.25f};
+            minimap.camera = probe->GetInstanceId();
+            two.Add(minimap);
+            const std::size_t undoCount = editor.GetCommands().GetUndoCount();
+            editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetCanvasViewportsCommand>(*canvas, two));
+            Check(canvas->GetViewportCount() == 2 && editor.GetCommands().GetUndoCount() == undoCount + 1, "adding a viewport is one command");
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the inspector must draw both viewports, one naming a camera that is not there");
+            }
+            if (JBro::Renderer* renderer = editor.GetRenderer())
+            {
+                SaveScreenshot(*renderer, 1024, 768, "canvas_viewports");
+            }
+            JBro::Array<JBro::CanvasViewport> dragged = canvas->GetViewports();
+            dragged[1].size = {0.3f, 0.3f};
+            JBro::SetCanvasViewportsCommand drag(*canvas, dragged, 9);
+            Check(drag.Execute(), "the first drag step runs");
+            dragged[1].size = {0.35f, 0.35f};
+            const JBro::SetCanvasViewportsCommand later(*canvas, dragged, 9);
+            const JBro::SetCanvasViewportsCommand other(*canvas, dragged, 0);
+            Check(drag.CanMerge(later) && false == drag.CanMerge(other), "steps of one drag merge, a separate edit does not");
+            Check(drag.TryMerge(later) && drag.Execute() && std::fabs(canvas->GetViewportAt(1)->size.x - 0.35f) < 1e-5f, "and the merged command ends on the later size");
+            drag.Undo();
+            Check(std::fabs(canvas->GetViewportAt(1)->size.x - 0.25f) < 1e-5f, "while undo goes back to before the drag");
+            Check(editor.GetCommands().Undo() && canvas->GetViewportCount() == 1, "undo takes the added viewport away again");
+        }
+        editor.SetCanvasSelected(false);
+
         // ── 파일을 왕복한다 ──────────────────────────────
         canvas->SetBackgroundColor(JBro::Color{0.25f, 0.5f, 0.75f, 1.0f});
         JBro::String text;
@@ -14626,7 +14659,6 @@ namespace
         JBro::Object::GameObject* cameraObject = canvas->CreateObject("Camera");
         canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
-        camera->primary = true;
         camera->orthographicSize = 1.0f;
         JBro::Layer& props = canvas->CreateLayer("Props");
         const JBro::LayerId propsId = props.GetId();
@@ -15075,7 +15107,6 @@ namespace
         canvas->AttachComponent<JBro::Component::Transform2D>(eyeObject);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eyeObject);
         Check(camera != nullptr, "the probe camera must attach");
-        camera->primary = true;
         camera->clearColor = {0.05f, 0.05f, 0.05f, 1.0f};
         if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
         {
@@ -15397,7 +15428,6 @@ namespace
         JBro::Object::GameObject* eye = canvas->CreateObject("eye");
         canvas->AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
-        camera->primary = true;
         camera->orthographicSize = 5.0f;
         JBro::Layer& ui = canvas->CreateLayer("UI");
         const JBro::LayerId uiId = ui.GetId();
@@ -18503,7 +18533,6 @@ namespace
         Check(eyePlace != nullptr, "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the camera must attach");
-        camera->primary = true;
         camera->orthographicSize = 0.0f;
         JBro::Object::GameObject* chosen[] = {eye};
         editor.SelectObjects({chosen, 1});
@@ -20893,7 +20922,8 @@ namespace
         Check(camera != nullptr && cube != nullptr, "the new 3D canvas starts with a camera and a cube");
         auto* lens = canvas->FindComponentRaw<JBro::Component::Camera3D>(camera);
         auto* eye = canvas->FindComponentRaw<JBro::Component::Transform3D>(camera);
-        Check(lens != nullptr && lens->primary, "the camera is the primary 3D camera");
+        Check(lens != nullptr && canvas->GetViewportCount() == 1 && false == canvas->GetViewportAt(0)->HasCamera(),
+            "the camera draws through the canvas's one automatic viewport - there is no primary switch to forget (D-438)");
         Check(eye != nullptr && JBro::Length(eye->position) > 1.0f, "and stands away from the origin");
         // 카메라가 보는 쪽(-Z)이 원점의 큐브를 향한다.
         const JBro::Vector3 forward = JBro::Rotate(eye->rotation, JBro::Vector3{0.0f, 0.0f, -1.0f});
@@ -21083,7 +21113,6 @@ namespace
             transform->position = {0.0f, 5.0f, 8.0f};
             transform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-0.55f));
             auto* lens = canvas->AttachComponent<JBro::Component::Camera3D>(camera);
-            lens->primary = true;
         }
         // 어둑한 해와 환경광.
         JBro::Object::GameObject* sky = canvas->CreateObject("Sky");

@@ -297,7 +297,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         PlaceCube(canvas, "box", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.5f, 0.25f, 1.0f});
 
@@ -333,6 +332,79 @@ namespace
         stage.Close();
     }
 
+    // **3D 도 뷰포트마다 제 사각형에 그린다**(D-438). 왼쪽 절반은 카메라 A(검은 바탕)가 붉은 상자를, 오른쪽 절반은 카메라 B(초록 바탕)가
+    // 멀리 있는 푸른 상자를 본다. 둘째 뷰포트는 제 사각형을 제 바탕색으로 칠한다(렌더러는 대상을 첫 뷰에서만 지운다). 레이어 필터와 칠하기 끄기도 잰다.
+    template <typename TModule>
+    void TestViewportsSplitTheScreenIn3D()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; 3D viewports not verified" << std::endl;
+            return;
+        }
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+
+        JBro::Object::GameObject* eyeA = canvas.CreateObject("eyeA");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eyeA)->position = {0.0f, 0.0f, 3.0f};
+        canvas.AttachComponent<JBro::Component::Camera3D>(eyeA)->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* eyeB = canvas.CreateObject("eyeB");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eyeB)->position = {100.0f, 0.0f, 3.0f};
+        canvas.AttachComponent<JBro::Component::Camera3D>(eyeB)->clearColor = {0.0f, 1.0f, 0.0f, 1.0f};
+        PlaceCube(canvas, "red", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 1.0f});
+        JBro::Object::GameObject* blue = PlaceCube(canvas, "blue", {100.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f});
+        JBro::Layer& far = canvas.CreateLayer("Far");
+        Check(canvas.SetObjectLayer(blue, far.GetId()), "the blue cube goes on its own layer");
+        {
+            JBro::Array<JBro::CanvasViewport> halves;
+            JBro::CanvasViewport left;
+            left.camera = eyeA->GetInstanceId();
+            left.size = {0.5f, 1.0f};
+            JBro::CanvasViewport right;
+            right.camera = eyeB->GetInstanceId();
+            right.origin = {0.5f, 0.0f};
+            right.size = {0.5f, 1.0f};
+            halves.Add(left);
+            halves.Add(right);
+            canvas.SetViewports(halves);
+        }
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        stage.RenderOnce(framework, image, readback);
+        const Pixel leftMiddle = ReadPixel(image, readback.rowPitch, TargetWidth / 4, TargetHeight / 2);
+        const Pixel rightMiddle = ReadPixel(image, readback.rowPitch, TargetWidth * 3 / 4, TargetHeight / 2);
+        // 상자의 다른 두 채널은 주변광만큼(약 0.06) 남는다.
+        Check(leftMiddle.r > 0.5f && leftMiddle.b < 0.15f && leftMiddle.g < 0.15f, "the left half shows camera A's red cube");
+        Check(rightMiddle.b > 0.5f && rightMiddle.r < 0.15f && rightMiddle.g < 0.15f, "the right half shows camera B's blue cube, a hundred units away");
+        const Pixel leftCorner = ReadPixel(image, readback.rowPitch, 2, 2);
+        const Pixel rightCorner = ReadPixel(image, readback.rowPitch, TargetWidth - 3, 2);
+        Check(Near(leftCorner.g, 0.0f) && Near(leftCorner.r, 0.0f), "the left half keeps camera A's black clear");
+        Check(rightCorner.g > 0.9f && rightCorner.r < 0.05f, "the second viewport paints its rectangle with camera B's green clear");
+        Check(stage.renderer.GetLastFrameStats().viewCount >= 2, "two cameras, at least two views");
+
+        // 오른쪽 뷰포트가 기본 레이어만 그리면 "Far" 의 푸른 상자가 빠지고 초록 바탕이 보인다.
+        canvas.GetViewportAt(1)->layers.Add(canvas.GetDefaultLayer());
+        stage.RenderOnce(framework, image, readback);
+        const Pixel filtered = ReadPixel(image, readback.rowPitch, TargetWidth * 3 / 4, TargetHeight / 2);
+        Check(filtered.g > 0.9f && filtered.b < 0.05f, "a viewport's layer filter leaves the other layer's cube out");
+
+        // 칠하기를 끄면 둘째 뷰포트는 첫 뷰의 검은 바탕 위에 그린다.
+        canvas.GetViewportAt(1)->clearViewport = false;
+        stage.RenderOnce(framework, image, readback);
+        const Pixel unpainted = ReadPixel(image, readback.rowPitch, TargetWidth - 3, 2);
+        Check(Near(unpainted.g, 0.0f), "with its clear off the second viewport leaves the first view's clear");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        stage.Close();
+    }
+
     // **깊이 버퍼가 순서를 대신한다.** 가까운 붉은 상자를 먼저, 먼 초록 상자를 나중에 제출해도 가운데는
     // 붉어야 한다 - 깊이 없이는 나중에 그린 초록이 덮는다.
     template <typename TModule>
@@ -353,7 +425,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 4.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         // 가까운 것을 먼저 붙인다 - 추출 순서가 붙인 순서라 먼저 그려진다.
         PlaceCube(canvas, "near", {0.0f, 0.0f, 1.0f}, {0.6f, 0.6f, 0.6f}, {1.0f, 0.0f, 0.0f, 1.0f});
@@ -606,7 +677,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 4.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         PlaceCube(canvas, "near", {0.0f, 0.0f, 1.0f}, {0.6f, 0.6f, 0.6f}, {1.0f, 0.0f, 0.0f, 1.0f});
         JBro::Layer& top = canvas.CreateLayer("Top");
@@ -814,7 +884,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         PlaceCube(canvas, "box", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f, 1.0f});
 
@@ -921,7 +990,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         JBro::Object::GameObject* shape = canvas.CreateObject("shape");
         canvas.AttachComponent<JBro::Component::Transform3D>(shape);
@@ -1031,7 +1099,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         JBro::Object::GameObject* shard = canvas.CreateObject("shard");
         canvas.AttachComponent<JBro::Component::Transform3D>(shard);
@@ -1158,7 +1225,6 @@ namespace
         eyeTransform->position = {0.0f, 3.0f, 0.0f};
         eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         JBro::Object::GameObject* object = canvas.CreateObject("quad");
         // 사각형은 (0..1, 0, 0..1) 이라 가운데로 옮긴다.
@@ -1297,7 +1363,6 @@ namespace
             eyeTransform->position = {0.0f, 3.0f, 0.0f};
             eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
             auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-            camera->primary = true;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
             const auto place = [&](const char* name, JBro::AssetId mesh, JBro::Float x) {
                 JBro::Object::GameObject* object = canvas.CreateObject(name);
@@ -1613,7 +1678,6 @@ namespace
             eyeTransform->position = eyeAt;
             eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
             auto* camera = target.AttachComponent<JBro::Component::Camera3D>(eye);
-            camera->primary = true;
             camera->projection = JBro::Component::CameraProjection3D::Orthographic;
             camera->orthographicSize = 4.0f;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
@@ -1795,6 +1859,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestLayersStackAndBlendIn3D<JBro::D3D11RHIModule>());
     JBRO_CASE(TestLayersStackAndBlendIn3D<JBro::VulkanRHIModule>());
     JBRO_CASE(TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestViewportsSplitTheScreenIn3D<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestViewportsSplitTheScreenIn3D<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestViewportsSplitTheScreenIn3D<JBro::VulkanRHIModule>());
     JBRO_CASE(TestANearerCubeHidesAFartherOne<JBro::D3D12RHIModule>());
     JBRO_CASE(TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D11RHIModule>());
     JBRO_CASE(TestACubeIsDrawnWhereTheCameraLooks<JBro::VulkanRHIModule>());

@@ -568,7 +568,6 @@ namespace
         Object::GameObject* eye = canvas->CreateObject("eye");
         canvas->AttachComponent<Component::Transform2D>(eye);
         auto* camera = canvas->AttachComponent<Component::Camera2D>(eye);
-        camera->primary = true;
         camera->orthographicSize = 50.0f;
 
         Layer& hud = canvas->CreateLayer("HUD");

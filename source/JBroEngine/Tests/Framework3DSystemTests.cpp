@@ -177,10 +177,9 @@ namespace
         auto* firstCamera = canvas.AttachComponent<JBro::Component::Camera3D>(first);
         auto* secondCamera = canvas.AttachComponent<JBro::Component::Camera3D>(second);
         auto* eyelessCamera = canvas.AttachComponent<JBro::Component::Camera3D>(eyeless);
-        firstCamera->primary = true;
         firstCamera->verticalFieldOfView = 45.0f;
-        secondCamera->primary = true;
-        eyelessCamera->primary = true;
+        (void)secondCamera;
+        (void)eyelessCamera;
 
         JBro::System::Transform3DSystem transforms;
         JBro::System::Camera3DSystem cameras;
@@ -192,17 +191,49 @@ namespace
         cameras.Update(canvas, 1.0f / 60.0f);
 
         const JBro::RenderCamera3D* camera = world.GetCamera();
-        Check(camera != nullptr, "a primary camera must be extracted");
-        Check(camera->owner == first, "the first primary one met, not a later one");
+        // **`primary` 없이도 그린다**(D-438). 전에는 `primary` 를 켠 카메라가 없으면 3D 는 아무것도 그리지 않았다.
+        Check(camera != nullptr, "the default automatic viewport extracts a camera without any primary switch");
+        Check(camera->owner == first, "the first active one met, not a later one");
         Check(Near(camera->verticalFieldOfView, 45.0f), "carrying its values");
 
-        // 트랜스폼이 없는 카메라는 뜨지 않는다. 자리가 없다.
-        firstCamera->primary = false;
-        secondCamera->primary = false;
+        // 뷰포트가 정한 카메라로 그린다.
+        canvas.GetViewportAt(0)->camera = second->GetInstanceId();
         world.BeginFrame();
         transforms.Update(canvas, 1.0f / 60.0f);
         cameras.Update(canvas, 1.0f / 60.0f);
-        Check(world.GetCamera() == nullptr, "a primary camera with no transform has nowhere to be");
+        Check(world.GetCamera() != nullptr && world.GetCamera()->owner == second, "a viewport that names a camera draws with it");
+
+        // 트랜스폼이 없는 카메라는 뜨지 않는다. 자리가 없다.
+        canvas.GetViewportAt(0)->camera = eyeless->GetInstanceId();
+        world.BeginFrame();
+        transforms.Update(canvas, 1.0f / 60.0f);
+        cameras.Update(canvas, 1.0f / 60.0f);
+        Check(world.GetCamera() == nullptr && world.GetCameras().Size() == 0, "a named camera with no transform has nowhere to be");
+
+        // 3D 도 뷰포트마다 뷰다(D-438) - 목록 차례, 제 사각형.
+        {
+            JBro::Array<JBro::CanvasViewport> split;
+            JBro::CanvasViewport left;
+            left.camera = first->GetInstanceId();
+            left.size = {0.5f, 1.0f};
+            JBro::CanvasViewport right;
+            right.camera = second->GetInstanceId();
+            right.origin = {0.5f, 0.0f};
+            right.size = {0.5f, 1.0f};
+            split.Add(left);
+            split.Add(right);
+            canvas.SetViewports(split);
+        }
+        world.BeginFrame();
+        transforms.Update(canvas, 1.0f / 60.0f);
+        cameras.Update(canvas, 1.0f / 60.0f);
+        Check(world.GetCameras().Size() == 2 && world.GetCameras()[0].owner == first && world.GetCameras()[1].owner == second
+                && Near(world.GetCameras()[1].viewportOrigin.x, 0.5f),
+            "two 3D viewports make two views in list order");
+        canvas.SetViewports(JBro::Array<JBro::CanvasViewport>());
+        world.BeginFrame();
+        cameras.Update(canvas, 1.0f / 60.0f);
+        Check(world.GetCamera() == nullptr && world.GetCameras().Size() == 0, "with no viewport there is nothing to draw");
 
         // 브리지가 값에서 뷰·투영을 만든다.
         JBro::RenderCamera3D source;
@@ -322,7 +353,7 @@ namespace
         JBro::Object::GameObject* eye = canvas->CreateObject("eye");
         auto* eyeTransform = canvas->AttachComponent<JBro::Component::Transform3D>(eye);
         eyeTransform->position = {0.0f, 1.0f, 4.0f};
-        canvas->AttachComponent<JBro::Component::Camera3D>(eye)->primary = true;
+        canvas->AttachComponent<JBro::Component::Camera3D>(eye);
         JBro::Object::GameObject* box = canvas->CreateObject("box");
         canvas->AttachComponent<JBro::Component::Transform3D>(box);
         auto* boxMesh = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(box);

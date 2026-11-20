@@ -44,8 +44,7 @@ namespace JBro::Handle
         void SetFarPlane(Float value);
         Color GetClearColor() const;
         void SetClearColor(Color value);
-        Bool GetPrimary() const;
-        void SetPrimary(Bool value);
+        // 어느 카메라를 화면 어디에 그릴지는 캔버스의 뷰포트 목록이다(D-438) - 스크립트는 `GetServiceContext().Viewports` 로 바꾼다.
 
     private:
         Component::Camera3D* Resolve(const char* operation) const;

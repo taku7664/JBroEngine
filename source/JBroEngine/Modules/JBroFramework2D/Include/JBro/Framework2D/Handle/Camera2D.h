@@ -47,21 +47,7 @@ namespace JBro::Handle
         void SetFarPlane(Float value);
         Color GetClearColor() const;
         void SetClearColor(Color value);
-        Bool GetPrimary() const;
-        void SetPrimary(Bool value);
-        // 뷰포트(D-359): 대상 안의 사각형(왼쪽 위 원점, 0..1)과 그리는 차례다.
-        Vector2 GetViewportOrigin() const;
-        void SetViewportOrigin(Vector2 value);
-        Vector2 GetViewportSize() const;
-        void SetViewportSize(Vector2 value);
-        Int32 GetDepth() const;
-        void SetDepth(Int32 value);
-        // 앞 카메라가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
-        Bool GetClearViewport() const;
-        void SetClearViewport(Bool value);
-        // 그리는 렌더 텍스처(D-362)다. 이번 실행의 에셋 자리(`AssetHandle`)이고 비면 화면에 그린다.
-        AssetHandle GetRenderTexture() const;
-        void SetRenderTexture(AssetHandle value);
+        // 화면 어디에·어떤 레이어를·어떤 차례로 그릴지는 캔버스의 뷰포트 목록이다(D-438) - 스크립트는 `GetServiceContext().Viewports` 로 바꾼다.
 
     private:
         Component::Camera2D* Resolve(const char* operation) const;

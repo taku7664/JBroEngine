@@ -377,7 +377,7 @@ namespace JBro::Internal
         base.areaWidth = 0.0f;
         base.areaHeight = 0.0f;
         Bool worldSubmitted = false;
-        // **카메라마다 뷰 하나다**(D-359, 분할 화면). `depth` 차례이고 각자 제 뷰포트(와 그 안의 레터박스)에 그린다. 조명·그림자·패럴랙스는 그 뷰의 카메라로 다시 건다.
+        // **뷰포트마다 뷰 하나다**(D-359, D-438). 목록 차례이고 각자 제 뷰포트(와 그 안의 레터박스)에 그린다. 조명·그림자·패럴랙스는 그 뷰의 카메라로 다시 건다.
         // 디버그 선은 첫 뷰에만 그린다. 카메라가 없는 것은 오류가 아니다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
         const auto drawCamera = [&](const RenderCamera2D& camera, Bool first, std::size_t index) -> RenderResult
         {
@@ -424,6 +424,11 @@ namespace JBro::Internal
             if (toTexture)
             {
                 rule.excludeTexture = camera.targetSprite;
+            }
+            // 뷰포트의 레이어 필터(D-438). 거르지 않는 뷰는 마스크를 주지 않는다.
+            if (camera.layers.filtered)
+            {
+                rule.layers = &camera.layers;
             }
             const Bool accepted = PushSprites(world, renderer, false, rule);
             // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다. 렌더 텍스처에는 그리지 않는다.

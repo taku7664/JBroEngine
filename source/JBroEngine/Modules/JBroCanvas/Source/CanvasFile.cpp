@@ -16,6 +16,7 @@
 #include <JBro/Types/Uuid.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
@@ -204,9 +205,25 @@ namespace JBro
                 return Fail(error, "this type never registered its properties");
             }
             static const char* const formatKeys[] = { "Type", "IsEnabled" };
+            // **뷰포트 목록 전의 카메라 칸**(D-438). 그때의 카메라는 화면 배치를 들었고, 이 값들은 이제 캔버스의 뷰포트로 옮겨 읽는다
+            // (`MigrateLegacyViewports`). 그래서 컴포넌트에는 읽지 않고 건너뛴다 - 다른 지운 칸처럼 거절하면 카메라가 든 옛 캔버스가 모두 열리지 않는다.
+            static const char* const legacyCamera2DKeys[] = {
+                "Type", "IsEnabled", "primary", "viewportOrigin", "viewportSize", "depth", "clearViewport", "renderTextureId" };
+            static const char* const legacyCamera3DKeys[] = { "Type", "IsEnabled", "primary" };
+            const char* const* skip = formatKeys;
+            std::size_t skipCount = sizeof(formatKeys) / sizeof(formatKeys[0]);
+            if (typeId == MakeStableTypeId("Component::Camera2D"))
+            {
+                skip = legacyCamera2DKeys;
+                skipCount = sizeof(legacyCamera2DKeys) / sizeof(legacyCamera2DKeys[0]);
+            }
+            else if (typeId == MakeStableTypeId("Component::Camera3D"))
+            {
+                skip = legacyCamera3DKeys;
+                skipCount = sizeof(legacyCamera3DKeys) / sizeof(legacyCamera3DKeys[0]);
+            }
             ReflectedYamlError reflected;
-            if (false == ReadReflectedFields(document, saved, *table, instance,
-                formatKeys, sizeof(formatKeys) / sizeof(formatKeys[0]), reflected))
+            if (false == ReadReflectedFields(document, saved, *table, instance, skip, skipCount, reflected))
             {
                 return FailFrom(error, reflected);
             }
@@ -726,6 +743,257 @@ namespace JBro
             Table<InstanceId, Int64> fileIndexOf;
             Internal::ObjectRefRemap remap;
         };
+
+        // -------------------------------------------------------------------
+        // 뷰포트 목록(D-438, viewport-plan §4.2)
+        // -------------------------------------------------------------------
+
+        void WriteVector2Item(YamlWriter& writer, const char* key, const Vector2& value)
+        {
+            writer.BeginSequence(key);
+            writer.WriteFloatItem(value.x);
+            writer.WriteFloatItem(value.y);
+            writer.EndSequence();
+        }
+
+        Bool ReadFloatText(const char* text, Float& result)
+        {
+            if (text == nullptr || text[0] == '\0')
+            {
+                return false;
+            }
+            char* end = nullptr;
+            const float value = std::strtof(text, &end);
+            if (end == text)
+            {
+                return false;
+            }
+            result = value;
+            return true;
+        }
+
+        // `[x, y]` 를 읽는다. 없거나 모양이 다르면 거짓이고 `result` 는 그대로다.
+        Bool FindVector2(const YamlDocument& document, UInt32 node, const char* key, Vector2& result)
+        {
+            const UInt32 found = document.Find(node, key);
+            if (found == YamlDocument::InvalidNode || document.GetKind(found) != YamlKind::Sequence || document.GetCount(found) != 2)
+            {
+                return false;
+            }
+            Vector2 value;
+            if (false == ReadFloatText(document.GetText(document.GetElement(found, 0)), value.x)
+                || false == ReadFloatText(document.GetText(document.GetElement(found, 1)), value.y))
+            {
+                return false;
+            }
+            result = value;
+            return true;
+        }
+
+        // **카메라는 파일 안 차례로, 레이어는 파일의 레이어 `Id` 로 적는다**(D-438). 오브젝트 참조 칸과 같은 규칙이다 - 번호는 실행마다 다르다.
+        void WriteViewports(const Canvas& canvas, YamlWriter& writer, Table<InstanceId, Int64>& fileIndexOf)
+        {
+            writer.BeginSequence("Viewports");
+            for (std::size_t at = 0; at < canvas.GetViewportCount(); ++at)
+            {
+                const CanvasViewport& viewport = *canvas.GetViewportAt(at);
+                writer.BeginMap(nullptr);
+                writer.WriteString("Name", viewport.name.c_str());
+                writer.WriteBool("Active", viewport.active);
+                Int64 camera = -1;
+                if (viewport.HasCamera())
+                {
+                    const Int64* found = fileIndexOf.Find(viewport.camera);
+                    camera = found != nullptr ? *found : Int64(-1);
+                }
+                writer.WriteInt("Camera", camera);
+                WriteVector2Item(writer, "Origin", viewport.origin);
+                WriteVector2Item(writer, "Size", viewport.size);
+                if (false == viewport.layers.IsEmpty())
+                {
+                    writer.BeginSequence("Layers");
+                    for (std::size_t layer = 0; layer < viewport.layers.Size(); ++layer)
+                    {
+                        writer.WriteIntItem(static_cast<JBro::Int64>(viewport.layers[layer]));
+                    }
+                    writer.EndSequence();
+                }
+                writer.WriteBool("ClearViewport", viewport.clearViewport);
+                if (false == viewport.renderTextureId.IsNull())
+                {
+                    char id[Uuid::TextCapacity] = {};
+                    viewport.renderTextureId.ToText(id, sizeof(id));
+                    writer.WriteString("RenderTexture", id);
+                }
+                writer.EndMap();
+            }
+            writer.EndSequence();
+        }
+
+        Bool ReadViewports(Canvas& canvas, const YamlDocument& document, UInt32 node, const Array<Object::GameObject*>& created,
+            Table<UInt64, LayerId>& layerOf, CanvasFileError& error)
+        {
+            Array<CanvasViewport> viewports;
+            for (std::size_t at = 0; at < document.GetCount(node); ++at)
+            {
+                const UInt32 entry = document.GetElement(node, at);
+                CanvasViewport viewport;
+                document.FindScalar(entry, "Name", viewport.name);
+                document.FindBool(entry, "Active", viewport.active);
+                Int64 camera = -1;
+                document.FindInt(entry, "Camera", camera);
+                // 파일 밖을 가리키면 자동이다 - 손으로 고친 파일이 그 캔버스를 못 열게 하지 않는다.
+                if (camera >= 0 && static_cast<std::size_t>(camera) < created.Size())
+                {
+                    viewport.camera = created[static_cast<std::size_t>(camera)]->GetInstanceId();
+                }
+                FindVector2(document, entry, "Origin", viewport.origin);
+                FindVector2(document, entry, "Size", viewport.size);
+                const UInt32 layers = document.Find(entry, "Layers");
+                for (std::size_t layer = 0; layers != YamlDocument::InvalidNode && layer < document.GetCount(layers); ++layer)
+                {
+                    const char* text = document.GetText(document.GetElement(layers, layer));
+                    char* end = nullptr;
+                    const unsigned long long fileId = text != nullptr ? std::strtoull(text, &end, 10) : 0ull;
+                    const LayerId* mapped = (text != nullptr && end != text) ? layerOf.Find(static_cast<JBro::UInt64>(fileId)) : nullptr;
+                    if (mapped != nullptr)
+                    {
+                        viewport.layers.Add(*mapped);
+                    }
+                }
+                // 적힌 레이어가 모두 없는 것이면 "모든 레이어" 가 되지 않게 없는 번호 하나를 남긴다 - 아무것도 그리지 않는다.
+                if (layers != YamlDocument::InvalidNode && document.GetCount(layers) != 0 && viewport.layers.IsEmpty())
+                {
+                    viewport.layers.Add(InvalidLayerId);
+                }
+                document.FindBool(entry, "ClearViewport", viewport.clearViewport);
+                String texture;
+                if (document.FindScalar(entry, "RenderTexture", texture)
+                    && false == Uuid::Parse(texture.c_str(), texture.size(), viewport.renderTextureId))
+                {
+                    return Fail(error, "a viewport names a render texture that is not an asset id");
+                }
+                viewports.Add(std::move(viewport));
+            }
+            canvas.SetViewports(viewports);
+            return true;
+        }
+
+        // **`Viewports` 가 없는 옛 파일**은 카메라에 적혀 있던 값으로 목록을 만든다(D-438, viewport-plan §4.2).
+        // 그때는 카메라 컴포넌트가 `primary`·`viewportOrigin`·`viewportSize`·`depth`·`clearViewport`·`renderTextureId` 를 들었다.
+        //   2D: 켜진 카메라가 **모두** 제 사각형에 `depth` 차례로 그렸다(D-359) - 카메라마다 뷰포트 하나, 같은 차례로.
+        //   3D: `primary` 를 켠 첫 카메라 하나만 그렸다 - 그 카메라의 뷰포트 하나. 없으면 자동이다(이제는 그려진다).
+        // 2D 카메라가 하나뿐이고 대상 전체에 화면으로 그렸다면 자동 하나로 접는다. 카메라 타입은 이름으로 본다 - 캔버스 모듈은 프레임워크를 모른다.
+        void MigrateLegacyViewports(Canvas& canvas, const YamlDocument& document, UInt32 objects, const Array<Object::GameObject*>& created)
+        {
+            struct LegacyCamera
+            {
+                std::size_t object = 0;
+                Bool is3D = false;
+                Bool primary = false;
+                Vector2 origin{ 0.0f, 0.0f };
+                Vector2 size{ 1.0f, 1.0f };
+                Int64 depth = 0;
+                Bool clearViewport = true;
+                Uuid renderTexture;
+                String name;
+            };
+            Array<LegacyCamera> cameras;
+            for (std::size_t index = 0; objects != YamlDocument::InvalidNode && index < document.GetCount(objects) && index < created.Size(); ++index)
+            {
+                const UInt32 entry = document.GetElement(objects, index);
+                const UInt32 components = document.Find(entry, "Components");
+                for (std::size_t slot = 0; components != YamlDocument::InvalidNode && slot < document.GetCount(components); ++slot)
+                {
+                    const UInt32 saved = document.GetElement(components, slot);
+                    String typeName;
+                    if (false == document.FindScalar(saved, "Type", typeName))
+                    {
+                        continue;
+                    }
+                    const Bool is2D = std::strcmp(typeName.c_str(), "Component::Camera2D") == 0;
+                    const Bool is3D = std::strcmp(typeName.c_str(), "Component::Camera3D") == 0;
+                    if (false == is2D && false == is3D)
+                    {
+                        continue;
+                    }
+                    LegacyCamera camera;
+                    camera.object = index;
+                    camera.is3D = is3D;
+                    document.FindBool(saved, "primary", camera.primary);
+                    FindVector2(document, saved, "viewportOrigin", camera.origin);
+                    FindVector2(document, saved, "viewportSize", camera.size);
+                    document.FindInt(saved, "depth", camera.depth);
+                    document.FindBool(saved, "clearViewport", camera.clearViewport);
+                    String texture;
+                    if (document.FindScalar(saved, "renderTextureId", texture))
+                    {
+                        Uuid::Parse(texture.c_str(), texture.size(), camera.renderTexture);
+                    }
+                    document.FindScalar(entry, "Name", camera.name);
+                    cameras.Add(std::move(camera));
+                }
+            }
+
+            Array<const LegacyCamera*> twoD;
+            const LegacyCamera* primary3D = nullptr;
+            for (std::size_t at = 0; at < cameras.Size(); ++at)
+            {
+                if (cameras[at].is3D)
+                {
+                    if (primary3D == nullptr && cameras[at].primary)
+                    {
+                        primary3D = &cameras[at];
+                    }
+                    continue;
+                }
+                twoD.Add(&cameras[at]);
+            }
+            // `depth` 차례, 같으면 파일 차례(그때의 계층 차례)다 - 그린 차례를 그대로 둔다.
+            for (std::size_t at = 1; at < twoD.Size(); ++at)
+            {
+                const LegacyCamera* moving = twoD[at];
+                std::size_t place = at;
+                while (place > 0 && twoD[place - 1]->depth > moving->depth)
+                {
+                    twoD[place] = twoD[place - 1];
+                    --place;
+                }
+                twoD[place] = moving;
+            }
+            const auto wholeScreen = [](const LegacyCamera& camera) {
+                return camera.origin.x == 0.0f && camera.origin.y == 0.0f && camera.size.x == 1.0f && camera.size.y == 1.0f
+                    && camera.renderTexture.IsNull();
+            };
+            if (twoD.Size() == 1 && wholeScreen(*twoD[0]))
+            {
+                twoD.Clear();
+            }
+            Array<CanvasViewport> viewports;
+            const auto add = [&](const LegacyCamera& camera) {
+                CanvasViewport viewport;
+                viewport.name = camera.name.empty() ? String("Camera") : camera.name;
+                viewport.camera = created[camera.object]->GetInstanceId();
+                viewport.origin = camera.origin;
+                viewport.size = camera.size;
+                viewport.clearViewport = camera.clearViewport;
+                viewport.renderTextureId = camera.renderTexture;
+                viewports.Add(std::move(viewport));
+            };
+            for (std::size_t at = 0; at < twoD.Size(); ++at)
+            {
+                add(*twoD[at]);
+            }
+            if (primary3D != nullptr)
+            {
+                add(*primary3D);
+            }
+            if (viewports.IsEmpty())
+            {
+                viewports.Add(Canvas::MakeDefaultViewport());
+            }
+            canvas.SetViewports(viewports);
+        }
     }
 
     Bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error, CanvasWriteMode mode)
@@ -787,6 +1055,8 @@ namespace JBro
             writer.EndMap();
         }
         writer.EndSequence();
+
+        WriteViewports(canvas, writer, fileIndex.fileIndexOf);
 
         if (false == WriteObjects(canvas, writer, ordered, indexOf, mode, true, error))
         {
@@ -881,6 +1151,22 @@ namespace JBro
         if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error, scriptNotes))
         {
             return false;
+        }
+
+        // 뷰포트는 오브젝트 뒤다 - 카메라를 파일 안 차례로 가리킨다(D-438).
+        {
+            const UInt32 viewports = document.Find(root, "Viewports");
+            if (viewports != YamlDocument::InvalidNode)
+            {
+                if (false == ReadViewports(canvas, document, viewports, created, layerOf, error))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                MigrateLegacyViewports(canvas, document, document.Find(root, "Objects"), created);
+            }
         }
 
         // 모르는 컴포넌트가 들고 있는 파일 안 번호를 뒤에 풀 수 있게 이 파일의 차례를 캔버스에 둔다(D-300).

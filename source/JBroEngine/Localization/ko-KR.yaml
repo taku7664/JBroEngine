@@ -120,7 +120,7 @@ Entries:
   inspector.material_override_tooltip: "켜면 이 값을 머티리얼에 적습니다. 끄면 셰이더의 초기값을 씁니다"
   inspector.material_unreadable: "머티리얼을 읽지 못했습니다"
   inspector.render_texture_unreadable: "렌더 텍스처를 읽지 못했습니다"
-  inspector.render_texture_hint: "카메라의 renderTextureId 에 걸면 거기에 그리고, 스프라이트의 renderTextureId 에 걸면 그 그림을 보입니다"
+  inspector.render_texture_hint: "캔버스 뷰포트의 렌더 텍스처로 고르면 거기에 그리고, 스프라이트의 renderTextureId 에 걸면 그 그림을 보입니다"
   inspector.render_texture_width: width
   inspector.render_texture_height: height
   inspector.render_texture_filter: filter
@@ -151,7 +151,7 @@ Entries:
   simulation_view.no_canvas: 열린 캔버스가 없습니다
   simulation_view.no_camera: 카메라가 없습니다
   simulation_view.camera_unusable: Camera2D 값이 잘못되어 그릴 수 없습니다
-  simulation_view.camera_ambiguous: primary 카메라가 없어 첫 번째 활성 카메라로 그립니다
+  simulation_view.camera_ambiguous: 자동 뷰포트인데 켜진 카메라가 여럿이라 첫 번째 카메라로 그립니다
   hierarchy.no_project: 열린 프로젝트가 없습니다
   hierarchy.create_object: 오브젝트 추가
   hierarchy.create_child: 자식 오브젝트 추가
@@ -364,6 +364,30 @@ Entries:
   hierarchy.canvas_unsaved: 캔버스 (저장 안 됨)
   inspector.canvas_properties: 캔버스
   inspector.canvas_background: 배경색
+  inspector.canvas_viewports: 뷰포트
+  inspector.viewport_name: 이름
+  inspector.viewport_active: 사용
+  inspector.viewport_camera: 카메라
+  inspector.viewport_camera_tooltip: 이 뷰포트를 그리는 카메라입니다. 자동은 켜진 카메라 가운데 첫 번째를 씁니다
+  inspector.viewport_camera_auto: 자동
+  inspector.viewport_origin: 위치
+  inspector.viewport_origin_tooltip: 화면에서 왼쪽 위 모서리의 자리입니다(0~1 비율)
+  inspector.viewport_size: 크기
+  inspector.viewport_size_tooltip: 화면에서 차지하는 가로·세로입니다(0~1 비율)
+  inspector.viewport_clear: 바탕 칠하기
+  inspector.viewport_clear_tooltip: 앞 뷰포트가 그린 화면 위에 그리기 전에 이 영역을 카메라의 바탕색으로 칠합니다
+  inspector.viewport_render_texture: 렌더 텍스처
+  inspector.viewport_render_texture_tooltip: 화면 대신 이 렌더 텍스처에 그립니다
+  inspector.viewport_layers: 레이어
+  inspector.viewport_layers_tooltip: 이 뷰포트가 그릴 월드 레이어입니다. 화면 레이어는 늘 화면 전체에 그립니다
+  inspector.viewport_add: 뷰포트 추가
+  inspector.viewport_remove: 삭제
+  inspector.viewport_move_up: 위로 이동
+  inspector.viewport_move_down: 아래로 이동
+  inspector.viewport_unresolved: 카메라 오브젝트가 없거나 켜진 카메라가 없어 이 뷰포트는 그리지 않습니다
+  inspector.viewport_ambiguous: "켜진 카메라가 %u개라 자동은 첫 번째 카메라로 그립니다"
+  inspector.viewport_none: 뷰포트가 없어 월드를 그리지 않습니다
+  inspector.viewport_render_texture_3d: 3D 는 아직 렌더 텍스처에 그리지 않습니다. 이 뷰포트는 건너뜁니다
   inspector.layer_properties: 레이어
   inspector.layer_visible: 표시
   inspector.layer_blend: 혼합 모드

@@ -211,7 +211,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
-        camera->primary = true;
         camera->orthographicSize = 4.0f;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
@@ -312,7 +311,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
-        camera->primary = true;
         camera->orthographicSize = 4.0f;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         MakeSprite(canvas, "ground", 0.0f, 0.0f, 20.0f, 8.0f);

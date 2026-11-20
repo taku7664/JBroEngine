@@ -278,6 +278,18 @@ namespace
             "  - Id: 0\n"
             "    Name: Default\n"
             "    Visible: true\n"
+            // 뷰포트 목록이다(D-438). 새 캔버스는 기본 하나 - 카메라 -1 은 자동이다.
+            "Viewports:\n"
+            "  - Name: Main\n"
+            "    Active: true\n"
+            "    Camera: -1\n"
+            "    Origin:\n"
+            "      - 0\n"
+            "      - 0\n"
+            "    Size:\n"
+            "      - 1\n"
+            "      - 1\n"
+            "    ClearViewport: true\n"
             "Objects:\n"
             "  - Name: Player\n"
             "    Active: true\n"
@@ -706,7 +718,21 @@ namespace
             camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
             camera->orthographicSize = 12.5f;
             camera->clearColor = { 0.25f, 0.5f, 0.75f, 1.0f };
-            camera->primary = true;
+
+            // **뷰포트 목록도 돌아온다**(D-438). 카메라는 파일 안 차례로, 레이어는 파일의 레이어 번호로 적힌다.
+            JBro::CanvasViewport right;
+            right.name = "Right";
+            right.active = false;
+            right.camera = object->GetInstanceId();
+            right.origin = { 0.5f, 0.25f };
+            right.size = { 0.5f, 0.75f };
+            right.clearViewport = false;
+            right.layers.Add(canvas.GetDefaultLayer());
+            right.renderTextureId = JBro::Uuid{ 7ull, 9ull };
+            JBro::Array<JBro::CanvasViewport> viewports;
+            viewports.Add(JBro::Canvas::MakeDefaultViewport());
+            viewports.Add(right);
+            canvas.SetViewports(viewports);
 
             auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
             sprite->spriteId = JBro::Uuid{1234567890123456789ull, 0xFEDCBA9876543210ull};
@@ -744,7 +770,18 @@ namespace
         Check(camera->clearColor.R == 0.25f && camera->clearColor.G == 0.5f
             && camera->clearColor.B == 0.75f && camera->clearColor.A == 1.0f,
             "every channel of a color must land on its own channel");
-        Check(camera->primary, "a bool must come back");
+        Check(reopened.GetViewportCount() == 2, "both viewports come back");
+        const JBro::CanvasViewport& main = *reopened.GetViewportAt(0);
+        const JBro::CanvasViewport& right = *reopened.GetViewportAt(1);
+        Check(std::strcmp(main.name.c_str(), "Main") == 0 && main.active && false == main.HasCamera() && main.layers.IsEmpty(),
+            "the default viewport comes back automatic, drawing every layer");
+        Check(std::strcmp(right.name.c_str(), "Right") == 0 && false == right.active && right.camera == object->GetInstanceId(),
+            "the named camera comes back as the reopened object's number");
+        Check(right.origin.x == 0.5f && right.origin.y == 0.25f && right.size.x == 0.5f && right.size.y == 0.75f,
+            "the rectangle comes back exactly");
+        Check(false == right.clearViewport && right.layers.Size() == 1 && right.layers[0] == reopened.GetDefaultLayer(),
+            "a bool and the layer filter come back, the layer mapped to the reopened canvas's id");
+        Check(right.renderTextureId == (JBro::Uuid{ 7ull, 9ull }), "the render texture id comes back");
 
         auto* sprite = reopened.FindComponentRaw<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the sprite renderer must be attached by name");
@@ -1848,8 +1885,101 @@ namespace
     }
 }
 
+namespace
+{
+    // **뷰포트 목록 전의 파일은 카메라의 칸으로 목록을 만든다**(D-438, viewport-plan §4.2). 그때 카메라에 적힌 `primary`·`viewportOrigin`·`viewportSize`·
+    // `depth`·`clearViewport`·`renderTextureId` 를 지우면 그 파일이 "엔진이 모르는 칸" 으로 열리지 않으므로, 읽을 때 건너뛰고 뷰포트로 옮긴다.
+    // 2D 는 켜진 카메라가 모두 제 사각형에 `depth` 차례로 그렸다 - 카메라마다 뷰포트 하나, 같은 차례.
+    void TestOldCameraFieldsBecomeViewports()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            for (const char* name : { "Left", "Right" })
+            {
+                JBro::Object::GameObject* object = canvas.CreateObject(name);
+                canvas.AttachComponent<JBro::Component::Transform2D>(object);
+                canvas.AttachComponent<JBro::Component::Camera2D>(object);
+            }
+            text = Save(canvas);
+        }
+        // 지금 판의 파일에서 뷰포트를 빼고, 카메라마다 옛 칸을 끼운다. 오른쪽이 `depth` 가 작아 먼저 그렸다.
+        std::string legacy(text.c_str());
+        const std::size_t viewports = legacy.find("Viewports:");
+        const std::size_t objects = legacy.find("Objects:");
+        Check(viewports != std::string::npos && objects != std::string::npos && viewports < objects, "the file lists viewports before objects");
+        legacy.erase(viewports, objects - viewports);
+        // 그때의 작성기는 벡터를 줄마다 `- 값` 으로 적었다. 줄 앞의 빈칸은 컴포넌트 칸의 들여쓰기에 더한다.
+        const char* const extras[] = {
+            "primary: true\n"
+            "viewportOrigin:\n  - 0\n  - 0\n"
+            "viewportSize:\n  - 0.5\n  - 1\n"
+            "depth: 3\n"
+            "clearViewport: true\n",
+            "primary: false\n"
+            "viewportOrigin:\n  - 0.5\n  - 0\n"
+            "viewportSize:\n  - 0.5\n  - 1\n"
+            "depth: -1\n"
+            "clearViewport: false\n" };
+        std::size_t at = 0;
+        for (const char* extra : extras)
+        {
+            at = legacy.find("Type: Component::Camera2D", at);
+            Check(at != std::string::npos, "each camera is in the file");
+            const std::size_t lineEnd = legacy.find('\n', at) + 1;
+            const std::size_t indent = at - legacy.rfind('\n', at) - 1;
+            std::string spaced;
+            const std::string block(extra);
+            std::size_t from = 0;
+            while (from < block.size())
+            {
+                const std::size_t next = block.find('\n', from) + 1;
+                spaced += std::string(indent, ' ') + block.substr(from, next - from);
+                from = next;
+            }
+            legacy.insert(lineEnd, spaced);
+            at = lineEnd + spaced.size();
+        }
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, JBro::String(legacy.c_str()));
+        JBro::Object::GameObject* left = nullptr;
+        JBro::Object::GameObject* right = nullptr;
+        reopened.ForEachObject([&](JBro::Object::GameObject& object) {
+            (std::strcmp(object.GetName(), "Left") == 0 ? left : right) = &object;
+        });
+        Check(left != nullptr && right != nullptr, "an old file with the camera's screen fields still opens");
+        Check(reopened.GetViewportCount() == 2, "every camera becomes a viewport");
+        const JBro::CanvasViewport& first = *reopened.GetViewportAt(0);
+        const JBro::CanvasViewport& second = *reopened.GetViewportAt(1);
+        Check(first.camera == right->GetInstanceId() && second.camera == left->GetInstanceId(),
+            "in the order they were drawn - the smaller depth first");
+        Check(first.origin.x == 0.5f && first.size.x == 0.5f && false == first.clearViewport,
+            "each carries its camera's rectangle and clear switch");
+        Check(second.origin.x == 0.0f && second.size.x == 0.5f && second.clearViewport, "the other one too");
+
+        // 카메라 하나가 대상 전체에 그렸다면 자동 뷰포트 하나다.
+        {
+            JBro::Canvas single(JBro::CreateDefaultAllocator());
+            JBro::Object::GameObject* object = single.CreateObject("Eye");
+            single.AttachComponent<JBro::Component::Transform2D>(object);
+            single.AttachComponent<JBro::Component::Camera2D>(object);
+            std::string one(Save(single).c_str());
+            const std::size_t from = one.find("Viewports:");
+            one.erase(from, one.find("Objects:") - from);
+            JBro::Canvas back(JBro::CreateDefaultAllocator());
+            LoadOrFail(back, JBro::String(one.c_str()));
+            Check(back.GetViewportCount() == 1 && false == back.GetViewportAt(0)->HasCamera(),
+                "a single full-screen camera folds into one automatic viewport");
+        }
+    }
+}
+
 JBro::Int32 RunCanvasFileTests()
 {
+    JBRO_CASE(TestOldCameraFieldsBecomeViewports());
     JBRO_CASE(TestATagIsSavedOnlyWhenSet());
     JBRO_CASE(TestACanvasWithOneObjectSaves());
     JBRO_CASE(TestWhatIsNotSavedStaysOut());

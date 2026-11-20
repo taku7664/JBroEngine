@@ -6,6 +6,7 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 
 #include <cmath>
@@ -84,22 +85,14 @@ namespace JBro::System
         }
         if (false == found)
         {
-            Bool primaryFound = false;
-            canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera)
+            // 리스너가 없으면 **주 카메라** 자리에서 듣는다(D-438) - 화면에 그리는 첫 뷰포트의 카메라다. 전에는 `primary`, 없으면 첫 카메라였다.
+            RenderCamera2D main;
+            if (Camera2DSystem::SelectCamera(canvas, main))
             {
-                if (primaryFound || false == camera.IsActiveComponent())
-                {
-                    return;
-                }
-                Float position[3];
-                if (WorldPositionOf(canvas, camera, position) && (false == found || camera.primary))
-                {
-                    listener[0] = position[0];
-                    listener[1] = position[1];
-                    found = true;
-                    primaryFound = camera.primary;
-                }
-            });
+                listener[0] = main.position.x;
+                listener[1] = main.position.y;
+                found = true;
+            }
         }
         // 2D 는 화면을 보는 쪽(-Z)이 앞이고 +Y 가 위다. 소스는 `panDistance` 깊이 앞에 놓인다(`AudioSystem::SetListener`).
         const Float forward[3] = {0.0f, 0.0f, -1.0f};

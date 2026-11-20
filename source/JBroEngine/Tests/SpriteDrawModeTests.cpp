@@ -330,7 +330,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
             Layer& ui = canvas->CreateLayer("UI");
@@ -440,19 +439,25 @@ namespace
             screen.targetHeight = 64.0f;
             framework.SetScreenSpace(screen);
             Canvas* canvas = framework.GetCanvas();
-            const auto makeCamera = [&](const char* name, JBro::Float x, JBro::Float originX, JBro::Bool primary) {
+            // **카메라는 눈이고, 화면의 절반은 캔버스의 뷰포트다**(D-438).
+            Array<CanvasViewport> halves;
+            const auto makeCamera = [&](const char* name, JBro::Float x, JBro::Float originX) {
                 Object::GameObject* object = canvas->CreateObject(name);
                 canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
                 auto* camera = canvas->AttachComponent<Component::Camera2D>(object);
-                camera->primary = primary;
                 camera->orthographicSize = 1.0f;
                 camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-                camera->viewportOrigin = {originX, 0.0f};
-                camera->viewportSize = {0.5f, 1.0f};
+                CanvasViewport half;
+                half.name = name;
+                half.camera = object->GetInstanceId();
+                half.origin = {originX, 0.0f};
+                half.size = {0.5f, 1.0f};
+                halves.Add(half);
                 return camera;
             };
-            makeCamera("left", -10.0f, 0.0f, true);
-            auto* rightCamera = makeCamera("right", 10.0f, 0.5f, false);
+            makeCamera("left", -10.0f, 0.0f);
+            auto* rightCamera = makeCamera("right", 10.0f, 0.5f);
+            canvas->SetViewports(halves);
             // 오른쪽 카메라만 노출 -2.2 의 프로필(D-361). 파일을 쓰고 다시 스캔해 번호를 받는다.
             {
                 PostProcessProfileDocument document;
@@ -519,13 +524,24 @@ namespace
             Check(gpu.Is(16, 4, 0, 0, 0) && gpu.Is(16, 32, 51, 0, 0), "the first camera's half keeps its own clear colour and square");
             Check(gpu.Is(48, 32, 0, 0, 26), "the square still draws over the fill and the fill takes no light");
             Check(gpu.Is(60, 4, 255, 255, 255), "the screen layer stays on top");
-            rightCamera->clearViewport = false;
+            canvas->GetViewportAt(1)->clearViewport = false;
             gpu.Paint(framework);
             Check(gpu.Is(48, 60, 0, 0, 0), "with clearViewport off the second camera draws over the first view's clear");
             Check(gpu.Is(16, 4, 0, 0, 0) && gpu.Is(48, 60, 0, 0, 0), "away from the squares both halves are clear colour");
             // 화면 레이어는 대상 전체이고 빛을 받지 않는다 - 오른쪽 위 8 x 8 이 희다.
             Check(gpu.Is(60, 4, 255, 255, 255) && gpu.Is(57, 7, 255, 255, 255), "the screen-layer square (x 56..63, y 0..7) stays white over the lit world");
             Check(gpu.Is(53, 11, 0, 0, 0) && gpu.Is(50, 14, 0, 0, 0), "just outside it the clear colour shows");
+            // **뷰포트의 레이어 필터**(D-438). 왼쪽 뷰포트가 빈 월드 레이어만 그리면 빨강 사각형(기본 레이어)이 빠진다. 화면 레이어는 그대로다.
+            Layer& empty = canvas->CreateLayer("Empty");
+            canvas->GetViewportAt(0)->layers.Add(empty.GetId());
+            gpu.Paint(framework);
+            Check(gpu.Is(16, 32, 0, 0, 0), "a viewport that draws only another layer leaves the default layer's square out");
+            Check(gpu.Is(48, 32, 0, 0, 26), "the other viewport still draws every layer");
+            Check(gpu.Is(60, 4, 255, 255, 255), "and the screen layer is drawn whatever the filter");
+            canvas->GetViewportAt(0)->layers.Clear();
+            canvas->GetViewportAt(0)->layers.Add(canvas->GetDefaultLayer());
+            gpu.Paint(framework);
+            Check(gpu.Is(16, 32, 51, 0, 0), "naming the default layer brings the square back");
             framework.Shutdown();
         }
         gpu.Close();
@@ -613,10 +629,22 @@ namespace
             Object::GameObject* minimapObject = canvas->CreateObject("minimap camera");
             canvas->AttachComponent<Component::Transform2D>(minimapObject)->position = {100.0f, 0.0f};
             auto* minimapCamera = canvas->AttachComponent<Component::Camera2D>(minimapObject);
-            minimapCamera->primary = true;
             minimapCamera->orthographicSize = 1.0f;
             minimapCamera->clearColor = {0.0f, 1.0f, 0.0f, 1.0f};
-            minimapCamera->renderTextureId = targetId;
+            // 미니맵은 렌더 텍스처에 그리는 뷰포트다(D-438). 화면의 뷰포트는 주 카메라를 정한다.
+            {
+                Array<CanvasViewport> viewports;
+                CanvasViewport screenView;
+                screenView.name = "Main";
+                screenView.camera = mainObject->GetInstanceId();
+                CanvasViewport minimapView;
+                minimapView.name = "Minimap";
+                minimapView.camera = minimapObject->GetInstanceId();
+                minimapView.renderTextureId = targetId;
+                viewports.Add(minimapView);
+                viewports.Add(screenView);
+                canvas->SetViewports(viewports);
+            }
             Object::GameObject* square = canvas->CreateObject("square");
             canvas->AttachComponent<Component::Transform2D>(square)->position = {100.0f, 0.0f};
             auto* squareSprite = canvas->AttachComponent<Component::SpriteRenderer2D>(square);
@@ -630,7 +658,7 @@ namespace
             screenSprite->size = {1.0f, 1.0f};
             screenSprite->renderTextureId = targetId;
             framework.BindCanvasAssets();
-            Check(minimapCamera->renderTexture.generation != 0 && screenSprite->renderTexture.generation != 0, "both fields resolve to the loaded render texture");
+            Check(screenSprite->renderTexture.generation != 0, "the sprite field resolves to the loaded render texture");
             gpu.Paint(framework);
             gpu.Paint(framework);
             // 트랜스폼은 첫 갱신에 계산된다 - 그 뒤에 묻는다.
@@ -648,10 +676,13 @@ namespace
             gpu.Paint(framework);
             gpu.Paint(framework);
             Check(gpu.Is(32, 32, 255, 0, 0) && gpu.Is(19, 19, 0, 255, 0) && gpu.Is(5, 5, 0, 0, 0), "after the resize the picture is the same");
-            // 렌더 텍스처를 떼면 카메라는 화면에 돌아와 주 카메라가 된다(primary).
-            minimapCamera->renderTexture = {};
+            // 렌더 텍스처를 떼면 그 뷰포트는 화면에 그리고, 목록의 맨 앞이라 주 카메라가 된다.
+            canvas->GetViewportAt(0)->renderTextureId = {};
+            framework.BindCanvasAssets();
             gpu.Paint(framework);
-            Check(gpu.Is(5, 5, 0, 255, 0), "without the texture the primary minimap camera draws the screen again");
+            Check(System::Camera2DSystem::SelectCamera(*canvas, chosen) && chosen.owner == minimapObject, "back on the screen the first viewport is the main one");
+            // 가운데 스프라이트는 렌더 텍스처를 보이는데, 그 텍스처는 이제 아무도 그리지 않을 뿐 앞의 그림이 남아 있다 - 가장자리만 본다.
+            Check(gpu.Is(5, 5, 0, 0, 0) && gpu.Is(58, 32, 0, 0, 0), "and the main viewport after it paints the whole screen with its own black");
             framework.Shutdown();
         }
         gpu.Close();

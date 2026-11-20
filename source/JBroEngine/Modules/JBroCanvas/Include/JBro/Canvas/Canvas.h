@@ -12,6 +12,7 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Canvas/ScriptPool.h>
 #include <JBro/Canvas/SystemScheduler.h>
+#include <JBro/Canvas/Viewport.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Color.h>
 #include <JBro/Types/String.h>
@@ -134,6 +135,17 @@ namespace JBro
         // 캔버스를 바꿀 때마다 밖에서 다시 넣어 줘야 하고, 그 자리를 빠뜨리면 앞 씬의 색이 남는다.
         const Color& GetBackgroundColor() const;
         void SetBackgroundColor(const Color& color);
+
+        // **뷰포트 목록**(D-438, viewport-plan §4.1, 기존 `CGameCanvas` 의 뷰포트). 목록 차례가 그리는 차례다.
+        // 새 캔버스는 기본 하나(`Main`, 전체 화면, 카메라 자동)로 시작하고, `.jcanvas` 에 `Viewports` 로 적힌다.
+        // 비어도 된다 - 그때는 월드를 그리지 않는다(화면 레이어는 그린다).
+        const Array<CanvasViewport>& GetViewports() const;
+        std::size_t GetViewportCount() const;
+        CanvasViewport* GetViewportAt(std::size_t index);
+        const CanvasViewport* GetViewportAt(std::size_t index) const;
+        void SetViewports(const Array<CanvasViewport>& viewports);
+        // 기본 뷰포트 하나다. 새 캔버스와 `Clear` 가 이것으로 시작한다.
+        static CanvasViewport MakeDefaultViewport();
 
         // 같은 타입을 여러 개 붙일 수 있다. 시스템 순회는 타입 풀을 직접 순회한다.
         // `preferredId` 는 번호를 정해 붙인다(D-302). 그 번호를 누가 쓰고 있으면 새 번호다. 되돌리기가 뗀 컴포넌트를 같은 번호로 되살려
@@ -319,6 +331,7 @@ namespace JBro
         // 기본은 지금까지 화면에 나오던 어두운 회색이다(D-186). 아무것도 적히지 않은
         // 옛 캔버스 파일을 열어도 보이던 그대로여야 한다.
         Color                                        m_backgroundColor{0.10f, 0.11f, 0.13f, 1.0f};
+        Array<CanvasViewport>                        m_viewports;
         LayerId                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
         // 이름으로 붙인 스크립트(DLL 이 등록한 타입)의 저장소다. 타입마다 하나씩 늦게 만든다.

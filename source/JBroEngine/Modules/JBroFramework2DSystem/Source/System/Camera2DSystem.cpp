@@ -54,28 +54,46 @@ namespace JBro::System
         m_renderWorld = renderWorld;
     }
 
+    void Camera2DSystem::SetViewportTextures(ArrayView<const AssetHandle> textures)
+    {
+        m_viewportTextures = textures;
+    }
+
     void Camera2DSystem::ExtractRenderWorld(Canvas& canvas)
     {
         if (m_renderWorld == nullptr)
         {
             return;
         }
-        RenderCamera2D camera;
-        UInt32 unusable = 0;
-        if (SelectCamera(canvas, camera, &unusable))
-        {
-            m_renderWorld->SetCamera(camera);
-        }
-        // 그릴 카메라 모두(D-359). 주 카메라와 같은 셈으로 채우고, `depth` 차례로 든다.
+        // **뷰포트마다 뷰 하나, 목록 차례로**(D-438, viewport-plan §4.3). 주 카메라는 화면에 그리는 첫 뷰다.
         m_renderWorld->ClearCameras();
-        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& each)
+        UInt32 unusable = 0;
+        Bool hasMain = false;
+        const Array<CanvasViewport>& viewports = canvas.GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
         {
+            const CanvasViewport& viewport = viewports[index];
             RenderCamera2D item;
-            if (FillCamera(canvas, each, item))
+            if (false == FillView(canvas, viewport, item, &unusable))
             {
-                m_renderWorld->AddCamera(item);
+                continue;
             }
-        });
+            if (false == viewport.renderTextureId.IsNull())
+            {
+                // 렌더 텍스처 뷰포트는 풀린 핸들이 있어야 그린다. 핸들이 없으면(에셋을 못 찾음) 화면에 잘못 그리지 않고 뺀다.
+                item.renderTexture = index < m_viewportTextures.Size() ? m_viewportTextures[static_cast<UInt32>(index)] : AssetHandle{};
+                if (item.renderTexture.generation == 0)
+                {
+                    continue;
+                }
+            }
+            else if (false == hasMain)
+            {
+                m_renderWorld->SetCamera(item);
+                hasMain = true;
+            }
+            m_renderWorld->AddCamera(item);
+        }
         m_renderWorld->SetUnusableCameraCount(unusable);
         if (unusable > m_warnedUnusable)
         {
@@ -86,87 +104,32 @@ namespace JBro::System
         m_warnedUnusable = unusable;
     }
 
-    Bool Camera2DSystem::FillCamera(Canvas& canvas, Component::Camera2D& camera, RenderCamera2D& item)
+    namespace
     {
-        if (false == camera.IsActiveComponent())
+        // 켜진 카메라이고 그 트랜스폼이 켜져 있으며 월드 행렬이 뒤집히는가. 뒤집힌 뷰를 `view` 에 둔다.
+        Bool UsableCamera(Canvas& canvas, Component::Camera2D& camera, Matrix3x2& view, const Component::Transform2D*& world)
         {
-            return false;
-        }
-        Object::GameObject* owner = Internal::CanvasAccess::GetOwner(camera);
-        const auto* world = canvas.FindComponentRaw<Component::Transform2D>(owner);
-        if (world == nullptr || false == world->IsActiveComponent() || false == world->worldValid || false == TryInvert(world->world, item.view))
-        {
-            return false;
-        }
-        item.owner = owner;
-        item.orthographicSize = camera.orthographicSize;
-        item.pixelsPerUnit = camera.pixelsPerUnit;
-        item.projection = camera.projection;
-        item.nearPlane = camera.nearPlane;
-        item.farPlane = camera.farPlane;
-        item.clearColor = camera.clearColor;
-        item.postProcessProfile = camera.postProcessProfile;
-        item.position = world->worldPosition;
-        item.viewportOrigin = camera.viewportOrigin;
-        item.viewportSize = camera.viewportSize;
-        item.depth = camera.depth;
-        item.clearViewport = camera.clearViewport;
-        item.renderTexture = camera.renderTexture;
-        return IsDrawableCamera2D(item) && HasDrawableViewport(item);
-    }
-
-    Bool Camera2DSystem::SelectCameraAt(Canvas& canvas, const ScreenSpaceFrame& frame, Float pixelX, Float pixelY, RenderCamera2D& result)
-    {
-        Bool found = false;
-        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& each)
-        {
-            RenderCamera2D item;
-            // 렌더 텍스처에 그리는 카메라는 화면에 없다 - 포인터의 카메라가 아니다(D-362).
-            if (false == FillCamera(canvas, each, item) || item.renderTexture.generation != 0 || (found && item.depth <= result.depth))
+            if (false == camera.IsActiveComponent())
             {
-                return;
-            }
-            ScreenSpaceFrame own = frame;
-            ApplyCameraViewport(item, own);
-            ScreenArea area;
-            if (GetScreenArea(own, area) && pixelX >= area.x && pixelX < area.x + area.width && pixelY >= area.y && pixelY < area.y + area.height)
-            {
-                result = item;
-                found = true;
-            }
-        });
-        return found || SelectCamera(canvas, result);
-    }
-
-    Bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result, UInt32* unusable)
-    {
-        // **`primary` 가 먼저고, 하나도 없으면 첫 활성 카메라로 그린다**(D-187).
-        //
-        // 그전에는 `primary` 가 아니면 아예 그리지 않았다. 카메라를 붙이고 재생을 누른
-        // 사람에게는 검은 화면과 "카메라가 없습니다" 만 남는데, 카메라는 분명히 거기
-        // 있으므로 무엇이 잘못됐는지 화면에서 알 길이 없다(실제 에디터에서 그랬다).
-        // 기존 엔진도 지정이 없으면 첫 활성 카메라로 떨어졌다.
-        Bool selected = false;
-        Bool hasFallback = false;
-        RenderCamera2D fallback;
-        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera)
-        {
-            if (selected || false == camera.IsActiveComponent())
-            {
-                return;
+                return false;
             }
             Object::GameObject* owner = Internal::CanvasAccess::GetOwner(camera);
-            const auto* world = canvas.FindComponentRaw<Component::Transform2D>(owner);
-            if (world == nullptr || false == world->IsActiveComponent() || false == world->worldValid)
+            world = canvas.FindComponentRaw<Component::Transform2D>(owner);
+            return world != nullptr && world->IsActiveComponent() && world->worldValid && TryInvert(world->world, view);
+        }
+    }
+
+    namespace
+    {
+        // 카메라 하나로 뷰를 채운다. 켜진 카메라가 아니면 거짓이다. 값이 그릴 수 있는지는 보지 않는다 - 부르는 쪽이 `IsDrawableCamera2D` 로 본다.
+        Bool FillFromCamera(Canvas& canvas, Component::Camera2D& camera, const CanvasViewport& viewport, RenderCamera2D& item)
+        {
+            const Component::Transform2D* world = nullptr;
+            if (false == UsableCamera(canvas, camera, item.view, world))
             {
-                return;
+                return false;
             }
-            RenderCamera2D item;
-            if (false == TryInvert(world->world, item.view))
-            {
-                return;
-            }
-            item.owner = owner;
+            item.owner = Internal::CanvasAccess::GetOwner(camera);
             item.orthographicSize = camera.orthographicSize;
             item.pixelsPerUnit = camera.pixelsPerUnit;
             item.projection = camera.projection;
@@ -175,13 +138,87 @@ namespace JBro::System
             item.clearColor = camera.clearColor;
             item.postProcessProfile = camera.postProcessProfile;
             item.position = world->worldPosition;
-            item.viewportOrigin = camera.viewportOrigin;
-            item.viewportSize = camera.viewportSize;
-            item.depth = camera.depth;
-            item.clearViewport = camera.clearViewport;
-            item.renderTexture = camera.renderTexture;
-            // 그릴 수 없는 값이면 고르지 않는다(D-239). 그 전에는 뽑힌 뒤 렌더 브리지가 거절해 프레임이 실패했고, 에디터가 꺼졌다. 빈 뷰포트도 같다(D-359).
-            if (false == IsDrawableCamera2D(item) || false == HasDrawableViewport(item))
+            item.viewportOrigin = viewport.origin;
+            item.viewportSize = viewport.size;
+            item.clearViewport = viewport.clearViewport;
+            item.layers = ViewLayerMask{};
+            if (false == viewport.layers.IsEmpty())
+            {
+                item.layers.filtered = true;
+                for (std::size_t at = 0; at < viewport.layers.Size(); ++at)
+                {
+                    const Layer* layer = canvas.FindLayer(viewport.layers[at]);
+                    if (layer != nullptr)
+                    {
+                        item.layers.Allow(layer->GetOrder());
+                    }
+                }
+            }
+            return true;
+        }
+
+        Bool NamesCamera(const CanvasViewport& viewport, Component::Camera2D& camera)
+        {
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(camera);
+            return owner != nullptr && owner->GetInstanceId() == viewport.camera;
+        }
+    }
+
+    Component::Camera2D* Camera2DSystem::ResolveViewportCamera(Canvas& canvas, const CanvasViewport& viewport)
+    {
+        // 자동이면 그릴 수 있는 첫 켜진 카메라다(D-239 - 값이 잘못된 카메라는 건너뛴다). 정한 카메라는 그것 하나다.
+        Component::Camera2D* found = nullptr;
+        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera)
+        {
+            if (found != nullptr || (viewport.HasCamera() && false == NamesCamera(viewport, camera)))
+            {
+                return;
+            }
+            RenderCamera2D item;
+            if (FillFromCamera(canvas, camera, viewport, item) && (viewport.HasCamera() || IsDrawableCamera2D(item)))
+            {
+                found = &camera;
+            }
+        });
+        return found;
+    }
+
+    UInt32 Camera2DSystem::CountActiveCameras(Canvas& canvas)
+    {
+        UInt32 count = 0;
+        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera)
+        {
+            Matrix3x2 view;
+            const Component::Transform2D* world = nullptr;
+            if (UsableCamera(canvas, camera, view, world))
+            {
+                ++count;
+            }
+        });
+        return count;
+    }
+
+    Bool Camera2DSystem::FillView(Canvas& canvas, const CanvasViewport& viewport, RenderCamera2D& item, UInt32* unusable)
+    {
+        if (false == viewport.active)
+        {
+            return false;
+        }
+        // **그릴 수 없는 값의 카메라는 건너뛴다**(D-239). 자동이면 다음 켜진 카메라로 넘어가고, 정한 카메라면 그 뷰포트는 그리지 않는다.
+        // 건너뛴 카메라는 센다 - 시뮬레이션 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
+        Bool filled = false;
+        canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera)
+        {
+            if (filled || (viewport.HasCamera() && false == NamesCamera(viewport, camera)))
+            {
+                return;
+            }
+            RenderCamera2D candidate;
+            if (false == FillFromCamera(canvas, camera, viewport, candidate))
+            {
+                return;
+            }
+            if (false == IsDrawableCamera2D(candidate))
             {
                 if (unusable != nullptr)
                 {
@@ -189,31 +226,55 @@ namespace JBro::System
                 }
                 return;
             }
-            // 렌더 텍스처에 그리는 카메라는 화면의 주 카메라가 아니다(D-362).
-            if (camera.renderTexture.generation != 0)
+            item = candidate;
+            filled = true;
+        });
+        // 빈 뷰포트는 그리지 않는다(D-359).
+        return filled && HasDrawableViewport(item);
+    }
+
+    Bool Camera2DSystem::SelectCameraAt(Canvas& canvas, const ScreenSpaceFrame& frame, Float pixelX, Float pixelY, RenderCamera2D& result)
+    {
+        Bool found = false;
+        const Array<CanvasViewport>& viewports = canvas.GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        {
+            // 렌더 텍스처에 그리는 뷰포트는 화면에 없다 - 포인터의 카메라가 아니다(D-362).
+            RenderCamera2D item;
+            if (false == viewports[index].renderTextureId.IsNull() || false == FillView(canvas, viewports[index], item, nullptr))
             {
-                return;
+                continue;
             }
-            if (camera.primary)
+            ScreenSpaceFrame own = frame;
+            ApplyCameraViewport(item, own);
+            ScreenArea area;
+            // 목록에서 뒤의 것이 위에 그려진다 - 겹치면 뒤의 것이 이긴다.
+            if (GetScreenArea(own, area) && pixelX >= area.x && pixelX < area.x + area.width && pixelY >= area.y && pixelY < area.y + area.height)
             {
                 result = item;
-                selected = true;
-                return;
+                found = true;
             }
-            // 첫 번째 것만 든다. 뒤의 것으로 덮으면 순회 순서가 바뀔 때마다 다른
-            // 카메라로 그려져, 같은 캔버스가 실행할 때마다 다르게 보인다.
-            if (false == hasFallback)
-            {
-                fallback = item;
-                hasFallback = true;
-            }
-        });
-        if (false == selected && hasFallback)
-        {
-            result = fallback;
-            selected = true;
         }
-        return selected;
+        return found || SelectCamera(canvas, result);
+    }
+
+    Bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result, UInt32* unusable)
+    {
+        // **화면에 그리는 첫 켜진 뷰포트**다(D-438). 그전에는 카메라의 `primary` 가, 없으면 첫 활성 카메라가 주 카메라였다(D-187) -
+        // 이제 "어느 카메라" 는 뷰포트가 정하고, 새 캔버스의 기본 뷰포트가 자동(첫 켜진 카메라)이라 D-187 의 동작이 그대로 남는다.
+        const Array<CanvasViewport>& viewports = canvas.GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        {
+            if (false == viewports[index].renderTextureId.IsNull())
+            {
+                continue;
+            }
+            if (FillView(canvas, viewports[index], result, unusable))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     void Camera2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)

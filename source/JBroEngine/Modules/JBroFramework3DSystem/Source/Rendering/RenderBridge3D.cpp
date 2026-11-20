@@ -324,12 +324,18 @@ namespace JBro::Internal
 
         Bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, Bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
-            const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1, Bool postProcess = false)
+            const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1, Bool postProcess = false,
+            const ViewLayerMask* layers = nullptr, const PostProcessStack* viewPost = nullptr)
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
             const auto collect = [&](Object::GameObject* owner, std::uint16_t order) {
                 if ((editorView && owner != nullptr && owner->IsEditorHidden()) || (onlyLayer >= 0 && order != static_cast<std::uint16_t>(onlyLayer)))
+                {
+                    return;
+                }
+                // 뷰포트의 레이어 필터(D-438).
+                if (layers != nullptr && false == layers->Draws(order))
                 {
                     return;
                 }
@@ -437,7 +443,7 @@ namespace JBro::Internal
             }
             // **후처리는 레이어를 다 얹은 뒤 한 번이다**(D-344). 3D 는 레이어마다 뷰라 뷰마다 걸면 노출·톤맵이 겹친다 - 그릴 것 없는 뷰 하나가
             // 얹힌 그림을 장면으로 옮겨(렌더러의 `SceneLoad`) 효과를 건다. 그래서 3D 의 장면은 백버퍼 포맷까지만 밝다.
-            const PostProcessStack& post = world.GetPostProcess();
+            const PostProcessStack& post = viewPost != nullptr ? *viewPost : world.GetPostProcess();
             if (postProcess && post.entries.size != 0)
             {
                 CameraParams finish = camera;
@@ -522,21 +528,104 @@ namespace JBro::Internal
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 
+    namespace
+    {
+        // **뷰포트를 대상의 픽셀 사각형으로 옮긴다**(D-438). 비율을 0..1 로 자르고 대상 밖으로 나가지 않게 줄인다. 1 픽셀이 안 되면 거짓이다.
+        Bool ViewportPixels(const RenderCamera3D& camera, const Extent2D& target, Viewport& result)
+        {
+            const auto unit = [](Float value) {
+                return std::isfinite(value.Get()) ? (value < 0.0f ? Float(0.0f) : (value > 1.0f ? Float(1.0f) : value)) : Float(0.0f);
+            };
+            const Float originX = unit(camera.viewportOrigin.x);
+            const Float originY = unit(camera.viewportOrigin.y);
+            const Float width = unit(camera.viewportSize.x) + originX > 1.0f ? Float(1.0f) - originX : unit(camera.viewportSize.x);
+            const Float height = unit(camera.viewportSize.y) + originY > 1.0f ? Float(1.0f) - originY : unit(camera.viewportSize.y);
+            const Float targetWidth = static_cast<JBro::Float>(target.width);
+            const Float targetHeight = static_cast<JBro::Float>(target.height);
+            result.x = std::floor((originX * targetWidth).Get());
+            result.y = std::floor((originY * targetHeight).Get());
+            result.width = std::floor(((originX + width) * targetWidth).Get()) - result.x;
+            result.height = std::floor(((originY + height) * targetHeight).Get()) - result.y;
+            return result.width >= 1.0f && result.height >= 1.0f;
+        }
+
+        // **앞 뷰가 그린 대상에서 제 사각형을 지우기 색으로 칠한다**(D-438, 2D 의 `BuildViewFill` 과 같은 일). 렌더러는 대상을 첫 뷰에서만 지운다.
+        // 단위 행렬 뷰·투영에 정규화 장치 좌표 전체를 덮는 스프라이트 하나다.
+        Bool FillViewport(Renderer& renderer, const Viewport& viewport, const Color& color)
+        {
+            CameraParams fill;
+            fill.viewport = viewport;
+            if (false == renderer.BeginView(fill))
+            {
+                return false;
+            }
+            SpriteSubmit quad;
+            quad.world.linear[0] = 2.0f;
+            quad.world.linear[3] = 2.0f;
+            quad.tint[0] = color.R;
+            quad.tint[1] = color.G;
+            quad.tint[2] = color.B;
+            quad.tint[3] = 1.0f;
+            const Bool accepted = renderer.SubmitSprite(quad);
+            const Bool closed = renderer.EndView();
+            return accepted && closed;
+        }
+    }
+
     RenderResult SubmitRenderWorld3D(const RenderWorld3D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw)
     {
-        const RenderCamera3D* camera = world.GetCamera();
-        if (camera == nullptr)
-        {
-            return RenderResult::NothingToSubmit;
-        }
-        CameraParams parameters;
-        if (false == BuildCamera3D(*camera, renderer.GetFrameExtent(), parameters))
-        {
-            return RenderResult::Failed;
-        }
+        const Extent2D target = renderer.GetFrameExtent();
         const Bool showLines = debugDraw != nullptr && debugDraw->IsSimulationViewVisible();
-        const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
-            showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(renderer.GetFrameExtent().height), -1, true);
-        return accepted ? RenderResult::Submitted : RenderResult::Failed;
+        const ArrayView<const RenderCamera3D> cameras = world.GetCameras();
+        if (cameras.Size() == 0)
+        {
+            // 카메라를 직접 건 쪽(시험)이다 - 주 카메라 하나를 대상 전체에.
+            const RenderCamera3D* camera = world.GetCamera();
+            if (camera == nullptr)
+            {
+                return RenderResult::NothingToSubmit;
+            }
+            CameraParams parameters;
+            if (false == BuildCamera3D(*camera, target, parameters))
+            {
+                return RenderResult::Failed;
+            }
+            const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
+                showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(target.height), -1, true);
+            return accepted ? RenderResult::Submitted : RenderResult::Failed;
+        }
+        // **뷰포트마다 뷰다**(D-438). 목록 차례이고 각자 제 사각형에 그린다. 투영의 가로세로비는 그 사각형의 것이다.
+        // 디버그 선은 첫 뷰에만 그린다. 깊이는 뷰마다 지우므로(D-280) 겹치는 뷰도 서로의 깊이를 보지 않는다.
+        Bool first = true;
+        for (std::size_t index = 0; index < cameras.Size(); ++index)
+        {
+            const RenderCamera3D& camera = cameras[index];
+            Viewport rect;
+            if (false == ViewportPixels(camera, target, rect))
+            {
+                continue;
+            }
+            const Extent2D extent{static_cast<std::uint32_t>(rect.width), static_cast<std::uint32_t>(rect.height)};
+            CameraParams parameters;
+            if (false == BuildCamera3D(camera, extent, parameters))
+            {
+                return RenderResult::Failed;
+            }
+            parameters.viewport.x = rect.x;
+            parameters.viewport.y = rect.y;
+            if (false == first && camera.clearViewport && false == FillViewport(renderer, rect, camera.clearColor))
+            {
+                return RenderResult::Failed;
+            }
+            const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera.position, camera.rotation,
+                first && showLines ? debugDraw : nullptr, camera, rect.height, -1, true,
+                camera.layers.filtered ? &camera.layers : nullptr, &world.GetCameraPostProcess(index));
+            if (false == accepted)
+            {
+                return RenderResult::Failed;
+            }
+            first = false;
+        }
+        return first ? RenderResult::NothingToSubmit : RenderResult::Submitted;
     }
 }

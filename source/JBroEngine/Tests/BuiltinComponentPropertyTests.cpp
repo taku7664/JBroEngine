@@ -78,7 +78,7 @@ namespace
         Check(Table("Component::Mask2D").count == 7, "Mask2D declares seven fields - the rect and the five hidden clip values (D-351)");
         Check(Table("Component::ScrollView2D").count == 10, "ScrollView2D declares ten fields - content, its size, two scrollbars, two axes, sensitivity, deceleration and two states (D-351, D-355)");
         Check(Table("Component::Toggle2D").count == 23, "Toggle2D declares twenty-three fields - the rect, interactable, the transition set of D-355 (fourteen with the latch), isOn, checkmark and four states (D-351, focused of D-352)");
-        Check(Table("Component::Camera2D").count == 15, "Camera2D declares fifteen fields - pixelsPerUnit of D-239, the post-process profile pair of D-344, then the viewport and depth of D-359, and clearViewport (D-362), and the render texture id and handle (D-362)");
+        Check(Table("Component::Camera2D").count == 8, "Camera2D declares eight fields - pixelsPerUnit of D-239 and the post-process profile pair of D-344; primary, the viewport, depth, clearViewport and the render texture moved to the canvas's viewports (D-438)");
         Check(Table("Component::SpriteRenderer2D").count == 19, "SpriteRenderer2D declares nineteen fields - the hidden drawSequence of D-296, then drawMode, fillAmount and fillOrigin of D-351, and the render texture id and handle (D-362)");
         Check(Table("Component::Text2D").count == 26, "Text2D declares twenty-six fields - with the hidden drawSequence of D-296, and the highlight range and colour (D-362)");
         Check(Table("Component::Rigidbody2D").count == 11,
@@ -101,7 +101,7 @@ namespace
 
         // 3D 도 2D 와 같은 모양이 됐다(framework3d-plan §2.1). 저작 값 셋 + 월드 캐시 넷.
         Check(Table("Component::Transform3D").count == 7, "Transform3D declares seven fields");
-        Check(Table("Component::Camera3D").count == 9, "Camera3D declares nine fields - with the post-process profile pair of D-344");
+        Check(Table("Component::Camera3D").count == 8, "Camera3D declares eight fields - with the post-process profile pair of D-344, and no primary since the canvas's viewports pick the camera (D-438)");
         Check(Table("Component::MeshRenderer3D").count == 6, "MeshRenderer3D declares six fields");
         Check(Table("Component::Text3D").count == 19, "Text3D declares nineteen fields");
         // 3D 물리는 2D 와 같은 이름의 필드다(D-416): 종류·속도 둘·질량·중력 배율·감쇠 둘·축 고정 여섯·잠듦, 모양·offset·크기·반지름·높이·트리거·마찰·반발·레이어·마스크.

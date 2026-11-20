@@ -1136,7 +1136,6 @@ namespace
         auto* cameraObject = canvas->CreateObject("camera");
         auto* cameraTransform = canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
         cameraTransform->position = {2.0f, 3.0f};
-        camera->primary = true;
         camera->orthographicSize = 10.0f;
         auto* object = canvas->CreateObject("sprites");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);        transform->position = {5.0f, 7.0f};
@@ -1529,7 +1528,6 @@ namespace
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(eyePlace != nullptr && camera != nullptr, "the camera must attach");
         eyePlace->position = {1.03f, 0.51f};
-        camera->primary = true;
         camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
         camera->pixelsPerUnit = 16.0f;
         auto* thing = canvas->CreateObject("thing");
@@ -1617,7 +1615,6 @@ namespace
         auto* eye = canvas->CreateObject("eye");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
         auto* broken = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
-        broken->primary = true;
         broken->orthographicSize = 0.0f;
         auto* thing = canvas->CreateObject("thing");
         canvas->AttachComponent<JBro::Component::Transform2D>(thing);

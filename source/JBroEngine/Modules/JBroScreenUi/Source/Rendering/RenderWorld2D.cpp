@@ -156,14 +156,8 @@ namespace JBro
 
     void RenderWorld2D::AddCamera(const RenderCamera2D& camera)
     {
-        // `depth` 차례로 끼운다(같으면 들어온 차례). 용량은 한 번 자라면 남는다.
+        // 들어온 차례가 그리는 차례다(D-438, 뷰포트 목록의 차례). 용량은 한 번 자라면 남는다.
         m_cameras.Add(camera);
-        for (std::size_t index = m_cameras.Size() - 1; index > 0 && m_cameras[index - 1].depth > m_cameras[index].depth; --index)
-        {
-            const RenderCamera2D swapped = m_cameras[index - 1];
-            m_cameras[index - 1] = m_cameras[index];
-            m_cameras[index] = swapped;
-        }
     }
 
     ArrayView<const RenderCamera2D> RenderWorld2D::GetCameras() const

@@ -20,6 +20,7 @@ struct ImVec2;
 
 namespace JBro
 {
+    class Canvas;
     class ComponentBase;
     struct PropertyEditInfo;
     struct PropertyTable;
@@ -213,6 +214,8 @@ namespace JBro
         // 스크립트를 붙이는 손잡이(D-302). 컴포넌트 목록과 따로다.
         // 캔버스 자신을 골랐을 때의 화면이다(D-186).
         void DrawCanvas();
+        // 캔버스의 뷰포트 목록이다(D-438, viewport-plan §4.5). 기존 `DrawViewportProperties` 와 같은 자리.
+        void DrawCanvasViewports(Canvas& canvas);
         // 레이어를 골랐을 때의 화면이다(D-279).
         void DrawLayer(LayerId layerId);
         // 머리의 태그 칸(D-297). 프로젝트 태그 목록에서 고르고, 맨 끝 항목이 새 태그를 더한다.
@@ -278,6 +281,10 @@ namespace JBro
         String m_newTag;
         LayerId m_namedLayer = InvalidLayerId;
         Bool m_layerNameEditing = false;
+        // 뷰포트 이름 칸의 것이다(D-438). 레이어 이름 칸과 같은 규칙이다.
+        String m_viewportName;
+        Int32 m_namedViewport = -1;
+        Bool m_viewportNameEditing = false;
 
         // ── 오디오 미리 듣기(D-197) ──
         // 보고 있는 오디오 에셋과 그 요약이다. 에셋이 바뀌거나 자료가 다시 읽히면(판번호) 다시 잰다 - 파형은 한 번만 푼다.

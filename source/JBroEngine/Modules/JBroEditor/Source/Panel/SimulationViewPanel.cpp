@@ -2,6 +2,9 @@
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2DSystem/System/Camera2DSystem.h>
+#include <JBro/Framework3DSystem/System/Camera3DSystem.h>
+#include <JBro/Host/ProjectFile.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
@@ -110,27 +113,24 @@ namespace JBro
         }
         Widget::ViewportStatusLine(rect, 0, icon, color, text);
 
-        // **어느 카메라로 그리고 있는지 애매하면 말한다**(D-187, 기존 캔버스 인스펙터의
-        // `camera_ambiguous` 경고). `primary` 를 켠 카메라가 없으면 첫 활성 카메라로
-        // 그리는데, 활성 카메라가 여럿이면 그중 무엇인지는 순회 순서가 정한다. 3D 의 `Camera3D` 는 `primary` 가 없으면 그리지 않아
-        // 이 경고가 맞지 않는다(todo-3d "편집" 의 열림).
+        // **어느 카메라로 그리고 있는지 애매하면 말한다**(D-187, D-438, 기존 캔버스 인스펙터의 `camera_ambiguous` 경고).
+        // 켜진 뷰포트가 카메라를 자동으로 고르는데(첫 켜진 카메라) 켜진 카메라가 여럿이면, 그중 무엇인지는 캔버스 차례가 정한다. 2D 와 3D 가 같다.
         if (Canvas* canvas = m_editor->GetCanvas())
         {
-            std::size_t active = 0;
-            Bool anyPrimary = false;
-            canvas->ForEach<Component::Camera2D>([&](Component::Camera2D& camera) {
-                if (false == camera.IsActiveComponent())
-                {
-                    return;
-                }
-                ++active;
-                anyPrimary = anyPrimary || camera.primary;
-            });
-            if (false == anyPrimary && active > 1)
+            Bool anyAuto = false;
+            for (std::size_t index = 0; index < canvas->GetViewportCount(); ++index)
+            {
+                const CanvasViewport* viewport = canvas->GetViewportAt(index);
+                anyAuto = anyAuto || (viewport->active && false == viewport->HasCamera());
+            }
+            const UInt32 active = m_editor->GetFrameworkKind() == FrameworkKind::Framework3D
+                ? System::Camera3DSystem::CountActiveCameras(*canvas)
+                : System::Camera2DSystem::CountActiveCameras(*canvas);
+            if (anyAuto && active > 1)
             {
                 Widget::ViewportStatusLine(rect, 1, Icons::Warning, IM_COL32(255, 200, 90, 255),
                     Loc::TextOr(LocKeys::SimulationViewCameraAmbiguous,
-                        "no camera is primary, so the first active one is used"));
+                        "a viewport picks its camera automatically and several cameras are active, so the first one is used"));
             }
         }
     }

@@ -64,7 +64,11 @@ namespace
         static_assert(std::is_same_v<decltype(JBro::SystemContext::PostProcess), JBro::System::IPostProcessSystem*>);
         // 머티리얼 파라미터 덮어쓰기(D-348)도 그렇다.
         static_assert(std::is_same_v<decltype(JBro::SystemContext::Material), JBro::System::IMaterialSystem*>);
-        static_assert(sizeof(JBro::SystemContext) == sizeof(void*) * 7);
+        // 뷰포트 목록(D-438)도 캔버스의 것이라 차원과 무관하다.
+        static_assert(std::is_same_v<decltype(JBro::SystemContext::Viewports), JBro::System::IViewportSystem*>);
+        static_assert(sizeof(JBro::SystemContext) == sizeof(void*) * 8);
+        static_assert(false == std::is_polymorphic_v<JBro::Service::ViewportService>);
+        static_assert(std::is_same_v<decltype(JBro::ServiceContext::Viewports), JBro::Service::ViewportService>);
         static_assert(false == std::is_polymorphic_v<JBro::Service::PostProcessService>);
         static_assert(false == std::is_polymorphic_v<JBro::Service::MaterialService>);
         static_assert(std::is_same_v<decltype(JBro::ServiceContext::Material), JBro::Service::MaterialService>);

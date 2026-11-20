@@ -120,7 +120,7 @@ Entries:
   inspector.material_override_tooltip: "Write this value into the material. Off uses the shader's initial value"
   inspector.material_unreadable: "This material could not be read"
   inspector.render_texture_unreadable: "This render texture could not be read"
-  inspector.render_texture_hint: "Set it as a camera's renderTextureId to draw into it, and as a sprite's renderTextureId to show it"
+  inspector.render_texture_hint: "Set it as a canvas viewport's render texture to draw into it, and as a sprite's renderTextureId to show it"
   inspector.render_texture_width: width
   inspector.render_texture_height: height
   inspector.render_texture_filter: filter
@@ -151,7 +151,7 @@ Entries:
   simulation_view.no_canvas: no canvas is open
   simulation_view.no_camera: there is no camera
   simulation_view.camera_unusable: the Camera2D values cannot be drawn
-  simulation_view.camera_ambiguous: no camera is primary, so the first active one is used
+  simulation_view.camera_ambiguous: "a viewport picks its camera automatically and several cameras are active, so the first one is used"
   hierarchy.no_project: no project is open
   hierarchy.create_object: Create Object
   hierarchy.create_child: Create Child
@@ -364,6 +364,30 @@ Entries:
   hierarchy.canvas_unsaved: Canvas (unsaved)
   inspector.canvas_properties: Canvas
   inspector.canvas_background: Background colour
+  inspector.canvas_viewports: Viewports
+  inspector.viewport_name: Name
+  inspector.viewport_active: Active
+  inspector.viewport_camera: Camera
+  inspector.viewport_camera_tooltip: "the camera this viewport draws with - Auto uses the first active camera"
+  inspector.viewport_camera_auto: Auto
+  inspector.viewport_origin: Position
+  inspector.viewport_origin_tooltip: "the top-left corner on the screen, as a 0 to 1 ratio"
+  inspector.viewport_size: Size
+  inspector.viewport_size_tooltip: the width and height on the screen, as a 0 to 1 ratio
+  inspector.viewport_clear: Clear Background
+  inspector.viewport_clear_tooltip: fill this rectangle with the camera's clear colour before drawing over earlier viewports
+  inspector.viewport_render_texture: Render Texture
+  inspector.viewport_render_texture_tooltip: draw into this render texture instead of the screen
+  inspector.viewport_layers: Layers
+  inspector.viewport_layers_tooltip: "the world layers this viewport draws - screen layers are always drawn over the whole screen"
+  inspector.viewport_add: Add Viewport
+  inspector.viewport_remove: Remove
+  inspector.viewport_move_up: Move Up
+  inspector.viewport_move_down: Move Down
+  inspector.viewport_unresolved: the camera object is gone or has no active camera, so this viewport draws nothing
+  inspector.viewport_ambiguous: "%u cameras are active - Auto draws with the first one"
+  inspector.viewport_none: there is no viewport, so the world is not drawn
+  inspector.viewport_render_texture_3d: "3D does not draw into render textures yet - this viewport is skipped"
   inspector.layer_properties: Layer
   inspector.layer_visible: Visible
   inspector.layer_blend: Blend Mode

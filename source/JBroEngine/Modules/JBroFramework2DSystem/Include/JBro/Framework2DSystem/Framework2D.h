@@ -19,6 +19,7 @@
 #include <JBro/Host/IFramework.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasObjectSystem.h>
+#include <JBro/Canvas/CanvasViewportSystem.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
 #include <JBro/Graphics/MaterialLibrary.h>
@@ -83,6 +84,8 @@ namespace JBro
         OwnerPtr<Canvas> m_canvas;
         // 열린 캔버스가 잡은 에셋 핸들이다. 다음 해석과 종료 때 놓는다(D-115).
         Array<AssetHandle> m_canvasAssets;
+        // 뷰포트마다 푼 렌더 텍스처다(D-438). 뷰포트 차례이고 비어 있으면 화면에 그린다. 핸들은 `m_canvasAssets` 에도 들어 있어 함께 놓인다.
+        Array<AssetHandle> m_viewportTextures;
         Table<LayerId, OwnerPtr<Layer2D>> m_layer2DStates;
         RenderWorld2D    m_renderWorld;
         // 호스트가 준 화면 기준이다(D-237). 대상 크기가 0 이면(호스트가 주지 않은 시험) 렌더러의 프레임 크기를 쓴다.
@@ -132,6 +135,8 @@ namespace JBro
         UInt32             m_scriptBlockCount = 0;
         // 스크립트의 오브젝트 만들기·찾기가 이 캔버스에 닿는 길이다(D-301). 스크립트 컨텍스트와 같은 수명이다.
         CanvasObjectSystem m_objects;
+        // 스크립트의 뷰포트 서비스(D-438).
+        CanvasViewportSystem m_viewports;
         Bool             m_initialized      = false;
         // 게임을 돌릴 것인가(D-131). 게임 실행은 손대지 않으므로 기본이 참이다.
         Bool             m_simulationEnabled = true;

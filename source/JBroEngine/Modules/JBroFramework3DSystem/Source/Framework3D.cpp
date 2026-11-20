@@ -91,6 +91,12 @@ namespace JBro
             m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
             m_postProcess.Initialize(context.assets, context.renderer, &m_materials);
             m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
+            m_cameraMixers.Reserve(MaxCameraMixers);
+            for (UInt32 index = 0; index < MaxCameraMixers; ++index)
+            {
+                PostProcessMixer& mixer = m_cameraMixers.Add(PostProcessMixer{});
+                mixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
+            }
             m_volumes.Reserve(MaxVolumes);
             m_renderWorld.ReserveLayerPostProcess(LayerPostProcessCapacity);
             m_postProcessSystem.Bind(&m_postMixer);
@@ -128,9 +134,11 @@ namespace JBro
         m_scriptBlocks[1] = MakeFramework3DServiceContextBlock(m_scriptServices);
         // 오브젝트 서비스(D-301). 공통 시스템 컨텍스트의 이 모듈 사본에 꽂는다 - DLL 은 싣는 순간 이 컨텍스트를 받아 간다.
         m_objects.Bind(m_canvas.Get(), "Component::Transform3D");
+        m_viewports.Bind(m_canvas.Get());
         {
             SystemContext systems = GetSystemContext();
             systems.Objects = &m_objects;
+            systems.Viewports = &m_viewports;
             systems.PostProcess = &m_postProcessSystem;
             systems.Material = &m_materialSystem;
             BindSystemContext(systems);
@@ -159,6 +167,12 @@ namespace JBro
             systems.PostProcess = nullptr;
             BindSystemContext(systems);
         }
+        if (GetSystemContext().Viewports == &m_viewports)
+        {
+            SystemContext systems = GetSystemContext();
+            systems.Viewports = nullptr;
+            BindSystemContext(systems);
+        }
         if (GetSystemContext().Material == &m_materialSystem)
         {
             SystemContext systems = GetSystemContext();
@@ -166,6 +180,7 @@ namespace JBro
             BindSystemContext(systems);
         }
         m_objects.Bind(nullptr, nullptr);
+        m_viewports.Bind(nullptr);
         if (m_canvas.Get() == nullptr)
         {
             return;
@@ -242,6 +257,49 @@ namespace JBro
         ResolvePostProcess();
     }
 
+    void Framework3D::MixPostProcessFor(const RenderCamera3D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom)
+    {
+        // 카메라의 프로필이 기준이고, 카메라 자리의 볼륨을 우선순위가 낮은 것부터 섞은 뒤 스크립트의 덮어쓰기를 얹는다(D-346).
+        mixer.Begin(m_postProcess.Resolve(camera.postProcessProfile));
+        m_volumes.Clear();
+        Canvas& canvas = *m_canvas;
+        canvas.ForEach<Component::PostProcessVolume3D>([&](Component::PostProcessVolume3D& volume) {
+            if (false == volume.IsActiveComponent() || volume.postProcessProfile.generation == 0)
+            {
+                return;
+            }
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(volume);
+            const auto* transform = canvas.FindComponentRaw<Component::Transform3D>(owner);
+            const Bool placed = transform != nullptr && transform->IsActiveComponent() && transform->worldValid;
+            const Float weight = ComputePostProcessVolumeWeight3D(volume, placed ? transform : nullptr, camera.position);
+            if (weight <= 0.0f || m_volumes.Size() >= m_volumes.Capacity())
+            {
+                return;
+            }
+            m_volumes.Add({volume.priority, weight, volume.postProcessProfile});
+        });
+        for (std::size_t at = 1; at < m_volumes.Size(); ++at)
+        {
+            const VolumeSample moving = m_volumes[at];
+            std::size_t to = at;
+            while (to > 0 && m_volumes[to - 1].priority > moving.priority)
+            {
+                m_volumes[to] = m_volumes[to - 1];
+                --to;
+            }
+            m_volumes[to] = moving;
+        }
+        for (const VolumeSample& sample : m_volumes)
+        {
+            mixer.Blend(m_postProcess.ResolveProfile(sample.profile), sample.weight);
+        }
+        if (overridesFrom != nullptr)
+        {
+            mixer.CopyOverridesFrom(*overridesFrom);
+        }
+        mixer.ApplyOverrides();
+    }
+
     void Framework3D::ResolvePostProcess()
     {
         // 렌더러 프레임 밖이다 - LUT 를 올릴 수 있다(D-344).
@@ -249,45 +307,27 @@ namespace JBro
         if (camera == nullptr)
         {
             m_renderWorld.SetPostProcess({});
+            m_renderWorld.SetCameraPostProcessCount(0);
         }
         else
         {
-            // 카메라의 프로필이 기준이고, 카메라 자리의 볼륨을 우선순위가 낮은 것부터 섞은 뒤 스크립트의 덮어쓰기를 얹는다(D-346).
-            m_postMixer.Begin(m_postProcess.Resolve(camera->postProcessProfile));
-            m_volumes.Clear();
-            Canvas& canvas = *m_canvas;
-            canvas.ForEach<Component::PostProcessVolume3D>([&](Component::PostProcessVolume3D& volume) {
-                if (false == volume.IsActiveComponent() || volume.postProcessProfile.generation == 0)
-                {
-                    return;
-                }
-                Object::GameObject* owner = Internal::CanvasAccess::GetOwner(volume);
-                const auto* transform = canvas.FindComponentRaw<Component::Transform3D>(owner);
-                const Bool placed = transform != nullptr && transform->IsActiveComponent() && transform->worldValid;
-                const Float weight = ComputePostProcessVolumeWeight3D(volume, placed ? transform : nullptr, camera->position);
-                if (weight <= 0.0f || m_volumes.Size() >= m_volumes.Capacity())
-                {
-                    return;
-                }
-                m_volumes.Add({volume.priority, weight, volume.postProcessProfile});
-            });
-            for (std::size_t at = 1; at < m_volumes.Size(); ++at)
-            {
-                const VolumeSample moving = m_volumes[at];
-                std::size_t to = at;
-                while (to > 0 && m_volumes[to - 1].priority > moving.priority)
-                {
-                    m_volumes[to] = m_volumes[to - 1];
-                    --to;
-                }
-                m_volumes[to] = moving;
-            }
-            for (const VolumeSample& sample : m_volumes)
-            {
-                m_postMixer.Blend(m_postProcess.ResolveProfile(sample.profile), sample.weight);
-            }
-            m_postMixer.ApplyOverrides();
+            MixPostProcessFor(*camera, m_postMixer, nullptr);
             m_renderWorld.SetPostProcess(m_postMixer.GetResult());
+            // **뷰마다 제 카메라의 후처리다**(D-438). 주 카메라와 같은 카메라의 뷰는 주 섞기를 쓴다. 섞기 자리보다 뷰가 많으면 남은 뷰는 주 카메라의 것이다.
+            const ArrayView<const RenderCamera3D> cameras = m_renderWorld.GetCameras();
+            const std::size_t count = cameras.Size() < m_cameraMixers.Size() ? cameras.Size() : m_cameraMixers.Size();
+            m_renderWorld.SetCameraPostProcessCount(count);
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                const RenderCamera3D& each = cameras[index];
+                if (each.owner == camera->owner)
+                {
+                    m_renderWorld.SetCameraPostProcess(index, m_postMixer.GetResult());
+                    continue;
+                }
+                MixPostProcessFor(each, m_cameraMixers[index], &m_postMixer);
+                m_renderWorld.SetCameraPostProcess(index, m_cameraMixers[index].GetResult());
+            }
         }
         // 레이어의 프로필(D-345)은 차례 자리에 건다. 3D 레이어는 레이어마다 뷰라 그 뷰를 한 장으로 얹으며 건다.
         const std::size_t layerCount = m_canvas->GetLayerCount();

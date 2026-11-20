@@ -2615,9 +2615,9 @@ namespace JBro
                     view.centerZ - forward.z * view.distance};
                 transform->rotation = rotation;
             }
+            // 새 캔버스의 기본 뷰포트가 자동(첫 켜진 카메라)이라 이 카메라로 그린다(D-438).
             if (auto* lens = canvas->AttachComponent<Component::Camera3D>(camera))
             {
-                lens->primary = true;
                 lens->verticalFieldOfView = view.verticalFieldOfView;
             }
             // 볼 것이 하나 있어야 실행했을 때 그려지는지 안다. 스크립트를 붙일 자리도 된다.
@@ -2662,7 +2662,6 @@ namespace JBro
         canvas->AttachComponent<Component::Transform2D>(camera);
         if (auto* lens = canvas->AttachComponent<Component::Camera2D>(camera))
         {
-            lens->primary = true;
             // 캔버스 뷰가 처음 보이는 넓이(크기 5)와 같게 둔다. 편집 화면과 실행 화면의 넓이가 같아야 둘을 오가며 헷갈리지 않는다.
             lens->orthographicSize = 5.0f;
         }

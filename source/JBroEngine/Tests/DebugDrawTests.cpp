@@ -543,7 +543,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
-        camera->primary = true;
         camera->orthographicSize = 4.0f;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
 
@@ -618,7 +617,6 @@ namespace
         JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 5.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
-        camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
         JBro::Object::GameObject* box = canvas.CreateObject("box");
         auto* boxTransform = canvas.AttachComponent<JBro::Component::Transform3D>(box);

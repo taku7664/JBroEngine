@@ -402,6 +402,8 @@
   main 에 합쳤다. 7 의 터치와 액션 세트·선입력 도구·런타임 리바인딩(D-218)도 섰다. 남은 것은 실기기 실측과 계획서 §4 의 7 의 `[열림]` 이다.
 - `[완료]` **세이브 저장소**(D-218 (4), [save-plan.md](./save-plan.md)). 스크립트의 `SaveService`, 호스트의 `SaveStorage`. 남은 것(웹·Android 뿌리,
   슬롯 목록, 비동기 쓰기)은 계획서 §4 의 `[열림]` 이다.
+- `[완료]` **캔버스 뷰포트 목록**(D-438, [viewport-plan.md](./viewport-plan.md)). 카메라의 `primary`·화면 배치를 캔버스 목록으로 옮겼다(2D·3D, 3D 여러 뷰, 레이어 필터, 캔버스 인스펙터, `ViewportService`).
+  남은 것은 계획서 §6 의 `[열림]` 이다.
 - `[열림]` **캔버스 비동기 로드.** 캔버스를 열 때 그 캔버스의 에셋을 워커가 디스크에서 읽고 디코드하는 동안 화면은 멈추지 않고
   진행률을 보이며, 끝나면 메인 스레드가 풀에 넣고 캔버스를 연다. 무엇을 열지는 여는 순간 정해지므로 추측할 것이 없다 - 전에 이 자리에
   적었던 "다음 캔버스를 미리 읽어 두기(prefetch)" 는 다음을 알 길이 없어 지웠다(2026-09-27, 사용자 지적: 버튼이 다섯이면 다섯을 다 읽을 수 없다).
@@ -3062,6 +3064,38 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-438. 카메라 고르기·화면 배치는 캔버스의 뷰포트 목록이다 - 카메라는 눈만 든다. 2D·3D 같고, 3D 도 여러 뷰다.** (2026-11-21, [viewport-plan.md](./viewport-plan.md), 사용자 결정 "뷰포트 목록으로")
+  Updates: D-187(`primary` 없으면 첫 활성 카메라 → 뷰포트의 자동), D-359(카메라의 `viewportOrigin`·`viewportSize`·`depth` → 뷰포트, 차례는 목록 차례), D-362(카메라의 `clearViewport`·`renderTextureId` → 뷰포트).
+  (1) 까닭: 3D 는 `primary` 를 켠 카메라가 없으면 아무것도 그리지 않았다(카메라를 붙여도 기본값이 꺼짐). `primary` 는 2026-09-02 첫 골격 커밋부터 있었고 넣은 까닭을 적은 결정이 없다.
+  기존 엔진(`taku7664/JBroEngine_old` 리포의 `CanvasViewport.h`·`Camera2D.h`·`InspectorTool.cpp`)은 카메라를 "월드 속의 눈" 으로만 두고, 캔버스가 뷰포트 목록(카메라·사각형·레이어 필터·`Active`)을 들어
+  캔버스 인스펙터에서 고쳤다. 사용자에게 네 갈림길을 물어 받았다: 스크립트 API 는 뷰포트 서비스를 더한다, 3D 도 여러 뷰까지, 레이어 필터는 이번에, 바탕색은 카메라의 `clearColor` 그대로.
+  (2) 자료: `JBroCanvas` 의 `CanvasViewport`(`name`·`active`·`camera`(오브젝트 번호, 비면 자동)·`origin`·`size`·`layers`(비면 모두)·`clearViewport`·`renderTextureId`). 캔버스가 목록을 들고 새 캔버스는 기본 하나(`Main`, 전체, 자동)다.
+  목록 차례가 그리는 차례다. 자동은 그 차원의 **그릴 수 있는** 첫 켜진 카메라다(D-239 처럼 값이 잘못된 카메라는 건너뛴다). 정한 카메라를 못 쓰면 그 뷰포트는 그리지 않는다(다른 카메라로 떨어지지 않는다).
+  주 카메라(화면 레이어의 레터박스 기준·뷰포트 밖 포인터·스크립트 UI 의 화면↔월드·리스너가 없을 때의 오디오 자리)는 화면에 그리는 첫 켜진 뷰포트의 카메라다.
+  (3) 파일: `.jcanvas` 의 `Viewports`(카메라는 파일 안 차례, -1 은 자동, 레이어는 파일의 레이어 `Id`). 키가 없는 옛 파일은 카메라에 적힌 값으로 목록을 만든다 - 2D 는 카메라마다 뷰포트 하나를 그때 그린 차례(`depth`, 같으면 파일 차례)로,
+  3D 는 `primary` 를 켠 첫 카메라 하나로, 2D 카메라가 하나뿐이고 전체 화면이면 자동 하나로 접는다. 옛 카메라 칸(`primary`·`viewportOrigin`·`viewportSize`·`depth`·`clearViewport`·`renderTextureId`)은
+  컴포넌트에 읽지 않고 건너뛴다 - "엔진이 모르는 칸" 으로 거절하면 카메라가 든 옛 캔버스가 모두 열리지 않는다. 버전은 올리지 않았다.
+  (4) 2D: `Camera2D` 에서 그 칸들을 뺐다. `Camera2DSystem` 이 목록을 뷰(`RenderCamera2D`)로 옮기고, 레이어 필터는 레이어 차례 0~255 의 비트 마스크(`ViewLayerMask`)로 `SpriteFilterRule::layers` 가 거른다(그 밖의 차례는 늘 그린다).
+  렌더 텍스처 핸들은 `Framework2D::BindCanvasAssets` 가 뷰포트의 아이디로 풀고, 게임 빌드의 에셋 모음(`CollectCanvasAssetIds`)에도 든다. 화면 레이어는 필터와 무관하게 대상 전체에 한 번 그린다.
+  (5) 3D: `Camera3D` 에서 `primary` 를 뺐다. `RenderWorld3D` 가 뷰 목록과 뷰마다의 후처리를 들고(`Framework3D::MixPostProcessFor`, 섞기 자리 8), `SubmitRenderWorld3D` 가 뷰마다 제 사각형(가로세로비도 그 사각형)으로
+  `SubmitLayerViews` 를 부른다. 둘째 뷰부터 `clearViewport` 면 단위 행렬의 빛 안 받는 사각형으로 제 사각형을 칠한다. 3D 렌더 텍스처는 보일 자리(3D 머티리얼의 텍스처 칸)가 없어 그리지 않고 한 번 경고한다(`[열림]`).
+  (6) 에디터: 캔버스 인스펙터의 배경색 아래 "뷰포트" 절(이름·사용·카메라(자동 + 그 차원의 카메라, 계층에서 끌어 놓기도)·위치·크기·바탕 칠하기·렌더 텍스처·레이어, 위로·아래로·삭제, 뷰포트 추가).
+  편집은 목록 전체를 앞뒤로 뜬 `SetCanvasViewportsCommand` 하나이고 사각형 끌기는 합친다. 경고: 카메라를 못 찾음 / 자동인데 켜진 카메라가 여럿 / 목록이 비어 월드를 그리지 않음 / 3D 렌더 텍스처.
+  시뮬레이션 뷰의 `camera_ambiguous` 는 "자동 뷰포트인데 켜진 카메라가 여럿" 으로 바뀌었고 3D 에도 선다. 새 프로젝트의 시작 카메라는 `primary` 없이 기본 뷰포트로 그린다.
+  (7) 스크립트: 공통 서비스 `ViewportService`(`GetServiceContext().Viewports` - `GetCount`·`Find`·`IsActive`/`SetActive`·`Get/SetOrigin`·`Get/SetSize`·`Get/SetClearViewport`·`GetCamera`·`SetCamera`·`SetAutoCamera`),
+  시스템 `IViewportSystem`(`SystemContext::Viewports`), 구현 `CanvasViewportSystem`(JBroCanvas). 카메라 핸들의 `Get/SetPrimary`·뷰포트·`depth`·`clearViewport`·렌더 텍스처 멤버와 2D API 표의 행을 지웠다.
+  ABI: `SystemContextAbiVersion` 9 → 10, `ServiceContextAbiVersion` 6 → 7 - 옛 스크립트 DLL 은 다시 빌드해야 한다.
+  확인: `CanvasFile` 의 저장 모양(기본 뷰포트), 뷰포트 왕복(이름·끔·정한 카메라·사각형·칠하기·레이어 필터·렌더 텍스처), `TestOldCameraFieldsBecomeViewports`(옛 칸이 든 파일이 열리고 `depth` 차례의 뷰포트 둘, 카메라 하나는 자동 하나),
+  `Framework2DSystem`(자동은 첫 활성, 정한 카메라가 차례를 이김, 자동은 그릴 수 없는 카메라를 건너뜀, 정한 카메라가 그릴 수 없으면 떨어지지 않음, 두 뷰포트는 목록 차례의 뷰 둘, 끈 뷰포트는 안 그림),
+  `Framework3DSystem`(`primary` 없이 그림, 정한 카메라, 트랜스폼 없는 카메라, 3D 뷰포트 둘, 목록이 비면 없음), `SpriteDrawMode`(분할 화면 픽셀과 레이어 필터 픽셀, 미니맵 렌더 텍스처 뷰포트),
+  `MeshPixel` 의 `TestViewportsSplitTheScreenIn3D`(세 백엔드 - 왼쪽 붉은 상자·오른쪽 초록 바탕의 푸른 상자, 레이어 필터, 칠하기 끄기, 검증 레이어 조용함), `UiScenario`(분할 화면 포인터와 겹칠 때 뒤의 뷰포트),
+  `CameraView2D`·`RendererContract`·`ContextBoundary`·`ScriptApiCatalog`·`TextRender`·`Light2D`·`DebugDraw`·`InputChain`·`SpriteLibrary`·`D3D12Smoke` 가 지났다.
+  전체 `JBroTests` 가 `all tests passed.` 로 지났다(2026-11-21, 솔루션 Debug·Debug_Game2D·Debug_Game3D 빌드 뒤). 옛 칸 수 검사(`BuiltinComponentProperty`, `Camera2D` 15 → 8, `Camera3D` 9 → 8)를 고친 뒤 다시 돈 것이다.
+  화면: `TestTheCanvasItselfCanBeSelectedAndPainted` 가 뷰포트 둘을 단 캔버스 인스펙터를 찍었다(`JBRO_EDITOR_SHOT`, 1024 x 768). 처음 그림에서 좁은 인스펙터의 글자 단추가 잘리고 경고가 줄바꿈 없이 잘려,
+  단추를 아이콘 셋(위로·아래로·삭제, 툴팁)으로, 경고를 `ValidationMessage` 로 바꾸고 칸 표를 경고 앞에서 닫았다 - 다시 찍은 그림에서 셋 다 보이고 경고가 패널 폭으로 꺾인다.
+  이 배치 수정 뒤에는 전체 시험을 다시 돌리지 않았다(그 시험과 `CanvasFile`·`Framework2DSystem`·`Framework3DSystem`·`BuiltinComponentProperty` 만 다시 돌았다). 카메라 칸은 좁으면 이름이 잘린다(다른 인스펙터 칸과 같다).
+  `[열림]` viewport-plan §6: 3D 렌더 텍스처, 스크립트의 레이어 필터·렌더 텍스처(전에는 `Camera2D.SetRenderTexture` 가 있었다), 사각형의 픽셀 성분, 뷰포트마다의 화면 레이어, `.jlayer` 의 카메라는 옮기지 않음, 2D API 표에 `ViewportService` 없음(후처리·머티리얼 서비스도 없다).
 
 - **D-437. 조인트 끊는 힘 - 2D·3D 조인트 넷에 `breakForce`·`breakTorque`, 넘으면 컴포넌트를 끄고 `OnJointBreak` 를 부른다.** (2026-11-20, physics3d-plan §3.6·physics-plan §4 의 열림, 사용자 결정 "유니티와 같이")
   (1) 사용자에게 세 길(유니티와 같이·훅 없이 끄기만·하지 않음)을 보이고 "유니티와 같이" 를 받았다. 유니티와 다른 점: 유니티는 조인트를 지우지만 여기서는 **컴포넌트를 끈다**(지우지 않는다 -

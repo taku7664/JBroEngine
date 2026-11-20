@@ -26,6 +26,7 @@ namespace JBro
     {
         GetCanvasInstanceIdGenerator().BeginFrame();
         CreateLayer("Default");
+        m_viewports.Add(MakeDefaultViewport());
     }
 
     Canvas::~Canvas()
@@ -244,6 +245,9 @@ namespace JBro
         // 배경색도 기본으로 되돌린다(D-186). 남겨 두면 다음에 여는 캔버스가 제 색을
         // 적어 두지 않았을 때 앞 캔버스의 배경으로 그려진다.
         m_backgroundColor = Color{0.10f, 0.11f, 0.13f, 1.0f};
+        // 뷰포트도 기본 하나로 되돌린다(D-438). 남겨 두면 다음 캔버스가 앞 캔버스의 카메라 번호를 가리킨다.
+        m_viewports.Clear();
+        m_viewports.Add(MakeDefaultViewport());
         MarkScriptOrderDirty();
         return true;
     }
@@ -548,6 +552,38 @@ namespace JBro
     void Canvas::SetBackgroundColor(const Color& color)
     {
         m_backgroundColor = color;
+    }
+
+    const Array<CanvasViewport>& Canvas::GetViewports() const
+    {
+        return m_viewports;
+    }
+
+    std::size_t Canvas::GetViewportCount() const
+    {
+        return m_viewports.Size();
+    }
+
+    CanvasViewport* Canvas::GetViewportAt(std::size_t index)
+    {
+        return index < m_viewports.Size() ? &m_viewports[index] : nullptr;
+    }
+
+    const CanvasViewport* Canvas::GetViewportAt(std::size_t index) const
+    {
+        return index < m_viewports.Size() ? &m_viewports[index] : nullptr;
+    }
+
+    void Canvas::SetViewports(const Array<CanvasViewport>& viewports)
+    {
+        m_viewports = viewports;
+    }
+
+    CanvasViewport Canvas::MakeDefaultViewport()
+    {
+        CanvasViewport viewport;
+        viewport.name = "Main";
+        return viewport;
     }
 
     Bool Canvas::DestroyComponent(ComponentBase* component)

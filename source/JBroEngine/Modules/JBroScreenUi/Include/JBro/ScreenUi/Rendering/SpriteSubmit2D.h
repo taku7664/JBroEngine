@@ -43,6 +43,8 @@ namespace JBro::Internal
         Int32 layerOrder = -1;
         // 이 텍스처를 쓰는 아이템은 넣지 않는다(D-362). 렌더 텍스처 카메라의 뷰는 제 대상을 읽을 수 없다 - 그 텍스처를 보이는 스프라이트를 뺀다.
         AssetHandle excludeTexture;
+        // 있으면 이 마스크가 담은 레이어 차례의 아이템만 넣는다(D-438, 뷰포트의 레이어 필터). 게임 화면의 뷰만 준다.
+        const ViewLayerMask* layers = nullptr;
     };
 
     SpriteSubmit BuildSprite(const SpriteRenderItem& source, Float offsetX, Float offsetY, const SpritePiece& piece);

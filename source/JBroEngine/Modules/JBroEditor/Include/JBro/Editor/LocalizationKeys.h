@@ -281,6 +281,31 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyCanvasUnsaved = "hierarchy.canvas_unsaved";
     inline constexpr const char* InspectorCanvasProperties = "inspector.canvas_properties";
     inline constexpr const char* InspectorCanvasBackground = "inspector.canvas_background";
+    // 캔버스의 뷰포트 목록(D-438).
+    inline constexpr const char* InspectorCanvasViewports = "inspector.canvas_viewports";
+    inline constexpr const char* InspectorViewportName = "inspector.viewport_name";
+    inline constexpr const char* InspectorViewportActive = "inspector.viewport_active";
+    inline constexpr const char* InspectorViewportCamera = "inspector.viewport_camera";
+    inline constexpr const char* InspectorViewportCameraTooltip = "inspector.viewport_camera_tooltip";
+    inline constexpr const char* InspectorViewportCameraAuto = "inspector.viewport_camera_auto";
+    inline constexpr const char* InspectorViewportOrigin = "inspector.viewport_origin";
+    inline constexpr const char* InspectorViewportOriginTooltip = "inspector.viewport_origin_tooltip";
+    inline constexpr const char* InspectorViewportSize = "inspector.viewport_size";
+    inline constexpr const char* InspectorViewportSizeTooltip = "inspector.viewport_size_tooltip";
+    inline constexpr const char* InspectorViewportClear = "inspector.viewport_clear";
+    inline constexpr const char* InspectorViewportClearTooltip = "inspector.viewport_clear_tooltip";
+    inline constexpr const char* InspectorViewportRenderTexture = "inspector.viewport_render_texture";
+    inline constexpr const char* InspectorViewportRenderTextureTooltip = "inspector.viewport_render_texture_tooltip";
+    inline constexpr const char* InspectorViewportLayers = "inspector.viewport_layers";
+    inline constexpr const char* InspectorViewportLayersTooltip = "inspector.viewport_layers_tooltip";
+    inline constexpr const char* InspectorViewportAdd = "inspector.viewport_add";
+    inline constexpr const char* InspectorViewportRemove = "inspector.viewport_remove";
+    inline constexpr const char* InspectorViewportMoveUp = "inspector.viewport_move_up";
+    inline constexpr const char* InspectorViewportMoveDown = "inspector.viewport_move_down";
+    inline constexpr const char* InspectorViewportUnresolved = "inspector.viewport_unresolved";
+    inline constexpr const char* InspectorViewportAmbiguous = "inspector.viewport_ambiguous";
+    inline constexpr const char* InspectorViewportNone = "inspector.viewport_none";
+    inline constexpr const char* InspectorViewportNoRenderTexture3D = "inspector.viewport_render_texture_3d";
     // 레이어를 골랐을 때의 인스펙터(D-279). 이름 칸은 `HierarchyLayerName`, 맞춤 방식은 `HierarchyLayerScaleMode` 를 같이 쓴다.
     inline constexpr const char* InspectorLayerProperties = "inspector.layer_properties";
     inline constexpr const char* InspectorLayerVisible = "inspector.layer_visible";

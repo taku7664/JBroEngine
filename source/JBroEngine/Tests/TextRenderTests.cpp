@@ -627,7 +627,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -891,7 +890,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
@@ -998,7 +996,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             // 월드의 파랑: 가운데 한 유닛(32 픽셀).
@@ -1160,7 +1157,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {0.5f, 0.5f, 0.5f, 1.0f};
             const auto redSquare = [&](const char* name, Layer& layer, JBro::Float size) {
@@ -1242,7 +1238,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject)->position = {1.0f, 0.0f};
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
             const auto square = [&](const char* name, LayerId layer, JBro::Float x, Color tint) {
@@ -1316,7 +1311,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject)->position = {1.0f, 0.0f};
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             const auto square = [&](const char* name, LayerId layer, JBro::Float x, JBro::Float size, Color tint) {
@@ -1461,7 +1455,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             Object::GameObject* labelObject = canvas->CreateObject("label");
@@ -1543,7 +1536,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             Object::GameObject* labelObject = canvas->CreateObject("label");
@@ -1662,7 +1654,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             Object::GameObject* labelObject = canvas->CreateObject("label");
@@ -1738,7 +1729,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             Object::GameObject* labelObject = canvas->CreateObject("label");
@@ -1865,7 +1855,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             Object::GameObject* labelObject = canvas->CreateObject("label");
@@ -1962,7 +1951,6 @@ namespace
             Object::GameObject* eye = canvas->CreateObject("eye");
             canvas->AttachComponent<Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
             auto* camera = canvas->AttachComponent<Component::Camera3D>(eye);
-            camera->primary = true;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             Object::GameObject* labelObject = canvas->CreateObject("label");
             auto* place = canvas->AttachComponent<Component::Transform3D>(labelObject);
@@ -2183,7 +2171,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             const auto makeLabel = [&](const char* name) {
                 Object::GameObject* object = canvas->CreateObject(name);
@@ -2304,7 +2291,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             Object::GameObject* labelObject = canvas->CreateObject("label");
@@ -2454,7 +2440,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
 
@@ -2645,7 +2630,6 @@ namespace
             Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
-            camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
 

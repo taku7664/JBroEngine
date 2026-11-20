@@ -351,7 +351,6 @@ namespace
         cameraLocal->position = {3.0f, 4.0f};
         cameraLocal->SetRotationRadian(JBro::Radian(0.7f));
         cameraLocal->scale = {2.0f, 0.5f};
-        camera->primary = true;
         camera->orthographicSize = 7.0f;
         camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
         camera->nearPlane = -7.0f;
@@ -416,19 +415,17 @@ namespace
                 && NearlyEqual(item.tint.A, 0.8f), "sprite assets and appearance must survive extraction");
         }
         world.BeginFrame();
-        camera->primary = false;
         sprite->SetEnabled(false);
         cameras.Update(canvas, 0.0f);
         sprites.Update(canvas, 0.0f);
-        // **`primary` 가 아니어도 살아 있으면 그린다**(D-187). 그전에는 아무것도 그리지
+        // **기본 뷰포트는 자동이라 켜진 카메라로 그린다**(D-187, D-438). 그전에는 `primary` 를 켜지 않으면 아무것도 그리지
         // 않았는데, 카메라를 붙이고 재생을 누른 사람에게는 검은 화면만 남았다.
         Check(world.GetCamera() != nullptr,
-            "an active camera draws even when nothing is marked primary");
+            "an active camera draws through the default automatic viewport");
         Check(world.GetSpriteCount() == 0, "while a disabled sprite still skips");
         // **프레임을 새로 연다.** 추출은 카메라를 넣기만 하므로, 지우지 않으면 앞 프레임에
         // 넣은 것이 남아 "아무것도 고르지 못했다" 를 잴 수 없다.
         world.BeginFrame();
-        camera->primary = true;
         cameraLocal->scale.x = 0.0f;
         transforms.Update(canvas, 0.0f);
         cameras.Update(canvas, 0.0f);
@@ -467,29 +464,57 @@ namespace
         Check(world.GetSprite(0).sourceId != world.GetSprite(1).sourceId,
             "multiple sprites must have distinct sort identities");
         world.BeginFrame();
-        auto* laterCamera = canvas.AttachComponent<JBro::Component::Camera2D>(spriteObject);
-        laterCamera->primary = true;
+        canvas.AttachComponent<JBro::Component::Camera2D>(spriteObject);
         cameras.Update(canvas, 0.0f);
-        Check(world.GetCamera()->owner == cameraObject, "first valid primary camera must win");
-        // **`primary` 는 차례를 이긴다**(D-187). 지정한 카메라가 뒤에 있다고 해서 앞의
-        // 지정하지 않은 것으로 그리면, 지정이라는 것이 아무 뜻도 갖지 못한다.
+        Check(world.GetCamera()->owner == cameraObject, "the automatic viewport draws with the first active camera");
+        // **뷰포트가 정한 카메라는 차례를 이긴다**(D-438). 정한 카메라가 뒤에 있다고 해서 앞의 것으로 그리면 정한다는 것이 아무 뜻도 갖지 못한다.
         world.BeginFrame();
-        camera->primary = false;
+        canvas.GetViewportAt(0)->camera = spriteObject->GetInstanceId();
         cameras.Update(canvas, 0.0f);
         Check(world.GetCamera() != nullptr && world.GetCamera()->owner == spriteObject,
-            "a primary camera wins over an earlier one that is not primary");
-        // 아무것도 지정하지 않으면 첫 활성 카메라다. 차례가 같으면 늘 같은 것이어야 한다.
+            "a viewport that names a later camera draws with it");
+        // 자동으로 되돌리면 첫 활성 카메라다. 차례가 같으면 늘 같은 것이어야 한다.
         world.BeginFrame();
-        laterCamera->primary = false;
+        canvas.GetViewportAt(0)->camera = JBro::InvalidInstanceId;
         cameras.Update(canvas, 0.0f);
         Check(world.GetCamera() != nullptr && world.GetCamera()->owner == cameraObject,
-            "with none primary the first active camera draws");
-        camera->primary = true;
+            "back on automatic the first active camera draws");
         world.BeginFrame();
         cameraLocal->scale.x = 0.0f;
         transforms.Update(canvas, 0.0f);
         cameras.Update(canvas, 0.0f);
-        Check(world.GetCamera() && world.GetCamera()->owner == spriteObject, "invalid primary camera must allow a valid fallback");
+        Check(world.GetCamera() && world.GetCamera()->owner == spriteObject, "the automatic viewport passes over a camera that cannot draw");
+        // 정한 카메라가 그릴 수 없으면 그 뷰포트는 그리지 않는다 - 다른 카메라로 떨어지면 틀린 것을 알 길이 없다.
+        world.BeginFrame();
+        canvas.GetViewportAt(0)->camera = cameraObject->GetInstanceId();
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCamera() == nullptr && world.GetCameras().Size() == 0, "a named camera that cannot draw does not fall back to another one");
+        // 두 뷰포트는 목록 차례로 뷰 둘이다.
+        cameraLocal->scale.x = 1.0f;
+        transforms.Update(canvas, 0.0f);
+        {
+            JBro::Array<JBro::CanvasViewport> split;
+            JBro::CanvasViewport left;
+            left.camera = spriteObject->GetInstanceId();
+            left.size = {0.5f, 1.0f};
+            JBro::CanvasViewport right;
+            right.camera = cameraObject->GetInstanceId();
+            right.origin = {0.5f, 0.0f};
+            right.size = {0.5f, 1.0f};
+            split.Add(left);
+            split.Add(right);
+            canvas.SetViewports(split);
+        }
+        world.BeginFrame();
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCameras().Size() == 2 && world.GetCameras()[0].owner == spriteObject && world.GetCameras()[1].owner == cameraObject
+                && world.GetCameras()[1].viewportOrigin.x == 0.5f,
+            "two viewports make two views in list order, each with its own rectangle");
+        Check(world.GetCamera() != nullptr && world.GetCamera()->owner == spriteObject, "the main camera is the first viewport's");
+        canvas.GetViewportAt(0)->active = false;
+        world.BeginFrame();
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCameras().Size() == 1 && world.GetCamera()->owner == cameraObject, "a switched-off viewport is not drawn");
     }
 
     void TestRenderWorldCapacityLimit()
