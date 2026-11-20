@@ -3058,6 +3058,14 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-433. 빠른 3D 캐릭터도 지나온 길을 쓴다 - 얇은 트리거를 건너뛰지 않는다.** (2026-11-20, physics3d-plan §3.6 의 열림)
+  Updates: D-423(쓸 몸에 캐릭터의 안쪽 몸을 더한다).
+  (1) 캐릭터는 Jolt 의 스텝 밖(`MoveCharacters`)에서 옮기므로 D-423 이 스텝 앞에 뜨는 "깨어 있는 동적인 몸" 에 들지 않았다. 그래서 옮기기 앞에 안쪽 몸의 질량 중심 자세를 떠 두고(`movedCharacters`),
+  스텝 뒤에 같은 `SweepOne` 으로 민다. 고르는 상대·잎마다의 레이어·프로젝트 레이어 표·"지나쳤다" 의 뜻(그 스텝에 시작, 다음 스텝에 끝)이 모두 D-423 과 같다.
+  (2) 순간 이동(`SetCharacterPosition`)은 뜨기 앞이라 쓸지 않는다. 안쪽 반지름(캡슐의 반지름)보다 덜 가면 쓸지 않아 걷는 캐릭터에는 값이 거의 들지 않는다.
+  확인: `Physics3DWorld` 의 `TestFastTriggersDoNotSkip` 끝 묶음(한 스텝에 6 을 가는 캐릭터가 두께 0.2 의 트리거에 한 번 들어가고 다음 스텝에 나옴, 순간 이동은 쓸지 않음).
+  고치기 앞에는 같은 시험이 "a character that jumps over a thin trigger in one step still enters it" 로 실패했다(시작 0). Physics3DWorld 묶음 전체가 지났다.
+
 - **D-432. 3D 캐릭터끼리는 서로의 키네마틱 몸으로 부딪힌다 - Jolt 의 `CharacterVsCharacterCollision` 은 걸지 않는다.** (2026-11-20, physics3d-plan §3.6 의 열림)
   (1) physics3d-plan 은 "서로의 키네마틱 몸은 지나간다" 고 적었으나 재 보지 않은 말이었다. 시험으로 재니 이미 부딪힌다: 캐릭터는 제 안쪽 몸만 거르고(`IgnoreSingleBodyFilter`)
   남의 안쪽 몸(D-427 의 같은 캡슐 키네마틱 몸)은 보통 바디처럼 본다. 그래서 코드는 바꾸지 않았다.

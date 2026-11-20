@@ -933,6 +933,8 @@ namespace JBro::Physics3D
         };
         Array<Sweep> movedTriggers;
         Array<Sweep> movingBodies;
+        // 캐릭터의 안쪽 몸(D-433). 캐릭터는 Jolt 의 스텝 밖에서 옮기므로 옮기기 앞에 떠 둔다.
+        Array<Sweep> movedCharacters;
         JPH::BodyIDVector activeScratch;
         ContactTracker contacts;
         JPH::PhysicsSystem physics;
@@ -1342,6 +1344,7 @@ namespace JBro::Physics3D
         // 스텝 앞: 쌓인 이동대로 캐릭터를 옮긴다(미끄러지기·턱 오르기·바닥 붙기). 캐릭터의 접촉은 이 안에서 접촉 표로 간다.
         void MoveCharacters(float deltaTime)
         {
+            movedCharacters.Clear();
             for (CharacterSlot& slot : characters)
             {
                 if (false == slot.alive)
@@ -1350,6 +1353,9 @@ namespace JBro::Physics3D
                 }
                 JPH::CharacterVirtual& character = *slot.character;
                 const JPH::RVec3 before = character.GetPosition();
+                // 지나온 길을 스텝 뒤에 쓴다(D-433) - 빠른 캐릭터가 얇은 트리거를 건너뛰지 않는다. 순간 이동(`SetCharacterPosition`)은 이 앞이라 쓸지 않는다.
+                const JPH::BodyID inner = character.GetInnerBodyID();
+                movedCharacters.Add(Sweep{inner, physics.GetBodyInterfaceNoLock().GetCenterOfMassTransform(inner)});
                 character.SetLinearVelocity(ToJolt(slot.pending) / deltaTime);
                 slot.pending = {};
                 JPH::CharacterVirtual::ExtendedUpdateSettings update;
@@ -1484,6 +1490,10 @@ namespace JBro::Physics3D
                 SweepOne(sweep);
             }
             movedTriggers.Clear();
+            for (const Sweep& sweep : movedCharacters)
+            {
+                SweepOne(sweep);
+            }
         }
 
         // 맞은 바디의 userData 와 그 자리의 표면 법선을 채운다.

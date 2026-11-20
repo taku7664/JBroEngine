@@ -784,6 +784,25 @@ namespace
         moved.SetTransform(gate, {-5.0f, 0.0f, 0.0f}, {});
         moved.Step(Frame);
         Check(CountTriggerEvents(moved.GetBeginEvents()) == 0, "a teleport sweeps nothing");
+
+        // 빠른 캐릭터도 얇은 트리거를 건너뛰지 않는다 - 한 스텝에 6 을 가며 두께 0.2 의 트리거를 넘는다.
+        World walking;
+        walking.SetGravity({0.0f, 0.0f, 0.0f});
+        walking.CreateBody(slab);
+        JBro::Physics3D::CharacterDef runner;
+        runner.position = {-3.0f, -1.0f, 0.0f};
+        runner.center = {0.0f, 1.0f, 0.0f};
+        const JBro::Physics3D::CharacterId sprinter = walking.CreateCharacter(runner);
+        walking.MoveCharacter(sprinter, {6.0f, 0.0f, 0.0f});
+        walking.Step(Frame);
+        Check(walking.GetCharacterPosition(sprinter).x > 2.0f, "the character ends the step past the slab");
+        Check(CountTriggerEvents(walking.GetBeginEvents()) == 1, "a character that jumps over a thin trigger in one step still enters it");
+        Check(CountTriggerEvents(walking.GetEndEvents()) == 0, "and the character leaves it on the next step");
+        walking.Step(Frame);
+        Check(CountTriggerEvents(walking.GetEndEvents()) == 1 && CountTriggerEvents(walking.GetBeginEvents()) == 0, "the next step ends the character's pass");
+        walking.SetCharacterPosition(sprinter, {-3.0f, -1.0f, 0.0f});
+        walking.Step(Frame);
+        Check(CountTriggerEvents(walking.GetBeginEvents()) == 0, "teleporting a character sweeps nothing");
     }
 }
 
