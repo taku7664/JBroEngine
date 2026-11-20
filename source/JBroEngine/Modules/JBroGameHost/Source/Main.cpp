@@ -14,6 +14,8 @@
 #elif defined(JBRO_GAME_DIMENSION_3D)
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3DSystem/PhysicsThreads3D.h>
+// 레이어 충돌 표 풀이(`ResolvePhysicsIgnoredLayers`, D-421). 2D 는 `PhysicsThreads.h` 가 준다.
+#include <JBro/Host/BuildCanvasWork.h>
 #else
 #error A game dimension must be selected.
 #endif
