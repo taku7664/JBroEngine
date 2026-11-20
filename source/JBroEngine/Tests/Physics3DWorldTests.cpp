@@ -1143,6 +1143,63 @@ namespace
             }
             Check(ends == 1, "a character that stood in a trigger and was moved out of it leaves it");
         }
+        // 캐릭터끼리는 부딪힌다 - 마주 걸어도 서로 지나가지 않고, 충돌 사건이 양쪽 오브젝트로 온다.
+        {
+            World world;
+            MakeGround(world);
+            CharacterDef left = def;
+            left.position = {-2.0f, 0.0f, 0.0f};
+            CharacterDef right = def;
+            right.position = {2.0f, 0.0f, 0.0f};
+            right.userData = 78;
+            const CharacterId a = world.CreateCharacter(left);
+            const CharacterId b = world.CreateCharacter(right);
+            JBro::Int32 begins = 0;
+            for (JBro::Int32 index = 0; index < 60; ++index)
+            {
+                world.MoveCharacter(a, {0.1f, -0.05f, 0.0f});
+                world.MoveCharacter(b, {-0.1f, -0.05f, 0.0f});
+                world.Step(Frame);
+                for (const JBro::Physics3D::ContactEvent& event : world.GetBeginEvents())
+                {
+                    const JBro::Bool pair = (event.userDataA == 77u && event.userDataB == 78u) || (event.userDataA == 78u && event.userDataB == 77u);
+                    begins += pair && false == event.isTrigger ? 1 : 0;
+                }
+            }
+            const JBro::Float gap = world.GetCharacterPosition(b).x - world.GetCharacterPosition(a).x;
+            Check(gap > 2.0f * def.radius - 0.05f, "two characters walking into each other do not pass through");
+            Check(begins == 1, "two characters that meet begin one collision");
+            // 서 있는 캐릭터에 걸어 들어가도 밀리지 않고 막힌다(캐릭터는 서로 밀지 않는다 - 유니티의 CharacterController 와 같다).
+            world.SetCharacterPosition(a, {-2.0f, 0.0f, 0.0f});
+            world.SetCharacterPosition(b, {2.0f, 0.0f, 0.0f});
+            walk(world, b, {0.0f, -0.05f, 0.0f}, 5);
+            for (JBro::Int32 index = 0; index < 60; ++index)
+            {
+                world.MoveCharacter(a, {0.1f, -0.05f, 0.0f});
+                world.MoveCharacter(b, {0.0f, -0.05f, 0.0f});
+                world.Step(Frame);
+            }
+            Check(std::fabs(world.GetCharacterPosition(b).x - 2.0f) < 0.01f, "a standing character is not pushed by one walking into it");
+            Check(world.GetCharacterPosition(a).x < 1.05f, "and the walker stops at it");
+            // 떨어지면 끝이 온다.
+            JBro::Int32 ends = 0;
+            for (JBro::Int32 index = 0; index < 30; ++index)
+            {
+                world.MoveCharacter(a, {-0.1f, -0.05f, 0.0f});
+                world.Step(Frame);
+                for (const JBro::Physics3D::ContactEvent& event : world.GetEndEvents())
+                {
+                    const JBro::Bool pair = (event.userDataA == 77u && event.userDataB == 78u) || (event.userDataA == 78u && event.userDataB == 77u);
+                    ends += pair ? 1 : 0;
+                }
+            }
+            Check(ends == 1, "walking away from another character ends the collision once");
+            // 머리 위에 떨어지면 그 위에 선다.
+            world.SetCharacterPosition(a, {2.0f, 4.0f, 0.0f});
+            walk(world, a, {0.0f, -0.1f, 0.0f}, 60);
+            Check(std::fabs(world.GetCharacterPosition(a).y - 2.0f) < 0.05f && world.IsCharacterGrounded(a), "a character that falls on another stands on its head");
+            Check(std::fabs(world.GetCharacterPosition(b).y) < 0.01f, "and the one below stays on the ground");
+        }
     }
 }
 
