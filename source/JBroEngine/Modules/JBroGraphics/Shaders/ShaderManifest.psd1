@@ -19,6 +19,7 @@
         @{ Symbol = 'BuiltinMeshVS';             File = 'BuiltinMesh.hlsl';             Entry = 'VSMain';         Stage = 'Vertex' }
         @{ Symbol = 'BuiltinMeshPS';             File = 'BuiltinMesh.hlsl';             Entry = 'PSMain';         Stage = 'Pixel' }
         @{ Symbol = 'BuiltinMeshUnlitPS';        File = 'BuiltinMesh.hlsl';             Entry = 'PSUnlitMain';    Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinMeshShadowPS';       File = 'BuiltinMesh.hlsl';             Entry = 'PSShadowMain';   Stage = 'Pixel' }
         @{ Symbol = 'BuiltinSdfTextVS';          File = 'BuiltinSdfText.hlsl';          Entry = 'VSMain';         Stage = 'Vertex' }
         @{ Symbol = 'BuiltinSdfTextPS';          File = 'BuiltinSdfText.hlsl';          Entry = 'PSMain';         Stage = 'Pixel' }
         @{ Symbol = 'BuiltinSdfTextLitPS';       File = 'BuiltinSdfText.hlsl';          Entry = 'PSLitMain';      Stage = 'Pixel' }
@@ -58,9 +59,11 @@
         @{ Name = 'SdfText';          Vertex = 'BuiltinSdfTextVS';   Pixel = 'BuiltinSdfTextPS';          PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 1; Samplers = 1 }
         @{ Name = 'SdfTextLit';       Vertex = 'BuiltinSdfTextVS';   Pixel = 'BuiltinSdfTextLitPS';       PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 2; Samplers = 1 }
         @{ Name = 'WorldText';        Vertex = 'BuiltinWorldTextVS'; Pixel = 'BuiltinWorldTextPS';        PushConstantBytes = 64; PushConstantStages = 'Vertex'; SampledTextures = 1; Samplers = 1 }
-        # Meshes: the standard material (D-402) - b1 the material block, b2 the view's 3D lights (D-367), t0..t4 its pictures.
-        @{ Name = 'Mesh';             Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshPS';             PushConstantBytes = 80; PushConstantStages = 'Vertex|Pixel'; ConstantBuffers = 2; ConstantBufferStages = 'Pixel'; SampledTextures = 5; Samplers = 1 }
+        # Meshes: the standard material (D-402) - b1 the material block, b2 the view's 3D lights (D-367), b3 the view's shadows (D-445), t0..t4 its pictures, t5 the shadow atlas.
+        @{ Name = 'Mesh';             Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshPS';             PushConstantBytes = 80; PushConstantStages = 'Vertex|Pixel'; ConstantBuffers = 3; ConstantBufferStages = 'Pixel'; SampledTextures = 6; Samplers = 1 }
         @{ Name = 'MeshUnlit';        Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshUnlitPS';        PushConstantBytes = 80; PushConstantStages = 'Vertex'; ConstantBuffers = 1; ConstantBufferStages = 'Pixel'; SampledTextures = 2; Samplers = 1 }
+        # The shadow map (D-445): the mesh vertex stage with a light's view-projection pushed in, depth only.
+        @{ Name = 'MeshShadow';       Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshShadowPS';       PushConstantBytes = 80; PushConstantStages = 'Vertex' }
         # Full screen passes over a quad: the selection outline and layer compositing read their inputs in the pixel stage.
         @{ Name = 'OutlineGrow';      Vertex = 'BuiltinOutlineVS';   Pixel = 'BuiltinOutlineGrowPS';      PushConstantBytes = 32; PushConstantStages = 'Pixel';  SampledTextures = 1 }
         @{ Name = 'OutlineComposite'; Vertex = 'BuiltinOutlineVS';   Pixel = 'BuiltinOutlineCompositePS'; PushConstantBytes = 32; PushConstantStages = 'Pixel';  SampledTextures = 2 }

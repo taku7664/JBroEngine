@@ -45,5 +45,9 @@ namespace JBro::Component
         // `Spot` 의 원뿔 **전체** 각이다. 안쪽 각 안은 빛이 다 닿고 바깥 각에서 0 이 된다.
         JBRO_FIELD(Degree, innerAngle, Clamp(0.0f, 179.0f)) = 30.0f;
         JBRO_FIELD(Degree, outerAngle, Clamp(0.0f, 179.0f)) = 60.0f;
+        // **그림자를 드리우는가**(D-445). 뷰마다 첫 `Directional` 하나와 `Spot` 넷까지다. `Point`·`Ambient` 는 아직 그림자가 없다.
+        JBRO_FIELD(Bool, castShadows) = false;
+        // 그림자의 짙기다. 1 이면 그림자 안에 이 빛이 닿지 않고, 0 이면 그림자가 없는 것과 같다.
+        JBRO_FIELD(Float, shadowStrength, Clamp(0.0f, 1.0f)) = 1.0f;
     };
 }

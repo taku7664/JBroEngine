@@ -85,6 +85,9 @@ namespace JBro
         Float layerOpacity = 1.0f;
         // 패럴랙스 계수다(D-286). 게임 화면에서 그 레이어 뷰의 카메라 위치가 이 배가 된다.
         Float layerParallax = 1.0f;
+        // 그림자(D-445).
+        Bool castShadows = true;
+        Bool receiveShadows = true;
     };
 
     // 3D 텍스트의 글자 하나다(D-222). 사각형은 **오브젝트 로컬 XY 평면의 유닛**이고(왼쪽 위와 크기, y 위쪽), 월드 자리·회전·크기는 오브젝트의
@@ -128,6 +131,9 @@ namespace JBro
         Float range = 10.0f;
         Degree innerAngle = 30.0f;
         Degree outerAngle = 60.0f;
+        // 그림자(D-445).
+        Bool castShadows = false;
+        Float shadowStrength = 1.0f;
     };
 
     // 2D 의 `RenderWorld2D` 와 같은 자리다. 시스템이 채우고 브리지가 렌더러에 넘긴다.

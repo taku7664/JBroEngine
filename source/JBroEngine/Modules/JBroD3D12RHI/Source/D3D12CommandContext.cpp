@@ -161,8 +161,9 @@ namespace JBro::Internal
         if (m_device == nullptr
             || m_commandList == nullptr
             || m_renderPassActive
-            || desc.colorAttachments.data == nullptr
-            || desc.colorAttachments.size == 0
+            // 깊이 전용 패스(그림자 맵, D-445)는 색 첨부가 없다. 그때는 깊이가 있어야 한다.
+            || (desc.colorAttachments.size == 0 && desc.depthStencilAttachment == nullptr)
+            || (desc.colorAttachments.size != 0 && desc.colorAttachments.data == nullptr)
             || desc.colorAttachments.size > MaxColorAttachments)
         {
             return false;

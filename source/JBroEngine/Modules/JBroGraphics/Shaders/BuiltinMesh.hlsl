@@ -10,7 +10,8 @@
 struct ViewConstantsBlock
 {
     row_major float4x4 viewProjection;
-    // xyz camera position in world space; w is 1 when this mesh carries real tangents (a normal map may be read).
+    // xyz camera position in world space; w adds 1 when this mesh carries real tangents (a normal map may be read)
+    // and 2 when it does not receive shadows (D-445).
     float4 cameraAndFlags;
 };
 [[vk::push_constant]] ConstantBuffer<ViewConstantsBlock> gPush;
@@ -63,6 +64,98 @@ Texture2D gMetallicRoughnessTexture : register(t2);
 Texture2D gNormalTexture : register(t3);
 Texture2D gOcclusionTexture : register(t4);
 SamplerState gSampler : register(s0);
+
+// The view's shadows (D-445). Layout mirrors GpuShadowConstants in Renderer.h. The atlas is one 4096 x 2048 depth
+// texture of 1024 tiles: the directional light's four cascades on the left (2 x 2), up to four spot lights on the right.
+cbuffer ShadowConstants : register(b3)
+{
+    row_major float4x4 gCascades[4];
+    row_major float4x4 gSpots[4];
+    // The camera depth (distance along its forward) at which each cascade ends.
+    float4 gCascadeSplit;
+    // The world size of one texel in each cascade - how far a surface is pushed along its normal before the test.
+    float4 gCascadeTexel;
+    // Which of the view's lights each spot tile belongs to; below zero when the tile is unused.
+    float4 gSpotLight;
+    // The world size of one texel one unit away from each spot light.
+    float4 gSpotTexel;
+    // xyz the camera's forward; w the index of the directional light that casts, below zero when none.
+    float4 gViewForward;
+    // x the directional light's strength, y its depth bias, z the cascade count (0: no directional shadow), w the spot depth bias.
+    float4 gShadowParams;
+    float4 gSpotStrength;
+};
+Texture2D<float> gShadowAtlas : register(t5);
+
+static const float ShadowTile = 1024.0f;
+
+// 3 x 3 percentage-closer filter read with Load (no comparison sampler in the RHI). 1 is lit, 0 is fully shadowed.
+float ShadowTest(float4x4 lightMatrix, float3 worldPosition, float2 tile, float bias)
+{
+    const float4 clip = mul(lightMatrix, float4(worldPosition, 1.0f));
+    if (clip.w <= 0.0f)
+    {
+        return 1.0f;
+    }
+    const float3 ndc = clip.xyz / clip.w;
+    if (abs(ndc.x) >= 1.0f || abs(ndc.y) >= 1.0f || ndc.z <= 0.0f || ndc.z >= 1.0f)
+    {
+        return 1.0f;
+    }
+    const float2 texel = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * ShadowTile - 0.5f;
+    const int2 origin = int2(tile * ShadowTile);
+    const int2 base = int2(floor(texel));
+    float lit = 0.0f;
+    [unroll]
+    for (int y = -1; y <= 1; ++y)
+    {
+        [unroll]
+        for (int x = -1; x <= 1; ++x)
+        {
+            const int2 at = origin + clamp(base + int2(x, y), int2(0, 0), int2(1023, 1023));
+            lit += (ndc.z - bias <= gShadowAtlas.Load(int3(at, 0))) ? 1.0f : 0.0f;
+        }
+    }
+    return lit / 9.0f;
+}
+
+// How much of light `index` reaches this point (D-445): 1 unless that light casts a shadow here.
+float ShadowFor(uint index, float3 worldPosition, float3 normal, float3 lightPosition)
+{
+    if (gCameraAndFlags.w >= 1.5f)
+    {
+        return 1.0f;
+    }
+    const float light = (float)index;
+    if (light == gViewForward.w && gShadowParams.z > 0.5f)
+    {
+        const float depth = dot(worldPosition - gCameraAndFlags.xyz, gViewForward.xyz);
+        const uint count = (uint)gShadowParams.z;
+        [loop]
+        for (uint cascade = 0; cascade < count; ++cascade)
+        {
+            if (depth <= gCascadeSplit[cascade])
+            {
+                const float3 pushed = worldPosition + normal * (gCascadeTexel[cascade] * 1.5f);
+                const float2 tile = float2(cascade % 2, cascade / 2);
+                return lerp(1.0f, ShadowTest(gCascades[cascade], pushed, tile, gShadowParams.y), gShadowParams.x);
+            }
+        }
+        return 1.0f;
+    }
+    [unroll]
+    for (uint spot = 0; spot < 4; ++spot)
+    {
+        if (gSpotLight[spot] >= 0.0f && gSpotLight[spot] == light)
+        {
+            const float distance = length(worldPosition - lightPosition);
+            const float3 pushed = worldPosition + normal * (gSpotTexel[spot] * distance * 1.5f);
+            const float2 tile = float2(2 + spot % 2, spot / 2);
+            return lerp(1.0f, ShadowTest(gSpots[spot], pushed, tile, gShadowParams.w), gSpotStrength[spot]);
+        }
+    }
+    return 1.0f;
+}
 
 // Instance layout mirrors GpuMeshInstance in Renderer.h: a row-major 4x4 world matrix in four float4 rows followed
 // by the tint. The UV and tangent come last (ATTRIBUTE7/8, MeshVertex offsets 24/32) so the instance attributes
@@ -143,7 +236,7 @@ float3 SurfaceNormal(VertexOutput input, bool frontFace)
     // A double-sided material (D-443) draws back faces too; seen from behind, the surface faces the other way.
     // Single-sided materials cull back faces, so this only ever flips for double-sided ones.
     const float3 normal = frontFace ? normalize(input.normal) : -normalize(input.normal);
-    if (gCameraAndFlags.w * gParams.z < 0.5f)
+    if (fmod(gCameraAndFlags.w, 2.0f) * gParams.z < 0.5f)
     {
         return normal;
     }
@@ -164,6 +257,8 @@ float4 PSMain(VertexOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     const float occlusion = gOcclusionTexture.Sample(gSampler, input.uv).r;
 
     const float3 normal = SurfaceNormal(input, frontFace);
+    // The surface's own normal pushes the point off it before the shadow test; a normal map would bend the push.
+    const float3 geometric = frontFace ? normalize(input.normal) : -normalize(input.normal);
     const float3 view = normalize(gCameraAndFlags.xyz - input.worldPosition);
     const float normalDotView = max(dot(normal, view), 0.0001f);
     const float alpha = roughness * roughness;
@@ -198,6 +293,7 @@ float4 PSMain(VertexOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
                 attenuation *= cone * cone;
             }
         }
+        attenuation *= ShadowFor(index, input.worldPosition, geometric, light.positionRange.xyz);
         const float normalDotLight = saturate(dot(normal, towards));
         const float3 halfway = normalize(towards + view);
         const float normalDotHalf = saturate(dot(normal, halfway));
@@ -215,6 +311,11 @@ float4 PSMain(VertexOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
     }
     const float3 ambient = gAmbientCount.rgb * base.rgb * occlusion;
     return float4(LinearToSrgb(ambient + direct + Emissive(input)), base.a);
+}
+
+// The shadow map (D-445): depth only, written by the rasteriser.
+void PSShadowMain()
+{
 }
 
 float4 PSUnlitMain(VertexOutput input) : SV_TARGET

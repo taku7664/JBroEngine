@@ -84,7 +84,9 @@ namespace JBro::Internal
     Bool VulkanCommandContext::BeginRenderPass(const RenderPassDesc& desc)
     {
         if (m_device == nullptr || m_commands == VK_NULL_HANDLE || m_renderPassActive
-            || desc.colorAttachments.data == nullptr || desc.colorAttachments.size == 0
+            // 깊이 전용 패스(그림자 맵, D-445)는 색 첨부가 없다. 그때는 깊이가 있어야 한다.
+            || (desc.colorAttachments.size == 0 && desc.depthStencilAttachment == nullptr)
+            || (desc.colorAttachments.size != 0 && desc.colorAttachments.data == nullptr)
             || desc.colorAttachments.size > MaxColorAttachments)
         {
             return false;
@@ -109,8 +111,8 @@ namespace JBro::Internal
 
         // 배리어는 패스 밖에서만 넣을 수 있다. 첨부를 전부 여기서 돌려 놓는다.
         VkRenderingAttachmentInfo colorInfos[MaxColorAttachments] = {};
-        // 렌더 영역은 첨부 크기다. 첫 색 첨부의 크기를 쓴다 - 첨부들은 같은 크기여야 한다.
-        const VkExtent2D extent = colors[0].extent;
+        // 렌더 영역은 첨부 크기다. 첫 색 첨부의 크기를 쓴다 - 첨부들은 같은 크기여야 한다. 색 첨부가 없으면 깊이의 크기다.
+        const VkExtent2D extent = desc.colorAttachments.size != 0 ? colors[0].extent : depth.extent;
         m_sampledAtEndCount = 0;
         for (UInt32 index = 0; index < desc.colorAttachments.size; ++index)
         {

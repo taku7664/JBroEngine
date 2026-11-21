@@ -39,5 +39,8 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, material,   NoSerialize() | ReadOnly() | Tooltip("materialId 에서 해석된 값") | Hidden()); // 인스펙터에 없다(D-309)
         JBRO_FIELD(Color,       tint) { 1.0f, 1.0f, 1.0f, 1.0f };
         JBRO_FIELD(Bool,        visible) = true;
+        // **그림자**(D-445). 그림자 맵에 그리는가(반투명 재질은 드리우지 않는다)와 표준 머티리얼이 그림자를 받는가다.
+        JBRO_FIELD(Bool,        castShadows) = true;
+        JBRO_FIELD(Bool,        receiveShadows) = true;
     };
 }

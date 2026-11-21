@@ -101,6 +101,8 @@ namespace JBro::System
                 }
             }
             item.tint = renderer.tint;
+            item.castShadows = renderer.castShadows;
+            item.receiveShadows = renderer.receiveShadows;
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
             item.layerOpacity = layer != nullptr ? layer->GetOpacity() : Float(1.0f);

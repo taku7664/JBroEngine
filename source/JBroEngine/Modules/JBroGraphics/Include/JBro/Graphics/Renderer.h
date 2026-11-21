@@ -149,6 +149,8 @@ namespace JBro
         // 이 뷰 안의 스프라이트 묶음은 보지 않는다.
         CompositeBlend composite = CompositeBlend::Normal;
         Float compositeOpacity = 1.0f;
+        // **그림자를 그리는 거리**(D-445). 카메라 앞 이 깊이까지 방향광의 캐스케이드 넷을 나눠 덮는다. 그 너머는 그림자가 없다.
+        Float shadowDistance = 50.0f;
     };
 
     // 2D 스프라이트의 월드 변환이다. 열 벡터 규약의 2x3 아핀 여섯 값과 깊이 하나를 담는다(D-54).
@@ -269,6 +271,10 @@ namespace JBro
         // `Spot` 의 원뿔 **전체** 각이다. 안쪽 각 안은 빛이 다 닿고 바깥 각에서 0 이 된다(glTF 의 원뿔 감쇠).
         Radian innerAngle = Radian(0.5235988f);
         Radian outerAngle = Radian(1.0471976f);
+        // **그림자를 드리우는가**(D-445). 뷰마다 첫 `Directional` 하나(캐스케이드 넷)와 `Spot` 넷까지다. 나머지와 `Point` 는 그림자 없이 빛만 낸다.
+        Bool castShadows = false;
+        // 그림자의 짙기다. 1 이면 그림자 안에 이 빛이 닿지 않고, 0 이면 그림자가 없는 것과 같다.
+        Float shadowStrength = 1.0f;
     };
 
     struct MeshSubmit
@@ -280,6 +286,9 @@ namespace JBro
         // 표준 머티리얼(`RegisterMeshMaterial`, D-402)이다. 둘 다 비면 흰 기본 표준 머티리얼이다.
         AssetHandle meshMaterial;
         Float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        // **그림자**(D-445). 드리우기는 그림자 맵에 그리는가, 받기는 표준 머티리얼이 그림자를 읽는가다. 반투명은 드리우지 않는다.
+        Bool castShadows = true;
+        Bool receiveShadows = true;
     };
 
     // **월드 텍스트**(D-222). 3D 뷰에 놓는 글자 사각형 하나다. 스프라이트와 같은 단위 쿼드(-0.5..0.5)를 `world`(행 우선 4x4, 열 벡터)로
@@ -711,6 +720,14 @@ namespace JBro
             UInt32 light3DCount = 0;
             Float ambient3D[3] = {0.0f, 0.0f, 0.0f};
             Bool lighting3D = false;
+            // **그림자를 드리우는 라이트**(D-445). 뷰의 3D 라이트 안의 번호다. 방향광은 하나, 스포트는 넷까지.
+            Int32 shadowSun = -1;
+            Float shadowSunStrength = 1.0f;
+            UInt32 shadowSpotCount = 0;
+            Int32 shadowSpots[4] = {-1, -1, -1, -1};
+            Float shadowSpotStrength[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+            // 스포트의 원뿔 전체 각(라디안)이다. 그림자 맵의 시야각이다.
+            Float shadowSpotAngle[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         };
 
         // **장면 포맷 하나에 매인 파이프라인 묶음**(D-342). 장면(뷰의 타깃·레이어 텍스처)에 그리는 것은 모두 그 색 포맷으로 만든다 - D3D12·Vulkan 은
@@ -823,6 +840,8 @@ namespace JBro
             UInt32 scene = LdrScene;
             // 그리는 곳의 크기다. 머티리얼 셰이더의 `JBroTarget` 이다.
             Extent2D targetExtent;
+            // 이 뷰의 그림자 아틀라스(D-445)다. 없으면 그림자 없이 그린다.
+            RenderGraphTexture shadowAtlas;
             // 뷰마다 한 번 세는 것(빛·깊이가 없던 뷰, 보지 않은 레이어 묶음)을 이 패스가 센다.
             Bool countView = false;
             // 레이어 텍스처가 없어 대신 그리는 패스다. 얹지 못한 것으로 센다.
@@ -964,6 +983,10 @@ namespace JBro
             UInt32 material = 0;
             UInt32 firstInstance = 0;
             UInt32 instanceCount = 0;
+            // 그림자(D-445). 묶음은 이 둘로도 갈린다(정렬 열쇠의 46·47 비트). 반투명 묶음은 그림자 맵에 그리지 않는다.
+            Bool castShadows = true;
+            Bool receiveShadows = true;
+            Bool transparent = false;
         };
 
         // 이 멤버 순서가 정점 속성 오프셋이고 BuiltinSprite.hlsl 의 ABI 다.
@@ -1048,6 +1071,37 @@ namespace JBro
             GpuLight3D lights[MaxLights3DPerView];
         };
         static_assert(sizeof(GpuLightConstants) == 16 + 64 * 64, "the light block is part of the shader ABI");
+
+        // **그림자**(D-445, lighting3d-plan §5). 아틀라스는 4096 x 2048 깊이 한 장이다 - 왼쪽 2048 정사각에 방향광의 캐스케이드 넷(2 x 2 칸),
+        // 오른쪽에 스포트 넷(2 x 2 칸). 칸 하나는 1024 다. 뷰마다 다시 그린다(카메라가 다르면 캐스케이드가 다르다).
+        static constexpr UInt32 ShadowTileSize = 1024;
+        static constexpr UInt32 MaxShadowCascades = 4;
+        static constexpr UInt32 MaxShadowSpots = 4;
+        // 메시 패스의 그림자 블록(b3). `BuiltinMesh.hlsl` 의 `ShadowConstants` 와 같은 모양이다.
+        struct GpuShadowConstants
+        {
+            Matrix4x4 cascades[4];
+            Matrix4x4 spots[4];
+            // 캐스케이드마다 끝나는 카메라 깊이(앞쪽 거리)다.
+            Float cascadeSplit[4];
+            // 캐스케이드 칸 하나의 월드 크기다. 법선 쪽으로 미는 거리다.
+            Float cascadeTexel[4];
+            // 스포트 칸이 비추는 라이트의 번호(뷰의 라이트 안), 없으면 -1.
+            Float spotLight[4];
+            // 스포트의 거리 1 에서 칸 하나의 월드 크기다.
+            Float spotTexel[4];
+            // xyz 카메라 앞, w 는 그림자를 드리우는 방향광의 번호(없으면 -1).
+            Float viewForward[4];
+            // x 방향광의 짙기, y 깊이 바이어스, z 캐스케이드 수(0 이면 그림자 없음), w 쓰지 않음.
+            Float params[4];
+            Float spotStrength[4];
+        };
+        static_assert(sizeof(GpuShadowConstants) == 64 * 8 + 16 * 7, "the shadow block is part of the shader ABI");
+        struct ShadowPassData
+        {
+            Renderer* renderer = nullptr;
+            UInt32 view = 0;
+        };
 
         // 메시 인스턴스 하나. 월드 4x4(행 넷)와 tint. `BuiltinMesh.hlsl` 의 ATTRIBUTE2..6 이 이것을 읽는다.
         struct GpuMeshInstance
@@ -1210,6 +1264,12 @@ namespace JBro
         static Bool ExecutePostProcess(RenderGraphContext& context, const void* data);
         static Bool ExecuteNothing(RenderGraphContext& context, const void* data);
         static Bool ExecuteSprites(RenderGraphContext& context, const void* data);
+        // 그림자 맵을 그린다(D-445, `RendererShadows.cpp`).
+        static Bool ExecuteShadows(RenderGraphContext& context, const void* data);
+        // 뷰의 그림자 블록을 짓는다. 그림자를 드리우는 라이트가 없으면 거짓이고 `out` 은 그림자 없음이다.
+        Bool PrepareViewShadows(UInt32 viewIndex, GpuShadowConstants& out) const;
+        // 뷰에 그림자 패스를 더한다. 그릴 것이 없으면 `atlas` 를 비운 채 참이다.
+        Bool AddShadowPass(UInt32 viewIndex, RenderGraphTexture& atlas);
         static Bool ExecuteComposite(RenderGraphContext& context, const void* data);
         static Bool ExecuteCopy(RenderGraphContext& context, const void* data);
         static Bool ExecuteLightMap(RenderGraphContext& context, const void* data);
@@ -1276,6 +1336,14 @@ namespace JBro
         // 3D 라이트(D-407). 낸 차례대로 GPU 모양으로 담는다. 라이트 블록은 뷰를 그릴 때 `m_lightBlock` 에 짓고 링에 올린다 - 앞 뷰와 같으면 그 구간을 다시 쓴다.
         Array<GpuLight3D> m_lights3D;
         ConstantRing m_lightRing;
+        // 그림자(D-445). 아틀라스는 처음 쓸 때 만든다. 뷰마다의 블록은 그래프를 짤 때 채우고 그릴 때 링에 올린다.
+        TextureHandle m_shadowAtlas;
+        // 아틀라스를 바란 프레임이 있었다. 다음 `BeginFrame` 이 프레임 밖에서 만든다.
+        Bool m_shadowAtlasWanted = false;
+        GraphicsPipelineHandle m_shadowPipeline;
+        ConstantRing m_shadowRing;
+        Array<GpuShadowConstants> m_viewShadows;
+        GpuShadowConstants m_noShadows{};
         GpuLightConstants m_lightBlock{};
         // 라이트 기능 전의 고정 방향광과 주변광이다. 3D 라이트를 받지 않은 뷰가 쓴다.
         GpuLightConstants m_defaultLightBlock{};

@@ -1297,6 +1297,16 @@ namespace JBro
             m_captureTexture = m_device->CreateTexture(desc);
             m_captureDesc = m_captureTexture.IsValid() ? m_captureWant : TransientTextureDesc{};
         }
+        // 그림자 아틀라스도 프레임 밖에서만 만든다(D-445). 지난 프레임에 처음 바랐다 - 3D 그림자를 쓰지 않으면 만들지 않는다.
+        if (m_shadowAtlasWanted && false == m_shadowAtlas.IsValid())
+        {
+            m_shadowAtlasWanted = false;
+            TextureDesc desc;
+            desc.extent = {ShadowTileSize * 4, ShadowTileSize * 2};
+            desc.format = TextureFormat::D32Float;
+            desc.usage = TextureUsage::DepthStencil | TextureUsage::Sampled;
+            m_shadowAtlas = m_device->CreateTexture(desc);
+        }
         // 후처리의 파이프라인도 프레임 밖에서만 만든다(D-342). 지난 프레임에 처음 바랐다.
         if (m_postWanted && false == m_postReady && false == m_postFailed)
         {
@@ -1332,6 +1342,8 @@ namespace JBro
         m_frameActive = true;
         ResetSubmissionStorage();
         m_lightRing.BeginFrame(m_frame.slot);
+        m_shadowRing.BeginFrame(m_frame.slot);
+        m_viewShadows.Clear();
         return FrameStatus::Ready;
     }
 
@@ -1659,6 +1671,21 @@ namespace JBro
                 const Float scale = 1.0f / (difference > 0.001f ? difference : Float(0.001f));
                 gpu.cone[0] = scale;
                 gpu.cone[1] = -cosOuter * scale;
+            }
+            // 그림자(D-445): 뷰의 첫 방향광 하나와 스포트 넷까지다.
+            const Int32 index = static_cast<JBro::Int32>(view.light3DCount.Get());
+            if (light.castShadows && light.kind == Light3DKind::Directional && view.shadowSun < 0)
+            {
+                view.shadowSun = index;
+                view.shadowSunStrength = Float::Clamp(light.shadowStrength, 0.0f, 1.0f);
+            }
+            else if (light.castShadows && light.kind == Light3DKind::Spot && view.shadowSpotCount < MaxShadowSpots)
+            {
+                const UInt32 slot = view.shadowSpotCount;
+                view.shadowSpots[slot.Get()] = index;
+                view.shadowSpotStrength[slot.Get()] = Float::Clamp(light.shadowStrength, 0.0f, 1.0f);
+                view.shadowSpotAngle[slot.Get()] = light.outerAngle.Get();
+                ++view.shadowSpotCount;
             }
             m_lights3D.Add(gpu);
             ++view.light3DCount;
@@ -2405,6 +2432,12 @@ namespace JBro
         {
             depth = m_graph.CreateTexture({extent, TextureFormat::D32Float, TextureUsage::DepthStencil}, "Depth");
         }
+        // **그림자 맵을 먼저 그린다**(D-445). 메시가 있고 그림자를 드리우는 라이트가 있는 뷰만이다.
+        RenderGraphTexture shadowAtlas;
+        if (false == AddShadowPass(viewIndex, shadowAtlas))
+        {
+            return false;
+        }
 
         // **라이트맵을 먼저 그린다**(D-291). 빛을 받는 스프라이트가 있고 라이트를 받은 뷰만이다. 타깃과 같은 크기의 RGBA16F 이고, 빛을 받는
         // 구간이 제 픽셀 자리에서 읽어 곱한다 - 따로 합성하지 않으므로 레이어 묶음 안에서도 같다. 처음 보는 크기는 이 프레임에 빛 없이
@@ -2525,6 +2558,7 @@ namespace JBro
         sprites.depth = depth;
         sprites.scene = SceneIndexOf(sceneFormat);
         sprites.targetExtent = extent;
+        sprites.shadowAtlas = shadowAtlas;
         const UInt32 runBegin = view.spriteRunOffset;
         const UInt32 runEnd = view.spriteRunOffset + view.spriteRunCount;
 
@@ -2536,6 +2570,7 @@ namespace JBro
                 || (data.depth.IsValid()
                     && false == m_graph.SetDepthAttachment(pass, data.depth, LoadOperation::Clear, StoreOperation::Discard, true))
                 || (data.lightMap.IsValid() && false == m_graph.Read(pass, data.lightMap, true))
+                || (data.shadowAtlas.IsValid() && false == m_graph.Read(pass, data.shadowAtlas, true))
                 || false == m_graph.SetPassData(pass, data))
             {
                 return {};
@@ -3052,6 +3087,15 @@ namespace JBro
                 return false;
             }
             const ConstantRange lightRange = renderer.m_lastLightRange;
+            // 그림자 블록(b3)과 아틀라스(t5)다(D-445). 그림자가 없는 뷰도 블록은 묶는다(캐스케이드 수 0) - 표준 머티리얼이 자리를 선언한다.
+            const GpuShadowConstants& shadowBlock = pass.view < renderer.m_viewShadows.Size() ? renderer.m_viewShadows[pass.view.Get()] : renderer.m_noShadows;
+            const ConstantRange shadowRange = renderer.m_shadowRing.Push(shadowBlock);
+            if (false == shadowRange.IsValid())
+            {
+                return false;
+            }
+            const TextureHandle shadowTexture = pass.shadowAtlas.IsValid() && context.HasTexture(pass.shadowAtlas)
+                ? context.GetTexture(pass.shadowAtlas) : renderer.m_whiteTexture;
             const BufferHandle instances = renderer.m_meshInstanceBuffers[renderer.m_frame.slot];
             // 구간은 (머티리얼, 메시)마다 이어 놓였다. 셰이더 머티리얼이 바뀌거나 표준 머티리얼이 바뀔 때만 파이프라인과 자원을 다시 건다.
             const auto bindShaderMaterial = [&](UInt32 material) {
@@ -3080,6 +3124,8 @@ namespace JBro
                     && (unlit || commands.SetTexture(2, renderer.MaterialTexture(desc.metallicRoughnessTexture, renderer.m_whiteTexture)))
                     && (unlit || commands.SetTexture(3, renderer.MaterialTexture(desc.normalTexture, renderer.m_flatNormalTexture)))
                     && (unlit || commands.SetTexture(4, renderer.MaterialTexture(desc.occlusionTexture, renderer.m_whiteTexture)))
+                    && (unlit || commands.SetConstantBuffer(3, shadowRange.buffer, shadowRange.offset, shadowRange.size))
+                    && (unlit || commands.SetTexture(5, shadowTexture))
                     && commands.SetSampler(0, sampler);
             };
             UInt32 boundShaderMaterial = 0;
@@ -3119,7 +3165,8 @@ namespace JBro
                         boundMeshMaterial = &material;
                         boundShaderMaterial = 0;
                     }
-                    push.cameraAndFlags[3] = mesh->hasTangents ? 1.0f : 0.0f;
+                    // w 의 1 은 탄젠트가 있음, 2 는 그림자를 받지 않음이다(D-445).
+                    push.cameraAndFlags[3] = (mesh->hasTangents ? 1.0f : 0.0f) + (run.receiveShadows ? 0.0f : 2.0f);
                     if (false == commands.SetGraphicsConstants(
                             {reinterpret_cast<const std::byte*>(&push), static_cast<JBro::UInt32>(sizeof(push))}))
                     {
@@ -3425,6 +3472,39 @@ namespace JBro
         {
             return false;
         }
+        // 그림자 블록도 뷰마다 하나다(D-445). 그림자 맵을 그리는 파이프라인은 깊이만 쓴다 - 메시 정점 단계에 라이트의 뷰-투영을 밀어 넣는다.
+        const std::size_t shadowSlot = (sizeof(GpuShadowConstants) + alignment - 1) / alignment * alignment;
+        if (false == m_shadowRing.Create(*m_device, shadowSlot * m_config.maxViews.Get()))
+        {
+            return false;
+        }
+        m_viewShadows.Reserve(m_config.maxViews.Get());
+        m_noShadows = {};
+        for (UInt32 at = 0; at < MaxShadowSpots; ++at)
+        {
+            m_noShadows.spotLight[at.Get()] = -1.0f;
+        }
+        m_noShadows.viewForward[3] = -1.0f;
+        {
+            MeshVertexLayout shadowLayout;
+            MakeMeshVertexLayout(shadowLayout);
+            GraphicsPipelineDesc shadowDesc;
+            if (false == ApplyShader(shadowDesc, BuiltinShader::MeshShadow, m_config.api, sizeof(MeshPushConstants)))
+            {
+                return false;
+            }
+            shadowDesc.vertexBuffers = {shadowLayout.buffers, 2};
+            shadowDesc.colorFormats = {};
+            shadowDesc.depthFormat = TextureFormat::D32Float;
+            shadowDesc.blend = BlendMode::Opaque;
+            // 양면을 그린다 - 바닥 같은 얇은 판도 그림자를 드리운다. 여드름은 셰이더의 바이어스와 법선 밀기가 막는다.
+            shadowDesc.cull = CullMode::None;
+            m_shadowPipeline = m_device->CreateGraphicsPipeline(shadowDesc);
+            if (false == m_shadowPipeline.IsValid())
+            {
+                return false;
+            }
+        }
         // 기본 빛: 라이트 기능 전의 고정 방향광(빛 쪽 (0.4, 0.8, 0.45), 세기 0.75)과 주변광 0.25 다.
         m_defaultLightBlock = {};
         m_defaultLightBlock.ambientCount[0] = 0.25f;
@@ -3451,6 +3531,17 @@ namespace JBro
             return;
         }
         m_lightRing.Destroy();
+        m_shadowRing.Destroy();
+        if (m_shadowPipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_shadowPipeline);
+            m_shadowPipeline = {};
+        }
+        if (m_shadowAtlas.IsValid())
+        {
+            m_device->DestroyTexture(m_shadowAtlas);
+            m_shadowAtlas = {};
+        }
         for (MeshMaterialResource& material : m_meshMaterialResources)
         {
             if (material.occupied && material.constants.IsValid())
@@ -3866,7 +3957,10 @@ namespace JBro
             return false;
         }
         constexpr UInt64 OrderMask = (UInt64(1) << 24) - 1;
-        constexpr UInt64 MeshMask = (UInt64(1) << 24) - 1;
+        // 메시 자리는 22 비트다(24..45). 46 비트는 그림자를 받지 않음, 47 비트는 드리우지 않음이다(D-445) - 묶음이 이 둘로도 갈린다.
+        constexpr UInt64 MeshMask = (UInt64(1) << 22) - 1;
+        constexpr UInt64 NoReceiveBit = UInt64(1) << 46;
+        constexpr UInt64 NoCastBit = UInt64(1) << 47;
         // **반투명은 맨 뒤다**(D-443). 맨 위 비트가 서고, 그 아래 32 비트가 카메라에서 오브젝트 자리까지 거리 제곱(float 비트)을 뒤집은 값이라
         // 오름차순이 먼 것부터다. 반투명은 하나씩 묶음이다 - 같은 (재질, 메시)라도 사이에 다른 것이 끼면 섞는 차례가 틀린다.
         constexpr UInt64 TransparentBit = UInt64(1) << 63;
@@ -3895,7 +3989,7 @@ namespace JBro
             for (UInt32 at = view.meshOffset; at < end; ++at)
             {
                 const MeshSubmit& submit = m_meshes[at];
-                if (FindMesh(submit.mesh) == nullptr)
+                if (FindMesh(submit.mesh) == nullptr || UInt64(submit.mesh.index) > MeshMask)
                 {
                     // 등록되지 않은 메시다. 프레임을 버리지 않고 그 항목만 건너뛴다 - 핸들이 아직 해석되지 않은 첫 프레임이 그렇다.
                     ++m_currentStats.droppedMeshCount;
@@ -3939,7 +4033,8 @@ namespace JBro
                     m_meshSortKeys[keyCount++] = TransparentBit | (UInt64(~bits) << 24) | (UInt64(at - view.meshOffset) & OrderMask);
                     continue;
                 }
-                m_meshSortKeys[keyCount++] = (group << 48) | ((UInt64(submit.mesh.index) & MeshMask) << 24) | (UInt64(at - view.meshOffset) & OrderMask);
+                const UInt64 shadowBits = (submit.castShadows ? UInt64(0) : NoCastBit) | (submit.receiveShadows ? UInt64(0) : NoReceiveBit);
+                m_meshSortKeys[keyCount++] = (group << 48) | shadowBits | ((UInt64(submit.mesh.index) & MeshMask) << 24) | (UInt64(at - view.meshOffset) & OrderMask);
             }
             std::sort(m_meshSortKeys.Data(), m_meshSortKeys.Data() + keyCount);
             for (std::size_t at = 0; at < keyCount; ++at)
@@ -3951,13 +4046,16 @@ namespace JBro
                 if (at == 0 || transparent || run != (m_meshSortKeys[at - 1] >> 24))
                 {
                     // 반투명의 열쇠에는 재질이 없다 - 제출에서 다시 읽는다(표준 머티리얼만 반투명이다).
-                    const UInt64 group = transparent ? UInt64(submit.meshMaterial.index) + 1 : key >> 48;
+                    const UInt64 group = transparent ? UInt64(submit.meshMaterial.index) + 1 : (key >> 48) & UInt64(0x7FFF);
                     MeshRun added;
                     added.mesh = submit.mesh;
                     added.material = (group & ShaderMaterialGroup) != 0 ? static_cast<UInt32>(group & ~ShaderMaterialGroup) : UInt32(0);
                     added.meshMaterial = (group & ShaderMaterialGroup) == 0 && group != 0 ? submit.meshMaterial : AssetHandle{};
                     added.firstInstance = written;
                     added.instanceCount = 0;
+                    added.transparent = transparent;
+                    added.castShadows = false == transparent && submit.castShadows;
+                    added.receiveShadows = submit.receiveShadows;
                     m_meshRuns.Add(added);
                     ++view.runCount;
                 }

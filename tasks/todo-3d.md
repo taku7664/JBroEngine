@@ -82,7 +82,7 @@ P0~P3 열 항목이 모두 끝난 뒤, 각 계획서에 남은 `[열림]`·`[남
    이기고(`MeshMaterialLibrary::AcquireTexture`), `mipmaps` 면 렌더러가 밉 체인을 지어 올리며 sRGB 그림은 선형으로 풀어 평균한다(`Renderer::WriteTextureLevels`). 시험이 없던 `colorSpace: Linear` 를 `MeshPixel` 에 더했다.
 5. ~~탄젠트 계산(MikkTSpace)과 노멀맵(material-plan §4, model-import-plan §4).~~ → 완료 2026-11-21 · D-444.
 6. ~~반투명(정렬)·양면 재질(material-plan §4).~~ → 완료 2026-11-21 · D-443. 남긴 것은 material-plan §4.
-7. 그림자 - 방향광 캐스케이드 → 스포트 → 점광 큐브맵, `castShadows`(lighting3d-plan §4).
+7. ~~그림자 - 방향광 캐스케이드 → 스포트 → 점광 큐브맵, `castShadows`(lighting3d-plan §4).~~ → 방향광·스포트 완료 2026-11-22 · D-445(lighting3d-plan §5). 점광 큐브맵은 남았다(§5.2).
 8. 환경광의 자리 - 하늘 상자·IBL 이 오면 `Ambient` 라이트를 둘지 캔버스 설정으로 옮길지(lighting3d-plan §4).
 
 ### 3 단계 - 움직인다

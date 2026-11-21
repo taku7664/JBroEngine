@@ -1325,6 +1325,152 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
+    // **그림자**(D-445). 위에서 내려다보는 바닥(빌트인 평면, 흰 기본 재질) 위에 정육면체가 떠 있고((0, 1.5, 0), 한 변 1), 해는 +X 아래쪽으로 45 도 기울어
+    // 비춘다 - 바닥의 (1.5, 0, 0) 은 정육면체의 그림자 안이고 (-1.5, 0, 0) 은 빛을 받는다. 환경광이 없어 그림자 안은 검다.
+    // 짙기 0.5 면 그림자 안이 빛의 절반(선형)이고, 정육면체가 드리우지 않거나 바닥이 받지 않거나 해가 드리우지 않으면 그 자리도 밝다.
+    // 끝으로 해를 끄고 (-2, 3.5, 0) 에서 같은 쪽으로 비추는 스포트가 같은 자리에 그림자를 드리운다 - (1.5, 0, 1.5) 는 그 원뿔 안에서 빛을 받는다.
+    template <typename TModule>
+    void TestShadowsFallBehindMeshes()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; shadows not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroShadowProbe·그림자";
+        fs::remove_all(root);
+        fs::create_directories(root);
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+        eyeTransform->position = {0.0f, 4.0f, 0.0f};
+        eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        canvas.AttachComponent<JBro::Component::Camera3D>(eye)->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        const auto builtin = [](const char* name) {
+            for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+            {
+                if (std::strcmp(JBro::MeshLibrary::GetBuiltin(index).name, name) == 0)
+                {
+                    return JBro::MeshLibrary::GetBuiltin(index).id;
+                }
+            }
+            return JBro::AssetId{};
+        };
+        JBro::Object::GameObject* floorObject = canvas.CreateObject("floor");
+        canvas.AttachComponent<JBro::Component::Transform3D>(floorObject);
+        auto* floor = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(floorObject);
+        floor->meshId = builtin("Plane");
+        JBro::Object::GameObject* boxObject = canvas.CreateObject("box");
+        canvas.AttachComponent<JBro::Component::Transform3D>(boxObject)->position = {0.0f, 1.5f, 0.0f};
+        auto* box = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(boxObject);
+        box->meshId = builtin("Cube");
+        // 앞(-Z)을 X 축으로 -90 도 돌려 아래(-Y)로, 다시 Z 축으로 45 도 돌려 (1, -1, 0) 쪽으로.
+        const JBro::Quaternion slanted = JBro::Multiply(JBro::FromAxisAngle({0.0f, 0.0f, 1.0f}, JBro::Radian(0.7853982f)),
+            JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f)));
+        JBro::Object::GameObject* sunObject = canvas.CreateObject("sun");
+        canvas.AttachComponent<JBro::Component::Transform3D>(sunObject)->rotation = slanted;
+        auto* sun = canvas.AttachComponent<JBro::Component::Light3D>(sunObject);
+        sun->type = JBro::Component::Light3DType::Directional;
+        sun->castShadows = true;
+
+        // 바닥 위 (x, 0, z) 의 화면 자리: 높이 4, 세로 시야 60 도, 96 x 64 다. 화면 위가 -Z, 오른쪽이 +X 다.
+        const auto floorPixel = [&](JBro::Float x, JBro::Float z) {
+            const float halfHeight = 4.0f * std::tan(0.5235988f);
+            const float halfWidth = halfHeight * static_cast<float>(TargetWidth.Get()) / static_cast<float>(TargetHeight.Get());
+            const JBro::UInt32 column = static_cast<JBro::UInt32>(std::lround(TargetWidth.Get() * 0.5f * (1.0f + x.Get() / halfWidth)));
+            const JBro::UInt32 row = static_cast<JBro::UInt32>(std::lround(TargetHeight.Get() * 0.5f * (1.0f + z.Get() / halfHeight)));
+            return std::pair<JBro::UInt32, JBro::UInt32>{column, row};
+        };
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        const auto read = [&](JBro::Float x, JBro::Float z) {
+            const auto at = floorPixel(x, z);
+            return ReadPixel(image, readback.rowPitch, at.first, at.second).r;
+        };
+        const auto render = [&]() {
+            framework.BindCanvasAssets();
+            stage.RenderOnce(framework, image, readback);
+        };
+        const auto linear = [](JBro::Float encoded) {
+            const float value = encoded.Get();
+            return value <= 0.04045f ? value / 12.92f : std::pow((value + 0.055f) / 1.055f, 2.4f);
+        };
+
+        // 아틀라스는 그림자를 처음 바란 프레임 다음에 선다(장치는 프레임 안에서 자원을 만들지 않는다) - 첫 프레임은 그림자 없이 그린다.
+        render();
+        Check(read(1.5f, 0.0f) > 0.5f, "the first frame that wants shadows draws without them while the atlas is made");
+        render();
+        const JBro::Float lit = read(-1.5f, 0.0f);
+        const JBro::Float shaded = read(1.5f, 0.0f);
+        std::cout << "  sun shadow: lit " << lit.Get() << ", in the box's shadow " << shaded.Get() << std::endl;
+        Check(lit > 0.5f, "the floor away from the box is lit by the sun");
+        Check(shaded < 0.05f, "the floor behind the box from the sun is in its shadow - no ambient light, so it is black");
+
+        sun->shadowStrength = 0.5f;
+        render();
+        const JBro::Float half = read(1.5f, 0.0f);
+        std::cout << "  half-strength shadow: " << half.Get() << std::endl;
+        Check(Near(linear(half), linear(lit) * 0.5f, 0.03f), "a shadow strength of 0.5 lets half the sun's light through");
+        sun->shadowStrength = 1.0f;
+
+        box->castShadows = false;
+        render();
+        Check(read(1.5f, 0.0f) > 0.5f, "a mesh that does not cast leaves no shadow");
+        box->castShadows = true;
+
+        floor->receiveShadows = false;
+        render();
+        Check(read(1.5f, 0.0f) > 0.5f, "a mesh that does not receive shadows stays lit");
+        floor->receiveShadows = true;
+
+        sun->castShadows = false;
+        render();
+        Check(read(1.5f, 0.0f) > 0.5f, "a light that does not cast shadows lights the floor behind the box");
+
+        // 스포트: 해를 끄고 비스듬히 위에서 같은 쪽으로 비춘다.
+        sun->intensity = 0.0f;
+        JBro::Object::GameObject* spotObject = canvas.CreateObject("spot");
+        auto* spotTransform = canvas.AttachComponent<JBro::Component::Transform3D>(spotObject);
+        spotTransform->position = {-2.0f, 3.5f, 0.0f};
+        spotTransform->rotation = slanted;
+        auto* spot = canvas.AttachComponent<JBro::Component::Light3D>(spotObject);
+        spot->type = JBro::Component::Light3DType::Spot;
+        spot->intensity = 30.0f;
+        spot->range = 20.0f;
+        spot->innerAngle = 80.0f;
+        spot->outerAngle = 90.0f;
+        spot->castShadows = true;
+        render();
+        const JBro::Float spotLit = read(1.5f, 1.5f);
+        const JBro::Float spotShaded = read(1.5f, 0.0f);
+        std::cout << "  spot shadow: lit " << spotLit.Get() << ", in the box's shadow " << spotShaded.Get() << std::endl;
+        Check(spotLit > 0.5f && spotShaded < 0.05f, "a spot light casts the box's shadow on the floor and lights the floor beside it");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+
     // **계산한 탄젠트로 노멀맵이 선다**(D-444). 시험 사각형 glTF 에는 탄젠트가 없어 임포트가 MikkTSpace 로 잰다. 바닥(법선 +Y)에 누운 사각형을 위에서 보고,
     // 빛은 옆에서만(수평) 온다 - 평평한 면은 빛을 등지지 않지만 받지도 않아 검다. 노멀맵 (1, 0.5, 0.5) 는 법선을 탄젠트(+u = +X)로 눕혀 +X 에서 오는 빛을 받고,
     // (0.5, 1, 0.5) 는 바이탄젠트(그림의 위 = -Z)로 눕혀 -Z 에서 오는 빛을 받는다. 반대쪽 빛에서는 검다 - 바이탄젠트의 부호가 틀리면 둘째가 뒤집힌다.
@@ -2223,6 +2369,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D12RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D11RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestShadowsFallBehindMeshes<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestShadowsFallBehindMeshes<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestShadowsFallBehindMeshes<JBro::VulkanRHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D12RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D11RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::VulkanRHIModule>());

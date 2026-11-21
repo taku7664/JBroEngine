@@ -100,6 +100,8 @@ namespace JBro::Internal
                     submit.tint[1] = item.tint.G;
                     submit.tint[2] = item.tint.B;
                     submit.tint[3] = item.tint.A;
+                    submit.castShadows = item.castShadows;
+                    submit.receiveShadows = item.receiveShadows;
                 }
                 if (count == 0)
                 {
@@ -322,6 +324,8 @@ namespace JBro::Internal
                 submit.range = light.range;
                 submit.innerAngle = light.innerAngle.ToRadian();
                 submit.outerAngle = light.outerAngle.ToRadian();
+                submit.castShadows = light.castShadows;
+                submit.shadowStrength = light.shadowStrength;
                 renderer.SubmitLight3D(submit);
             }
         }

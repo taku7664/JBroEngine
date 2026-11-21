@@ -2651,6 +2651,8 @@ namespace JBro
             {
                 sun->type = Component::Light3DType::Directional;
                 sun->intensity = 0.75f;
+                // 새 3D 프로젝트의 해는 그림자를 드리운다(D-445). 새로 붙이는 `Light3D` 는 꺼진 채다.
+                sun->castShadows = true;
             }
             if (auto* ambient = canvas->AttachComponent<Component::Light3D>(light))
             {

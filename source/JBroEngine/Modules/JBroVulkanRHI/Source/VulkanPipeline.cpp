@@ -196,7 +196,9 @@ namespace JBro::Internal
         if (m_status != FrameStatus::Ready || m_device == VK_NULL_HANDLE || m_frameActive
             || desc.vertexShader.data == nullptr || desc.vertexShader.size == 0
             || desc.pixelShader.data == nullptr || desc.pixelShader.size == 0
-            || desc.colorFormats.data == nullptr || desc.colorFormats.size == 0
+            // 색 첨부가 없는 깊이 전용 파이프라인(그림자 맵, D-445)은 깊이 포맷이 있어야 한다.
+            || (desc.colorFormats.size == 0 && desc.depthFormat == TextureFormat::Unknown)
+            || (desc.colorFormats.size != 0 && desc.colorFormats.data == nullptr)
             || desc.colorFormats.size > MaxColorAttachments
             || desc.pushConstantBytes > MaxPushConstantBytes
             || (desc.pushConstantBytes % sizeof(std::uint32_t)) != 0

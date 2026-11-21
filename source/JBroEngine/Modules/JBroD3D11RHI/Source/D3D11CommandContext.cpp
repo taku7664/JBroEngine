@@ -56,7 +56,9 @@ namespace JBro::Internal
     Bool D3D11CommandContext::BeginRenderPass(const RenderPassDesc& desc)
     {
         if (m_device == nullptr || m_context == nullptr || m_renderPassActive
-            || desc.colorAttachments.data == nullptr || desc.colorAttachments.size == 0
+            // 깊이 전용 패스(그림자 맵, D-445)는 색 첨부가 없다. 그때는 깊이가 있어야 한다.
+            || (desc.colorAttachments.size == 0 && desc.depthStencilAttachment == nullptr)
+            || (desc.colorAttachments.size != 0 && desc.colorAttachments.data == nullptr)
             || desc.colorAttachments.size > MaxColorAttachments)
         {
             return false;
@@ -81,6 +83,26 @@ namespace JBro::Internal
             && false == m_device->ResolveDepthStencilView(desc.depthStencilAttachment->texture, depthView))
         {
             return false;
+        }
+        if (desc.colorAttachments.size == 0)
+        {
+            // 색 첨부가 없으면 기본 시저·뷰포트는 깊이 텍스처 전체다.
+            ID3D11Resource* resource = nullptr;
+            depthView->GetResource(&resource);
+            ID3D11Texture2D* texture = nullptr;
+            if (resource == nullptr || FAILED(resource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&texture))))
+            {
+                if (resource != nullptr)
+                {
+                    resource->Release();
+                }
+                return false;
+            }
+            D3D11_TEXTURE2D_DESC textureDesc = {};
+            texture->GetDesc(&textureDesc);
+            texture->Release();
+            resource->Release();
+            firstExtent = {textureDesc.Width, textureDesc.Height};
         }
         // 그리려는 텍스처가 아직 셰이더 자원으로 걸려 있으면 D3D11 이 경고를 내며 스스로 뗀다.
         // 먼저 떼어 조용히 간다 - 에디터가 시뮬레이션 뷰를 그린 뒤 같은 프레임에 읽는 길이 그렇다.

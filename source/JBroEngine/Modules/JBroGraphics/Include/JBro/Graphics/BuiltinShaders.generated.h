@@ -17,6 +17,7 @@ namespace JBro
         WorldText,
         Mesh,
         MeshUnlit,
+        MeshShadow,
         OutlineGrow,
         OutlineComposite,
         LayerComposite,

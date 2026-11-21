@@ -54,6 +54,8 @@ namespace JBro::System
             item.range = light.range;
             item.innerAngle = light.innerAngle;
             item.outerAngle = light.outerAngle;
+            item.castShadows = light.castShadows;
+            item.shadowStrength = light.shadowStrength;
             if (placed)
             {
                 // 빛은 오브젝트의 로컬 -Z 로 간다(카메라·리스너와 같은 규약). 크기는 방향에 들지 않는다.
