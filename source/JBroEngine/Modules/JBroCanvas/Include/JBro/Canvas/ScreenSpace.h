@@ -1,7 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Types/ArrayView.h>
 #include <JBro/Types/SafeArea.h>
+#include <JBro/Types/UInt.h>
 
 #include <cstdint>
 #include <JBro/Types/Bool.h>
@@ -31,6 +33,28 @@ namespace JBro
         // 줄어드는 것은 `GetSafeScreenArea` 가 답하는 안쪽 영역뿐이고, 사람이 눌러야 하는 것이 그 안에 놓인다.
         SafeAreaInsets safeArea;
     };
+
+    // **뷰포트에 묶인 화면 레이어 하나**(D-439, 분할 화면의 플레이어별 HUD). 그 뷰포트의 사각형(`PixelPerfect` 면 그 안의 레터박스)이 이 레이어의
+    // 화면 기준이다 - 그리기·앵커·버튼 누르기가 모두 이것을 쓴다. 뷰포트 목록 차례이고, 한 레이어를 두 뷰포트가 고르면 두 번 나온다(두 번 그린다).
+    // 앵커와 누르기는 그 레이어의 첫 것을 쓴다 - 오브젝트의 트랜스폼은 하나다. 어느 뷰포트에도 없는 화면 레이어는 캔버스의 화면 기준 하나로 대상 전체다.
+    struct ScreenLayerFrame
+    {
+        std::uint16_t layerOrder = 0;
+        ScreenSpaceFrame frame;
+    };
+
+    // 그 레이어 차례의 첫 기준이다. 없으면 `fallback` 이다.
+    inline const ScreenSpaceFrame& FindScreenLayerFrame(ArrayView<const ScreenLayerFrame> frames, LayerOrder order, const ScreenSpaceFrame& fallback)
+    {
+        for (UInt32 at = 0; at < frames.Size(); ++at)
+        {
+            if (frames[at].layerOrder == order)
+            {
+                return frames[at].frame;
+            }
+        }
+        return fallback;
+    }
 
     // 대상 안의 사각형이다(대상 픽셀, 왼쪽 위 원점).
     struct ScreenArea

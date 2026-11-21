@@ -809,6 +809,15 @@ namespace JBro
                 writer.WriteInt("Camera", camera);
                 WriteVector2Item(writer, "Origin", viewport.origin);
                 WriteVector2Item(writer, "Size", viewport.size);
+                // 픽셀 칸(D-439)은 0 이 아닐 때만 적는다 - 비율만 쓰는 캔버스의 파일은 그대로다.
+                if (viewport.originPixels.x != 0.0f || viewport.originPixels.y != 0.0f)
+                {
+                    WriteVector2Item(writer, "OriginPixels", viewport.originPixels);
+                }
+                if (viewport.sizePixels.x != 0.0f || viewport.sizePixels.y != 0.0f)
+                {
+                    WriteVector2Item(writer, "SizePixels", viewport.sizePixels);
+                }
                 if (false == viewport.layers.IsEmpty())
                 {
                     writer.BeginSequence("Layers");
@@ -849,6 +858,8 @@ namespace JBro
                 }
                 FindVector2(document, entry, "Origin", viewport.origin);
                 FindVector2(document, entry, "Size", viewport.size);
+                FindVector2(document, entry, "OriginPixels", viewport.originPixels);
+                FindVector2(document, entry, "SizePixels", viewport.sizePixels);
                 const UInt32 layers = document.Find(entry, "Layers");
                 for (std::size_t layer = 0; layers != YamlDocument::InvalidNode && layer < document.GetCount(layers); ++layer)
                 {
@@ -884,21 +895,24 @@ namespace JBro
         //   2D: 켜진 카메라가 **모두** 제 사각형에 `depth` 차례로 그렸다(D-359) - 카메라마다 뷰포트 하나, 같은 차례로.
         //   3D: `primary` 를 켠 첫 카메라 하나만 그렸다 - 그 카메라의 뷰포트 하나. 없으면 자동이다(이제는 그려진다).
         // 2D 카메라가 하나뿐이고 대상 전체에 화면으로 그렸다면 자동 하나로 접는다. 카메라 타입은 이름으로 본다 - 캔버스 모듈은 프레임워크를 모른다.
-        void MigrateLegacyViewports(Canvas& canvas, const YamlDocument& document, UInt32 objects, const Array<Object::GameObject*>& created)
+        struct LegacyCamera
         {
-            struct LegacyCamera
-            {
-                std::size_t object = 0;
-                Bool is3D = false;
-                Bool primary = false;
-                Vector2 origin{ 0.0f, 0.0f };
-                Vector2 size{ 1.0f, 1.0f };
-                Int64 depth = 0;
-                Bool clearViewport = true;
-                Uuid renderTexture;
-                String name;
-            };
-            Array<LegacyCamera> cameras;
+            std::size_t object = 0;
+            Bool is3D = false;
+            Bool primary = false;
+            Vector2 origin{ 0.0f, 0.0f };
+            Vector2 size{ 1.0f, 1.0f };
+            Int64 depth = 0;
+            Bool clearViewport = true;
+            Uuid renderTexture;
+            String name;
+        };
+
+        // 옛 카메라 칸이 적힌 카메라를 파일 차례로 모은다. 2D 는 `depth` 차례(같으면 파일 차례)로 줄 세운 것을 `twoD` 에,
+        // 3D 는 `primary` 를 켠 첫 것을 `primary3D` 에 둔다.
+        void CollectLegacyCameras(const YamlDocument& document, UInt32 objects, const Array<Object::GameObject*>& created,
+            Array<LegacyCamera>& cameras, Array<const LegacyCamera*>& twoD, const LegacyCamera*& primary3D)
+        {
             for (std::size_t index = 0; objects != YamlDocument::InvalidNode && index < document.GetCount(objects) && index < created.Size(); ++index)
             {
                 const UInt32 entry = document.GetElement(objects, index);
@@ -935,8 +949,8 @@ namespace JBro
                 }
             }
 
-            Array<const LegacyCamera*> twoD;
-            const LegacyCamera* primary3D = nullptr;
+            twoD.Clear();
+            primary3D = nullptr;
             for (std::size_t at = 0; at < cameras.Size(); ++at)
             {
                 if (cameras[at].is3D)
@@ -961,38 +975,75 @@ namespace JBro
                 }
                 twoD[place] = moving;
             }
-            const auto wholeScreen = [](const LegacyCamera& camera) {
-                return camera.origin.x == 0.0f && camera.origin.y == 0.0f && camera.size.x == 1.0f && camera.size.y == 1.0f
-                    && camera.renderTexture.IsNull();
-            };
-            if (twoD.Size() == 1 && wholeScreen(*twoD[0]))
+        }
+
+        Bool IsWholeScreen(const LegacyCamera& camera)
+        {
+            return camera.origin.x == 0.0f && camera.origin.y == 0.0f && camera.size.x == 1.0f && camera.size.y == 1.0f
+                && camera.renderTexture.IsNull();
+        }
+
+        CanvasViewport MakeLegacyViewport(const LegacyCamera& camera, const Array<Object::GameObject*>& created)
+        {
+            CanvasViewport viewport;
+            viewport.name = camera.name.empty() ? String("Camera") : camera.name;
+            viewport.camera = created[camera.object]->GetInstanceId();
+            viewport.origin = camera.origin;
+            viewport.size = camera.size;
+            viewport.clearViewport = camera.clearViewport;
+            viewport.renderTextureId = camera.renderTexture;
+            return viewport;
+        }
+
+        void MigrateLegacyViewports(Canvas& canvas, const YamlDocument& document, UInt32 objects, const Array<Object::GameObject*>& created)
+        {
+            Array<LegacyCamera> cameras;
+            Array<const LegacyCamera*> twoD;
+            const LegacyCamera* primary3D = nullptr;
+            CollectLegacyCameras(document, objects, created, cameras, twoD, primary3D);
+            if (twoD.Size() == 1 && IsWholeScreen(*twoD[0]))
             {
                 twoD.Clear();
             }
             Array<CanvasViewport> viewports;
-            const auto add = [&](const LegacyCamera& camera) {
-                CanvasViewport viewport;
-                viewport.name = camera.name.empty() ? String("Camera") : camera.name;
-                viewport.camera = created[camera.object]->GetInstanceId();
-                viewport.origin = camera.origin;
-                viewport.size = camera.size;
-                viewport.clearViewport = camera.clearViewport;
-                viewport.renderTextureId = camera.renderTexture;
-                viewports.Add(std::move(viewport));
-            };
             for (std::size_t at = 0; at < twoD.Size(); ++at)
             {
-                add(*twoD[at]);
+                viewports.Add(MakeLegacyViewport(*twoD[at], created));
             }
             if (primary3D != nullptr)
             {
-                add(*primary3D);
+                viewports.Add(MakeLegacyViewport(*primary3D, created));
             }
             if (viewports.IsEmpty())
             {
                 viewports.Add(Canvas::MakeDefaultViewport());
             }
             canvas.SetViewports(viewports);
+        }
+
+        // **레이어 에셋의 옛 카메라**(D-439). `.jlayer` 는 뷰포트 목록을 들지 않는다 - 캔버스에 넣을 때 카메라에 적혀 있던 화면 칸으로 뷰포트를
+        // **캔버스 목록 뒤에 더한다**. 그때 2D 는 켜진 카메라가 모두 제 사각형에 그렸으므로, 대상 전체에 화면으로 그리던 카메라는 더하지 않는다
+        // (캔버스의 자동 뷰포트가 그 몫이다). 사각형이 일부이거나 렌더 텍스처에 그리던 카메라만 그 자리에 뷰포트를 얻는다. 3D 는 `primary` 하나만
+        // 그렸고 그것은 캔버스의 뷰포트가 정할 일이라 더하지 않는다.
+        void AppendLegacyLayerViewports(Canvas& canvas, const YamlDocument& document, UInt32 objects, const Array<Object::GameObject*>& created)
+        {
+            Array<LegacyCamera> cameras;
+            Array<const LegacyCamera*> twoD;
+            const LegacyCamera* primary3D = nullptr;
+            CollectLegacyCameras(document, objects, created, cameras, twoD, primary3D);
+            Array<CanvasViewport> viewports = canvas.GetViewports();
+            const std::size_t before = viewports.Size();
+            for (std::size_t at = 0; at < twoD.Size(); ++at)
+            {
+                if (false == IsWholeScreen(*twoD[at]))
+                {
+                    viewports.Add(MakeLegacyViewport(*twoD[at], created));
+                }
+            }
+            if (viewports.Size() != before)
+            {
+                canvas.SetViewports(viewports);
+            }
         }
     }
 
@@ -1266,7 +1317,8 @@ namespace JBro
         Array<Object::GameObject*> objects;
         ObjectLayerRule rule;
         rule.fixedLayer = layer.GetId();
-        if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, objects, error, scriptNotes))
+        const UInt32 objectsNode = document.Find(root, "Objects");
+        if (false == ReadObjects(canvas, document, objectsNode, rule, objects, error, scriptNotes))
         {
             // **반쯤 들어온 것을 남기지 않는다.** 만든 오브젝트와 레이어를 거둔다 - 캔버스는 읽기 전 그대로다.
             for (std::size_t i = objects.Size(); i > 0; --i)
@@ -1280,6 +1332,7 @@ namespace JBro
             canvas.DestroyLayer(layer.GetId());
             return false;
         }
+        AppendLegacyLayerViewports(canvas, document, objectsNode, objects);
         created = layer.GetId();
         return true;
     }

@@ -124,6 +124,7 @@ namespace JBro
         m_lit = found->IsLit();
         m_sourceAsset = found->GetSourceAsset();
         m_postProcessProfile = found->GetPostProcessProfile();
+        m_viewports = canvas.GetViewports();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
         canvas.ForEachObject([this, layer](Object::GameObject& object)
         {
@@ -167,6 +168,7 @@ namespace JBro
         restored.SetLit(m_lit);
         restored.SetSourceAsset(m_sourceAsset);
         restored.SetPostProcessProfile(m_postProcessProfile);
+        const LayerId previous = m_layerId;
         m_layerId = restored.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
@@ -176,6 +178,18 @@ namespace JBro
                 m_canvas->SetObjectLayer(object, m_layerId);
             }
         }
+        // 뷰포트가 이 레이어를 골랐으면 되살린 번호로 다시 고른다(D-439). 뜬 목록도 새 번호로 바꿔 다음 되돌리기에 쓴다.
+        for (CanvasViewport& viewport : m_viewports)
+        {
+            for (std::size_t at = 0; at < viewport.layers.Size(); ++at)
+            {
+                if (viewport.layers[at] == previous)
+                {
+                    viewport.layers[at] = m_layerId;
+                }
+            }
+        }
+        m_canvas->SetViewports(m_viewports);
     }
 
     void DeleteLayerCommand::Redo()
@@ -576,11 +590,13 @@ namespace JBro
         }
         CanvasFileError error;
         LayerId created = InvalidLayerId;
+        m_viewportsBefore = m_canvas->GetViewports();
         if (false == ReadLayerText(*m_canvas, m_text.c_str(), m_text.size(), created, error, &m_scriptNotes))
         {
             m_error = error.message;
             return false;
         }
+        m_viewportsAfter = m_canvas->GetViewports();
         Layer* layer = m_canvas->FindLayer(created);
         if (layer == nullptr)
         {
@@ -649,6 +665,7 @@ namespace JBro
         }
         m_canvas->DestroyLayer(m_layerId);
         m_layerId = InvalidLayerId;
+        m_canvas->SetViewports(m_viewportsBefore);
     }
 
     void AddLayerFromAssetCommand::Redo()
@@ -678,6 +695,8 @@ namespace JBro
             }
             tree.Restore(*m_canvas, *m_registry, nullptr, true);
         }
+        // 넣을 때 더한 뷰포트(옛 카메라의 화면 칸)를 되살린다. 카메라는 같은 번호로 돌아왔다(D-302).
+        m_canvas->SetViewports(m_viewportsAfter);
     }
 
     // ── SetLayerParallaxCommand ──────────────────────────────────────────

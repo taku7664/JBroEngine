@@ -371,15 +371,21 @@ Entries:
   inspector.viewport_camera_tooltip: "the camera this viewport draws with - Auto uses the first active camera"
   inspector.viewport_camera_auto: Auto
   inspector.viewport_origin: Position
-  inspector.viewport_origin_tooltip: "the top-left corner on the screen, as a 0 to 1 ratio"
+  inspector.viewport_origin_tooltip: "the top-left corner on the screen, as a 0 to 1 ratio - Position Pixels is added to it"
   inspector.viewport_size: Size
-  inspector.viewport_size_tooltip: the width and height on the screen, as a 0 to 1 ratio
+  inspector.viewport_size_tooltip: "the width and height on the screen, as a 0 to 1 ratio - Size Pixels is added to it"
+  inspector.viewport_origin_pixels: Position Pixels
+  inspector.viewport_origin_pixels_tooltip: "pixels added to the ratio position - Position 1, 0 with -220, 20 sits 20 pixels in from the top-right corner"
+  inspector.viewport_size_pixels: Size Pixels
+  inspector.viewport_size_pixels_tooltip: "pixels added to the ratio size - Size 0, 0 with 200, 150 is 200 x 150 whatever the screen size"
   inspector.viewport_clear: Clear Background
   inspector.viewport_clear_tooltip: fill this rectangle with the camera's clear colour before drawing over earlier viewports
   inspector.viewport_render_texture: Render Texture
   inspector.viewport_render_texture_tooltip: draw into this render texture instead of the screen
-  inspector.viewport_layers: Layers
-  inspector.viewport_layers_tooltip: "the world layers this viewport draws - screen layers are always drawn over the whole screen"
+  inspector.viewport_layers: World Layers
+  inspector.viewport_layers_tooltip: the world layers this viewport draws
+  inspector.viewport_screen_layers: Screen Layers
+  inspector.viewport_screen_layers_tooltip: "the screen layers drawn inside this viewport - a screen layer no viewport picks is drawn over the whole screen"
   inspector.viewport_add: Add Viewport
   inspector.viewport_remove: Remove
   inspector.viewport_move_up: Move Up
@@ -387,7 +393,6 @@ Entries:
   inspector.viewport_unresolved: the camera object is gone or has no active camera, so this viewport draws nothing
   inspector.viewport_ambiguous: "%u cameras are active - Auto draws with the first one"
   inspector.viewport_none: there is no viewport, so the world is not drawn
-  inspector.viewport_render_texture_3d: "3D does not draw into render textures yet - this viewport is skipped"
   inspector.layer_properties: Layer
   inspector.layer_visible: Visible
   inspector.layer_blend: Blend Mode

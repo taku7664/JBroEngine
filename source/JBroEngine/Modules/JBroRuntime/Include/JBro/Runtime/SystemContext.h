@@ -21,7 +21,8 @@ namespace JBro
     // 8: 머티리얼 파라미터 덮어쓰기 시스템이 들어왔다(D-348).
     // 9: 그 시스템이 오브젝트 하나의 파라미터를 찾는다(D-368).
     // 10: 캔버스 뷰포트 목록 시스템이 들어왔다(D-438).
-    inline constexpr UInt32 SystemContextAbiVersion = 10;
+    // 11: 그 시스템이 픽셀 칸·렌더 텍스처·레이어 필터를 다룬다(D-439).
+    inline constexpr UInt32 SystemContextAbiVersion = 11;
 
     // 차원과 무관한 시스템만 담는다. 차원별 시스템은 각 Framework 가 확장 Context 블록으로
     // 전달한다(D-43) — 여기에 두면 3D 게임 바이너리의 공통 Context 에 2D 슬롯이 남는다.

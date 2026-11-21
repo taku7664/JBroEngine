@@ -113,11 +113,47 @@
 
 ## 6. `[열림]`
 
-- 3D 렌더 텍스처(§4.4). 지금은 그 뷰포트를 건너뛰고 한 번 경고한다.
-- 스크립트의 레이어 필터·렌더 텍스처 바꾸기. 렌더 텍스처는 전에 `Camera2D.SetRenderTexture` 로 됐다 - 서비스가 `AssetHandle` 을 받으려면 런타임이 에셋 타입을 알아야 한다.
-- 2D 스크립트 API 표(`JBroScriptApiCatalog2D`)에 `ViewportService` 가 없다(후처리·머티리얼 서비스도 없다). C++ 스크립트는 쓰고, JBroScript 의 자동 완성에는 안 나온다.
-- 뷰포트 사각형의 픽셀 단위 칸(기존 `Layout2D` 의 픽셀 성분) - 지금은 비율만이다.
-- 화면 레이어를 뷰포트마다 그리기(분할 화면의 플레이어별 HUD) - 지금은 대상 전체에 한 번이다.
-- 레이어 필터의 인스펙터 칸은 레이어 차례의 앞 32 개만 고른다(`LayerMaskField`). 렌더 쪽 마스크는 256 차례다.
-- `.jlayer`(레이어 에셋)에 든 옛 카메라의 화면 칸은 뷰포트로 옮기지 않는다 - 건너뛰기만 한다.
-- 지운 레이어를 가리키는 레이어 필터는 그대로 남는다(없는 번호는 아무것도 그리지 않는다).
+D-438 이 남긴 여덟은 D-439(§7)로 닫았다.
+
+- ~~3D 렌더 텍스처(§4.4)~~ → §7 (5)
+- ~~스크립트의 레이어 필터·렌더 텍스처 바꾸기~~ → §7 (3)
+- ~~2D 스크립트 API 표에 `ViewportService` 가 없다~~ → §7 (3). 후처리·머티리얼 서비스는 여전히 표에 없다(이 계획 밖).
+- ~~뷰포트 사각형의 픽셀 단위 칸~~ → §7 (1)
+- ~~화면 레이어를 뷰포트마다 그리기~~ → §7 (4)
+- ~~레이어 필터의 인스펙터 칸은 앞 32 개만~~ → §7 (6)
+- ~~`.jlayer` 의 옛 카메라 칸은 옮기지 않는다~~ → §7 (2)
+- ~~지운 레이어를 가리키는 레이어 필터가 남는다~~ → §7 (2)
+
+남은 `[열림]`:
+- 한 화면 레이어를 두 뷰포트가 고르면 두 번 그리지만, 앵커와 누르기는 첫 뷰포트의 기준 하나다(오브젝트의 트랜스폼이 하나다). 크기가 다른 두 뷰포트에 같은 HUD 를 두면 둘째는 첫째 기준으로 앵커가 잡힌다.
+- 3D 의 셰이더 머티리얼(`.jmat` 의 `Shader` 칸, D-347)은 렌더 텍스처를 텍스처로 받지 않는다 - 표준 머티리얼(`Standard`·`Unlit`)만이다.
+- 렌더 텍스처를 그리는 뷰포트가 꺼져 있어도 그것을 읽는 재질은 그 렌더 타깃(지난 그림 또는 처음 만든 그대로)을 읽는다.
+- 픽셀 칸은 인스펙터에서 끌기 1 픽셀 단위이고 기준 해상도가 아니라 실제 대상 픽셀이다(창 크기에 따라 같은 픽셀 수).
+
+## 7. 후속 (D-439, 2026-11-21)
+
+사용자 결정(네 갈림길, 모두 추천안): 픽셀은 **비율 + 픽셀**(기존 `Layout2D`), 뷰포트별 HUD 는 **레이어 필터로**, 스크립트의 렌더 텍스처는 **`AssetHandle`**, 3D 렌더 텍스처는 **재질 칸까지 같이**.
+
+1. **픽셀 칸.** `CanvasViewport::originPixels`·`sizePixels`. 사각형 = 비율(0..1 로 자름) x 대상 + 픽셀, 대상 안으로 자른다(`ResolveViewportPixels`, JBroCanvas). 2D(`ApplyCameraViewport` 가 이제 `Bool`)·3D(`ViewportPixels`)·
+   화면 레이어 기준이 모두 이 함수다. 파일에는 0 이 아닐 때만 `OriginPixels`·`SizePixels` 로 적는다. 인스펙터는 `위치(픽셀)`·`크기(픽셀)` 줄.
+2. **레이어 정리.** `Canvas::DestroyLayer` 가 뷰포트 목록에서 그 번호를 빼고, 월드 쪽이 비면 "없음" 표시(`InvalidLayerId`)를 남긴다. `DeleteLayerCommand` 는 뷰포트 목록을 떠 두었다가 되돌릴 때
+   되살린 레이어의 새 번호로 바꿔 되살린다. `.jlayer` 를 넣을 때 옛 2D 카메라 칸(전체 화면이 아니거나 렌더 텍스처)이 있으면 그 자리의 뷰포트를 캔버스 목록 뒤에 더한다(`AppendLegacyLayerViewports`).
+   `AddLayerFromAssetCommand` 가 넣기 전·뒤 목록을 떠 되돌리기·다시 하기에 쓴다.
+3. **스크립트.** `ViewportService` 에 `Get/SetOriginPixels`·`Get/SetSizePixels`·`Get/SetRenderTexture(AssetHandle)`·`DrawsLayer`·`SetLayerDrawn(Handle::Layer)`·`ResetLayers`.
+   `CanvasViewport::renderTexture`(풀린 핸들, 파일에 안 적음)를 프레임워크가 묶을 때 채우고 스크립트가 바꾼다 - 다시 묶으면 파일 값으로 돌아간다. 빈 핸들은 아이디도 지워 화면으로 돌린다.
+   런타임 공개 헤더는 `AssetHandle` 을 앞 선언만 한다(런타임을 보는 모든 모듈에 경로를 늘리지 않게). `SystemContextAbiVersion` 10 → 11. 2D API 표(`Services`·`Definitions`·`NativeTypes`)에 `ViewportService` 와 전역 `Viewports`.
+4. **뷰포트별 화면 레이어.** 레이어 목록을 월드와 화면으로 따로 읽는다(`BuildViewportLayerMasks`): 월드는 목록에 월드 레이어가 없으면 모두, 화면은 든 것만. 고른 화면 레이어는 그 뷰포트의 사각형
+   (2D `PixelPerfect` 면 그 안의 레터박스)이 화면 기준이다 - `ScreenLayerFrame`(JBroCanvas 의 `ScreenSpace.h`)을 프레임워크가 프레임 앞에 모아(`Camera2DSystem`/`Camera3DSystem::CollectScreenLayerFrames`)
+   `RenderWorld2D`·`Transform2DSystem`(앵커)·`Button2DSystem`(누르기)에 건다. `SubmitScreenViews` 는 묶인 것이 있으면 레이어마다 뷰를 열어 차례를 지킨다.
+5. **3D 렌더 텍스처.** `Camera3DSystem` 이 렌더 텍스처 뷰포트를 뷰로 넣고, `Framework3D::ResolveCameraTargets` 가 `SpriteLibrary` 로 렌더 타깃을 푼다. 브리지는 렌더 텍스처 뷰를 화면 뷰보다 먼저,
+   같은 대상의 둘째 뷰부터 제 사각형을 칠하며 그린다. 표준 머티리얼의 텍스처 칸(`...TextureId`)은 `.jrt` 도 받는다 - `MeshMaterialLibrary` 가 올리지 않고 그 렌더 타깃을 읽고(크기가 바뀌면 다시 올림),
+   그런 짝(`RenderTargetRead`)을 렌더 월드에 건다. 렌더 텍스처 뷰는 제 대상을 읽는 재질의 메시를 그리지 않는다(`ReadsRenderTarget`). 인스펙터의 그림 칸은 렌더 텍스처도 고른다.
+6. **인스펙터.** 레이어 칸을 `월드 레이어`·`화면 레이어`(캔버스에 화면 레이어가 있을 때만) 둘로 나누고, 개수 제한 없는 `Widget::LayerListField` 로 고른다. 3D 렌더 텍스처 경고는 지웠다.
+
+확인(2026-11-21, 솔루션 Debug 빌드): `CanvasFile` 의 `TestViewportPixelsLayersAndScripts`(픽셀 사각형·자르기·NaN, 마스크 나누기, 스크립트 시스템으로 끄고 켜기와 "없음" 표시, 렌더 텍스처 핸들, 레이어 지우기, 파일 왕복)와
+`TestOldCamerasInALayerAssetAddViewports`, `SpriteDrawMode` 의 분할 화면 시험 뒤쪽(왼쪽 뷰포트에 묶인 HUD 가 왼쪽 절반의 오른쪽 위에 그려지고 누르기도 그 기준, 두 뷰포트에 묶으면 두 번, 픽셀 칸 16 x 16 미니맵),
+`MeshPixel` 의 `TestRenderTexturesShowA3DViewOnAMesh`(세 백엔드 - 사각형 가운데 붉은 상자(0.90, 0.27, 0.27)·가장자리 파란 바탕, 탐침이 사각형을 보면 사각형은 빠지고 파란 바탕만),
+`EditorApplication` 의 레이어 지우기·되돌리기가 뷰포트 목록을 지키는 것. 함께 돈 묶음: `CameraView2D`·`Framework2DSystem`·`Framework3DSystem`·`ScriptApiCatalog`·`ContextBoundary`·`UiScenario`·`InputChain`·
+`EditorLocalization`·`EditorWidget`·`SpriteLibrary`·`RendererContract`.
+뮤테이션 둘: `SubmitScreenViews` 의 레이어별 경로를 끄면 "bound to the left viewport the HUD square sits ..." 가, 3D 의 `ReadsRenderTarget` 빼기를 끄면 렌더러가 프레임을 거절해 "the frame must finish" 가 잡았다
+(제 픽셀 검사보다 앞에서 멈춘다). `MeshPixel` 의 검증 레이어 검사는 이 시험 틀에서 기본으로 꺼져 있어 "debug layer stayed quiet" 는 빈 검사다.

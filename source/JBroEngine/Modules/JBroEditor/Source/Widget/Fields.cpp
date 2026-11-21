@@ -384,6 +384,79 @@ namespace JBro::Widget
         return changed;
     }
 
+    Bool LayerListField(const char* id, ArrayView<const char* const> names, Array<Bool>& on)
+    {
+        const std::size_t count = names.Size() < on.Size() ? static_cast<std::size_t>(names.Size()) : on.Size();
+        std::size_t onCount = 0;
+        for (std::size_t at = 0; at < count; ++at)
+        {
+            onCount += on[at] ? 1u : 0u;
+        }
+        char preview[160] = {};
+        if (count != 0 && onCount == count)
+        {
+            std::snprintf(preview, sizeof(preview), "%s", Loc::TextOr(LocKeys::InspectorLayersEverything, "Everything"));
+        }
+        else if (onCount == 0)
+        {
+            std::snprintf(preview, sizeof(preview), "%s", Loc::TextOr(LocKeys::InspectorLayersNothing, "Nothing"));
+        }
+        else
+        {
+            std::size_t used = 0;
+            for (std::size_t at = 0; at < count && used + 1 < sizeof(preview); ++at)
+            {
+                if (false == on[at])
+                {
+                    continue;
+                }
+                const Int32 wrote = std::snprintf(preview + used, sizeof(preview) - used, used == 0 ? "%s" : ", %s",
+                    names[static_cast<UInt32>(at)] != nullptr ? names[static_cast<UInt32>(at)] : "");
+                if (wrote < 0)
+                {
+                    break;
+                }
+                used = std::min(sizeof(preview) - 1, used + static_cast<std::size_t>(wrote));
+            }
+        }
+
+        Bool changed = false;
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        if (ImGui::BeginCombo(id != nullptr ? id : "##layers", preview))
+        {
+            if (ImGui::Selectable(Loc::TextOr(LocKeys::InspectorLayersEverything, "Everything"), false, ImGuiSelectableFlags_DontClosePopups))
+            {
+                for (std::size_t at = 0; at < count; ++at)
+                {
+                    changed = changed || false == on[at];
+                    on[at] = true;
+                }
+            }
+            if (ImGui::Selectable(Loc::TextOr(LocKeys::InspectorLayersNothing, "Nothing"), false, ImGuiSelectableFlags_DontClosePopups))
+            {
+                for (std::size_t at = 0; at < count; ++at)
+                {
+                    changed = changed || on[at];
+                    on[at] = false;
+                }
+            }
+            ImGui::Separator();
+            for (std::size_t at = 0; at < count; ++at)
+            {
+                ImGui::PushID(static_cast<JBro::Int32>(at));
+                bool rawOn = on[at];
+                if (ImGui::Checkbox(names[static_cast<UInt32>(at)] != nullptr ? names[static_cast<UInt32>(at)] : "", &rawOn))
+                {
+                    on[at] = rawOn;
+                    changed = true;
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+        return changed;
+    }
+
     Bool ObjectField(const char* id, ArrayView<const char* const> names, Int32& chosen, DragKind dropKind,
         UInt64& dropped)
     {

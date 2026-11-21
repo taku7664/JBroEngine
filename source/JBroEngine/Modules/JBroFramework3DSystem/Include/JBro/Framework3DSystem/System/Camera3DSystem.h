@@ -1,7 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Canvas/Viewport.h>
+#include <JBro/Types/Array.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/UInt.h>
 #include <JBro/Types/Float.h>
@@ -34,6 +36,9 @@ namespace JBro::System
         static UInt32 CountActiveCameras(Canvas& canvas);
         // **주 카메라**의 뷰를 채운다(D-438): 화면에 그리는 첫 켜진 뷰포트. 없으면 거짓이다. 오디오 리스너가 없을 때의 자리도 이것이다.
         static Bool SelectCamera(Canvas& canvas, RenderCamera3D& camera);
+        // **뷰포트에 묶인 화면 레이어의 기준**(D-439)을 뷰포트 목록 차례로 모은다(2D 의 `Camera2DSystem::CollectScreenLayerFrames` 와 같다).
+        // 3D 카메라에는 레터박스가 없어 기준의 사각형은 그 뷰포트의 픽셀 사각형이다.
+        static void CollectScreenLayerFrames(Canvas& canvas, const ScreenSpaceFrame& base, Array<ScreenLayerFrame>& frames);
 
     protected:
         void OnUpdate(Canvas& canvas, Float deltaTime) override;
@@ -42,7 +47,5 @@ namespace JBro::System
         static Bool FillView(Canvas& canvas, const CanvasViewport& viewport, RenderCamera3D& item);
 
         RenderWorld3D* m_renderWorld = nullptr;
-        // 3D 렌더 텍스처 뷰포트는 아직 그리지 않는다(viewport-plan §6). 한 번만 경고한다.
-        Bool m_warnedRenderTexture = false;
     };
 }

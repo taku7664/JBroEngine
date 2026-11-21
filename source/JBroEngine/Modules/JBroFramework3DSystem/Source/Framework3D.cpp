@@ -88,6 +88,8 @@ namespace JBro
                 return false;
             }
             m_sprites.Initialize(context.assets, context.renderer);
+            // 재질의 텍스처 칸이 가리키는 렌더 텍스처는 화면 레이어와 같은 렌더 타깃이다(D-439).
+            m_meshMaterials.SetRenderTargetSource(&m_sprites);
             m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
             m_postProcess.Initialize(context.assets, context.renderer, &m_materials);
             m_postMixer.Reserve(PostMixerEntries, PostMixerBlockBytes);
@@ -215,14 +217,20 @@ namespace JBro
                 frame.targetWidth = static_cast<JBro::Float>(extent.width);
                 frame.targetHeight = static_cast<JBro::Float>(extent.height);
             }
+            // 뷰포트에 묶인 화면 레이어는 그 뷰포트의 사각형이 기준이다(D-439).
+            System::Camera3DSystem::CollectScreenLayerFrames(*m_canvas, frame, m_screenLayerFrames);
+            const ArrayView<const ScreenLayerFrame> layerFrames(m_screenLayerFrames.Data(), m_screenLayerFrames.Size());
             m_screenWorld.SetScreenSpace(frame);
+            m_screenWorld.SetScreenLayerFrames(layerFrames);
             if (System::Transform2DSystem* transforms = m_canvas->GetSystems().FindSystem<System::Transform2DSystem>())
             {
                 transforms->SetScreenSpace(frame);
+                transforms->SetScreenLayerFrames(layerFrames);
             }
             if (buttons != nullptr)
             {
                 buttons->SetScreenSpace(frame);
+                buttons->SetScreenLayerFrames(layerFrames);
             }
         }
         // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-242). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
@@ -254,7 +262,35 @@ namespace JBro
         }
         m_renderWorld.EndFrame();
         m_screenWorld.EndFrame();
+        ResolveCameraTargets();
         ResolvePostProcess();
+    }
+
+    void Framework3D::ResolveCameraTargets()
+    {
+        const ArrayView<const RenderCamera3D> cameras = m_renderWorld.GetCameras();
+        for (std::size_t index = 0; index < cameras.Size(); ++index)
+        {
+            const RenderCamera3D& camera = cameras[index];
+            if (camera.renderTexture.generation == 0)
+            {
+                continue;
+            }
+            AssetHandle targetSprite;
+            TextureHandle target;
+            Extent2D extent;
+            TextureFilter filter = TextureFilter::Linear;
+            if (m_sprites.ResolveRenderTexture(camera.renderTexture, targetSprite, target, extent, filter))
+            {
+                m_renderWorld.SetCameraTarget(index, target, extent, targetSprite);
+            }
+            else
+            {
+                m_renderWorld.SetCameraTarget(index, {}, {}, {});
+            }
+        }
+        m_meshMaterials.CollectRenderTargetReads(m_renderTargetReads);
+        m_renderWorld.SetRenderTargetReads(ArrayView<const RenderTargetRead>(m_renderTargetReads.Data(), m_renderTargetReads.Size()));
     }
 
     void Framework3D::MixPostProcessFor(const RenderCamera3D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom)
@@ -408,6 +444,15 @@ namespace JBro
             return;
         }
         ForEachReflectedInstance(*m_canvas, &CollectComponentAssetIdsVisitor, &ids);
+        // 뷰포트의 렌더 텍스처도 게임 빌드에 든다(D-439, 2D 와 같다).
+        const Array<CanvasViewport>& viewports = m_canvas->GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        {
+            if (false == viewports[index].renderTextureId.IsNull())
+            {
+                ids.Add(viewports[index].renderTextureId);
+            }
+        }
     }
 
     void Framework3D::BindCanvasAssets()
@@ -419,6 +464,20 @@ namespace JBro
         m_context.assets->ReleaseAll(m_canvasAssets);
         std::pair<AssetSystem*, Array<AssetHandle>*> binding(m_context.assets, &m_canvasAssets);
         ForEachReflectedInstance(*m_canvas, &BindComponentAssetsVisitor, &binding);
+        // 뷰포트의 렌더 텍스처(D-439, 2D 의 `Framework2D::BindCanvasAssets` 와 같다). 스크립트가 바꾼 핸들은 여기서 파일의 값으로 돌아간다.
+        for (std::size_t index = 0; index < m_canvas->GetViewportCount(); ++index)
+        {
+            CanvasViewport& viewport = *m_canvas->GetViewportAt(index);
+            viewport.renderTexture = {};
+            if (false == viewport.renderTextureId.IsNull())
+            {
+                viewport.renderTexture = m_context.assets->Load(viewport.renderTextureId);
+                if (viewport.renderTexture.generation != 0)
+                {
+                    m_canvasAssets.Add(viewport.renderTexture);
+                }
+            }
+        }
         m_context.assets->CollectUnused();
     }
 
@@ -605,6 +664,7 @@ namespace JBro
         }
         m_renderWorld.EndFrame();
         m_screenWorld.EndFrame();
+        ResolveCameraTargets();
         ResolvePostProcess();
     }
 

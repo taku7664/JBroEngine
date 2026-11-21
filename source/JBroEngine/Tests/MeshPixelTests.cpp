@@ -25,6 +25,7 @@
 #include <JBro/Types/Math3D.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/RenderTextureFile.h>
 #include "TestModels.h"
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Host/GameBuild.h>
@@ -1293,6 +1294,129 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
+    // **3D 렌더 텍스처**(D-439). 뷰포트 `Monitor` 가 탐침 카메라(월드 (100, 0, 3), 파란 바탕)로 붉은 상자를 32 x 32 `.jrt` 에 그리고, 위에서 내려다보는
+    // 사각형의 `Unlit` 재질이 그 렌더 텍스처를 기본색 그림으로 읽는다 - 사각형 가운데가 붉고 가장자리가 파랗다. 탐침이 그 사각형을 보게 옮기면 그 렌더 텍스처에 그리는
+    // 뷰는 제 대상을 읽는 사각형을 그리지 않는다 - 사각형에는 파란 바탕만 남는다.
+    template <typename TModule>
+    void TestRenderTexturesShowA3DViewOnAMesh()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; 3D render textures not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroRenderTexture3DProbe·모니터";
+        fs::remove_all(root);
+        const std::string quad = TestModels::SelfContainedQuadGltf("Screen", TestModels::TinyPng());
+        WriteText(root / "props" / "quad.gltf", quad.c_str());
+        {
+            JBro::RenderTextureSettings settings;
+            settings.width = 32;
+            settings.height = 32;
+            const JBro::String body = JBro::WriteRenderTexture(settings);
+            WriteText(root / "art" / "monitor.jrt", body.c_str());
+        }
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const JBro::AssetRecord* model = registry.FindByPath("props/quad.gltf");
+        const JBro::AssetRecord* monitor = registry.FindByPath("art/monitor.jrt");
+        Check(model != nullptr && monitor != nullptr && monitor->type == JBro::AssetType::RenderTexture, "the quad and the render texture are registered");
+        JBro::AssetId meshId;
+        JBro::Array<JBro::AssetId> parts;
+        registry.CollectOwned(model->id, parts);
+        for (const JBro::AssetId& id : parts)
+        {
+            meshId = registry.Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
+        }
+        const JBro::AssetId monitorId = monitor->id;
+        const std::string tv = "Version: 1\nMaterial:\n  shader: Unlit\n  baseColorTextureId: " + IdText(monitorId) + "\n";
+        WriteText(root / "art" / "tv.jmat", tv.c_str());
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the folder scans again with the material");
+        const JBro::AssetId tvId = registry.FindByPath("art/tv.jmat")->id;
+
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes with the renderer and the assets");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+        eyeTransform->position = {0.0f, 3.0f, 0.0f};
+        eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        canvas.AttachComponent<JBro::Component::Camera3D>(eye)->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* probe = canvas.CreateObject("probe");
+        auto* probeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(probe);
+        probeTransform->position = {100.0f, 0.0f, 3.0f};
+        canvas.AttachComponent<JBro::Component::Camera3D>(probe)->clearColor = {0.0f, 0.0f, 1.0f, 1.0f};
+        PlaceCube(canvas, "red", {100.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f, 1.0f});
+        JBro::Object::GameObject* screen = canvas.CreateObject("screen");
+        canvas.AttachComponent<JBro::Component::Transform3D>(screen)->position = {-0.5f, 0.0f, -0.5f};
+        auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(screen);
+        mesh->meshId = meshId;
+        mesh->materialId = tvId;
+        mesh->tint = {1.0f, 1.0f, 1.0f, 1.0f};
+        {
+            JBro::Array<JBro::CanvasViewport> viewports;
+            JBro::CanvasViewport feed;
+            feed.name = "Monitor";
+            feed.camera = probe->GetInstanceId();
+            feed.renderTextureId = monitorId;
+            JBro::CanvasViewport main;
+            main.name = "Main";
+            main.camera = eye->GetInstanceId();
+            viewports.Add(feed);
+            viewports.Add(main);
+            canvas.SetViewports(viewports);
+        }
+        framework.BindCanvasAssets();
+        Check(canvas.GetViewportAt(0)->renderTexture.generation != 0, "the resolve pass loads the viewport's render texture");
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        stage.RenderOnce(framework, image, readback);
+        stage.RenderOnce(framework, image, readback);
+        const Pixel middle = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        const Pixel edge = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 7, TargetHeight / 2);
+        const Pixel outside = ReadPixel(image, readback.rowPitch, 2, 2);
+        std::cout << "  monitor: middle " << middle.r.Get() << "," << middle.g.Get() << "," << middle.b.Get() << " edge " << edge.r.Get() << ","
+                  << edge.g.Get() << "," << edge.b.Get() << std::endl;
+        Check(middle.r > 0.3f && middle.r > middle.b * 2.0f && middle.r > middle.g * 2.0f, "the quad's middle shows the probe camera's red cube");
+        Check(edge.b > 0.5f && edge.r < 0.2f, "towards its edge it shows the probe camera's blue clear");
+        Check(Near(outside.r, 0.0f) && Near(outside.b, 0.0f), "around the quad is the main camera's black clear - the render texture view is not on the screen");
+
+        // 탐침이 사각형을 내려다보게 옮긴다. 그 렌더 텍스처에 그리는 뷰는 그것을 읽는 사각형을 그리지 않는다.
+        probeTransform->position = {0.0f, 3.0f, 0.0f};
+        probeTransform->rotation = eyeTransform->rotation;
+        stage.RenderOnce(framework, image, readback);
+        stage.RenderOnce(framework, image, readback);
+        const Pixel self = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(self.b > 0.5f && self.r < 0.2f, "a view never draws the mesh that reads its own render texture - the quad shows only the probe's clear");
+        JBro::Bool excluded = false;
+        const JBro::RenderWorld3D& world = *framework.GetRenderWorld();
+        for (std::size_t index = 0; index < world.GetMeshCount(); ++index)
+        {
+            excluded = excluded || world.ReadsRenderTarget(world.GetMesh(index).meshMaterial, world.GetCameras()[0].targetSprite);
+        }
+        Check(excluded, "the render world knows the quad's material reads the monitor's target");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
     // **3D 게임 빌드가 에디터와 같은 그림을 낸다**(material-plan 5 단계, todo-3d 우선순위 10). 같은 그림을 내장한 두 모델의 사각형을 위에서 내려다보는 캔버스를
     // 느슨한 폴더에서 그린 것과, `BuildGame` 이 구운 패키지만으로(원본 폴더를 지운 뒤) 그린 것이 바이트까지 같다. 두 재질은 GPU 텍스처 하나를 나눠 쓰고,
     // 패키지에는 그 그림의 픽셀이 한 번만 들며, 게임의 하위 레코드는 느슨한 것과 같은 이름·같은 그림 열쇠를 갖는다.
@@ -1849,6 +1973,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D12RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D11RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestRenderTexturesShowA3DViewOnAMesh<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestRenderTexturesShowA3DViewOnAMesh<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestRenderTexturesShowA3DViewOnAMesh<JBro::VulkanRHIModule>());
     JBRO_CASE(TestAModelMeshIsDrawnAndFollowsAReload<JBro::D3D12RHIModule>());
     JBRO_CASE(TestAModelMeshIsDrawnAndFollowsAReload<JBro::D3D11RHIModule>());
     JBRO_CASE(TestAModelMeshIsDrawnAndFollowsAReload<JBro::VulkanRHIModule>());

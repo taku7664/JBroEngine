@@ -71,7 +71,8 @@ namespace JBro::Internal
 
         // 모아 둔 메시를 이미 열린 뷰에 밀어 넣는다. 시뮬레이션 뷰와 캔버스 뷰가 같은 목록을 쓴다.
         // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 시뮬레이션 뷰는 보지 않는다.
-        Bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, Bool editorView, std::uint16_t layerOrder)
+        // `excludeTarget` 이 있으면 그 렌더 타깃을 읽는 재질의 메시는 내지 않는다(D-439) - 그 렌더 텍스처에 그리는 뷰다.
+        Bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, Bool editorView, std::uint16_t layerOrder, AssetHandle excludeTarget = {})
         {
             constexpr std::size_t BatchSize = 64;
             MeshSubmit batch[BatchSize];
@@ -84,7 +85,8 @@ namespace JBro::Internal
                 {
                     const MeshRenderItem& item = world.GetMesh(next);
                     ++next;
-                    if ((editorView && item.owner != nullptr && item.owner->IsEditorHidden()) || item.layerOrder != layerOrder)
+                    if ((editorView && item.owner != nullptr && item.owner->IsEditorHidden()) || item.layerOrder != layerOrder
+                        || world.ReadsRenderTarget(item.meshMaterial, excludeTarget))
                     {
                         continue;
                     }
@@ -325,7 +327,7 @@ namespace JBro::Internal
         Bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, Bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
             const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1, Bool postProcess = false,
-            const ViewLayerMask* layers = nullptr, const PostProcessStack* viewPost = nullptr)
+            const ViewLayerMask* layers = nullptr, const PostProcessStack* viewPost = nullptr, AssetHandle excludeTarget = {})
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
@@ -412,7 +414,7 @@ namespace JBro::Internal
                     return false;
                 }
                 PushLights(world, renderer, editorView);
-                accepted = PushMeshes(world, renderer, editorView, orders[at]) && accepted;
+                accepted = PushMeshes(world, renderer, editorView, orders[at], excludeTarget) && accepted;
                 accepted = PushWorldTexts(world, renderer, cameraRotation, orders[at]) && accepted;
                 const Bool plain = onlyLayer >= 0
                     || (blend == LayerBlend::Normal && opacity >= 1.0f && layerCamera.layerPostProcess.entries.size == 0);
@@ -530,31 +532,33 @@ namespace JBro::Internal
 
     namespace
     {
-        // **뷰포트를 대상의 픽셀 사각형으로 옮긴다**(D-438). 비율을 0..1 로 자르고 대상 밖으로 나가지 않게 줄인다. 1 픽셀이 안 되면 거짓이다.
+        // **뷰포트를 대상의 픽셀 사각형으로 옮긴다**(D-438, D-439). 비율 x 대상 + 픽셀(`ResolveViewportPixels`)을 정수 픽셀에 맞춘다. 1 픽셀이 안 되면 거짓이다.
         Bool ViewportPixels(const RenderCamera3D& camera, const Extent2D& target, Viewport& result)
         {
-            const auto unit = [](Float value) {
-                return std::isfinite(value.Get()) ? (value < 0.0f ? Float(0.0f) : (value > 1.0f ? Float(1.0f) : value)) : Float(0.0f);
-            };
-            const Float originX = unit(camera.viewportOrigin.x);
-            const Float originY = unit(camera.viewportOrigin.y);
-            const Float width = unit(camera.viewportSize.x) + originX > 1.0f ? Float(1.0f) - originX : unit(camera.viewportSize.x);
-            const Float height = unit(camera.viewportSize.y) + originY > 1.0f ? Float(1.0f) - originY : unit(camera.viewportSize.y);
-            const Float targetWidth = static_cast<JBro::Float>(target.width);
-            const Float targetHeight = static_cast<JBro::Float>(target.height);
-            result.x = std::floor((originX * targetWidth).Get());
-            result.y = std::floor((originY * targetHeight).Get());
-            result.width = std::floor(((originX + width) * targetWidth).Get()) - result.x;
-            result.height = std::floor(((originY + height) * targetHeight).Get()) - result.y;
+            Float x = 0.0f;
+            Float y = 0.0f;
+            Float width = 0.0f;
+            Float height = 0.0f;
+            if (false == ResolveViewportPixels(camera.viewportOrigin, camera.viewportSize, camera.viewportOriginPixels, camera.viewportSizePixels,
+                    static_cast<JBro::Float>(target.width), static_cast<JBro::Float>(target.height), x, y, width, height))
+            {
+                return false;
+            }
+            result.x = std::floor(x.Get());
+            result.y = std::floor(y.Get());
+            result.width = std::floor((x + width).Get()) - result.x;
+            result.height = std::floor((y + height).Get()) - result.y;
             return result.width >= 1.0f && result.height >= 1.0f;
         }
 
         // **앞 뷰가 그린 대상에서 제 사각형을 지우기 색으로 칠한다**(D-438, 2D 의 `BuildViewFill` 과 같은 일). 렌더러는 대상을 첫 뷰에서만 지운다.
         // 단위 행렬 뷰·투영에 정규화 장치 좌표 전체를 덮는 스프라이트 하나다.
-        Bool FillViewport(Renderer& renderer, const Viewport& viewport, const Color& color)
+        Bool FillViewport(Renderer& renderer, const Viewport& viewport, const Color& color, TextureHandle target = {}, Extent2D targetExtent = {})
         {
             CameraParams fill;
             fill.viewport = viewport;
+            fill.target = target;
+            fill.targetExtent = targetExtent;
             if (false == renderer.BeginView(fill))
             {
                 return false;
@@ -594,12 +598,60 @@ namespace JBro::Internal
                 showLines ? debugDraw : nullptr, *camera, static_cast<JBro::Float>(target.height), -1, true);
             return accepted ? RenderResult::Submitted : RenderResult::Failed;
         }
+        // **렌더 텍스처 뷰가 먼저다**(D-439, 2D 의 D-362 와 같다) - 같은 프레임에 화면의 메시·스프라이트가 그 그림을 읽는다. 대상이 풀리지 않은 것은
+        // 그리지 않는다. 렌더러는 대상마다 첫 뷰에서 지우므로, 같은 렌더 텍스처의 둘째 뷰부터 `clearViewport` 면 제 사각형을 칠한다.
+        // 그 렌더 텍스처를 읽는 재질의 메시는 그 뷰에서 뺀다(제 대상을 읽으며 그릴 수 없다). 디버그 선은 그리지 않는다.
+        for (std::size_t index = 0; index < cameras.Size(); ++index)
+        {
+            const RenderCamera3D& camera = cameras[index];
+            if (camera.renderTexture.generation == 0 || false == camera.target.IsValid() || camera.targetExtent.width == 0 || camera.targetExtent.height == 0)
+            {
+                continue;
+            }
+            Viewport rect;
+            if (false == ViewportPixels(camera, camera.targetExtent, rect))
+            {
+                continue;
+            }
+            Bool firstOnTarget = true;
+            for (std::size_t before = 0; before < index; ++before)
+            {
+                if (cameras[before].renderTexture.generation != 0 && cameras[before].target == camera.target)
+                {
+                    firstOnTarget = false;
+                }
+            }
+            const Extent2D extent{static_cast<std::uint32_t>(rect.width), static_cast<std::uint32_t>(rect.height)};
+            CameraParams parameters;
+            if (false == BuildCamera3D(camera, extent, parameters))
+            {
+                return RenderResult::Failed;
+            }
+            parameters.viewport.x = rect.x;
+            parameters.viewport.y = rect.y;
+            parameters.target = camera.target;
+            parameters.targetExtent = camera.targetExtent;
+            if (false == firstOnTarget && camera.clearViewport
+                && false == FillViewport(renderer, rect, camera.clearColor, camera.target, camera.targetExtent))
+            {
+                return RenderResult::Failed;
+            }
+            if (false == SubmitLayerViews(world, renderer, parameters, false, camera.position, camera.rotation, nullptr, camera, rect.height, -1, true,
+                    camera.layers.filtered ? &camera.layers : nullptr, &world.GetCameraPostProcess(index), camera.targetSprite))
+            {
+                return RenderResult::Failed;
+            }
+        }
         // **뷰포트마다 뷰다**(D-438). 목록 차례이고 각자 제 사각형에 그린다. 투영의 가로세로비는 그 사각형의 것이다.
         // 디버그 선은 첫 뷰에만 그린다. 깊이는 뷰마다 지우므로(D-280) 겹치는 뷰도 서로의 깊이를 보지 않는다.
         Bool first = true;
         for (std::size_t index = 0; index < cameras.Size(); ++index)
         {
             const RenderCamera3D& camera = cameras[index];
+            if (camera.renderTexture.generation != 0)
+            {
+                continue;
+            }
             Viewport rect;
             if (false == ViewportPixels(camera, target, rect))
             {

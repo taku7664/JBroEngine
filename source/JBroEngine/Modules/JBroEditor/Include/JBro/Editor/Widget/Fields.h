@@ -122,6 +122,9 @@ namespace JBro::Widget
     // 레이어 비트 묶음을 이름으로 고르는 칸이다(D-233). `names` 는 비트마다 하나(32 개)이고 빈 이름의 비트는 켜져 있을 때만
     // `#번호` 로 보인다. 펼치면 "모두"·"없음" 과 레이어마다 켜기 칸이 있다. 닫힌 칸은 켜진 이름들을 잇는다.
     Bool LayerMaskField(const char* id, ArrayView<const char* const> names, UInt32& mask);
+    // 레이어 목록을 켜기 칸으로 고르는 칸이다(D-439). `LayerMaskField` 와 같은 모양이지만 개수 제한이 없다 - `on` 은 `names` 와 같은 길이이고
+    // 고른 것이 그대로 바뀐다. 닫힌 칸은 켜진 이름들을 잇고, 모두 켜지면 "모두", 하나도 없으면 "없음" 이다.
+    Bool LayerListField(const char* id, ArrayView<const char* const> names, Array<Bool>& on);
 
     // 오브젝트 하나를 고르는 칸이다(D-233). 검색되는 목록에서 고르거나, 하이어라키의 줄을 끌어 놓는다. `dropKind` 끌기로
     // 놓이면 그 꾸러미(8 바이트 번호)를 `dropped` 에 담고 참을 돌려준다 - 고른 번호(`chosen`)는 그대로다.

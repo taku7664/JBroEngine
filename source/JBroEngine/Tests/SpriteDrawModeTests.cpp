@@ -21,6 +21,8 @@
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
+#include <JBro/ScreenUi/System/Button2DSystem.h>
 
 #include <cmath>
 #include <cstring>
@@ -542,6 +544,43 @@ namespace
             canvas->GetViewportAt(0)->layers.Add(canvas->GetDefaultLayer());
             gpu.Paint(framework);
             Check(gpu.Is(16, 32, 51, 0, 0), "naming the default layer brings the square back");
+
+            // **뷰포트에 묶인 화면 레이어**(D-439). 왼쪽 뷰포트가 UI 레이어를 고르면 그 레이어는 왼쪽 절반(32 x 64)을 화면으로 삼는다 - 오른쪽 위에 붙인 8 x 8 은
+            // 왼쪽 절반의 오른쪽 위(x 24..31, y 0..7)로 간다. 화면 레이어만 고른 뷰포트는 월드 레이어를 모두 그린다.
+            canvas->GetViewportAt(0)->layers.Clear();
+            canvas->GetViewportAt(0)->layers.Add(ui.GetId());
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(gpu.Is(28, 4, 255, 255, 255) && gpu.Is(25, 7, 255, 255, 255), "bound to the left viewport the HUD square sits at the left half's top-right");
+            Check(gpu.Is(60, 4, 0, 0, 0), "and is no longer at the screen's top-right");
+            Check(gpu.Is(16, 32, 51, 0, 0), "a viewport that names only a screen layer still draws every world layer");
+            // 누르기도 같은 기준이다 - 왼쪽 절반의 픽셀 (28, 4) 는 그 레이어에서 (12, 28)(앵커 (16, 32) + (-4, -4))이다. 화면 전체로 쟀다면 x 는 -4 다.
+            {
+                auto* buttons = canvas->GetSystems().FindSystem<System::Button2DSystem>();
+                Vector2 point;
+                Check(buttons != nullptr && buttons->ScreenToLayer({28.0f, 4.0f}, Internal::GameObjectHandleAccess::FromId(panel->GetInstanceId()), point)
+                        && Near(point.x, 12.0f) && Near(point.y, 28.0f),
+                    "a pointer on the bound layer maps through the viewport's rectangle");
+            }
+            // 두 뷰포트가 같은 레이어를 고르면 두 번 그린다.
+            canvas->GetViewportAt(1)->layers.Add(ui.GetId());
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(gpu.Is(28, 4, 255, 255, 255) && gpu.Is(60, 4, 255, 255, 255), "a layer bound to both viewports is drawn in each");
+            canvas->GetViewportAt(0)->layers.Clear();
+            canvas->GetViewportAt(1)->layers.Clear();
+
+            // **픽셀 칸**(D-439). 오른쪽 뷰포트를 오른쪽 위에서 (20, 4) 들어간 16 x 16 으로 - x 44..59, y 4..19. 반높이 1 이라 1 유닛이 8 픽셀이고 파랑 사각형이 그 가운데다.
+            CanvasViewport& corner = *canvas->GetViewportAt(1);
+            corner.origin = {1.0f, 0.0f};
+            corner.size = {0.0f, 0.0f};
+            corner.originPixels = {-20.0f, 4.0f};
+            corner.sizePixels = {16.0f, 16.0f};
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(gpu.Is(52, 12, 0, 0, 26) && gpu.Is(49, 9, 0, 0, 26), "the pixel-sized viewport shows the blue square in its middle");
+            Check(gpu.Is(44, 5, 0, 0, 0) && gpu.Is(48, 32, 0, 0, 0), "around the square and outside the small rectangle is the clear");
+            Check(gpu.Is(60, 4, 255, 255, 255), "the unbound HUD is back at the screen's top-right");
             framework.Shutdown();
         }
         gpu.Close();

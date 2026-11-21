@@ -5,8 +5,10 @@
 #include <JBro/Runtime/ScriptCallGuard.h>
 
 #include <cassert>
+#include <cmath>
 #include <utility>
 #include <JBro/Types/Bool.h>
+#include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
 
 namespace JBro
@@ -434,6 +436,32 @@ namespace JBro
                     replacement->GetId());
             }
         });
+        // **뷰포트의 레이어 목록에서도 뺀다**(D-439). 번호는 다시 쓰지 않으므로 남겨도 그리지는 않지만, 인스펙터와 파일에 없는 레이어가 남는다.
+        // 월드 레이어를 빼서 목록에 월드 쪽이 하나도 남지 않으면 "월드 레이어 없음" 표시를 둔다 - 비면 "모든 월드 레이어" 로 뜻이 뒤집힌다.
+        const Bool screenLayer = m_layers[index]->GetSpace() == LayerSpace::Screen;
+        for (CanvasViewport& viewport : m_viewports)
+        {
+            const std::size_t before = viewport.layers.Size();
+            viewport.layers.RemoveAll([layer](LayerId entry) { return entry == layer; });
+            if (screenLayer || viewport.layers.Size() == before)
+            {
+                continue;
+            }
+            Bool worldLeft = false;
+            for (std::size_t at = 0; at < viewport.layers.Size(); ++at)
+            {
+                const LayerId entry = viewport.layers[at];
+                const Layer* other = entry != layer ? FindLayer(entry) : nullptr;
+                if (other == nullptr || other->GetSpace() != LayerSpace::Screen)
+                {
+                    worldLeft = true;
+                }
+            }
+            if (false == worldLeft)
+            {
+                viewport.layers.Add(InvalidLayerId);
+            }
+        }
         m_layers.RemoveAt(index);
         ReindexLayers();
         return true;
@@ -488,6 +516,18 @@ namespace JBro
             return nullptr;
         }
         return m_layers[index].Get();
+    }
+
+    const Layer* Canvas::FindLayer(LayerId layer) const
+    {
+        for (std::size_t index = 0; index < m_layers.Size(); ++index)
+        {
+            if (m_layers[index]->GetId() == layer)
+            {
+                return m_layers[index].Get();
+            }
+        }
+        return nullptr;
     }
 
     void Canvas::ForEachComponentPool(
@@ -584,6 +624,84 @@ namespace JBro
         CanvasViewport viewport;
         viewport.name = "Main";
         return viewport;
+    }
+
+    namespace
+    {
+        Float FiniteOr(Float value, Float fallback)
+        {
+            return std::isfinite(value.Get()) ? value : fallback;
+        }
+
+        Float Ratio(Float value)
+        {
+            return Float::Clamp(FiniteOr(value, 0.0f), 0.0f, 1.0f);
+        }
+    }
+
+    Bool ResolveViewportPixels(Vector2 origin, Vector2 size, Vector2 originPixels, Vector2 sizePixels, Float targetWidth, Float targetHeight,
+        Float& x, Float& y, Float& width, Float& height)
+    {
+        x = 0.0f;
+        y = 0.0f;
+        width = 0.0f;
+        height = 0.0f;
+        if (false == (targetWidth > 0.0f) || false == (targetHeight > 0.0f))
+        {
+            return false;
+        }
+        const Float left = Ratio(origin.x) * targetWidth + FiniteOr(originPixels.x, 0.0f);
+        const Float top = Ratio(origin.y) * targetHeight + FiniteOr(originPixels.y, 0.0f);
+        const Float right = left + Ratio(size.x) * targetWidth + FiniteOr(sizePixels.x, 0.0f);
+        const Float bottom = top + Ratio(size.y) * targetHeight + FiniteOr(sizePixels.y, 0.0f);
+        const Float clippedLeft = Float::Clamp(left, 0.0f, targetWidth);
+        const Float clippedTop = Float::Clamp(top, 0.0f, targetHeight);
+        const Float clippedRight = Float::Clamp(right, 0.0f, targetWidth);
+        const Float clippedBottom = Float::Clamp(bottom, 0.0f, targetHeight);
+        if (false == (clippedRight > clippedLeft) || false == (clippedBottom > clippedTop))
+        {
+            return false;
+        }
+        x = clippedLeft;
+        y = clippedTop;
+        width = clippedRight - clippedLeft;
+        height = clippedBottom - clippedTop;
+        return true;
+    }
+
+    void BuildViewportLayerMasks(const Canvas& canvas, const CanvasViewport& viewport, ViewLayerMask& world, ViewLayerMask& screen)
+    {
+        world = ViewLayerMask{};
+        screen = ViewLayerMask{};
+        screen.filtered = true;
+        for (std::size_t at = 0; at < viewport.layers.Size(); ++at)
+        {
+            const Layer* layer = canvas.FindLayer(viewport.layers[at]);
+            if (layer != nullptr && layer->GetSpace() == LayerSpace::Screen)
+            {
+                screen.Allow(layer->GetOrder());
+                continue;
+            }
+            // 월드 레이어, 또는 캔버스에 없는 번호("월드 레이어 없음" 의 표시)다. 하나라도 있으면 월드를 거른다.
+            world.filtered = true;
+            if (layer != nullptr)
+            {
+                world.Allow(layer->GetOrder());
+            }
+        }
+    }
+
+    Bool ViewportDrawsLayer(const Canvas& canvas, const CanvasViewport& viewport, LayerId layerId)
+    {
+        const Layer* layer = canvas.FindLayer(layerId);
+        if (layer == nullptr)
+        {
+            return false;
+        }
+        ViewLayerMask world;
+        ViewLayerMask screen;
+        BuildViewportLayerMasks(canvas, viewport, world, screen);
+        return layer->GetSpace() == LayerSpace::Screen ? screen.Draws(layer->GetOrder()) : world.Draws(layer->GetOrder());
     }
 
     Bool Canvas::DestroyComponent(ComponentBase* component)

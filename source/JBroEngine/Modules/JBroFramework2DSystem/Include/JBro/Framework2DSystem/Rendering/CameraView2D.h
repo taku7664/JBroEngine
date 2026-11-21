@@ -24,12 +24,14 @@ namespace JBro
     // 장치 오류가 아니므로 프레임을 실패시키지 않는다.
     Bool IsDrawableCamera2D(const RenderCamera2D& camera);
 
-    // 뷰포트가 대상 전체인가(D-359). 비율이 0 이하·수가 아니면 거짓이다(그릴 수 없다).
+    // 뷰포트가 대상 전체인가(D-359). 비율이 전체이고 픽셀(D-439)이 0 이어야 한다. 비율이 0 이하·수가 아니면 거짓이다(그릴 수 없다).
     Bool HasFullViewport(const RenderCamera2D& camera);
+    // 어떤 대상에서든 빈 사각형이 아닐 수 있는가 - 폭과 높이가 비율이나 픽셀로 양수다. 대상 크기를 모르는 자리(추출)가 쓴다.
     Bool HasDrawableViewport(const RenderCamera2D& camera);
-    // **카메라가 그리는 사각형**(D-359)을 `frame` 에 건다 - 뷰포트(대상의 0..1 비율, 왼쪽 위 원점)를 대상 픽셀로 옮기고, `PixelPerfect` 면 그 안에서 레터박스를 센다.
-    // 뷰마다 하나씩 부른다. 그릴 수 없는 카메라는 사각형을 비운다(대상 전체).
-    void ApplyCameraViewport(const RenderCamera2D& camera, ScreenSpaceFrame& frame);
+    // **카메라가 그리는 사각형**(D-359)을 `frame` 에 건다 - 뷰포트(비율 x 대상 + 픽셀, 왼쪽 위 원점, `ResolveViewportPixels`)를 대상 픽셀로 옮기고,
+    // `PixelPerfect` 면 그 안에서 레터박스를 센다. 대상 전체이면 사각형을 비운다(대상 전체의 뜻). 뷰마다 하나씩 부른다.
+    // 그릴 수 없는 카메라이거나 이 대상에서 사각형이 비면 거짓이고 사각형을 비운다 - 부르는 쪽은 그 뷰를 그리지 않는다.
+    Bool ApplyCameraViewport(const RenderCamera2D& camera, ScreenSpaceFrame& frame);
     // 화면 레이어·앵커·포인터의 화면 기준이 쓰는 사각형이다. 카메라의 뷰포트가 **대상 전체일 때만** `ApplyCameraViewport` 와 같고(`PixelPerfect` 의 레터박스),
     // 뷰포트가 일부이거나 카메라가 없으면 사각형을 비워 대상 전체로 둔다 - 분할 화면에서 HUD 는 화면 전체다.
     void ApplyCameraArea(const RenderCamera2D* camera, ScreenSpaceFrame& frame);

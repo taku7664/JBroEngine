@@ -41,11 +41,30 @@ namespace JBro
         Color clearColor{0.08f, 0.09f, 0.11f, 1.0f};
         // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld3D::SetPostProcess` 로 건다.
         AssetHandle postProcessProfile;
-        // 뷰포트(D-438): 대상 안의 사각형(왼쪽 위 원점, 0..1), 앞 뷰가 그린 대상에서 제 사각형을 칠하는가, 그릴 레이어 차례.
+        // 뷰포트(D-438, D-439): 대상 안의 사각형(왼쪽 위 원점, 비율 0..1 x 대상 + 픽셀), 앞 뷰가 그린 대상에서 제 사각형을 칠하는가, 그릴 레이어 차례.
         Vector2 viewportOrigin;
         Vector2 viewportSize{ 1.0f, 1.0f };
+        Vector2 viewportOriginPixels;
+        Vector2 viewportSizePixels;
         Bool clearViewport = true;
         ViewLayerMask layers;
+        // 이 뷰포트의 사각형에 그릴 화면 레이어(D-439). 화면 레이어는 `RenderWorld2D` 가 그리므로 프레임워크가 기준을 모을 때만 본다.
+        ViewLayerMask screenLayers;
+        // **렌더 텍스처**(D-439). 에셋이 있으면 이 뷰는 화면이 아니라 그 텍스처에 그린다 - 프레임워크가 `target`·`targetExtent`·`targetSprite` 를 채우고
+        // 브리지는 화면의 뷰보다 먼저 그린다. 그런 뷰는 주 카메라가 아니다. `targetSprite` 는 그 렌더 타깃을 텍스처로 읽는 핸들이다 - 이 뷰는
+        // 그것을 읽는 재질의 메시를 그리지 않는다(`RenderWorld3D::ReadsRenderTarget`).
+        AssetHandle renderTexture;
+        TextureHandle target;
+        Extent2D targetExtent;
+        AssetHandle targetSprite;
+    };
+
+    // **렌더 텍스처를 읽는 표준 머티리얼**(D-439)이다 - 렌더러의 머티리얼과 그것이 읽는 렌더 타깃의 텍스처 핸들. 그 렌더 텍스처에 그리는 뷰는 이 머티리얼의
+    // 메시를 그리지 않는다. 제 대상을 읽으며 그 대상에 그릴 수는 없다(2D 의 `SpriteFilterRule::excludeTexture` 와 같은 일).
+    struct RenderTargetRead
+    {
+        AssetHandle meshMaterial;
+        AssetHandle targetSprite;
     };
 
     struct MeshRenderItem
@@ -123,6 +142,42 @@ namespace JBro
         void ClearCameras();
         void AddCamera(const RenderCamera3D& camera);
         ArrayView<const RenderCamera3D> GetCameras() const;
+        // 렌더 텍스처 뷰의 대상을 건다(D-439). 프레임워크가 추출 뒤 `SpriteLibrary::ResolveRenderTexture` 로 푼다. 풀지 못하면 빈 값이고 그 뷰는 그리지 않는다.
+        void SetCameraTarget(std::size_t index, TextureHandle target, Extent2D extent, AssetHandle targetSprite)
+        {
+            if (index < m_cameras.Size())
+            {
+                m_cameras[index].target = target;
+                m_cameras[index].targetExtent = extent;
+                m_cameras[index].targetSprite = targetSprite;
+            }
+        }
+        // 렌더 텍스처를 읽는 머티리얼 짝이다(D-439). 프레임워크가 추출 뒤 재질 라이브러리에서 모아 건다.
+        void SetRenderTargetReads(ArrayView<const RenderTargetRead> reads)
+        {
+            m_renderTargetReads.Clear();
+            for (UInt32 at = 0; at < reads.Size(); ++at)
+            {
+                m_renderTargetReads.Add(reads[at]);
+            }
+        }
+        Bool ReadsRenderTarget(AssetHandle meshMaterial, AssetHandle targetSprite) const
+        {
+            if (meshMaterial.generation == 0 || targetSprite.generation == 0)
+            {
+                return false;
+            }
+            for (std::size_t at = 0; at < m_renderTargetReads.Size(); ++at)
+            {
+                const RenderTargetRead& read = m_renderTargetReads[at];
+                if (read.meshMaterial.index == meshMaterial.index && read.meshMaterial.generation == meshMaterial.generation
+                    && read.targetSprite.index == targetSprite.index && read.targetSprite.generation == targetSprite.generation)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
         // **뷰마다의 후처리**(D-438). `GetCameras` 의 차례와 같다. 자리가 없는 뷰는 `GetPostProcess`(주 카메라의 것)다.
         void SetCameraPostProcessCount(std::size_t count)
         {
@@ -214,6 +269,7 @@ namespace JBro
     private:
         RenderCamera3D m_camera;
         Array<RenderCamera3D> m_cameras;
+        Array<RenderTargetRead> m_renderTargetReads;
         Array<PostProcessStack> m_cameraPostProcess;
         PostProcessStack m_postProcess;
         Array<PostProcessStack> m_layerPostProcess;

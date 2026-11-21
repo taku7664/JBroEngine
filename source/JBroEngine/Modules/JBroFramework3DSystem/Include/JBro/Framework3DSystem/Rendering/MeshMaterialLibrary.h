@@ -12,6 +12,8 @@ namespace JBro
 {
     class AssetSystem;
     class Renderer;
+    class SpriteLibrary;
+    struct RenderTargetRead;
 
     // **표준 머티리얼을 GPU 에 올린다**(D-399, material-plan 3 단계). 셰이더 머티리얼(D-347)은 그래픽 모듈의 `MaterialLibrary` 가 푼다 - 이 라이브러리는
     // 그것을 만나면 빈 핸들을 낸다(2026-11-19 main 통합에서 이름을 갈랐다). `MeshLibrary` 와 같은 자리·같은 모양이다 - 에셋 시스템의 재질(값)을 렌더러의 재질로,
@@ -26,6 +28,11 @@ namespace JBro
     public:
         Bool Initialize(Renderer* renderer, AssetSystem* assets);
         void Shutdown();
+        // **렌더 텍스처를 푸는 곳**(D-439). 재질의 텍스처 칸이 `.jrt` 를 가리키면 이것이 만든 렌더 타깃을 그대로 읽는다 - 그 렌더 텍스처에 그리는
+        // 뷰(`RenderCamera3D::renderTexture`)와 같은 렌더 타깃이다. 없으면 그 칸은 흰 그림이다.
+        void SetRenderTargetSource(SpriteLibrary* sprites);
+        // 렌더 텍스처를 읽는 재질 짝을 모은다(D-439, `RenderWorld3D::SetRenderTargetReads`).
+        void CollectRenderTargetReads(Array<RenderTargetRead>& reads) const;
 
         // 에셋 시스템의 재질 핸들을 렌더러 재질로 푼다. 실리지 않았거나 올리지 못했으면 빈 핸들이다(같은 세대로는 다시 시도하지 않는다).
         AssetHandle ResolveAsset(AssetHandle materialAsset);
@@ -65,6 +72,10 @@ namespace JBro
             AssetHandle pictures[SlotCount];
             // 올릴 때 본 칸마다의 픽셀 세대다(`pictures` 의 것). 그림이 다시 읽히면 달라진다.
             UInt32 texturePixels[SlotCount] = {0, 0, 0, 0, 0};
+            // 칸이 렌더 텍스처(D-439)인가와 그때 푼 렌더 타깃의 텍스처 핸들이다. 렌더 타깃은 `SpriteLibrary` 의 것이라 여기서 지우지 않는다.
+            // 렌더 텍스처의 크기가 바뀌어 핸들이 달라지면 다시 올린다(`TexturesChanged`).
+            Bool renderTargetSlot[SlotCount] = {false, false, false, false, false};
+            AssetHandle renderTargets[SlotCount];
         };
 
         // 메시가 아이디로 가리키는 재질을 실어 든 것이다.
@@ -76,6 +87,8 @@ namespace JBro
 
         // 그림을 싣고(`picture` 에 참조 하나) 같은 그림의 렌더러 텍스처를 찾거나 올린다. 텍스처 자리이고, 못 올리면 -1 이다(`picture` 는 그래도 들 수 있다).
         Int32 AcquireTexture(AssetId id, Bool srgbByDefault, AssetHandle& picture);
+        // 그 아이디가 렌더 텍스처면 싣고(`picture` 에 참조 하나) 렌더 타깃의 텍스처 핸들을 `target` 에 둔다. 렌더 텍스처가 아니면 거짓이고 아무것도 잡지 않는다.
+        Bool AcquireRenderTarget(AssetId id, AssetHandle& picture, AssetHandle& target);
         void ReleaseTexture(Int32 index);
         void ReleaseEntry(MaterialEntry& entry);
         Bool TexturesChanged(const MaterialEntry& entry) const;
@@ -85,5 +98,6 @@ namespace JBro
         Array<HeldMaterial> m_held;
         Renderer* m_renderer = nullptr;
         AssetSystem* m_assets = nullptr;
+        SpriteLibrary* m_renderTargetSource = nullptr;
     };
 }

@@ -110,6 +110,7 @@ namespace JBro::ScriptApiCatalog2D::Internal
     JBRO_LANGUAGE_TYPE(Service::TimeService, "TimeService")
     JBRO_LANGUAGE_TYPE(Service::RandomService, "RandomService")
     JBRO_LANGUAGE_TYPE(Service::ObjectService, "ObjectsService")
+    JBRO_LANGUAGE_TYPE(Service::ViewportService, "ViewportService")
     JBRO_LANGUAGE_TYPE(Service::AudioService, "AudioService")
     JBRO_LANGUAGE_TYPE(Service::InputService, "InputService")
     JBRO_LANGUAGE_TYPE(Service::SaveService, "SaveService")

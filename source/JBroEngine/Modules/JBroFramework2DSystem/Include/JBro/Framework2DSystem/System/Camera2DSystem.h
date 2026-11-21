@@ -22,8 +22,6 @@ namespace JBro::System
         Int32 GetExecutionOrder() const override;
 
         void SetRenderWorld(RenderWorld2D* renderWorld);
-        // 뷰포트의 렌더 텍스처를 푼 핸들이다(D-438). 뷰포트 차례이고, 프레임워크의 `BindCanvasAssets` 가 채운다. 없으면 렌더 텍스처 뷰포트를 그리지 않는다.
-        void SetViewportTextures(ArrayView<const AssetHandle> textures);
         // Caller begins/ends the frame; transforms must be updated before extraction.
         // **캔버스의 뷰포트 목록을 차례로 뷰로 옮긴다**(D-438). 주 카메라(`RenderWorld2D::SetCamera`)는 화면에 그리는 첫 뷰다.
         void ExtractRenderWorld(Canvas& canvas);
@@ -38,6 +36,9 @@ namespace JBro::System
         static Component::Camera2D* ResolveViewportCamera(Canvas& canvas, const CanvasViewport& viewport);
         // 켜진 카메라 수다(트랜스폼까지 켜진 것). 자동 뷰포트가 애매한지 인스펙터가 본다.
         static UInt32 CountActiveCameras(Canvas& canvas);
+        // **뷰포트에 묶인 화면 레이어의 기준**(D-439)을 뷰포트 목록 차례로 모은다. 화면에 그리는 켜진 뷰포트가 고른 화면 레이어마다 하나이고,
+        // 기준은 `base` 에 그 뷰포트의 사각형(카메라가 `PixelPerfect` 면 그 안의 레터박스)을 건 것이다. 카메라를 찾지 못하는 뷰포트는 건너뛴다.
+        static void CollectScreenLayerFrames(Canvas& canvas, const ScreenSpaceFrame& base, Array<ScreenLayerFrame>& frames);
 
     protected:
         void OnUpdate(Canvas& canvas, Float deltaTime) override;
@@ -47,7 +48,6 @@ namespace JBro::System
         static Bool FillView(Canvas& canvas, const CanvasViewport& viewport, RenderCamera2D& item, UInt32* unusable);
 
         RenderWorld2D* m_renderWorld = nullptr;
-        ArrayView<const AssetHandle> m_viewportTextures;
         // 지난 프레임에 건너뛴 카메라 수다. 늘 때만 경고한다 - 매 프레임 쓰면 로그가 그것으로 찬다.
         UInt32 m_warnedUnusable = 0;
     };

@@ -738,6 +738,108 @@ void AddServices(ApiCatalog& catalog)
     type.Members.Last().Projection = ApiProjectionKind::StringReturn;
     }
     {
+    auto& type = AddType(catalog, "ViewportService", "JBro::Service::ViewportService", ApiTypeKind::Service);
+    {
+        auto member = DeclareFunction<static_cast<UInt32 (Service::ViewportService::*)() const>(&Service::ViewportService::GetCount)>("GetCount", Parameters());
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Int32 (Service::ViewportService::*)(const char*) const>(&Service::ViewportService::Find)>("Find", Parameters(In("name")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::IsActive)>("IsActive", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,Bool) const>(&Service::ViewportService::SetActive)>("SetActive", Parameters(In("index"), In("active")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::GetOrigin)>("GetOrigin", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,Vector2) const>(&Service::ViewportService::SetOrigin)>("SetOrigin", Parameters(In("index"), In("origin")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::GetSize)>("GetSize", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,Vector2) const>(&Service::ViewportService::SetSize)>("SetSize", Parameters(In("index"), In("size")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::GetClearViewport)>("GetClearViewport", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,Bool) const>(&Service::ViewportService::SetClearViewport)>("SetClearViewport", Parameters(In("index"), In("clear")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Handle::GameObject (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::GetCamera)>("GetCamera", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Service::ViewportService::*)(UInt32,Handle::GameObject) const>(&Service::ViewportService::SetCamera)>("SetCamera", Parameters(In("index"), In("camera")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::SetAutoCamera)>("SetAutoCamera", Parameters(In("index")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::GetOriginPixels)>("GetOriginPixels", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,Vector2) const>(&Service::ViewportService::SetOriginPixels)>("SetOriginPixels", Parameters(In("index"), In("pixels")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Vector2 (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::GetSizePixels)>("GetSizePixels", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,Vector2) const>(&Service::ViewportService::SetSizePixels)>("SetSizePixels", Parameters(In("index"), In("pixels")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<AssetHandle (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::GetRenderTexture)>("GetRenderTexture", Parameters(In("index")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,AssetHandle) const>(&Service::ViewportService::SetRenderTexture)>("SetRenderTexture", Parameters(In("index"), In("texture")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<Bool (Service::ViewportService::*)(UInt32,Handle::Layer) const>(&Service::ViewportService::DrawsLayer)>("DrawsLayer", Parameters(In("index"), In("layer")));
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32,Handle::Layer,Bool) const>(&Service::ViewportService::SetLayerDrawn)>("SetLayerDrawn", Parameters(In("index"), In("layer"), In("drawn")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    {
+        auto member = DeclareFunction<static_cast<void (Service::ViewportService::*)(UInt32) const>(&Service::ViewportService::ResetLayers)>("ResetLayers", Parameters(In("index")));
+        member.MutatesReceiver = true;
+        type.Members.Add(std::move(member));
+    }
+    }
+    {
     auto& type = AddType(catalog, "Screen2DService", "JBro::Service::Screen2DService", ApiTypeKind::Service);
     {
         auto member = DeclareFunction<static_cast<Bool (Service::Screen2DService::*)(Vector2,Handle::GameObject,Vector2&) const>(&Service::Screen2DService::ScreenToLayer)>("ScreenToLayer", Parameters(In("pixel"), In("object"), Out("point")));
@@ -794,6 +896,7 @@ void AddServices(ApiCatalog& catalog)
     catalog.Globals.Add({"Time", "TimeService", "GetServiceContext().Time"});
     catalog.Globals.Add({"Random", "RandomService", "GetServiceContext().Random"});
     catalog.Globals.Add({"Objects", "ObjectsService", "GetServiceContext().Objects"});
+    catalog.Globals.Add({"Viewports", "ViewportService", "GetServiceContext().Viewports"});
     catalog.Globals.Add({"Audio", "AudioService", "GetAudioServices().Audio"});
     catalog.Globals.Add({"Input", "InputService", "GetInputServices().Input"});
     catalog.Globals.Add({"Save", "SaveService", "GetSaveServices().Save"});

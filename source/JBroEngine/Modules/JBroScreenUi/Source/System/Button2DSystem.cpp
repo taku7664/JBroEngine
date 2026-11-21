@@ -452,6 +452,15 @@ namespace JBro::System
         m_screen = frame;
     }
 
+    void Button2DSystem::SetScreenLayerFrames(ArrayView<const ScreenLayerFrame> frames)
+    {
+        m_layerFrames.Clear();
+        for (UInt32 at = 0; at < frames.Size(); ++at)
+        {
+            m_layerFrames.Add(frames[at]);
+        }
+    }
+
     void Button2DSystem::OnInitialize(Canvas& canvas)
     {
         m_canvas = &canvas;
@@ -483,7 +492,9 @@ namespace JBro::System
     {
         if (IsScreenLayer(layer))
         {
-            return ScreenPixelToLayer(layer.GetScaleMode(), m_screen, pixelX, pixelY, point.x, point.y);
+            return ScreenPixelToLayer(layer.GetScaleMode(),
+                FindScreenLayerFrame(ArrayView<const ScreenLayerFrame>(m_layerFrames.Data(), m_layerFrames.Size()), layer.GetOrder(), m_screen),
+                pixelX, pixelY, point.x, point.y);
         }
         // 월드 레이어는 그 차원의 카메라가 안다(D-362) - 프레임워크가 넣어 준 것으로 잰다.
         return m_world != nullptr && m_world->PixelToLayer(layer, m_screen, pixelX, pixelY, point);
@@ -493,7 +504,9 @@ namespace JBro::System
     {
         if (IsScreenLayer(layer))
         {
-            return LayerToScreenPixel(layer.GetScaleMode(), m_screen, point.x, point.y, pixelX, pixelY);
+            return LayerToScreenPixel(layer.GetScaleMode(),
+                FindScreenLayerFrame(ArrayView<const ScreenLayerFrame>(m_layerFrames.Data(), m_layerFrames.Size()), layer.GetOrder(), m_screen),
+                point.x, point.y, pixelX, pixelY);
         }
         return m_world != nullptr && m_world->LayerToPixel(layer, m_screen, point, pixelX, pixelY);
     }

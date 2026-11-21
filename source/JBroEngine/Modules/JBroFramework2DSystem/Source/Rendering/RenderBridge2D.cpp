@@ -389,7 +389,11 @@ namespace JBro::Internal
                 frame.targetWidth = static_cast<JBro::Float>(camera.targetExtent.width);
                 frame.targetHeight = static_cast<JBro::Float>(camera.targetExtent.height);
             }
-            ApplyCameraViewport(camera, frame);
+            // 이 대상에서 사각형이 비면(픽셀 칸으로 대상 밖에 놓였다, D-439) 그 뷰는 그리지 않는다 - 오류가 아니다.
+            if (false == ApplyCameraViewport(camera, frame))
+            {
+                return RenderResult::NothingToSubmit;
+            }
             CameraParams parameters;
             if (toTexture)
             {
@@ -462,12 +466,16 @@ namespace JBro::Internal
                 {
                     continue;
                 }
-                if (drawCamera(camera, firstScreen, static_cast<std::size_t>(index.Get())) == RenderResult::Failed)
+                const RenderResult drawn = drawCamera(camera, firstScreen, static_cast<std::size_t>(index.Get()));
+                if (drawn == RenderResult::Failed)
                 {
                     return RenderResult::Failed;
                 }
-                firstScreen = false;
-                worldSubmitted = true;
+                if (drawn == RenderResult::Submitted)
+                {
+                    firstScreen = false;
+                    worldSubmitted = true;
+                }
             }
         }
         else if (primary != nullptr)

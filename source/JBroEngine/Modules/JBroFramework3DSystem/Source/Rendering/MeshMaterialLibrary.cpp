@@ -1,4 +1,6 @@
 ﻿#include <JBro/Framework3DSystem/Rendering/MeshMaterialLibrary.h>
+#include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
+#include <JBro/ScreenUi/Rendering/SpriteLibrary.h>
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Graphics/Renderer.h>
@@ -123,6 +125,56 @@ namespace JBro
         return static_cast<Int32>(m_textures.Size() - 1);
     }
 
+    void MeshMaterialLibrary::SetRenderTargetSource(SpriteLibrary* sprites)
+    {
+        m_renderTargetSource = sprites;
+    }
+
+    Bool MeshMaterialLibrary::AcquireRenderTarget(AssetId id, AssetHandle& picture, AssetHandle& target)
+    {
+        picture = {};
+        target = {};
+        if (id.IsNull() || m_assets == nullptr)
+        {
+            return false;
+        }
+        const AssetHandle loaded = m_assets->Load(id);
+        if (m_assets->GetRenderTexture(loaded) == nullptr)
+        {
+            m_assets->Release(loaded);
+            return false;
+        }
+        picture = loaded;
+        TextureHandle texture;
+        Extent2D extent;
+        TextureFilter filter = TextureFilter::Linear;
+        if (m_renderTargetSource != nullptr)
+        {
+            m_renderTargetSource->ResolveRenderTexture(loaded, target, texture, extent, filter);
+        }
+        return true;
+    }
+
+    void MeshMaterialLibrary::CollectRenderTargetReads(Array<RenderTargetRead>& reads) const
+    {
+        reads.Clear();
+        for (std::size_t index = 0; index < m_materials.Size(); ++index)
+        {
+            const MaterialEntry& entry = m_materials[index];
+            if (entry.rendererMaterial.generation == 0)
+            {
+                continue;
+            }
+            for (UInt32 slot = 0; slot < SlotCount; ++slot)
+            {
+                if (entry.renderTargets[slot.Get()].generation != 0)
+                {
+                    reads.Add(RenderTargetRead{entry.rendererMaterial, entry.renderTargets[slot.Get()]});
+                }
+            }
+        }
+    }
+
     void MeshMaterialLibrary::ReleaseTexture(Int32 index)
     {
         if (index < 0 || static_cast<std::size_t>(index.Get()) >= m_textures.Size())
@@ -162,6 +214,8 @@ namespace JBro
             entry.pictures[slot.Get()] = {};
             entry.textures[slot.Get()] = -1;
             entry.texturePixels[slot.Get()] = 0;
+            entry.renderTargetSlot[slot.Get()] = false;
+            entry.renderTargets[slot.Get()] = {};
         }
     }
 
@@ -169,6 +223,23 @@ namespace JBro
     {
         for (UInt32 slot = 0; slot < SlotCount; ++slot)
         {
+            // 렌더 텍스처 칸은 렌더 타깃이 다시 만들어졌는지(크기가 바뀌었다) 본다(D-439).
+            if (entry.renderTargetSlot[slot.Get()])
+            {
+                AssetHandle target;
+                TextureHandle texture;
+                Extent2D extent;
+                TextureFilter filter = TextureFilter::Linear;
+                if (m_renderTargetSource != nullptr)
+                {
+                    m_renderTargetSource->ResolveRenderTexture(entry.pictures[slot.Get()], target, texture, extent, filter);
+                }
+                if (target.index != entry.renderTargets[slot.Get()].index || target.generation != entry.renderTargets[slot.Get()].generation)
+                {
+                    return true;
+                }
+                continue;
+            }
             if (entry.textures[slot.Get()] < 0)
             {
                 continue;
@@ -221,6 +292,13 @@ namespace JBro
         AssetHandle handles[SlotCount];
         for (UInt32 at = 0; at < SlotCount; ++at)
         {
+            // 렌더 텍스처 칸(D-439)은 올리지 않고 렌더 타깃을 그대로 읽는다.
+            if (AcquireRenderTarget(ids[at.Get()], entry.pictures[at.Get()], entry.renderTargets[at.Get()]))
+            {
+                entry.renderTargetSlot[at.Get()] = true;
+                handles[at.Get()] = entry.renderTargets[at.Get()];
+                continue;
+            }
             entry.textures[at.Get()] = AcquireTexture(ids[at.Get()], srgbByDefault[at.Get()], entry.pictures[at.Get()]);
             if (entry.textures[at.Get()] >= 0)
             {

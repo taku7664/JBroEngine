@@ -31,6 +31,15 @@ namespace JBro
         Handle::GameObject GetCamera(UInt32 index) override;
         Bool SetCamera(UInt32 index, const Handle::GameObject& camera) override;
         void SetAutoCamera(UInt32 index) override;
+        Vector2 GetOriginPixels(UInt32 index) override;
+        void SetOriginPixels(UInt32 index, Vector2 pixels) override;
+        Vector2 GetSizePixels(UInt32 index) override;
+        void SetSizePixels(UInt32 index, Vector2 pixels) override;
+        AssetHandle GetRenderTexture(UInt32 index) override;
+        void SetRenderTexture(UInt32 index, AssetHandle texture) override;
+        Bool DrawsLayer(UInt32 index, UInt32 layer) override;
+        void SetLayerDrawn(UInt32 index, UInt32 layer, Bool drawn) override;
+        void ResetLayers(UInt32 index) override;
 
     private:
         Canvas* m_canvas = nullptr;

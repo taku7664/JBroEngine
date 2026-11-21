@@ -371,15 +371,21 @@ Entries:
   inspector.viewport_camera_tooltip: 이 뷰포트를 그리는 카메라입니다. 자동은 켜진 카메라 가운데 첫 번째를 씁니다
   inspector.viewport_camera_auto: 자동
   inspector.viewport_origin: 위치
-  inspector.viewport_origin_tooltip: 화면에서 왼쪽 위 모서리의 자리입니다(0~1 비율)
+  inspector.viewport_origin_tooltip: 화면에서 왼쪽 위 모서리의 자리입니다(0~1 비율). 위치(픽셀)가 여기에 더해집니다
   inspector.viewport_size: 크기
-  inspector.viewport_size_tooltip: 화면에서 차지하는 가로·세로입니다(0~1 비율)
+  inspector.viewport_size_tooltip: 화면에서 차지하는 가로·세로입니다(0~1 비율). 크기(픽셀)가 여기에 더해집니다
+  inspector.viewport_origin_pixels: 위치(픽셀)
+  inspector.viewport_origin_pixels_tooltip: 비율로 정한 위치에 더하는 픽셀입니다. 위치 1, 0 에 -220, 20 이면 오른쪽 위에서 20 픽셀 안쪽입니다
+  inspector.viewport_size_pixels: 크기(픽셀)
+  inspector.viewport_size_pixels_tooltip: 비율로 정한 크기에 더하는 픽셀입니다. 크기 0, 0 에 200, 150 이면 화면 크기와 상관없이 200 x 150 입니다
   inspector.viewport_clear: 바탕 칠하기
   inspector.viewport_clear_tooltip: 앞 뷰포트가 그린 화면 위에 그리기 전에 이 영역을 카메라의 바탕색으로 칠합니다
   inspector.viewport_render_texture: 렌더 텍스처
   inspector.viewport_render_texture_tooltip: 화면 대신 이 렌더 텍스처에 그립니다
-  inspector.viewport_layers: 레이어
-  inspector.viewport_layers_tooltip: 이 뷰포트가 그릴 월드 레이어입니다. 화면 레이어는 늘 화면 전체에 그립니다
+  inspector.viewport_layers: 월드 레이어
+  inspector.viewport_layers_tooltip: 이 뷰포트가 그릴 월드 레이어입니다
+  inspector.viewport_screen_layers: 화면 레이어
+  inspector.viewport_screen_layers_tooltip: 이 뷰포트 영역 안에 그릴 화면 레이어입니다. 어느 뷰포트도 고르지 않은 화면 레이어는 화면 전체에 그립니다
   inspector.viewport_add: 뷰포트 추가
   inspector.viewport_remove: 삭제
   inspector.viewport_move_up: 위로 이동
@@ -387,7 +393,6 @@ Entries:
   inspector.viewport_unresolved: 카메라 오브젝트가 없거나 켜진 카메라가 없어 이 뷰포트는 그리지 않습니다
   inspector.viewport_ambiguous: "켜진 카메라가 %u개라 자동은 첫 번째 카메라로 그립니다"
   inspector.viewport_none: 뷰포트가 없어 월드를 그리지 않습니다
-  inspector.viewport_render_texture_3d: 3D 는 아직 렌더 텍스처에 그리지 않습니다. 이 뷰포트는 건너뜁니다
   inspector.layer_properties: 레이어
   inspector.layer_visible: 표시
   inspector.layer_blend: 혼합 모드

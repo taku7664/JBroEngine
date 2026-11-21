@@ -20,6 +20,7 @@
 #include <JBro/Framework3D/Handle/Transform3D.h>
 #include <JBro/AudioTypes/Handle/AudioSource.h>
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Canvas/CanvasViewportSystem.h>
 #include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Core/Yaml.h>
@@ -32,6 +33,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <iostream>
 #include <stdexcept>
 #include <JBro/Types/Bool.h>
@@ -1977,9 +1979,175 @@ namespace
     }
 }
 
+namespace
+{
+    // **뷰포트의 픽셀 칸·레이어 해석·스크립트 시스템**(D-439). 사각형은 비율 x 대상 + 픽셀이고 대상 안으로 잘린다. 레이어 목록은 월드와 화면을 따로 읽는다 -
+    // 월드는 목록에 월드 레이어가 없으면 모두, 화면은 든 것만. 스크립트가 끄고 켜도 "모두" 와 "없음" 의 뜻이 뒤집히지 않는다. 레이어를 지우면 목록에서도 빠진다.
+    void TestViewportPixelsLayersAndScripts()
+    {
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
+        JBro::Float width = 0.0f;
+        JBro::Float height = 0.0f;
+        Check(JBro::ResolveViewportPixels({1.0f, 0.0f}, {0.0f, 0.0f}, {-220.0f, 20.0f}, {200.0f, 150.0f}, 1920.0f, 1080.0f, x, y, width, height)
+                && x == 1700.0f && y == 20.0f && width == 200.0f && height == 150.0f,
+            "a 200 x 150 minimap 20 pixels in from the top-right corner");
+        Check(JBro::ResolveViewportPixels({1.0f, 0.0f}, {0.0f, 0.0f}, {-100.0f, 0.0f}, {200.0f, 100.0f}, 1920.0f, 1080.0f, x, y, width, height)
+                && x == 1820.0f && width == 100.0f,
+            "a rectangle past the right edge is clipped to the target");
+        Check(false == JBro::ResolveViewportPixels({0.5f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, 1920.0f, 1080.0f, x, y, width, height),
+            "no ratio and no pixels is an empty rectangle");
+        Check(JBro::ResolveViewportPixels({0.5f, 0.0f}, {0.5f, 1.0f}, {std::numeric_limits<float>::quiet_NaN(), 0.0f}, {0.0f, 0.0f}, 100.0f, 50.0f,
+                  x, y, width, height) && x == 50.0f && width == 50.0f,
+            "a NaN pixel counts as zero");
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        const JBro::LayerId world = canvas.GetDefaultLayer();
+        JBro::Layer& far = canvas.CreateLayer("Far");
+        const JBro::LayerId farId = far.GetId();
+        JBro::Layer& hud = canvas.CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        const JBro::LayerId hudId = hud.GetId();
+        JBro::CanvasViewport* viewport = canvas.GetViewportAt(0);
+        Check(viewport != nullptr && viewport->layers.IsEmpty(), "a new canvas has one viewport with an empty layer list");
+        Check(JBro::ViewportDrawsLayer(canvas, *viewport, world) && JBro::ViewportDrawsLayer(canvas, *viewport, farId)
+                && false == JBro::ViewportDrawsLayer(canvas, *viewport, hudId),
+            "an empty list draws every world layer and binds no screen layer");
+        viewport->layers.Add(hudId);
+        Check(JBro::ViewportDrawsLayer(canvas, *viewport, world) && JBro::ViewportDrawsLayer(canvas, *viewport, hudId),
+            "naming only a screen layer binds it and still draws every world layer");
+        JBro::ViewLayerMask worldMask;
+        JBro::ViewLayerMask screenMask;
+        JBro::BuildViewportLayerMasks(canvas, *viewport, worldMask, screenMask);
+        Check(false == worldMask.filtered && screenMask.Any() && screenMask.Draws(hud.GetOrder()) && false == screenMask.Draws(far.GetOrder()),
+            "the masks split the list into the world and screen sides");
+
+        JBro::CanvasViewportSystem system;
+        system.Bind(&canvas);
+        system.SetLayerDrawn(0, static_cast<JBro::UInt32>(world), false);
+        Check(false == system.DrawsLayer(0, static_cast<JBro::UInt32>(world)) && system.DrawsLayer(0, static_cast<JBro::UInt32>(farId))
+                && system.DrawsLayer(0, static_cast<JBro::UInt32>(hudId)),
+            "turning one world layer off from 'all' keeps the other world layers and the bound screen layer");
+        system.SetLayerDrawn(0, static_cast<JBro::UInt32>(farId), false);
+        Check(false == system.DrawsLayer(0, static_cast<JBro::UInt32>(world)) && false == system.DrawsLayer(0, static_cast<JBro::UInt32>(farId)),
+            "turning the last world layer off draws no world layer instead of falling back to all");
+        system.SetLayerDrawn(0, static_cast<JBro::UInt32>(world), true);
+        Check(system.DrawsLayer(0, static_cast<JBro::UInt32>(world)) && false == system.DrawsLayer(0, static_cast<JBro::UInt32>(farId)),
+            "turning one back on draws just that one");
+        system.SetLayerDrawn(0, static_cast<JBro::UInt32>(hudId), false);
+        Check(false == system.DrawsLayer(0, static_cast<JBro::UInt32>(hudId)), "a screen layer can be unbound");
+        system.ResetLayers(0);
+        Check(viewport->layers.IsEmpty(), "reset goes back to every world layer and no screen layer");
+        system.SetOriginPixels(0, {-220.0f, 20.0f});
+        system.SetSizePixels(0, {200.0f, 150.0f});
+        Check(viewport->originPixels.x == -220.0f && system.GetSizePixels(0).y == 150.0f, "the pixel fields go through the script system");
+        Check(system.GetOriginPixels(5).x == 0.0f, "an index out of the list gives the default");
+        JBro::AssetHandle texture;
+        texture.index = 3;
+        texture.generation = 1;
+        system.SetRenderTexture(0, texture);
+        Check(viewport->DrawsToTexture() && system.GetRenderTexture(0).index == 3, "a script can draw a viewport into a render texture");
+        viewport->renderTextureId = JBro::Uuid::FromName("probe.jrt");
+        system.SetRenderTexture(0, {});
+        Check(false == viewport->DrawsToTexture() && viewport->renderTextureId.IsNull(), "an empty handle sends it back to the screen");
+
+        // 레이어를 지우면 뷰포트의 목록에서도 빠진다. 월드 쪽이 비면 "없음" 표시가 남는다.
+        viewport->layers.Clear();
+        viewport->layers.Add(farId);
+        viewport->layers.Add(hudId);
+        Check(canvas.DestroyLayer(farId), "the far layer goes");
+        Check(viewport->layers.Size() == 2 && viewport->layers[0] == hudId && viewport->layers[1] == JBro::InvalidLayerId,
+            "its id leaves the list and the 'no world layer' mark keeps the world side empty");
+        Check(false == JBro::ViewportDrawsLayer(canvas, *viewport, world), "so the default layer is still not drawn");
+        Check(canvas.DestroyLayer(hudId) && viewport->layers.Size() == 1 && viewport->layers[0] == JBro::InvalidLayerId,
+            "a screen layer just leaves the list");
+
+        // 파일: 픽셀 칸은 0 이 아닐 때만 적힌다.
+        JBro::Canvas fresh(JBro::CreateDefaultAllocator());
+        Check(std::string(Save(fresh).c_str()).find("Pixels") == std::string::npos, "a ratio-only viewport writes no pixel keys");
+        fresh.GetViewportAt(0)->originPixels = {-220.0f, 20.0f};
+        fresh.GetViewportAt(0)->sizePixels = {200.0f, 150.0f};
+        JBro::Canvas back(JBro::CreateDefaultAllocator());
+        LoadOrFail(back, Save(fresh));
+        const JBro::CanvasViewport& read = *back.GetViewportAt(0);
+        Check(read.originPixels.x == -220.0f && read.originPixels.y == 20.0f && read.sizePixels.x == 200.0f && read.sizePixels.y == 150.0f,
+            "the pixel fields make the round trip");
+    }
+
+    // **레이어 에셋의 옛 카메라**(D-439). `.jlayer` 는 뷰포트를 들지 않으므로, 넣을 때 카메라에 적혀 있던 화면 칸으로 뷰포트를 캔버스 목록 뒤에 더한다.
+    // 대상 전체에 그리던 카메라는 더하지 않는다 - 캔버스의 자동 뷰포트가 그 몫이다.
+    void TestOldCamerasInALayerAssetAddViewports()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::Layer& layer = canvas.CreateLayer("Minimap");
+            for (const char* name : { "Corner", "Whole" })
+            {
+                JBro::Object::GameObject* object = canvas.CreateObject(name);
+                Check(canvas.SetObjectLayer(object, layer.GetId()), "the camera goes on the layer");
+                canvas.AttachComponent<JBro::Component::Transform2D>(object);
+                canvas.AttachComponent<JBro::Component::Camera2D>(object);
+            }
+            JBro::CanvasFileError error;
+            Check(JBro::WriteLayerText(canvas, layer.GetId(), text, error), "the layer asset writes");
+        }
+        std::string legacy(text.c_str());
+        const char* const extras[] = {
+            "viewportOrigin:\n  - 0.75\n  - 0\n"
+            "viewportSize:\n  - 0.25\n  - 0.25\n"
+            "depth: 2\n"
+            "clearViewport: false\n",
+            "primary: true\n"
+            "viewportOrigin:\n  - 0\n  - 0\n"
+            "viewportSize:\n  - 1\n  - 1\n" };
+        std::size_t at = 0;
+        for (const char* extra : extras)
+        {
+            at = legacy.find("Type: Component::Camera2D", at);
+            Check(at != std::string::npos, "each camera is in the layer file");
+            const std::size_t lineEnd = legacy.find('\n', at) + 1;
+            const std::size_t indent = at - legacy.rfind('\n', at) - 1;
+            std::string spaced;
+            const std::string block(extra);
+            std::size_t from = 0;
+            while (from < block.size())
+            {
+                const std::size_t next = block.find('\n', from) + 1;
+                spaced += std::string(indent, ' ') + block.substr(from, next - from);
+                from = next;
+            }
+            legacy.insert(lineEnd, spaced);
+            at = lineEnd + spaced.size();
+        }
+
+        JBro::Canvas target(JBro::CreateDefaultAllocator());
+        JBro::LayerId created = JBro::InvalidLayerId;
+        JBro::CanvasFileError error;
+        Check(JBro::ReadLayerText(target, legacy.c_str(), legacy.size(), created, error), "an old layer asset with the camera's screen fields still goes in");
+        JBro::Object::GameObject* corner = nullptr;
+        target.ForEachObject([&](JBro::Object::GameObject& object) {
+            if (std::strcmp(object.GetName(), "Corner") == 0)
+            {
+                corner = &object;
+            }
+        });
+        Check(corner != nullptr, "the corner camera came in");
+        Check(target.GetViewportCount() == 2, "the canvas keeps its own viewport and gains one for the corner camera only");
+        const JBro::CanvasViewport& added = *target.GetViewportAt(1);
+        Check(added.camera == corner->GetInstanceId() && added.origin.x == 0.75f && added.size.x == 0.25f && false == added.clearViewport,
+            "the added viewport carries the camera's old rectangle and clear switch");
+        Check(false == target.GetViewportAt(0)->HasCamera(), "the canvas's own automatic viewport is untouched");
+    }
+}
+
 JBro::Int32 RunCanvasFileTests()
 {
     JBRO_CASE(TestOldCameraFieldsBecomeViewports());
+    JBRO_CASE(TestViewportPixelsLayersAndScripts());
+    JBRO_CASE(TestOldCamerasInALayerAssetAddViewports());
     JBRO_CASE(TestATagIsSavedOnlyWhenSet());
     JBRO_CASE(TestACanvasWithOneObjectSaves());
     JBRO_CASE(TestWhatIsNotSavedStaysOut());

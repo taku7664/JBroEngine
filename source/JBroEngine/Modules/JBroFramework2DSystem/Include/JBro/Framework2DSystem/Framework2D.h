@@ -84,12 +84,12 @@ namespace JBro
         OwnerPtr<Canvas> m_canvas;
         // 열린 캔버스가 잡은 에셋 핸들이다. 다음 해석과 종료 때 놓는다(D-115).
         Array<AssetHandle> m_canvasAssets;
-        // 뷰포트마다 푼 렌더 텍스처다(D-438). 뷰포트 차례이고 비어 있으면 화면에 그린다. 핸들은 `m_canvasAssets` 에도 들어 있어 함께 놓인다.
-        Array<AssetHandle> m_viewportTextures;
         Table<LayerId, OwnerPtr<Layer2D>> m_layer2DStates;
         RenderWorld2D    m_renderWorld;
         // 호스트가 준 화면 기준이다(D-237). 대상 크기가 0 이면(호스트가 주지 않은 시험) 렌더러의 프레임 크기를 쓴다.
         ScreenSpaceFrame m_screenSpace;
+        // 뷰포트에 묶인 화면 레이어의 기준이다(D-439). 프레임마다 다시 모으고 자리는 남긴다.
+        Array<ScreenLayerFrame> m_screenLayerFrames;
         // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
         SpriteLibrary    m_spriteLibrary;
         // 화면 UI 의 연결(D-362): 훅은 `GameScript2D` 로, 월드 레이어는 카메라 2D 로.

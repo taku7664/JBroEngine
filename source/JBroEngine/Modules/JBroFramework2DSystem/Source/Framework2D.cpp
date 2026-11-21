@@ -235,15 +235,26 @@ namespace JBro
             // 트랜스폼으로 고른다(이번 프레임의 트랜스폼은 아직 돌지 않았다). 그리기는 이번에 뽑힌 카메라로 같은 함수를 다시 부른다.
             RenderCamera2D camera;
             ApplyCameraArea(System::Camera2DSystem::SelectCamera(*m_canvas, camera) ? &camera : nullptr, frame);
+            // 뷰포트에 묶인 화면 레이어는 그 뷰포트의 사각형이 기준이다(D-439). 사각형은 레터박스 전의 대상에서 잰다.
+            ScreenSpaceFrame whole = frame;
+            whole.areaX = 0.0f;
+            whole.areaY = 0.0f;
+            whole.areaWidth = 0.0f;
+            whole.areaHeight = 0.0f;
+            System::Camera2DSystem::CollectScreenLayerFrames(*m_canvas, whole, m_screenLayerFrames);
+            const ArrayView<const ScreenLayerFrame> layerFrames(m_screenLayerFrames.Data(), m_screenLayerFrames.Size());
             m_renderWorld.SetScreenSpace(frame);
+            m_renderWorld.SetScreenLayerFrames(layerFrames);
             if (System::Transform2DSystem* transforms = m_canvas->GetSystems().FindSystem<System::Transform2DSystem>())
             {
                 transforms->SetScreenSpace(frame);
+                transforms->SetScreenLayerFrames(layerFrames);
             }
             // 버튼은 입력 체인 안에서 지난 프레임의 화면을 누른다 - 같은 기준이어야 그린 자리를 누른다.
             if (System::Button2DSystem* buttons = m_canvas->GetSystems().FindSystem<System::Button2DSystem>())
             {
                 buttons->SetScreenSpace(frame);
+                buttons->SetScreenLayerFrames(layerFrames);
             }
         }
         // **한 프레임 진행**(D-242). 멈춘 동안 이 프레임만 게임이 돈다: 스크립트·물리를 켰다가 끝에 다시 끈다.
@@ -595,25 +606,20 @@ namespace JBro
         m_context.assets->ReleaseAll(m_canvasAssets);
         std::pair<AssetSystem*, Array<AssetHandle>*> binding(m_context.assets, &m_canvasAssets);
         ForEachReflectedInstance(*m_canvas, &BindComponentAssetsVisitor, &binding);
-        // 뷰포트의 렌더 텍스처(D-438). 컴포넌트가 아니라 캔버스의 값이라 리플렉션 패스가 보지 않는다.
-        m_viewportTextures.Clear();
-        const Array<CanvasViewport>& viewports = m_canvas->GetViewports();
-        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        // 뷰포트의 렌더 텍스처(D-438). 컴포넌트가 아니라 캔버스의 값이라 리플렉션 패스가 보지 않는다. 풀린 핸들은 뷰포트가 든다(D-439) -
+        // 스크립트가 바꾼 핸들은 여기서 파일의 값으로 돌아간다.
+        for (std::size_t index = 0; index < m_canvas->GetViewportCount(); ++index)
         {
-            AssetHandle texture;
-            if (false == viewports[index].renderTextureId.IsNull())
+            CanvasViewport& viewport = *m_canvas->GetViewportAt(index);
+            viewport.renderTexture = {};
+            if (false == viewport.renderTextureId.IsNull())
             {
-                texture = m_context.assets->Load(viewports[index].renderTextureId);
-                if (texture.generation != 0)
+                viewport.renderTexture = m_context.assets->Load(viewport.renderTextureId);
+                if (viewport.renderTexture.generation != 0)
                 {
-                    m_canvasAssets.Add(texture);
+                    m_canvasAssets.Add(viewport.renderTexture);
                 }
             }
-            m_viewportTextures.Add(texture);
-        }
-        if (System::Camera2DSystem* cameras = m_canvas->GetSystems().FindSystem<System::Camera2DSystem>())
-        {
-            cameras->SetViewportTextures(ArrayView<const AssetHandle>(m_viewportTextures.Data(), m_viewportTextures.Size()));
         }
         m_context.assets->CollectUnused();
     }
@@ -626,7 +632,6 @@ namespace JBro
             m_context.assets->ReleaseAll(m_canvasAssets);
         }
         m_canvasAssets.Clear();
-        m_viewportTextures.Clear();
         UnbindScriptContexts();
         // 네트워크가 캔버스를 잊는다. 트랜스포트는 남는다 - 연결은 캔버스보다 오래 산다.
         if (m_context.network != nullptr)

@@ -76,6 +76,8 @@ namespace JBro
         void ApplySimulationEnabled(Bool enabled);
         // 카메라의 프로필과 볼륨·덮어쓰기를 섞고 레이어 프로필을 건다(D-344~D-346). 추출 뒤에 부른다.
         void ResolvePostProcess();
+        // 렌더 텍스처 뷰의 대상과 렌더 텍스처를 읽는 재질 짝을 렌더 월드에 건다(D-439). 추출 뒤, 렌더러 프레임 밖에서 부른다.
+        void ResolveCameraTargets();
         // 카메라 하나의 프로필에 그 자리의 볼륨을 섞고 덮어쓰기를 얹는다(D-346). `overridesFrom` 이 있으면 그 섞기의 덮어쓰기를 옮겨 온다(D-438, 둘째 뷰부터).
         void MixPostProcessFor(const RenderCamera3D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom);
 
@@ -91,6 +93,10 @@ namespace JBro
         System::UiHookDispatcher3D m_uiHooks;
         // 호스트가 프레임마다 거는 화면 기준이다(D-237).
         ScreenSpaceFrame m_screenSpace;
+        // 뷰포트에 묶인 화면 레이어의 기준이다(D-439). 프레임마다 다시 모으고 자리는 남긴다.
+        Array<ScreenLayerFrame> m_screenLayerFrames;
+        // 렌더 텍스처를 읽는 재질 짝이다(D-439). 프레임마다 다시 모은다.
+        Array<RenderTargetRead> m_renderTargetReads;
         MeshLibrary m_meshes;
         // 후처리 효과 `Material` 의 머티리얼을 푼다(D-347). 메시의 머티리얼은 아직 보지 않는다.
         MaterialLibrary m_materials;

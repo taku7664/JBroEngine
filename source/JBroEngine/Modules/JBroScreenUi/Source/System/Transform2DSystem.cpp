@@ -69,6 +69,15 @@ namespace JBro::System
         m_screen = frame;
     }
 
+    void Transform2DSystem::SetScreenLayerFrames(ArrayView<const ScreenLayerFrame> frames)
+    {
+        m_layerFrames.Clear();
+        for (UInt32 at = 0; at < frames.Size(); ++at)
+        {
+            m_layerFrames.Add(frames[at]);
+        }
+    }
+
     // 부모를 가진 노드는 그 부모의 순회에서 처리된다. 여기서는 루트만 골라 내려간다.
     void Transform2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
@@ -116,14 +125,18 @@ namespace JBro::System
             Matrix3x2 parent;
             const Layer* layer = owner->GetLayer();
             ScreenExtent extent;
+            // 뷰포트에 묶인 화면 레이어는 그 뷰포트의 사각형에서 잰다(D-439).
+            const ScreenSpaceFrame& screen = layer != nullptr
+                ? FindScreenLayerFrame(ArrayView<const ScreenLayerFrame>(m_layerFrames.Data(), m_layerFrames.Size()), layer->GetOrder(), m_screen)
+                : m_screen;
             if (layer != nullptr && layer->GetSpace() == LayerSpace::Screen
-                && ComputeScreenExtent(layer->GetScaleMode(), m_screen, extent))
+                && ComputeScreenExtent(layer->GetScaleMode(), screen, extent))
             {
                 // 루트에 `SafeArea2D` 가 있으면 안전 영역에서 잰다(D-358).
                 const auto* safe = canvas.FindComponentRaw<Component::SafeArea2D>(owner);
                 if (safe != nullptr && safe->IsActiveComponent())
                 {
-                    ComputeSafeAnchorPoint(extent, m_screen, safe->horizontal, safe->vertical, transform.anchor.x, transform.anchor.y, parent.m31, parent.m32);
+                    ComputeSafeAnchorPoint(extent, screen, safe->horizontal, safe->vertical, transform.anchor.x, transform.anchor.y, parent.m31, parent.m32);
                 }
                 else
                 {

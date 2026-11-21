@@ -103,8 +103,8 @@ namespace JBro::System
         {
             return false;
         }
-        ApplyCameraViewport(camera, frame);
-        if (false == ScreenPixelToNormalized(frame, pixelX, pixelY, nx, ny) || false == ComputeCameraView2D(camera, frame, view))
+        if (false == ApplyCameraViewport(camera, frame) || false == ScreenPixelToNormalized(frame, pixelX, pixelY, nx, ny)
+            || false == ComputeCameraView2D(camera, frame, view))
         {
             return false;
         }
@@ -140,8 +140,7 @@ namespace JBro::System
         {
             return false;
         }
-        ApplyCameraViewport(camera, frame);
-        if (false == ComputeCameraView2D(camera, frame, view))
+        if (false == ApplyCameraViewport(camera, frame) || false == ComputeCameraView2D(camera, frame, view))
         {
             return false;
         }

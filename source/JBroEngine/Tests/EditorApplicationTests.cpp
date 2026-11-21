@@ -14694,8 +14694,11 @@ namespace
             Check(corner[1] < 40 && corner[2] < 40 && corner[3] == 255, "around it is the opaque thumbnail background");
         }
 
-        // 지운 레이어의 칸은 놓인다.
+        // 지운 레이어의 칸은 놓인다. 뷰포트가 그 레이어만 그리고 있었으면 "월드 레이어 없음" 이 남고, 되돌리면 되살린 번호로 다시 고른다(D-439).
+        canvas->GetViewportAt(0)->layers.Add(propsId);
         Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::DeleteLayerCommand>(*canvas, editor.GetObjectIds(), propsId)), "the layer is deleted");
+        Check(canvas->GetViewportAt(0)->layers.Size() == 1 && canvas->GetViewportAt(0)->layers[0] == JBro::InvalidLayerId,
+            "the deleted layer leaves the viewport's list, which keeps drawing no world layer");
         Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
         Check(false == editor.GetLayerThumbnail(propsId, texture, extent), "a deleted layer has no thumbnail");
         Check(editor.GetCommands().Undo(), "and comes back");
@@ -14706,6 +14709,9 @@ namespace
         // 되살린 레이어는 새 번호다(`DeleteLayerCommand`).
         JBro::LayerId restoredId = crate->GetLayerId();
         Check(editor.GetLayerThumbnail(restoredId, texture, extent), "a restored layer is drawn again");
+        Check(canvas->GetViewportAt(0)->layers.Size() == 1 && canvas->GetViewportAt(0)->layers[0] == restoredId,
+            "undo picks the restored layer again in the viewport");
+        canvas->GetViewportAt(0)->layers.Clear();
 
         // 실행을 멈추면 캔버스가 되돌아와 썸네일을 모두 놓는다. 이 프레임의 계층 창은 이미 그 텍스처를 얹었으므로 곧바로 지우면
         // UI 가 죽은 텍스처를 그려 프레임이 실패한다 - 다음 프레임에 지운다.

@@ -76,6 +76,8 @@ namespace JBro
         Uuid m_sourceAsset;
         // 후처리 프로필도 같이 뜬다(D-345).
         Uuid m_postProcessProfile;
+        // 지우기 전의 뷰포트 목록이다(D-439). 레이어를 지우면 뷰포트의 레이어 목록에서도 빠진다 - 되살린 레이어는 새 번호라 그 번호로 바꿔 되돌린다.
+        Array<CanvasViewport> m_viewports;
         Array<EditorObjectId> m_objects;
         Bool m_captured = false;
     };
@@ -283,6 +285,9 @@ namespace JBro
         Bool m_lit = true;
         Uuid m_postProcessProfile;
         Array<ObjectTreeSnapshot> m_trees;
+        // 넣기 전·뒤의 뷰포트 목록이다(D-439). 옛 레이어 에셋의 카메라가 뷰포트를 더한다 - 되돌리면 뺀다.
+        Array<CanvasViewport> m_viewportsBefore;
+        Array<CanvasViewport> m_viewportsAfter;
     };
 
     class SetLayerVisibleCommand final : public EditorCommand

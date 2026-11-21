@@ -99,6 +99,8 @@ namespace JBro::System
         void SetTextInputHost(ITextInputHost* host);
         // 이번 프레임의 화면 기준이다. 프레임워크가 입력 체인보다 먼저 건다.
         void SetScreenSpace(const ScreenSpaceFrame& frame);
+        // 뷰포트에 묶인 화면 레이어의 기준이다(D-439). 그 레이어의 버튼은 그 기준으로 누른다 - 뷰포트 밖의 포인터는 그 버튼에 닿지 않는다.
+        void SetScreenLayerFrames(ArrayView<const ScreenLayerFrame> frames);
 
         InputResult OnInput(InputView& input) override;
         void OnUpdate(Canvas& canvas, Float deltaTime) override;
@@ -204,6 +206,7 @@ namespace JBro::System
         IUiHookDispatcher* m_hooks = nullptr;
         const IWorldLayerMapper* m_world = nullptr;
         ScreenSpaceFrame m_screen;
+        Array<ScreenLayerFrame> m_layerFrames;
         // 오브젝트 번호로 기억한다 - 지난 프레임의 포인터가 가리키던 오브젝트가 지워졌을 수 있다. 종류는 같은 오브젝트의 어느 위젯인가다.
         InstanceId       m_hovered = InvalidInstanceId;
         WidgetKind       m_hoveredKind = WidgetKind::None;

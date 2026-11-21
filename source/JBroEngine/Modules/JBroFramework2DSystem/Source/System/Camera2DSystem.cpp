@@ -54,11 +54,6 @@ namespace JBro::System
         m_renderWorld = renderWorld;
     }
 
-    void Camera2DSystem::SetViewportTextures(ArrayView<const AssetHandle> textures)
-    {
-        m_viewportTextures = textures;
-    }
-
     void Camera2DSystem::ExtractRenderWorld(Canvas& canvas)
     {
         if (m_renderWorld == nullptr)
@@ -78,10 +73,10 @@ namespace JBro::System
             {
                 continue;
             }
-            if (false == viewport.renderTextureId.IsNull())
+            if (viewport.DrawsToTexture())
             {
                 // 렌더 텍스처 뷰포트는 풀린 핸들이 있어야 그린다. 핸들이 없으면(에셋을 못 찾음) 화면에 잘못 그리지 않고 뺀다.
-                item.renderTexture = index < m_viewportTextures.Size() ? m_viewportTextures[static_cast<UInt32>(index)] : AssetHandle{};
+                item.renderTexture = viewport.renderTexture;
                 if (item.renderTexture.generation == 0)
                 {
                     continue;
@@ -140,20 +135,11 @@ namespace JBro::System
             item.position = world->worldPosition;
             item.viewportOrigin = viewport.origin;
             item.viewportSize = viewport.size;
+            item.viewportOriginPixels = viewport.originPixels;
+            item.viewportSizePixels = viewport.sizePixels;
             item.clearViewport = viewport.clearViewport;
-            item.layers = ViewLayerMask{};
-            if (false == viewport.layers.IsEmpty())
-            {
-                item.layers.filtered = true;
-                for (std::size_t at = 0; at < viewport.layers.Size(); ++at)
-                {
-                    const Layer* layer = canvas.FindLayer(viewport.layers[at]);
-                    if (layer != nullptr)
-                    {
-                        item.layers.Allow(layer->GetOrder());
-                    }
-                }
-            }
+            // 월드 레이어와 화면 레이어를 따로 읽는다(D-439).
+            BuildViewportLayerMasks(canvas, viewport, item.layers, item.screenLayers);
             return true;
         }
 
@@ -241,15 +227,14 @@ namespace JBro::System
         {
             // 렌더 텍스처에 그리는 뷰포트는 화면에 없다 - 포인터의 카메라가 아니다(D-362).
             RenderCamera2D item;
-            if (false == viewports[index].renderTextureId.IsNull() || false == FillView(canvas, viewports[index], item, nullptr))
+            if (viewports[index].DrawsToTexture() || false == FillView(canvas, viewports[index], item, nullptr))
             {
                 continue;
             }
             ScreenSpaceFrame own = frame;
-            ApplyCameraViewport(item, own);
             ScreenArea area;
             // 목록에서 뒤의 것이 위에 그려진다 - 겹치면 뒤의 것이 이긴다.
-            if (GetScreenArea(own, area) && pixelX >= area.x && pixelX < area.x + area.width && pixelY >= area.y && pixelY < area.y + area.height)
+            if (ApplyCameraViewport(item, own) && GetScreenArea(own, area) && pixelX >= area.x && pixelX < area.x + area.width && pixelY >= area.y && pixelY < area.y + area.height)
             {
                 result = item;
                 found = true;
@@ -265,7 +250,7 @@ namespace JBro::System
         const Array<CanvasViewport>& viewports = canvas.GetViewports();
         for (std::size_t index = 0; index < viewports.Size(); ++index)
         {
-            if (false == viewports[index].renderTextureId.IsNull())
+            if (viewports[index].DrawsToTexture())
             {
                 continue;
             }
@@ -275,6 +260,40 @@ namespace JBro::System
             }
         }
         return false;
+    }
+
+    void Camera2DSystem::CollectScreenLayerFrames(Canvas& canvas, const ScreenSpaceFrame& base, Array<ScreenLayerFrame>& frames)
+    {
+        frames.Clear();
+        const Array<CanvasViewport>& viewports = canvas.GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        {
+            const CanvasViewport& viewport = viewports[index];
+            if (viewport.DrawsToTexture() || viewport.layers.IsEmpty())
+            {
+                continue;
+            }
+            RenderCamera2D item;
+            if (false == FillView(canvas, viewport, item, nullptr) || false == item.screenLayers.Any())
+            {
+                continue;
+            }
+            ScreenLayerFrame entry;
+            entry.frame = base;
+            if (false == ApplyCameraViewport(item, entry.frame))
+            {
+                continue;
+            }
+            for (std::size_t at = 0; at < canvas.GetLayerCount(); ++at)
+            {
+                const Layer* layer = canvas.GetLayerAt(at);
+                if (layer != nullptr && layer->GetSpace() == LayerSpace::Screen && item.screenLayers.Draws(layer->GetOrder()))
+                {
+                    entry.layerOrder = static_cast<std::uint16_t>(layer->GetOrder());
+                    frames.Add(entry);
+                }
+            }
+        }
     }
 
     void Camera2DSystem::OnUpdate(Canvas& canvas, Float deltaTime)

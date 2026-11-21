@@ -403,7 +403,7 @@
 - `[완료]` **세이브 저장소**(D-218 (4), [save-plan.md](./save-plan.md)). 스크립트의 `SaveService`, 호스트의 `SaveStorage`. 남은 것(웹·Android 뿌리,
   슬롯 목록, 비동기 쓰기)은 계획서 §4 의 `[열림]` 이다.
 - `[완료]` **캔버스 뷰포트 목록**(D-438, [viewport-plan.md](./viewport-plan.md)). 카메라의 `primary`·화면 배치를 캔버스 목록으로 옮겼다(2D·3D, 3D 여러 뷰, 레이어 필터, 캔버스 인스펙터, `ViewportService`).
-  남은 것은 계획서 §6 의 `[열림]` 이다.
+  후속(D-439, 계획서 §7)으로 픽셀 칸·뷰포트별 HUD·3D 렌더 텍스처와 재질 칸·스크립트의 레이어 필터와 렌더 텍스처·API 표·레이어 정리를 닫았다. 남은 것은 계획서 §6 의 `[열림]` 넷이다.
 - `[열림]` **캔버스 비동기 로드.** 캔버스를 열 때 그 캔버스의 에셋을 워커가 디스크에서 읽고 디코드하는 동안 화면은 멈추지 않고
   진행률을 보이며, 끝나면 메인 스레드가 풀에 넣고 캔버스를 연다. 무엇을 열지는 여는 순간 정해지므로 추측할 것이 없다 - 전에 이 자리에
   적었던 "다음 캔버스를 미리 읽어 두기(prefetch)" 는 다음을 알 길이 없어 지웠다(2026-09-27, 사용자 지적: 버튼이 다섯이면 다섯을 다 읽을 수 없다).
@@ -3064,6 +3064,18 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-439. 뷰포트 후속 - 사각형은 비율 + 픽셀, 레이어 목록은 월드와 화면을 따로 읽어 화면 레이어를 뷰포트에 묶고, 3D 도 렌더 텍스처에 그려 표준 머티리얼이 읽는다.** (2026-11-21, [viewport-plan.md](./viewport-plan.md) §7, 사용자 결정 네 갈림길 모두 추천안)
+  Updates: D-438(레이어 목록의 뜻 - 화면 레이어는 이제 고른 뷰포트에 묶인다, 3D 렌더 텍스처 `[열림]` 을 닫음), D-362(렌더 텍스처 뷰의 제 대상 빼기가 3D 메시에도).
+  (1) 사용자에게 물은 것: 픽셀 칸 모양(비율 + 픽셀 / 둘 중 하나), 뷰포트별 HUD(레이어 필터로 / 레이어에 뷰포트 칸 / 빼기), 스크립트 렌더 텍스처 인자(`AssetHandle` / `AssetId`), 3D 렌더 텍스처(재질 칸까지 / 그리기만 / 빼기) - 모두 첫째(추천)를 받았다.
+  (2) 픽셀: `CanvasViewport::originPixels`·`sizePixels`, `ResolveViewportPixels` 하나로 2D·3D·화면 기준이 잰다. 파일 키는 0 이 아닐 때만 `OriginPixels`·`SizePixels`.
+  (3) 레이어: 월드는 목록에 월드 레이어가 없으면 모두(없음은 `InvalidLayerId`), 화면은 든 것만 그 뷰포트의 사각형을 기준(`ScreenLayerFrame`)으로 그리고 앵커·누르기도 같다. 어느 뷰포트도 고르지 않은 화면 레이어는 전처럼 대상 전체.
+  레이어를 지우면 뷰포트 목록에서도 빠지고(`Canvas::DestroyLayer`), 지우기·레이어 에셋 넣기 커맨드는 뷰포트 목록을 함께 뜬다. `.jlayer` 의 옛 2D 카메라 칸은 뷰포트로 더한다.
+  (4) 스크립트: `ViewportService` 의 픽셀·`Get/SetRenderTexture(AssetHandle)`·`DrawsLayer`·`SetLayerDrawn`·`ResetLayers`. 런타임이 `JBroAssetTypes` 에 기대게 됐다(Tier S → Tier S, 공개 헤더는 앞 선언만).
+  `JBroCanvas`·`JBroNetworkSystem` 이 `JBroAssetTypes` 를 선언한다(뷰포트가 핸들을 든다). `SystemContextAbiVersion` 10 → 11 - 옛 스크립트 DLL 은 다시 빌드해야 한다. 2D API 표에 `ViewportService`·전역 `Viewports`.
+  (5) 3D: 렌더 텍스처 뷰를 화면 뷰보다 먼저 그린다. 표준 머티리얼의 그림 칸이 `.jrt` 를 받아 그 렌더 타깃을 읽고(`MeshMaterialLibrary::AcquireRenderTarget`), 렌더 텍스처 뷰는 제 대상을 읽는 재질의 메시를 그리지 않는다.
+  (6) 에디터: 인스펙터에 `위치(픽셀)`·`크기(픽셀)`, 레이어 칸을 `월드 레이어`·`화면 레이어` 둘로(개수 제한 없는 `LayerListField`), 그림 칸이 렌더 텍스처도 고른다. 3D 렌더 텍스처 경고와 그 문구 키를 지웠다.
+  확인과 뮤테이션은 viewport-plan §7 끝. 남은 `[열림]` 은 §6.
 
 - **D-438. 카메라 고르기·화면 배치는 캔버스의 뷰포트 목록이다 - 카메라는 눈만 든다. 2D·3D 같고, 3D 도 여러 뷰다.** (2026-11-21, [viewport-plan.md](./viewport-plan.md), 사용자 결정 "뷰포트 목록으로")
   Updates: D-187(`primary` 없으면 첫 활성 카메라 → 뷰포트의 자동), D-359(카메라의 `viewportOrigin`·`viewportSize`·`depth` → 뷰포트, 차례는 목록 차례), D-362(카메라의 `clearViewport`·`renderTextureId` → 뷰포트).

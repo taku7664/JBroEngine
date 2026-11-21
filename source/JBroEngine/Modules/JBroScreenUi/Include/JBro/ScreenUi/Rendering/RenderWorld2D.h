@@ -9,6 +9,7 @@
 #include <JBro/Graphics/PostProcess.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/ArrayView.h>
 #include <JBro/Types/Math2D.h>
 
 #include <cstdint>
@@ -39,13 +40,17 @@ namespace JBro
         AssetHandle postProcessProfile;
         // 카메라의 월드 위치다. 후처리 볼륨(D-346)의 무게를 이 자리에서 잰다.
         Vector2 position;
-        // 뷰포트(D-359, D-438): 대상 안의 사각형(왼쪽 위 원점, 0..1)이다. 그리는 차례는 목록 차례다.
+        // 뷰포트(D-359, D-438, D-439): 대상 안의 사각형(왼쪽 위 원점, 비율 0..1 x 대상 + 픽셀)이다. 그리는 차례는 목록 차례다.
         Vector2 viewportOrigin;
         Vector2 viewportSize{ 1.0f, 1.0f };
+        Vector2 viewportOriginPixels;
+        Vector2 viewportSizePixels;
         // 앞 뷰가 그린 대상에서 제 뷰포트를 지우기 색으로 칠하는가(D-362).
         Bool clearViewport = true;
         // 이 뷰가 그릴 월드 레이어의 차례(D-438). 거르지 않으면 모두다.
         ViewLayerMask layers;
+        // 이 뷰포트의 사각형 안에 그릴 화면 레이어의 차례(D-439). 비면 없다.
+        ViewLayerMask screenLayers;
         // **렌더 텍스처**(D-362). 에셋이 있으면 이 카메라는 화면이 아니라 그 텍스처에 그린다 - 프레임워크가 `target`·`targetExtent` 를 채우고, 브리지는 화면의 카메라보다 먼저 그린다.
         // 그런 카메라는 주 카메라·포인터의 카메라가 아니다.
         AssetHandle renderTexture;
@@ -222,6 +227,19 @@ namespace JBro
         // 화면 레이어의 기준이다(D-237). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.
         void SetScreenSpace(const ScreenSpaceFrame& frame);
         const ScreenSpaceFrame& GetScreenSpace() const;
+        // 뷰포트에 묶인 화면 레이어의 기준이다(D-439). 프레임워크가 화면 기준과 함께 넣는다. 비면 모든 화면 레이어가 `GetScreenSpace` 하나다.
+        void SetScreenLayerFrames(ArrayView<const ScreenLayerFrame> frames)
+        {
+            m_screenLayerFrames.Clear();
+            for (UInt32 at = 0; at < frames.Size(); ++at)
+            {
+                m_screenLayerFrames.Add(frames[at]);
+            }
+        }
+        ArrayView<const ScreenLayerFrame> GetScreenLayerFrames() const
+        {
+            return ArrayView<const ScreenLayerFrame>(m_screenLayerFrames.Data(), m_screenLayerFrames.Size());
+        }
         std::size_t GetScreenSpriteCount() const;
         // Reserve outside frame processing. Full storage rejects submissions without allocation.
         Bool SubmitSprite(const SpriteRenderItem& item);
@@ -255,6 +273,7 @@ namespace JBro
 
         RenderCamera2D          m_camera;
         Array<RenderCamera2D>   m_cameras;
+        Array<ScreenLayerFrame> m_screenLayerFrames;
         PostProcessStack        m_postProcess;
         Array<PostProcessStack> m_cameraPostProcess;
         Array<PostProcessStack> m_layerPostProcess;

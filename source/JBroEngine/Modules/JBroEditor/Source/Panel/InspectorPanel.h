@@ -285,6 +285,12 @@ namespace JBro
         String m_viewportName;
         Int32 m_namedViewport = -1;
         Bool m_viewportNameEditing = false;
+        // 뷰포트의 레이어 칸이 쓰는 자리다(D-439). 프레임마다 다시 채우고 자리는 남긴다.
+        Array<LayerId> m_viewportWorldLayerIds;
+        Array<const char*> m_viewportWorldLayerNames;
+        Array<LayerId> m_viewportScreenLayerIds;
+        Array<const char*> m_viewportScreenLayerNames;
+        Array<Bool> m_viewportLayerOn;
 
         // ── 오디오 미리 듣기(D-197) ──
         // 보고 있는 오디오 에셋과 그 요약이다. 에셋이 바뀌거나 자료가 다시 읽히면(판번호) 다시 잰다 - 파형은 한 번만 푼다.

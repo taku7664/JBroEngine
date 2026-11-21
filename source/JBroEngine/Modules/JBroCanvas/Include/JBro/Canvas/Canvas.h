@@ -107,6 +107,7 @@ namespace JBro
         Bool        MoveLayer(LayerId layer, std::size_t newIndex);
         Bool        SetObjectLayer(Object::GameObject* object, LayerId layer);
         Layer*      FindLayer(LayerId layer);
+        const Layer* FindLayer(LayerId layer) const;
         std::size_t GetLayerCount() const;
 
         // 컴포넌트 풀 하나의 쓰임새다(D-145). 에디터의 통계 창이 이것을 보여 준다 -

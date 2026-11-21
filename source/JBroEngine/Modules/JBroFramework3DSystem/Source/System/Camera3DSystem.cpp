@@ -10,6 +10,8 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 
+#include <cmath>
+
 namespace JBro::System
 {
     Int32 Camera3DSystem::GetExecutionOrder() const
@@ -107,22 +109,16 @@ namespace JBro::System
         item.postProcessProfile = camera->postProcessProfile;
         item.viewportOrigin = viewport.origin;
         item.viewportSize = viewport.size;
+        item.viewportOriginPixels = viewport.originPixels;
+        item.viewportSizePixels = viewport.sizePixels;
         item.clearViewport = viewport.clearViewport;
-        item.layers = ViewLayerMask{};
-        if (false == viewport.layers.IsEmpty())
-        {
-            item.layers.filtered = true;
-            for (std::size_t at = 0; at < viewport.layers.Size(); ++at)
-            {
-                const Layer* layer = canvas.FindLayer(viewport.layers[at]);
-                if (layer != nullptr)
-                {
-                    item.layers.Allow(layer->GetOrder());
-                }
-            }
-        }
-        // 빈 사각형은 그리지 않는다(2D 의 `HasDrawableViewport` 와 같다).
-        return item.viewportSize.x > 0.0f && item.viewportSize.y > 0.0f && item.viewportOrigin.x < 1.0f && item.viewportOrigin.y < 1.0f;
+        // 월드 레이어와 화면 레이어를 따로 읽는다(D-439).
+        BuildViewportLayerMasks(canvas, viewport, item.layers, item.screenLayers);
+        // 어떤 대상에서도 빈 사각형이면 그리지 않는다(2D 의 `HasDrawableViewport` 와 같다). 대상에서 실제로 비는지는 브리지가 잰다.
+        const auto positive = [](Float ratio, Float pixels) {
+            return (std::isfinite(ratio.Get()) && ratio > 0.0f) || (std::isfinite(pixels.Get()) && pixels > 0.0f);
+        };
+        return positive(viewport.size.x, viewport.sizePixels.x) && positive(viewport.size.y, viewport.sizePixels.y);
     }
 
     Bool Camera3DSystem::SelectCamera(Canvas& canvas, RenderCamera3D& result)
@@ -130,12 +126,58 @@ namespace JBro::System
         const Array<CanvasViewport>& viewports = canvas.GetViewports();
         for (std::size_t index = 0; index < viewports.Size(); ++index)
         {
-            if (viewports[index].renderTextureId.IsNull() && FillView(canvas, viewports[index], result))
+            if (false == viewports[index].DrawsToTexture() && FillView(canvas, viewports[index], result))
             {
                 return true;
             }
         }
         return false;
+    }
+
+    void Camera3DSystem::CollectScreenLayerFrames(Canvas& canvas, const ScreenSpaceFrame& base, Array<ScreenLayerFrame>& frames)
+    {
+        frames.Clear();
+        const Array<CanvasViewport>& viewports = canvas.GetViewports();
+        for (std::size_t index = 0; index < viewports.Size(); ++index)
+        {
+            const CanvasViewport& viewport = viewports[index];
+            if (viewport.DrawsToTexture() || viewport.layers.IsEmpty())
+            {
+                continue;
+            }
+            RenderCamera3D item;
+            if (false == FillView(canvas, viewport, item) || false == item.screenLayers.Any())
+            {
+                continue;
+            }
+            ScreenLayerFrame entry;
+            entry.frame = base;
+            Float x = 0.0f;
+            Float y = 0.0f;
+            Float width = 0.0f;
+            Float height = 0.0f;
+            if (false == ResolveViewportPixels(viewport, base.targetWidth, base.targetHeight, x, y, width, height))
+            {
+                continue;
+            }
+            // 대상 전체면 사각형을 비운다(대상 전체의 뜻) - 2D 의 `ApplyCameraViewport` 와 같다.
+            if (false == (x <= 0.0f && y <= 0.0f && width >= base.targetWidth && height >= base.targetHeight))
+            {
+                entry.frame.areaX = x;
+                entry.frame.areaY = y;
+                entry.frame.areaWidth = width;
+                entry.frame.areaHeight = height;
+            }
+            for (std::size_t at = 0; at < canvas.GetLayerCount(); ++at)
+            {
+                const Layer* layer = canvas.GetLayerAt(at);
+                if (layer != nullptr && layer->GetSpace() == LayerSpace::Screen && item.screenLayers.Draws(layer->GetOrder()))
+                {
+                    entry.layerOrder = static_cast<std::uint16_t>(layer->GetOrder());
+                    frames.Add(entry);
+                }
+            }
+        }
     }
 
     void Camera3DSystem::ExtractRenderWorld(Canvas& canvas)
@@ -151,19 +193,19 @@ namespace JBro::System
         for (std::size_t index = 0; index < viewports.Size(); ++index)
         {
             const CanvasViewport& viewport = viewports[index];
-            if (false == viewport.renderTextureId.IsNull())
-            {
-                // 3D 렌더 텍스처는 그것을 보일 3D 쪽 자리(머티리얼의 텍스처 칸)가 없어 아직 그리지 않는다(viewport-plan §6).
-                if (false == m_warnedRenderTexture)
-                {
-                    m_warnedRenderTexture = true;
-                    Log::Write(LogLevel::Warning, "camera", "a 3D viewport draws into a render texture - 3D render textures are not drawn yet, the viewport is skipped");
-                }
-                continue;
-            }
             RenderCamera3D item;
             if (false == FillView(canvas, viewport, item))
             {
+                continue;
+            }
+            // **렌더 텍스처 뷰포트**(D-439). 풀린 핸들이 있어야 그린다 - 없으면(에셋을 못 찾음) 화면에 잘못 그리지 않고 뺀다. 주 카메라가 아니다.
+            if (viewport.DrawsToTexture())
+            {
+                item.renderTexture = viewport.renderTexture;
+                if (item.renderTexture.generation != 0)
+                {
+                    m_renderWorld->AddCamera(item);
+                }
                 continue;
             }
             if (false == hasMain)

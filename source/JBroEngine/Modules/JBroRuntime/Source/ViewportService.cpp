@@ -1,5 +1,7 @@
 ﻿#include <JBro/Runtime/ViewportService.h>
 
+#include <JBro/AssetTypes/AssetTypes.h>
+
 #include <JBro/Runtime/IViewportSystem.h>
 #include <JBro/Runtime/SystemContext.h>
 
@@ -98,6 +100,71 @@ namespace JBro::Service
         if (System::IViewportSystem* system = Viewports())
         {
             system->SetAutoCamera(index);
+        }
+    }
+
+    Vector2 ViewportService::GetOriginPixels(UInt32 index) const
+    {
+        System::IViewportSystem* system = Viewports();
+        return system != nullptr ? system->GetOriginPixels(index) : Vector2{};
+    }
+
+    void ViewportService::SetOriginPixels(UInt32 index, Vector2 pixels) const
+    {
+        if (System::IViewportSystem* system = Viewports())
+        {
+            system->SetOriginPixels(index, pixels);
+        }
+    }
+
+    Vector2 ViewportService::GetSizePixels(UInt32 index) const
+    {
+        System::IViewportSystem* system = Viewports();
+        return system != nullptr ? system->GetSizePixels(index) : Vector2{};
+    }
+
+    void ViewportService::SetSizePixels(UInt32 index, Vector2 pixels) const
+    {
+        if (System::IViewportSystem* system = Viewports())
+        {
+            system->SetSizePixels(index, pixels);
+        }
+    }
+
+    AssetHandle ViewportService::GetRenderTexture(UInt32 index) const
+    {
+        System::IViewportSystem* system = Viewports();
+        return system != nullptr ? system->GetRenderTexture(index) : AssetHandle{};
+    }
+
+    void ViewportService::SetRenderTexture(UInt32 index, AssetHandle texture) const
+    {
+        if (System::IViewportSystem* system = Viewports())
+        {
+            system->SetRenderTexture(index, texture);
+        }
+    }
+
+    Bool ViewportService::DrawsLayer(UInt32 index, Handle::Layer layer) const
+    {
+        System::IViewportSystem* system = Viewports();
+        return system != nullptr && layer.IsValid() && system->DrawsLayer(index, layer.GetId());
+    }
+
+    void ViewportService::SetLayerDrawn(UInt32 index, Handle::Layer layer, Bool drawn) const
+    {
+        System::IViewportSystem* system = Viewports();
+        if (system != nullptr && layer.IsValid())
+        {
+            system->SetLayerDrawn(index, layer.GetId(), drawn);
+        }
+    }
+
+    void ViewportService::ResetLayers(UInt32 index) const
+    {
+        if (System::IViewportSystem* system = Viewports())
+        {
+            system->ResetLayers(index);
         }
     }
 }

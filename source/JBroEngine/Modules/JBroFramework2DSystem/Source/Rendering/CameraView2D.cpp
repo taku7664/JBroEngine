@@ -46,39 +46,50 @@ namespace JBro
         }
     }
 
+    namespace
+    {
+        Float Pixels(Float value)
+        {
+            return Float(std::isfinite(value.Get()) ? value.Get() : 0.0f);
+        }
+    }
+
     Bool HasDrawableViewport(const RenderCamera2D& camera)
     {
-        const Float width = Unit(camera.viewportSize.x);
-        const Float height = Unit(camera.viewportSize.y);
-        return width > 0.0f && height > 0.0f && Unit(camera.viewportOrigin.x) < 1.0f && Unit(camera.viewportOrigin.y) < 1.0f;
+        const Bool wide = Unit(camera.viewportSize.x) > 0.0f || Pixels(camera.viewportSizePixels.x) > 0.0f;
+        const Bool tall = Unit(camera.viewportSize.y) > 0.0f || Pixels(camera.viewportSizePixels.y) > 0.0f;
+        return wide && tall;
     }
 
     Bool HasFullViewport(const RenderCamera2D& camera)
     {
-        return HasDrawableViewport(camera) && Unit(camera.viewportOrigin.x) <= 0.0f && Unit(camera.viewportOrigin.y) <= 0.0f
-            && Unit(camera.viewportSize.x) >= 1.0f && Unit(camera.viewportSize.y) >= 1.0f;
+        return Unit(camera.viewportOrigin.x) <= 0.0f && Unit(camera.viewportOrigin.y) <= 0.0f
+            && Unit(camera.viewportSize.x) >= 1.0f && Unit(camera.viewportSize.y) >= 1.0f
+            && Pixels(camera.viewportOriginPixels.x) == 0.0f && Pixels(camera.viewportOriginPixels.y) == 0.0f
+            && Pixels(camera.viewportSizePixels.x) == 0.0f && Pixels(camera.viewportSizePixels.y) == 0.0f;
     }
 
-    void ApplyCameraViewport(const RenderCamera2D& camera, ScreenSpaceFrame& frame)
+    Bool ApplyCameraViewport(const RenderCamera2D& camera, ScreenSpaceFrame& frame)
     {
         frame.areaX = 0.0f;
         frame.areaY = 0.0f;
         frame.areaWidth = 0.0f;
         frame.areaHeight = 0.0f;
-        if (false == IsDrawableCamera2D(camera) || false == HasDrawableViewport(camera) || false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f))
+        if (false == IsDrawableCamera2D(camera) || false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f))
         {
-            return;
+            return false;
         }
-        const Bool full = HasFullViewport(camera);
-        // 뷰포트의 픽셀 사각형. 오른쪽·아래로 넘치는 만큼 자른다.
-        const Float originX = Unit(camera.viewportOrigin.x);
-        const Float originY = Unit(camera.viewportOrigin.y);
-        const Float width = Float(Unit(camera.viewportSize.x) + originX > 1.0f ? (Float(1.0f) - originX).Get() : Unit(camera.viewportSize.x).Get());
-        const Float height = Float(Unit(camera.viewportSize.y) + originY > 1.0f ? (Float(1.0f) - originY).Get() : Unit(camera.viewportSize.y).Get());
-        const Float pixelX = originX * frame.targetWidth;
-        const Float pixelY = originY * frame.targetHeight;
-        const Float pixelWidth = width * frame.targetWidth;
-        const Float pixelHeight = height * frame.targetHeight;
+        // 뷰포트의 픽셀 사각형(비율 x 대상 + 픽셀, D-439). 대상 밖으로 나간 만큼 자른다.
+        Float pixelX = 0.0f;
+        Float pixelY = 0.0f;
+        Float pixelWidth = 0.0f;
+        Float pixelHeight = 0.0f;
+        if (false == ResolveViewportPixels(camera.viewportOrigin, camera.viewportSize, camera.viewportOriginPixels, camera.viewportSizePixels,
+                frame.targetWidth, frame.targetHeight, pixelX, pixelY, pixelWidth, pixelHeight))
+        {
+            return false;
+        }
+        const Bool full = pixelX <= 0.0f && pixelY <= 0.0f && pixelWidth >= frame.targetWidth && pixelHeight >= frame.targetHeight;
         if (camera.projection == Component::CameraProjection2D::PixelPerfect)
         {
             // 레터박스는 뷰포트 안에서 센다 - 뷰포트 크기를 대상으로 두고 잰 뒤 뷰포트 자리를 더한다.
@@ -97,7 +108,7 @@ namespace JBro
                 frame.areaY = pixelY + area.y;
                 frame.areaWidth = area.width;
                 frame.areaHeight = area.height;
-                return;
+                return true;
             }
         }
         if (false == full)
@@ -107,6 +118,7 @@ namespace JBro
             frame.areaWidth = pixelWidth;
             frame.areaHeight = pixelHeight;
         }
+        return true;
     }
 
     void ApplyCameraArea(const RenderCamera2D* camera, ScreenSpaceFrame& frame)

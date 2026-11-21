@@ -280,12 +280,79 @@ namespace JBro::Internal
         return true;
     }
 
+    namespace
+    {
+        // 화면 아이템 [first, last) 를 `frame` 의 사각형에 뷰 하나로 그린다. 맞춤 방식은 첫 아이템의 것이다.
+        Bool SubmitScreenRange(const RenderWorld2D& world, Renderer& renderer, const ScreenSpaceFrame& frame, std::size_t first, std::size_t last,
+            Int32 layerOrder)
+        {
+            ScreenArea area;
+            ScreenExtent extent;
+            CameraParams parameters;
+            const ScreenScaleMode mode = world.GetSprite(first).scaleMode;
+            if (false == GetScreenArea(frame, area) || false == ComputeScreenExtent(mode, frame, extent)
+                || false == BuildScreenCamera(extent, area, parameters) || false == renderer.BeginView(parameters))
+            {
+                return false;
+            }
+            SpriteFilterRule rule;
+            rule.screenSpace = true;
+            rule.scaleMode = mode;
+            rule.anyScaleMode = false;
+            rule.layerOrder = layerOrder;
+            const Bool accepted = PushSprites(world, renderer, false, rule, first, last);
+            return renderer.EndView() && accepted;
+        }
+    }
+
     // 그리는 순서의 화면 아이템을 맞춤 방식이 같은 것끼리 이어진 덩어리로 나눠 덩어리마다 뷰 하나에 그린다.
     Bool SubmitScreenViews(const RenderWorld2D& world, Renderer& renderer, const ScreenSpaceFrame& frame, Bool& submitted)
     {
         submitted = false;
         if (world.GetScreenSpriteCount() == 0)
         {
+            return true;
+        }
+        // **뷰포트에 묶인 화면 레이어가 있으면 레이어마다 뷰다**(D-439). 레이어 차례를 지키며, 묶인 레이어는 고른 뷰포트마다 그 기준으로,
+        // 아닌 레이어는 캔버스의 기준(`frame`)으로 그린다. 묶인 것이 없으면 아래의 덩어리 그리기 그대로다.
+        const ArrayView<const ScreenLayerFrame> layerFrames = world.GetScreenLayerFrames();
+        if (layerFrames.Size() != 0)
+        {
+            std::size_t at = 0;
+            const std::size_t total = world.GetSpriteCount();
+            while (at < total)
+            {
+                if (false == world.GetSprite(at).screenSpace)
+                {
+                    ++at;
+                    continue;
+                }
+                const std::uint16_t order = world.GetSprite(at).layerOrder;
+                std::size_t end = at + 1;
+                while (end < total && (false == world.GetSprite(end).screenSpace || world.GetSprite(end).layerOrder == order))
+                {
+                    ++end;
+                }
+                Bool bound = false;
+                for (UInt32 entry = 0; entry < layerFrames.Size(); ++entry)
+                {
+                    if (layerFrames[entry].layerOrder != order)
+                    {
+                        continue;
+                    }
+                    bound = true;
+                    if (false == SubmitScreenRange(world, renderer, layerFrames[entry].frame, at, end, static_cast<JBro::Int32>(order)))
+                    {
+                        return false;
+                    }
+                }
+                if (false == bound && false == SubmitScreenRange(world, renderer, frame, at, end, static_cast<JBro::Int32>(order)))
+                {
+                    return false;
+                }
+                submitted = true;
+                at = end;
+            }
             return true;
         }
         ScreenArea area;
