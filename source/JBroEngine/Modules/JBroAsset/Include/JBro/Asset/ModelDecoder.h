@@ -24,7 +24,8 @@ namespace JBro
         Float position[3] = {0.0f, 0.0f, 0.0f};
         Float normal[3] = {0.0f, 0.0f, 1.0f};
         Float uv[2] = {0.0f, 0.0f};
-        // 파일에 탄젠트가 있을 때만 채운다(`ModelMesh::hasTangents`). w 는 바이탄젠트의 방향(±1)이다. 계산은 남은 일이다(D-392).
+        // 파일의 탄젠트이거나, 파일에 없고 UV 가 있으면 MikkTSpace 로 계산한 것이다(D-444, `ModelMesh::hasTangents`). w 는 바이탄젠트의 방향(±1)이고
+        // 바이탄젠트는 cross(법선, 탄젠트) x w 다(glTF 와 같다). UV 가 없으면 탄젠트도 없다.
         Float tangent[4] = {1.0f, 0.0f, 0.0f, 1.0f};
     };
 

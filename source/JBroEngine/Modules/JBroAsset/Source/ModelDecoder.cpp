@@ -13,6 +13,8 @@
 #include <cgltf.h>
 #pragma warning(pop)
 #include <ufbx.h>
+// 탄젠트 계산(D-444). 자기 정적 라이브러리(`mikktspace.vcxproj`)이고 이 번역 단위만 부른다.
+#include <mikktspace.h>
 
 namespace JBro
 {
@@ -97,6 +99,84 @@ namespace JBro
             }
         }
 
+        // **탄젠트를 계산한다**(D-444, glTF 가 권하는 MikkTSpace). 삼각형마다 꼭짓점 셋이 그대로 늘어선 `corners` 를 그대로 넘긴다.
+        // MikkTSpace 는 v 가 위로 느는 UV 를 기대하고 엔진의 UV 는 왼쪽 위가 0 이라(v 가 아래로 는다) v 를 뒤집어 넘긴다 - 그래야 바이탄젠트
+        // cross(n, t) x w 가 그림의 위쪽(노멀맵의 +Y)이다. 파일 탄젠트와 같은 규약이다.
+        struct TangentSource
+        {
+            Array<ModelVertex>* corners = nullptr;
+            int faces = 0;
+        };
+
+        int TangentFaceCount(const SMikkTSpaceContext* context)
+        {
+            return static_cast<const TangentSource*>(context->m_pUserData)->faces;
+        }
+
+        int TangentCornerCount(const SMikkTSpaceContext*, const int)
+        {
+            return 3;
+        }
+
+        ModelVertex& TangentCorner(const SMikkTSpaceContext* context, const int face, const int corner)
+        {
+            return (*static_cast<const TangentSource*>(context->m_pUserData)->corners)[static_cast<std::size_t>(face) * 3 + static_cast<std::size_t>(corner)];
+        }
+
+        void TangentPosition(const SMikkTSpaceContext* context, float position[], const int face, const int corner)
+        {
+            const ModelVertex& vertex = TangentCorner(context, face, corner);
+            position[0] = vertex.position[0].Get();
+            position[1] = vertex.position[1].Get();
+            position[2] = vertex.position[2].Get();
+        }
+
+        void TangentNormal(const SMikkTSpaceContext* context, float normal[], const int face, const int corner)
+        {
+            const ModelVertex& vertex = TangentCorner(context, face, corner);
+            normal[0] = vertex.normal[0].Get();
+            normal[1] = vertex.normal[1].Get();
+            normal[2] = vertex.normal[2].Get();
+        }
+
+        void TangentUv(const SMikkTSpaceContext* context, float uv[], const int face, const int corner)
+        {
+            const ModelVertex& vertex = TangentCorner(context, face, corner);
+            uv[0] = vertex.uv[0].Get();
+            uv[1] = 1.0f - vertex.uv[1].Get();
+        }
+
+        void TangentWrite(const SMikkTSpaceContext* context, const float tangent[], const float sign, const int face, const int corner)
+        {
+            ModelVertex& vertex = TangentCorner(context, face, corner);
+            vertex.tangent[0] = tangent[0];
+            vertex.tangent[1] = tangent[1];
+            vertex.tangent[2] = tangent[2];
+            vertex.tangent[3] = sign < 0.0f ? -1.0f : 1.0f;
+        }
+
+        Bool CalculateTangents(Array<ModelVertex>& corners)
+        {
+            TangentSource source;
+            source.corners = &corners;
+            source.faces = static_cast<int>(corners.Size() / 3);
+            if (source.faces == 0)
+            {
+                return false;
+            }
+            SMikkTSpaceInterface callbacks{};
+            callbacks.m_getNumFaces = &TangentFaceCount;
+            callbacks.m_getNumVerticesOfFace = &TangentCornerCount;
+            callbacks.m_getPosition = &TangentPosition;
+            callbacks.m_getNormal = &TangentNormal;
+            callbacks.m_getTexCoord = &TangentUv;
+            callbacks.m_setTSpaceBasic = &TangentWrite;
+            SMikkTSpaceContext context{};
+            context.m_pInterface = &callbacks;
+            context.m_pUserData = &source;
+            return genTangSpaceDefault(&context) != 0;
+        }
+
         // **마무리**: 법선(옵션), 배율, 감김 뒤집기, 정점 합치기. 엔진은 바깥에서 볼 때 **시계** 방향이 앞면이다(빌트인 정육면체와 같은 규약, D-108) -
         // 파일(glTF·FBX·OBJ)은 반시계라 삼각형마다 둘째와 셋째를 바꾼다.
         ModelMesh Finish(RawMesh& raw, const ModelImportOptions& options)
@@ -105,6 +185,13 @@ namespace JBro
             if (calculate)
             {
                 CalculateNormals(raw.corners, options.smoothingAngle);
+            }
+            // 법선을 다시 계산했으면 파일의 탄젠트는 그 법선과 맞지 않는다 - 버리고 새 법선으로 다시 잰다. 파일에 없어도 잰다(D-444).
+            // 감김을 뒤집기 전에 잰다 - MikkTSpace 는 감김과 무관하지만 꼭짓점의 차례는 그대로여야 한다(뒤집기는 꼭짓점째 바꾼다).
+            Bool tangents = raw.hasTangents && false == calculate;
+            if (false == tangents && raw.hasUvs)
+            {
+                tangents = CalculateTangents(raw.corners);
             }
             const Float scale = std::isfinite(options.scale.Get()) && options.scale > 0.0f ? options.scale : Float(1.0f);
             const std::size_t count = raw.corners.Size() - raw.corners.Size() % 3;
@@ -135,8 +222,7 @@ namespace JBro
             mesh.name = raw.name;
             mesh.material = raw.material;
             mesh.hasUvs = raw.hasUvs;
-            // 법선을 다시 계산했으면 파일의 탄젠트는 그 법선과 맞지 않는다 - 버린다.
-            mesh.hasTangents = raw.hasTangents && false == calculate;
+            mesh.hasTangents = tangents;
             mesh.indices.Resize(count);
             for (std::size_t at = 0; at < count; ++at)
             {

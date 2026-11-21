@@ -121,6 +121,19 @@ https://raw.githubusercontent.com/ufbx/ufbx/v0.23.1/<file>
 SHA-256: `ufbx.c` `4A956C26A708E40D82ECB0AEAEE54DA709D5BA7C144C9642174970059BDA7E1D`, `ufbx.h` `F787BE529AF577EFC04F3E3E735844A08556718DBB613D1211C2B313D72895DC`.
 고친 것은 없다.
 
+### MikkTSpace — 3e895b49d05ea07e4c2133156cfa94369e19e409, zlib
+
+파일에 탄젠트가 없는 모델 메시의 탄젠트 계산이다(D-444). glTF 2.0 이 권하는 알고리즘이라 다른 도구가 구운 노멀맵과 맞는다.
+**자기 빌드 단위가 있다**(`mikktspace/mikktspace.vcxproj`, C 로 컴파일하는 정적 라이브러리) - ufbx 와 같은 모양이다. 모델 디코더(`JBroAsset` 의 `ModelDecoder.cpp`)만 include 하고,
+실행 파일(`JBroEditorHost`·`JBroGameHost`·`JBroTests`)이 링크한다. 저장소에 태그가 없어 마지막 커밋(2020-03-25)에서 `mikktspace.c`·`mikktspace.h` 를 2026-11-21 에 받았다:
+
+```
+https://raw.githubusercontent.com/mmikk/MikkTSpace/3e895b49d05ea07e4c2133156cfa94369e19e409/<file>
+```
+
+SHA-256: `mikktspace.c` `DE87E74107DF766CE68108801262BD8D53899414236B59810509A8FC2A51E288`, `mikktspace.h` `17FC433894F24C73753D548086CC4D8C5C0379F4A6EDFB98B5DA243E4F0BC3D0`.
+저장소에 라이선스 파일이 따로 없어 헤더 머리의 zlib 문구를 그대로 `LICENSE` 로 옮겼다. 고친 것은 없다.
+
 ### Jolt Physics — v5.7.0, MIT
 
 3D 물리 커널이다(D-414, `tasks/physics3d-plan.md`). 2026-11-19 에 `github.com/jrouwe/JoltPhysics` 의 `v5.7.0` 태그(커밋 `cf16769bb0ede9c45d57d06068ff0689e9702f5c`)에서

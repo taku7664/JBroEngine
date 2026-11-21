@@ -80,7 +80,7 @@ P0~P3 열 항목이 모두 끝난 뒤, 각 계획서에 남은 `[열림]`·`[남
 
 4. ~~텍스처 sRGB 뷰·밉 체인의 실제 효과(model-import-plan §4).~~ → 닫힘 2026-11-21 · D-442. 이미 D-402(재질 3 단계)에서 섰고 문서만 남아 있었다 - 그림의 `colorSpace` 가 칸의 기본(기본색·발광 sRGB, 나머지 선형)을
    이기고(`MeshMaterialLibrary::AcquireTexture`), `mipmaps` 면 렌더러가 밉 체인을 지어 올리며 sRGB 그림은 선형으로 풀어 평균한다(`Renderer::WriteTextureLevels`). 시험이 없던 `colorSpace: Linear` 를 `MeshPixel` 에 더했다.
-5. 탄젠트 계산(MikkTSpace)과 노멀맵(material-plan §4, model-import-plan §4).
+5. ~~탄젠트 계산(MikkTSpace)과 노멀맵(material-plan §4, model-import-plan §4).~~ → 완료 2026-11-21 · D-444.
 6. ~~반투명(정렬)·양면 재질(material-plan §4).~~ → 완료 2026-11-21 · D-443. 남긴 것은 material-plan §4.
 7. 그림자 - 방향광 캐스케이드 → 스포트 → 점광 큐브맵, `castShadows`(lighting3d-plan §4).
 8. 환경광의 자리 - 하늘 상자·IBL 이 오면 `Ambient` 라이트를 둘지 캔버스 설정으로 옮길지(lighting3d-plan §4).
@@ -147,7 +147,7 @@ P0~P3 열 항목이 모두 끝난 뒤, 각 계획서에 남은 `[열림]`·`[남
 세부는 `model-import-plan.md` §4. 재질 단계에 묶인 것은 그 단계에서 함께 한다.
 
 - ~~`[남은 일]` 텍스처 `colorSpace`·`mipmaps` 의 효과(sRGB 뷰·밉 체인) - 재질 단계(우선순위 4)·RHI 확장(D-322). 값은 모델 임포트 2 단계부터 저장된다.~~ → D-402 에서 섰다(D-442 에서 확인).
-- `[남은 일]` 탄젠트 계산(MikkTSpace) - 노멀맵 재질과 함께.
+- ~~`[남은 일]` 탄젠트 계산(MikkTSpace) - 노멀맵 재질과 함께.~~ → D-444.
 - `[남은 일]` 메시 최적화·압축(meshoptimizer) - 성능을 잰 뒤.
 - `[남은 일]` 라이트맵 UV(xatlas) - 라이트맵 계획과 함께.
 - `[남은 일]` `readable`(CPU 사본 유지) - 메시 콜라이더(우선순위 9)와 함께.

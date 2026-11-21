@@ -128,7 +128,15 @@ namespace
         Check(model.meshes.Size() == 1 && model.meshes[0].name == "Quad", "its one mesh keeps its name");
         const JBro::ModelMesh& mesh = model.meshes[0];
         Check(mesh.vertices.Size() == 4 && mesh.indices.Size() == 6, "the quad is four vertices and two triangles");
-        Check(mesh.hasUvs && false == mesh.hasTangents && mesh.material == 0, "with UVs, no tangents, and its material");
+        Check(mesh.hasUvs && mesh.hasTangents && mesh.material == 0, "with UVs, tangents calculated though the file has none (D-444), and its material");
+        // 사각형은 y = 0 바닥에 누웠고(법선 +Y) u 는 +X, v 는 +Z 로 는다. 그림의 위(v 가 주는 쪽)는 -Z 다.
+        // glTF 의 탄젠트는 +X 이고 바이탄젠트 cross(+Y, +X) x w = -Z 가 그림의 위여야 하므로 w 는 +1 이다.
+        for (std::size_t index = 0; index < mesh.vertices.Size(); ++index)
+        {
+            const JBro::ModelVertex& vertex = mesh.vertices[index];
+            Check(Near(vertex.tangent[0], 1.0f) && Near(vertex.tangent[1], 0.0f) && Near(vertex.tangent[2], 0.0f) && vertex.tangent[3] == 1.0f,
+                "the calculated tangent runs along +u and its bitangent points up the picture");
+        }
         CheckEngineWinding(mesh, "glTF triangles are turned to the engine's clockwise front");
         for (std::size_t index = 0; index < mesh.vertices.Size(); ++index)
         {

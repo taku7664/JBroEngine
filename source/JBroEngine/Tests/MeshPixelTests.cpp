@@ -1325,6 +1325,105 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
+    // **계산한 탄젠트로 노멀맵이 선다**(D-444). 시험 사각형 glTF 에는 탄젠트가 없어 임포트가 MikkTSpace 로 잰다. 바닥(법선 +Y)에 누운 사각형을 위에서 보고,
+    // 빛은 옆에서만(수평) 온다 - 평평한 면은 빛을 등지지 않지만 받지도 않아 검다. 노멀맵 (1, 0.5, 0.5) 는 법선을 탄젠트(+u = +X)로 눕혀 +X 에서 오는 빛을 받고,
+    // (0.5, 1, 0.5) 는 바이탄젠트(그림의 위 = -Z)로 눕혀 -Z 에서 오는 빛을 받는다. 반대쪽 빛에서는 검다 - 바이탄젠트의 부호가 틀리면 둘째가 뒤집힌다.
+    template <typename TModule>
+    void TestCalculatedTangentsBendTheNormalMap()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; calculated tangents not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroTangentProbe·탄젠트";
+        fs::remove_all(root);
+        WriteText(root / "props" / "quad.gltf", TestModels::SelfContainedQuadGltf("Bricks", TestModels::TinyPng()).c_str());
+        const auto writeTga = [&](const char* name, unsigned char r, unsigned char g, unsigned char b) {
+            const std::string bytes = TestModels::SolidTga(r, g, b, 255);
+            std::filesystem::create_directories(root / "art");
+            std::ofstream file(root / "art" / name, std::ios::binary);
+            file.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        };
+        writeTga("along_u.tga", 255, 128, 128);
+        writeTga("up_picture.tga", 128, 255, 128);
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const std::string alongU = "Version: 1\nMaterial:\n  shader: Standard\n  normalTextureId: " + IdText(registry.FindByPath("art/along_u.tga")->id) + "\n";
+        const std::string upPicture = "Version: 1\nMaterial:\n  shader: Standard\n  normalTextureId: " + IdText(registry.FindByPath("art/up_picture.tga")->id) + "\n";
+        WriteText(root / "art" / "along_u.jmat", alongU.c_str());
+        WriteText(root / "art" / "up_picture.jmat", upPicture.c_str());
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the folder scans again with the materials");
+        JBro::AssetId meshId;
+        JBro::Array<JBro::AssetId> parts;
+        registry.CollectOwned(registry.FindByPath("props/quad.gltf")->id, parts);
+        for (const JBro::AssetId& id : parts)
+        {
+            meshId = registry.Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
+        }
+
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+        eyeTransform->position = {0.0f, 3.0f, 0.0f};
+        eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        canvas.AttachComponent<JBro::Component::Camera3D>(eye)->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* quad = canvas.CreateObject("quad");
+        canvas.AttachComponent<JBro::Component::Transform3D>(quad)->position = {-0.5f, 0.0f, -0.5f};
+        auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(quad);
+        mesh->meshId = meshId;
+        JBro::Object::GameObject* lamp = canvas.CreateObject("lamp");
+        auto* lampTransform = canvas.AttachComponent<JBro::Component::Transform3D>(lamp);
+        auto* light = canvas.AttachComponent<JBro::Component::Light3D>(lamp);
+        light->type = JBro::Component::Light3DType::Directional;
+        light->intensity = 1.0f;
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        // 빛이 가는 쪽이 앞(-Z)이다. Y 축으로 +90 도면 -X 로 가 +X 에서 오고, -90 도면 -X 에서 온다. 180 도면 +Z 로 가 -Z 에서 온다.
+        const auto shade = [&](const char* material, JBro::Float yawRadians) {
+            mesh->materialId = registry.FindByPath(material)->id;
+            mesh->material = {};
+            lampTransform->rotation = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, JBro::Radian(yawRadians));
+            framework.BindCanvasAssets();
+            stage.RenderOnce(framework, image, readback);
+            return ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2).r;
+        };
+        const JBro::MeshData* loaded = nullptr;
+        const JBro::Float fromPlusX = shade("art/along_u.jmat", 1.5707963f);
+        loaded = assets.GetMesh(mesh->mesh);
+        Check(loaded != nullptr && loaded->hasTangents, "the quad's mesh carries tangents the import calculated");
+        const JBro::Float fromMinusX = shade("art/along_u.jmat", -1.5707963f);
+        const JBro::Float fromMinusZ = shade("art/up_picture.jmat", 3.1415927f);
+        const JBro::Float fromPlusZ = shade("art/up_picture.jmat", 0.0f);
+        std::cout << "  normal map along u: +X " << fromPlusX.Get() << ", -X " << fromMinusX.Get() << "; up the picture: -Z " << fromMinusZ.Get()
+                  << ", +Z " << fromPlusZ.Get() << std::endl;
+        Check(fromPlusX > 0.6f && fromMinusX < 0.1f, "a normal map leaning along +u turns the floor towards a light from +X");
+        Check(fromMinusZ > 0.6f && fromPlusZ < 0.1f, "a normal map leaning up the picture turns the floor towards a light from -Z - the bitangent's sign is right");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+
     // **반투명과 양면**(D-443). 위에서 내려다보는 빌트인 평면 셋 - 맨 아래 붉은 불투명, 그 위 파란 반투명(알파 0.5), 맨 위 초록 반투명(알파 0.5)이다.
     // 일부러 초록·파랑·빨강 차례로 만든다: 제출 차례대로 그리면 불투명이 반투명 뒤에 와서 덮고 반투명끼리도 가까운 것이 먼저다. 렌더러가 불투명을 먼저,
     // 반투명은 먼 것부터 그리면 가운데는 0.5 초록 + 0.25 파랑 + 0.25 빨강이다(`Unlit` 은 sRGB 로 싸서 내고 섞기는 그 값끼리다).
@@ -2124,6 +2223,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D12RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D11RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::VulkanRHIModule>());
     JBRO_CASE(TestTransparentAndDoubleSidedMaterials<JBro::D3D12RHIModule>());
     JBRO_CASE(TestTransparentAndDoubleSidedMaterials<JBro::D3D11RHIModule>());
     JBRO_CASE(TestTransparentAndDoubleSidedMaterials<JBro::VulkanRHIModule>());

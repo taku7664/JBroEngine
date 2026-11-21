@@ -177,6 +177,9 @@
     <ProjectReference Include="$(JBroThirdPartyDir)ufbx\ufbx.vcxproj">
       <Project>{1b000003-0000-4000-8000-0000000fb0c0}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)mikktspace\mikktspace.vcxproj">
+      <Project>{1b000005-0000-4000-8000-0000004d1c75}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj">
       <Project>{1a000030-0000-4000-8000-00000001a7e5}</Project>
     </ProjectReference>
