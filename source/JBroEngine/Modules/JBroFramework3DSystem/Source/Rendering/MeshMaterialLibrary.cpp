@@ -320,6 +320,8 @@ namespace JBro
         desc.roughness = source.roughness;
         desc.cutout = source.alpha == MaterialAlpha::Cutout;
         desc.alphaCutoff = source.alphaCutoff;
+        desc.blend = source.alpha == MaterialAlpha::Blend;
+        desc.doubleSided = source.doubleSided;
         // 기본색 그림이 가장 가까운 텍셀(픽셀 아트)이면 재질이 그렇게 읽는다. 칸마다 샘플러를 두지 않는다 - 셰이더의 샘플러는 하나다.
         const TextureData* base = entry.textures[0] >= 0 ? m_assets->GetTexture(entry.pictures[0]) : nullptr;
         desc.nearestFilter = base != nullptr && base->filter == TextureFilter::Nearest;

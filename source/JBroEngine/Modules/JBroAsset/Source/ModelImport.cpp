@@ -216,8 +216,9 @@ namespace JBro
         desc.metallic = source.metallic;
         desc.roughness = source.roughness;
         desc.emissive = Color{source.emissive[0], source.emissive[1], source.emissive[2], 1.0f};
-        desc.alpha = source.alphaCutout ? MaterialAlpha::Cutout : MaterialAlpha::Opaque;
+        desc.alpha = source.alphaBlend ? MaterialAlpha::Blend : source.alphaCutout ? MaterialAlpha::Cutout : MaterialAlpha::Opaque;
         desc.alphaCutoff = source.alphaCutoff;
+        desc.doubleSided = source.doubleSided;
         const auto textureOf = [&](ModelTextureSlot slot) -> AssetId {
             const Int32 image = source.images[static_cast<UInt32>(slot).Get()];
             if (image < 0 || static_cast<std::size_t>(image.Get()) >= data.images.Size())

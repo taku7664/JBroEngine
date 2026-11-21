@@ -166,6 +166,17 @@ namespace
                 "the emissive factor is read");
             Check(glowing.materials[0].alphaCutout && Near(glowing.materials[0].alphaCutoff, 0.3f), "and MASK becomes a cutout with its threshold");
         }
+        {
+            // `BLEND` 와 `doubleSided`(D-443).
+            std::string glass = json;
+            const std::string from = "\"materials\":[{\"name\":\"Brick\",";
+            glass.replace(glass.find(from), from.size(), from + "\"alphaMode\":\"BLEND\",\"doubleSided\":true,");
+            JBro::ModelData clear;
+            Check(JBro::DecodeModel(View(glass), JBro::ModelFormat::Gltf, {}, {}, clear, error), "a glTF with a blended, double-sided material decodes");
+            Check(clear.materials[0].alphaBlend && false == clear.materials[0].alphaCutout && clear.materials[0].doubleSided,
+                "BLEND becomes a transparent material and doubleSided is kept");
+            Check(false == model.materials[0].alphaBlend && false == model.materials[0].doubleSided, "a plain material is opaque and single-sided");
+        }
         Check(model.nodes.Size() == 1 && model.nodes[0].name == "Root" && model.nodes[0].parent == -1, "the node comes through as a root");
         Check(Near(model.nodes[0].position.y, 2.0f) && Near(model.nodes[0].scale.x, 2.0f), "with its transform");
         Check(model.nodes[0].meshes.Size() == 1 && model.nodes[0].meshes[0] == 0, "and the mesh it draws");

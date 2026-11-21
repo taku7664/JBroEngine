@@ -89,8 +89,10 @@ namespace JBro
     enum class MaterialAlpha : std::uint8_t
     {
         Opaque,
-        // 알파가 `alphaCutoff` 보다 작은 픽셀을 버린다(잎·철망). 반투명은 정렬이 필요해 뒤다(D-399 (6)).
-        Cutout
+        // 알파가 `alphaCutoff` 보다 작은 픽셀을 버린다(잎·철망).
+        Cutout,
+        // **반투명**(D-443). 알파로 섞고 깊이를 쓰지 않는다. 렌더러가 불투명을 다 그린 뒤 카메라에서 먼 것부터 그린다(오브젝트 자리로 잰다).
+        Blend
     };
 
     struct MaterialDesc
@@ -103,6 +105,8 @@ namespace JBro
         Color emissive{0.0f, 0.0f, 0.0f, 1.0f};
         MaterialAlpha alpha = MaterialAlpha::Opaque;
         Float alphaCutoff = 0.5f;
+        // **양면**(D-443, glTF 의 `doubleSided`). 뒷면을 버리지 않고, 뒤에서 보면 법선을 뒤집어 빛을 받는다.
+        Bool doubleSided = false;
         AssetId baseColorTextureId;
         // glTF 처럼 G 가 roughness, B 가 metallic 이다.
         AssetId metallicRoughnessTextureId;
@@ -134,7 +138,8 @@ namespace JBro
 
     JBRO_DEFINE_ENUM_TYPE(MaterialAlpha, "JBro.MaterialAlpha",
         { MaterialAlpha::Opaque, "Opaque" },
-        { MaterialAlpha::Cutout, "Cutout" });
+        { MaterialAlpha::Cutout, "Cutout" },
+        { MaterialAlpha::Blend,  "Blend" });
 
     // `.jmat` 의 `Material` 블록이 이 표로 읽히고 쓰인다. 필드 이름이 파일의 키이고 인스펙터의 칸이다.
     template <>
@@ -151,13 +156,14 @@ namespace JBro
                 MakeFieldEntry<&MaterialDesc::emissive>(),
                 MakeFieldEntry<&MaterialDesc::alpha>(),
                 MakeFieldEntry<&MaterialDesc::alphaCutoff>(Attribute::Range(0.0f, 1.0f)),
+                MakeFieldEntry<&MaterialDesc::doubleSided>(),
                 MakeFieldEntry<&MaterialDesc::baseColorTextureId>(),
                 MakeFieldEntry<&MaterialDesc::metallicRoughnessTextureId>(),
                 MakeFieldEntry<&MaterialDesc::normalTextureId>(),
                 MakeFieldEntry<&MaterialDesc::occlusionTextureId>(),
                 MakeFieldEntry<&MaterialDesc::emissiveTextureId>(),
             };
-            static const StaticPropertyTable<12> fields { entries };
+            static const StaticPropertyTable<13> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<MaterialDesc>("JBro.MaterialDesc", fields.Get());
             return descriptor;

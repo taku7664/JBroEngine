@@ -138,9 +138,11 @@ float3 Emissive(VertexOutput input)
     return gEmissiveCutoff.rgb * gEmissiveTexture.Sample(gSampler, input.uv).rgb;
 }
 
-float3 SurfaceNormal(VertexOutput input)
+float3 SurfaceNormal(VertexOutput input, bool frontFace)
 {
-    const float3 normal = normalize(input.normal);
+    // A double-sided material (D-443) draws back faces too; seen from behind, the surface faces the other way.
+    // Single-sided materials cull back faces, so this only ever flips for double-sided ones.
+    const float3 normal = frontFace ? normalize(input.normal) : -normalize(input.normal);
     if (gCameraAndFlags.w * gParams.z < 0.5f)
     {
         return normal;
@@ -152,7 +154,7 @@ float3 SurfaceNormal(VertexOutput input)
     return normalize(sampled.x * tangent + sampled.y * bitangent + sampled.z * normal);
 }
 
-float4 PSMain(VertexOutput input) : SV_TARGET
+float4 PSMain(VertexOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
 {
     const float4 base = BaseColour(input);
     ClipCutout(base.a);
@@ -161,7 +163,7 @@ float4 PSMain(VertexOutput input) : SV_TARGET
     const float roughness = clamp(gParams.y * packed.g, 0.045f, 1.0f);
     const float occlusion = gOcclusionTexture.Sample(gSampler, input.uv).r;
 
-    const float3 normal = SurfaceNormal(input);
+    const float3 normal = SurfaceNormal(input, frontFace);
     const float3 view = normalize(gCameraAndFlags.xyz - input.worldPosition);
     const float normalDotView = max(dot(normal, view), 0.0001f);
     const float alpha = roughness * roughness;

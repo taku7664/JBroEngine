@@ -3065,6 +3065,22 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-443. 표준 머티리얼에 반투명(`alpha: Blend`)과 양면(`doubleSided`)을 둔다 - 렌더러가 불투명을 먼저, 반투명은 먼 것부터 깊이를 쓰지 않고 그리며, 양면은 뒷면에서 법선을 뒤집는다.** (2026-11-21,
+  사용자: "설계대로 시작" - D-440 의 6)
+  Updates: D-399 (6)(반투명은 뒤라던 것), D-402(메시 파이프라인).
+  (1) **자료**: `MaterialAlpha::Blend`, `MaterialDesc::doubleSided`(`.jmat` 의 키, 인스펙터의 칸 - 반사 표에서 저절로). 모델은 glTF 의 `alphaMode: BLEND`·`doubleSided` 를 읽는다(`ModelMaterial::alphaBlend`·`doubleSided`).
+  예전 파일에 키가 없으면 한 면이다. 렌더러의 `MeshMaterialDesc` 에 `blend`·`doubleSided`.
+  (2) **파이프라인**: 표준 머티리얼의 `Standard`·`Unlit` 마다 넷(불투명·반투명 x 한 면·양면). 반투명은 `BlendMode::Alpha` 이고 깊이를 보되 쓰지 않는다. 양면은 `CullMode::None`.
+  (3) **차례**: `UploadMeshInstances` 의 64 비트 정렬 열쇠에서 반투명은 맨 위 비트가 서고 그 아래가 카메라에서 오브젝트 자리(월드 행렬의 이동)까지 거리 제곱을 뒤집은 값이라, 뷰 안에서 불투명 다음에 먼 것부터 온다.
+  반투명은 하나씩 묶음이다. 레이어는 뷰마다라 레이어 차례가 먼저다. 머티리얼 칸은 15 비트가 되었다(48..62, 셰이더 머티리얼 표시는 0x4000) - 처음에 반투명 비트를 셰이더 머티리얼 표시(옛 0x8000)와
+  같은 63 비트에 두어 셰이더 머티리얼 메시가 반투명으로 읽혔고, 전체 시험의 `PostProcessPixel`(머티리얼 판이 빌트인 회색으로 나옴)이 잡았다. 자리가 0x3FFF 를 넘는 머티리얼은 빌트인으로 그린다.
+  (4) **셰이더**: `PSMain` 이 `SV_IsFrontFace` 로 뒷면에서 법선을 뒤집는다(한 면 재질은 뒷면을 버리므로 늘 앞면이다). 구운 것은 메시 픽셀 셰이더 셋(DXIL·DXBC·SPIR-V)만 바뀌었다.
+  시험: `MeshPixel` 의 `TestTransparentAndDoubleSidedMaterials`(세 백엔드) - 초록·파랑(알파 0.5)·빨강(불투명) 평면을 일부러 그 차례로 만들어 가운데가 (0.25, 0.50, 0.25), 밑에서 보면 한 면은 버려져 검고
+  양면 `Unlit` 은 희며, 위로 비추는 방향광 아래 양면 `Standard` 의 뒷면이 0.988 이다. `AssetSystem`(파일 왕복, 키 없는 예전 파일)·`ModelDecoder`(`BLEND`·`doubleSided`).
+  뮤테이션: 반투명 정렬을 끄면 (1, 0, 0) 으로 죽고, 법선 뒤집기를 빼면 뒷면이 0 으로 죽는다. 남긴 것은 material-plan §4.
+  `RendererContract` 의 셧다운 파이프라인 수는 19 에서 25 다(메시 2 → 8). Debug·Debug_Game2D·Debug_Game3D 빌드, 전체 `JBroTests` 130 묶음 통과(37.1 분, 실패 0, 건너뜀 3).
+  재질 인스펙터 스크린숏(`material_inspector`)에 `doubleSided` 체크 칸이 `alphaCutoff` 아래에 선다.
+
 - **D-442. 텍스처의 sRGB 뷰·밉 체인(D-440 의 4)은 재질 3 단계(D-402)에서 이미 섰다 - 남은 일 목록에서 닫고, 시험이 없던 `colorSpace: Linear` 를 시험에 더한다.** (2026-11-21,
   사용자: 2 단계 차례 "정리→반투명→탄젠트→그림자→환경광")
   Updates: D-440(2 단계의 차례), D-392(모델 임포트의 남은 일 하나를 닫는다).

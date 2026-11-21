@@ -130,6 +130,8 @@
   글자로 가른다(`IsStandardMaterialText` - 맨 앞 칸의 `Material:` 키). 모델의 하위 Material 은 늘 표준 머티리얼이다. 렌더러의 API·라이브러리·제출 칸은 갈래마다 따로다 -
   셰이더 머티리얼은 `RegisterMaterial(ShaderMaterialDesc)`·그래픽 `MaterialLibrary`·`MeshSubmit::material`, 표준 머티리얼은 `RegisterMeshMaterial(MeshMaterialDesc)`·3D `MeshMaterialLibrary`·`MeshSubmit::meshMaterial`.
   메시는 셰이더 머티리얼이 있으면 그것으로 그린다. 빌트인 메시 셰이더의 머티리얼 블록은 b1, 뷰의 3D 라이트 블록은 b2 다(셰이더 머티리얼의 `JBroLights` 와 같다). (MUST)
+- **표준 머티리얼의 반투명(`alpha: Blend`)은 알파로 섞고 깊이를 쓰지 않으며, 렌더러가 뷰 안에서 불투명 메시를 다 그린 뒤 카메라에서 먼 것부터(오브젝트 자리) 하나씩 그린다.
+  양면(`doubleSided`)은 뒷면을 버리지 않고 셰이더가 뒷면에서 법선을 뒤집는다.** 차례는 렌더러가 정한다 - 프레임워크가 반투명을 따로 정렬해 내지 않는다. (MUST) (D-443)
 - 상수 버퍼는 b1..b7 이고 슬롯 번호가 곧 `b` 레지스터 번호다. b0 은 푸시 상수 자리라 상수 버퍼를 두지 않으며, SPIR-V 는
   b# 를 옮기지 않아 binding 1..7 이다. 파이프라인은 읽는 자원을 `GraphicsPipelineDesc::bindings` 에 종류마다 개수와 단계로
   적고, 상한은 `IRHIDevice::GetCaps()` 로 묻는다. 푸시 상수는 128 B 까지다. (MUST) (D-325)

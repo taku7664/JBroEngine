@@ -327,6 +327,10 @@ namespace JBro
         // 참이면 알파가 `alphaCutoff` 보다 작은 픽셀을 버린다.
         Bool cutout = false;
         Float alphaCutoff = 0.5f;
+        // **반투명**(D-443). 알파로 섞고 깊이를 쓰지 않는다. 뷰 안에서 불투명 메시를 다 그린 뒤 카메라에서 먼 것부터(오브젝트 자리, 월드 행렬의 이동) 하나씩 그린다.
+        Bool blend = false;
+        // **양면**(D-443). 뒷면을 버리지 않는다. 셰이더가 뒷면에서 법선을 뒤집는다.
+        Bool doubleSided = false;
         // 참이면 가장 가까운 텍셀을 집는다(픽셀 아트 그림). 거짓이면 선형·밉이다. 주소는 반복이다.
         Bool nearestFilter = false;
         AssetHandle baseColorTexture;
@@ -723,9 +727,9 @@ namespace JBro
             GraphicsPipelineHandle litSprite;
             GraphicsPipelineHandle litSdfText;
             GraphicsPipelineHandle worldText;
-            // 표준 머티리얼의 `Standard`·`Unlit` 이다(D-402).
-            GraphicsPipelineHandle mesh;
-            GraphicsPipelineHandle meshUnlit;
+            // 표준 머티리얼의 `Standard`·`Unlit` 이다(D-402). 차례는 `MeshPipelineIndex` 다 - 반투명(D-443)이 2, 양면이 1 을 더한다.
+            GraphicsPipelineHandle mesh[4];
+            GraphicsPipelineHandle meshUnlit[4];
             // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
             GraphicsPipelineHandle layerComposite[4];
             // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.

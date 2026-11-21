@@ -392,6 +392,8 @@ namespace JBro
                         material.alphaCutout = true;
                         material.alphaCutoff = source.alpha_cutoff;
                     }
+                    material.alphaBlend = source.alpha_mode == cgltf_alpha_mode_blend;
+                    material.doubleSided = source.double_sided != 0;
                     for (UInt32 slot = 0; slot < ModelTextureSlotCount; ++slot)
                     {
                         NoteImageUse(model, material.images[slot.Get()], static_cast<ModelTextureSlot>(slot.Get()), used);

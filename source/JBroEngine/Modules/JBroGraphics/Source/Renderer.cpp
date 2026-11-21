@@ -3069,7 +3069,8 @@ namespace JBro
                 const MeshMaterialDesc& desc = material.desc;
                 const Bool unlit = desc.shading == MeshShading::Unlit;
                 const SamplerHandle sampler = desc.nearestFilter ? renderer.m_meshNearestSampler : renderer.m_meshLinearSampler;
-                return commands.SetGraphicsPipeline(unlit ? pipelines.meshUnlit : pipelines.mesh)
+                const UInt32 variant = (desc.blend ? 2u : 0u) + (desc.doubleSided ? 1u : 0u);
+                return commands.SetGraphicsPipeline(unlit ? pipelines.meshUnlit[variant.Get()] : pipelines.mesh[variant.Get()])
                     && commands.SetVertexBuffer(1, instances, static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
                     && commands.SetConstantBuffer(1, material.constants, 0, renderer.m_device->GetCaps().constantBufferAlignment)
                     // `Unlit` 은 라이트 블록과 기본색·발광 밖의 칸을 선언하지 않는다 - 묶으면 거절된다.
@@ -3866,8 +3867,12 @@ namespace JBro
         }
         constexpr UInt64 OrderMask = (UInt64(1) << 24) - 1;
         constexpr UInt64 MeshMask = (UInt64(1) << 24) - 1;
-        // 열쇠의 위 16 비트가 머티리얼이다: 0 은 기본 표준 머티리얼, 1..0x7FFF 는 표준 머티리얼 자리 + 1, 이 비트가 서면 셰이더 머티리얼 자리 + 1.
-        constexpr UInt64 ShaderMaterialGroup = UInt64(0x8000);
+        // **반투명은 맨 뒤다**(D-443). 맨 위 비트가 서고, 그 아래 32 비트가 카메라에서 오브젝트 자리까지 거리 제곱(float 비트)을 뒤집은 값이라
+        // 오름차순이 먼 것부터다. 반투명은 하나씩 묶음이다 - 같은 (재질, 메시)라도 사이에 다른 것이 끼면 섞는 차례가 틀린다.
+        constexpr UInt64 TransparentBit = UInt64(1) << 63;
+        // 열쇠의 48..62 비트(15 비트)가 머티리얼이다: 0 은 기본 표준 머티리얼, 1..0x3FFF 는 표준 머티리얼 자리 + 1, 이 비트가 서면 셰이더 머티리얼 자리 + 1.
+        // 맨 위 63 비트는 반투명 자리다(아래 `TransparentBit`, D-443) - 머티리얼 비트와 겹치면 셰이더 머티리얼이 반투명으로 읽힌다(그렇게 깨졌었다).
+        constexpr UInt64 ShaderMaterialGroup = UInt64(0x4000);
         UInt32 written = 0;
         for (std::size_t viewIndex = 0; viewIndex < m_views.Size(); ++viewIndex)
         {
@@ -3880,6 +3885,11 @@ namespace JBro
             }
             std::size_t keyCount = 0;
             const UInt32 end = view.meshOffset + view.meshCount;
+            // 카메라 위치는 뷰 행렬(회전 R 과 이동 t, 열 벡터)의 역에서 나온다: -Rᵀt. 메시 패스의 푸시 상수와 같은 셈이다.
+            const Float* cameraView = view.camera.view.values;
+            const Float eyeX = -(cameraView[0] * cameraView[3] + cameraView[4] * cameraView[7] + cameraView[8] * cameraView[11]);
+            const Float eyeY = -(cameraView[1] * cameraView[3] + cameraView[5] * cameraView[7] + cameraView[9] * cameraView[11]);
+            const Float eyeZ = -(cameraView[2] * cameraView[3] + cameraView[6] * cameraView[7] + cameraView[10] * cameraView[11]);
             // **머티리얼을 먼저 푼다**(D-348). 메시 자리의 것만 보고, 죽은 핸들은 빌트인으로 그리고 센다. 뷰에 나온 머티리얼의 차례를 적는다 -
             // 머티리얼은 몇 안 되므로 차례 찾기는 그 목록을 훑는다.
             for (UInt32 at = view.meshOffset; at < end; ++at)
@@ -3896,7 +3906,8 @@ namespace JBro
                 if (submit.material.generation != 0)
                 {
                     UInt32 material = FindMaterialSlot(submit.material);
-                    if (material != 0 && m_materials[(material - 1).Get()].domain != MaterialDomain::Mesh)
+                    // 자리가 열쇠의 머티리얼 비트를 넘으면 표준 머티리얼로 그리고 센다 - 넘친 비트가 다른 갈래로 번지면 안 된다.
+                    if (material != 0 && (m_materials[(material - 1).Get()].domain != MaterialDomain::Mesh || UInt64(material.Get()) >= ShaderMaterialGroup))
                     {
                         material = 0;
                     }
@@ -3911,9 +3922,22 @@ namespace JBro
                     }
                 }
                 // 표준 머티리얼(D-402)이다. 사라진 것은 기본 표준 머티리얼로 그린다 - 메시를 버리지 않는다.
-                if (group == 0 && FindMeshMaterial(submit.meshMaterial) != nullptr)
+                const MeshMaterialResource* standard = group == 0 && UInt64(submit.meshMaterial.index) + 1 < ShaderMaterialGroup
+                    ? FindMeshMaterial(submit.meshMaterial) : nullptr;
+                if (standard != nullptr)
                 {
                     group = UInt64(submit.meshMaterial.index) + 1;
+                }
+                if (standard != nullptr && standard->desc.blend)
+                {
+                    const Float dx = submit.world.values[3] - eyeX;
+                    const Float dy = submit.world.values[7] - eyeY;
+                    const Float dz = submit.world.values[11] - eyeZ;
+                    const float distanceSquared = Float(dx * dx + dy * dy + dz * dz).Get();
+                    std::uint32_t bits = 0;
+                    std::memcpy(&bits, &distanceSquared, sizeof(bits));
+                    m_meshSortKeys[keyCount++] = TransparentBit | (UInt64(~bits) << 24) | (UInt64(at - view.meshOffset) & OrderMask);
+                    continue;
                 }
                 m_meshSortKeys[keyCount++] = (group << 48) | ((UInt64(submit.mesh.index) & MeshMask) << 24) | (UInt64(at - view.meshOffset) & OrderMask);
             }
@@ -3923,9 +3947,11 @@ namespace JBro
                 const UInt64 key = m_meshSortKeys[at];
                 const MeshSubmit& submit = m_meshes[view.meshOffset + static_cast<UInt32>(key & OrderMask)];
                 const UInt64 run = key >> 24;
-                if (at == 0 || run != (m_meshSortKeys[at - 1] >> 24))
+                const Bool transparent = (key & TransparentBit) != 0;
+                if (at == 0 || transparent || run != (m_meshSortKeys[at - 1] >> 24))
                 {
-                    const UInt64 group = key >> 48;
+                    // 반투명의 열쇠에는 재질이 없다 - 제출에서 다시 읽는다(표준 머티리얼만 반투명이다).
+                    const UInt64 group = transparent ? UInt64(submit.meshMaterial.index) + 1 : key >> 48;
                     MeshRun added;
                     added.mesh = submit.mesh;
                     added.material = (group & ShaderMaterialGroup) != 0 ? static_cast<UInt32>(group & ~ShaderMaterialGroup) : UInt32(0);
@@ -4462,19 +4488,28 @@ namespace JBro
         meshDesc.vertexBuffers = {meshLayout.buffers, 2};
         meshDesc.colorFormats = {colorFormats, 1};
         meshDesc.depthFormat = TextureFormat::D32Float;
-        meshDesc.blend = BlendMode::Opaque;
-        meshDesc.cull = CullMode::Back;
-        pipelines.mesh = m_device->CreateGraphicsPipeline(meshDesc);
         GraphicsPipelineDesc meshUnlitDesc = meshDesc;
-        if (false == pipelines.mesh.IsValid()
-            || false == ApplyShader(meshUnlitDesc, BuiltinShader::MeshUnlit, m_config.api, sizeof(MeshPushConstants)))
+        if (false == ApplyShader(meshUnlitDesc, BuiltinShader::MeshUnlit, m_config.api, sizeof(MeshPushConstants)))
         {
             return false;
         }
-        pipelines.meshUnlit = m_device->CreateGraphicsPipeline(meshUnlitDesc);
-        if (false == pipelines.meshUnlit.IsValid())
+        // 넷씩이다(D-443): 불투명·반투명 x 한 면·양면. 반투명은 알파로 섞고 깊이를 보되 쓰지 않는다 - 뒤에 그리는 반투명이 앞의 것에 가려지지 않는다.
+        for (UInt32 variant = 0; variant < 4; ++variant)
         {
-            return false;
+            const Bool blended = (variant.Get() & 2u) != 0;
+            const Bool twoSided = (variant.Get() & 1u) != 0;
+            meshDesc.blend = blended ? BlendMode::Alpha : BlendMode::Opaque;
+            meshDesc.depthWrite = false == blended;
+            meshDesc.cull = twoSided ? CullMode::None : CullMode::Back;
+            meshUnlitDesc.blend = meshDesc.blend;
+            meshUnlitDesc.depthWrite = meshDesc.depthWrite;
+            meshUnlitDesc.cull = meshDesc.cull;
+            pipelines.mesh[variant.Get()] = m_device->CreateGraphicsPipeline(meshDesc);
+            pipelines.meshUnlit[variant.Get()] = m_device->CreateGraphicsPipeline(meshUnlitDesc);
+            if (false == pipelines.mesh[variant.Get()].IsValid() || false == pipelines.meshUnlit[variant.Get()].IsValid())
+            {
+                return false;
+            }
         }
 
         // 월드 텍스트(D-222). 상한 0 은 월드 텍스트를 쓰지 않는 렌더러다.
@@ -4519,7 +4554,8 @@ namespace JBro
         }
         for (GraphicsPipelineHandle* pipeline :
             {&pipelines.sprite, &pipelines.spriteOverDepth, &pipelines.sdfText, &pipelines.sdfTextOverDepth, &pipelines.litSprite,
-                &pipelines.litSdfText, &pipelines.worldText, &pipelines.mesh, &pipelines.meshUnlit, &pipelines.layerBackdrop, &pipelines.layerComposite[0],
+                &pipelines.litSdfText, &pipelines.worldText, &pipelines.mesh[0], &pipelines.mesh[1], &pipelines.mesh[2], &pipelines.mesh[3],
+                &pipelines.meshUnlit[0], &pipelines.meshUnlit[1], &pipelines.meshUnlit[2], &pipelines.meshUnlit[3], &pipelines.layerBackdrop, &pipelines.layerComposite[0],
                 &pipelines.layerComposite[1], &pipelines.layerComposite[2], &pipelines.layerComposite[3]})
         {
             if (pipeline->IsValid())

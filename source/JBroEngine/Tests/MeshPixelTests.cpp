@@ -1325,6 +1325,126 @@ namespace
         stage.Close();
         fs::remove_all(root);
     }
+    // **반투명과 양면**(D-443). 위에서 내려다보는 빌트인 평면 셋 - 맨 아래 붉은 불투명, 그 위 파란 반투명(알파 0.5), 맨 위 초록 반투명(알파 0.5)이다.
+    // 일부러 초록·파랑·빨강 차례로 만든다: 제출 차례대로 그리면 불투명이 반투명 뒤에 와서 덮고 반투명끼리도 가까운 것이 먼저다. 렌더러가 불투명을 먼저,
+    // 반투명은 먼 것부터 그리면 가운데는 0.5 초록 + 0.25 파랑 + 0.25 빨강이다(`Unlit` 은 sRGB 로 싸서 내고 섞기는 그 값끼리다).
+    // 그다음 카메라를 평면 밑으로 옮겨 올려다본다. 한 면 재질은 뒷면이라 버려져 바탕(검정)만 보이고, 양면 재질은 보인다. 위로 비추는 방향광 아래의 양면 `Standard` 는
+    // 뒷면에서 법선을 뒤집어 빛을 받는다 - 뒤집지 않으면 빛을 등져 검다.
+    template <typename TModule>
+    void TestTransparentAndDoubleSidedMaterials()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; transparent and double-sided materials not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroBlendProbe·반투명";
+        fs::remove_all(root);
+        const auto unlit = [](const char* alpha, const char* r, const char* g, const char* b, const char* a, const char* sides) {
+            return std::string("Version: 1\nMaterial:\n  shader: Unlit\n  alpha: ") + alpha + "\n  doubleSided: " + sides
+                + "\n  baseColor:\n    - " + r + "\n    - " + g + "\n    - " + b + "\n    - " + a + "\n";
+        };
+        WriteText(root / "art" / "red.jmat", unlit("Opaque", "1", "0", "0", "1", "false").c_str());
+        WriteText(root / "art" / "blue.jmat", unlit("Blend", "0", "0", "1", "0.5", "false").c_str());
+        WriteText(root / "art" / "green.jmat", unlit("Blend", "0", "1", "0", "0.5", "false").c_str());
+        WriteText(root / "art" / "both.jmat", unlit("Opaque", "1", "1", "1", "1", "true").c_str());
+        WriteText(root / "art" / "lit_both.jmat", "Version: 1\nMaterial:\n  shader: Standard\n  doubleSided: true\n");
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const auto idOf = [&](const char* path) {
+            const JBro::AssetRecord* record = registry.FindByPath(path);
+            Check(record != nullptr, "the material file is registered");
+            return record != nullptr ? record->id : JBro::AssetId{};
+        };
+
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform3D>(eye);
+        eyeTransform->position = {0.0f, 4.0f, 0.0f};
+        eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        canvas.AttachComponent<JBro::Component::Camera3D>(eye)->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::AssetId planeId;
+        for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+        {
+            if (std::strcmp(JBro::MeshLibrary::GetBuiltin(index).name, "Plane") == 0)
+            {
+                planeId = JBro::MeshLibrary::GetBuiltin(index).id;
+            }
+        }
+        const auto place = [&](const char* name, JBro::Float height, const char* material) {
+            JBro::Object::GameObject* object = canvas.CreateObject(name);
+            canvas.AttachComponent<JBro::Component::Transform3D>(object)->position = {0.0f, height, 0.0f};
+            auto* mesh = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(object);
+            mesh->meshId = planeId;
+            mesh->materialId = idOf(material);
+            return mesh;
+        };
+        auto* green = place("green", 1.5f, "art/green.jmat");
+        auto* blue = place("blue", 1.0f, "art/blue.jmat");
+        auto* red = place("red", 0.0f, "art/red.jmat");
+        framework.BindCanvasAssets();
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        stage.RenderOnce(framework, image, readback);
+        const Pixel mixed = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        std::cout << "  blended: " << mixed.r.Get() << " " << mixed.g.Get() << " " << mixed.b.Get() << std::endl;
+        Check(Near(mixed.r, 0.25f, 0.02f) && Near(mixed.g, 0.5f, 0.02f) && Near(mixed.b, 0.25f, 0.02f),
+            "opaque meshes are drawn first and the transparent ones far to near: half green over half blue over red");
+
+        // 밑에서 올려다본다. 셋 다 한 면이라 뒷면만 보여 버려진다.
+        eyeTransform->position = {0.0f, -4.0f, 0.0f};
+        eyeTransform->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(1.5707963f));
+        green->visible = false;
+        blue->visible = false;
+        stage.RenderOnce(framework, image, readback);
+        const Pixel culled = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(Near(culled.r, 0.0f) && Near(culled.g, 0.0f) && Near(culled.b, 0.0f), "from below a single-sided plane is culled - only the clear colour shows");
+
+        red->materialId = idOf("art/both.jmat");
+        red->material = {};
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, image, readback);
+        const Pixel both = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(Near(both.r, 1.0f) && Near(both.g, 1.0f) && Near(both.b, 1.0f), "a double-sided material shows its back face");
+
+        // 위로 비추는 방향광 하나(앞이 -Z 라 X 축으로 +90 도 돌리면 +Y 를 향한다). 양면 `Standard` 의 뒷면은 법선을 뒤집어 그 빛을 마주한다.
+        JBro::Object::GameObject* lamp = canvas.CreateObject("lamp");
+        canvas.AttachComponent<JBro::Component::Transform3D>(lamp)->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(1.5707963f));
+        auto* light = canvas.AttachComponent<JBro::Component::Light3D>(lamp);
+        light->type = JBro::Component::Light3DType::Directional;
+        light->intensity = 1.0f;
+        red->materialId = idOf("art/lit_both.jmat");
+        red->material = {};
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, image, readback);
+        const Pixel lit = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        std::cout << "  double-sided underside lit: " << lit.r.Get() << std::endl;
+        Check(lit.r > 0.6f && Near(lit.g, lit.r, 0.01f), "the back face of a double-sided Standard material faces the light from below - its normal is flipped");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+
     // **3D 렌더 텍스처**(D-439). 뷰포트 `Monitor` 가 탐침 카메라(월드 (100, 0, 3), 파란 바탕)로 붉은 상자를 32 x 32 `.jrt` 에 그리고, 위에서 내려다보는
     // 사각형의 `Unlit` 재질이 그 렌더 텍스처를 기본색 그림으로 읽는다 - 사각형 가운데가 붉고 가장자리가 파랗다. 탐침이 그 사각형을 보게 옮기면 그 렌더 텍스처에 그리는
     // 뷰는 제 대상을 읽는 사각형을 그리지 않는다 - 사각형에는 파란 바탕만 남는다.
@@ -2004,6 +2124,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D12RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::D3D11RHIModule>());
     JBRO_CASE(TestMaterialsDrawTheirPicturesAndValues<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestTransparentAndDoubleSidedMaterials<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestTransparentAndDoubleSidedMaterials<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestTransparentAndDoubleSidedMaterials<JBro::VulkanRHIModule>());
     JBRO_CASE(TestRenderTexturesShowA3DViewOnAMesh<JBro::D3D12RHIModule>());
     JBRO_CASE(TestRenderTexturesShowA3DViewOnAMesh<JBro::D3D11RHIModule>());
     JBRO_CASE(TestRenderTexturesShowA3DViewOnAMesh<JBro::VulkanRHIModule>());

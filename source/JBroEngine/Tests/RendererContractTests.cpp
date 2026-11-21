@@ -1309,8 +1309,8 @@ namespace
         Check(module.device.waitIdleCount == 1, "shutdown must wait for outstanding GPU work");
         Check(module.device.destroySwapchainCount == 1, "shutdown must destroy the swapchain");
         Check(module.destroyDeviceCount == 1, "shutdown must destroy the device");
-        Check(module.device.destroyPipelineCount == 19,
-            "shutdown must destroy the built-in sprite, sdf text (each with its over-depth twin), mesh (Standard and Unlit), world text, the two outline, "
+        Check(module.device.destroyPipelineCount == 25,
+            "shutdown must destroy the built-in sprite, sdf text (each with its over-depth twin), mesh (Standard and Unlit, each opaque or blended and one- or two-sided, D-443), world text, the two outline, "
             "the four layer composite, the backdrop blend, the 2D light (plain and shadowed), the shadow mask and the two lit (sprite, sdf text) pipelines");
     }
     struct HostOverlayProbe

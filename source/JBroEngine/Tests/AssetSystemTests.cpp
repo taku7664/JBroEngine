@@ -816,6 +816,15 @@ namespace
         Check(reread.shader == desc.shader && reread.alpha == desc.alpha && reread.alphaCutoff == desc.alphaCutoff
                 && reread.emissive == desc.emissive && reread.baseColorTextureId == desc.baseColorTextureId,
             "with every value");
+        // 반투명과 양면(D-443)도 파일의 키다.
+        desc.alpha = JBro::MaterialAlpha::Blend;
+        desc.doubleSided = true;
+        Check(JBro::FormatMaterialFile(desc, text) && JBro::ParseMaterialFile(text.c_str(), text.size(), reread, error)
+                && reread.alpha == JBro::MaterialAlpha::Blend && reread.doubleSided,
+            "a transparent, double-sided material round-trips");
+        const char older[] = "Version: 1\nMaterial:\n  shader: Unlit\n";
+        Check(JBro::ParseMaterialFile(older, sizeof(older) - 1, reread, error) && false == reread.doubleSided,
+            "a file written before the double-sided key reads as single-sided");
         const char unknown[] = "Version: 1\nMaterial:\n  shininess: 3\n";
         Check(false == JBro::ParseMaterialFile(unknown, sizeof(unknown) - 1, reread, error), "a key the engine does not know is refused");
         Check(false == JBro::ParseMaterialFile("Version: 1\n", 11, reread, error), "a file without a Material block is refused");
