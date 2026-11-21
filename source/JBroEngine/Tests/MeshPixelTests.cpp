@@ -24,6 +24,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Math3D.h>
 #include <JBro/Asset/Asset.h>
+#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/RenderTextureFile.h>
 #include "TestModels.h"
@@ -1181,6 +1182,9 @@ namespace
             std::filesystem::create_directories(root / "art");
             std::ofstream file(root / "art" / "grey.tga", std::ios::binary);
             file.write(grey.data(), static_cast<std::streamsize>(grey.size()));
+            // 같은 회색을 `colorSpace: Linear` 로 둔 그림(todo-3d 다음 순서 4, D-442). 메타를 손으로 적어 옵션을 준다.
+            std::ofstream linear(root / "art" / "linear.tga", std::ios::binary);
+            linear.write(grey.data(), static_cast<std::streamsize>(grey.size()));
         }
         const std::u8string rootText = root.u8string();
         const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
@@ -1203,6 +1207,23 @@ namespace
         }
         const JBro::AssetId greyId = registry.FindByPath("art/grey.tga")->id;
         const std::string flat = "Version: 1\nMaterial:\n  shader: Unlit\n  baseColorTextureId: " + IdText(greyId) + "\n";
+        // 스캐너가 지은 메타에서 옵션만 `Linear` 로 바꿔 다시 쓴다 - 에디터의 임포트 옵션 편집과 같은 파일이다.
+        {
+            const fs::path metaPath = root / "art" / "linear.tga.jmeta";
+            std::ifstream in(metaPath, std::ios::binary);
+            const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            in.close();
+            JBro::AssetMetaFile meta;
+            JBro::AssetMetaError metaError;
+            Check(JBro::ParseAssetMetaFile(text.c_str(), text.size(), meta, metaError), "the scanner wrote a meta for the linear grey picture");
+            meta.hasTextureOptions = true;
+            meta.textureOptions.colorSpace = JBro::TextureColorSpace::Linear;
+            WriteText(metaPath, JBro::FormatAssetMetaFile(meta).c_str());
+        }
+        const JBro::AssetRecord* linearRecord = registry.FindByPath("art/linear.tga");
+        Check(linearRecord != nullptr, "the linear grey picture is registered");
+        const std::string flatLinear = "Version: 1\nMaterial:\n  shader: Unlit\n  baseColorTextureId: " + IdText(linearRecord->id) + "\n";
+        WriteText(root / "art" / "flat_linear.jmat", flatLinear.c_str());
         const std::string cut = "Version: 1\nMaterial:\n  alpha: Cutout\n  alphaCutoff: 0.75\n  baseColorTextureId: " + IdText(imageId) + "\n";
         WriteText(root / "art" / "flat.jmat", flat.c_str());
         WriteText(root / "art" / "cut.jmat", cut.c_str());
@@ -1276,6 +1297,16 @@ namespace
         std::cout << "  unlit grey: " << grey.r.Get() << std::endl;
         Check(Near(grey.r, 128.0f / 255.0f, 0.02f) && Near(grey.g, grey.r, 0.004f) && Near(grey.b, grey.r, 0.004f),
             "an Unlit material in the slot wins, and a grey picture read through an sRGB view comes back as the same grey");
+
+        // **그림의 `colorSpace` 가 칸의 기본을 이긴다**(D-442). 같은 회색을 선형으로 두면 0.502 를 빛의 양으로 읽고 출력이 sRGB 로 싸 0.735 가 된다.
+        mesh->materialId = registry.FindByPath("art/flat_linear.jmat")->id;
+        mesh->material = {};
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, image, readback);
+        const Pixel linearGrey = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        std::cout << "  unlit linear grey: " << linearGrey.r.Get() << std::endl;
+        Check(Near(linearGrey.r, EncodeSrgb(128.0f / 255.0f), 0.02f),
+            "a picture imported as Linear is not decoded through an sRGB view - the same grey comes out lighter");
 
         // 컷아웃: 반투명 텍셀(오른쪽 아래)은 버려져 바탕이 보이고, 불투명 텍셀은 남는다.
         mesh->materialId = cutId;
