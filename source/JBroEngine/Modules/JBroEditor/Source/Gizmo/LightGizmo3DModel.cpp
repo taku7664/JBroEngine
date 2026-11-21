@@ -105,6 +105,29 @@ namespace JBro::LightGizmo3DModel
         return Degree(Float(Float::Clamp(full, 0.0f, 179.0f)));
     }
 
+    Bool DragAngleOnPlane(const Vector3& apex, const Vector3& direction, Float length, const Vector3& rayOrigin, const Vector3& rayDirection,
+        Degree& angle)
+    {
+        const Float facing = Dot(rayDirection, direction);
+        if (std::fabs(facing.Get()) < 1.0e-6f || false == (length > 0.0f))
+        {
+            return false;
+        }
+        const Vector3 center = Add(apex, Scale(direction, length));
+        const Float t = Dot(Subtract(center, rayOrigin), direction) / facing;
+        if (false == (t > 0.0f))
+        {
+            return false;
+        }
+        const Vector3 hit = Add(rayOrigin, Scale(rayDirection, t));
+        const Vector3 off = Subtract(hit, center);
+        const Float radius = std::sqrt(Dot(off, off).Get());
+        constexpr Float RadiansToDegrees = 57.29577951308232f;
+        const Float full = Float(std::atan2(radius.Get(), length.Get())) * 2.0f * RadiansToDegrees;
+        angle = Degree(Float(Float::Clamp(full, 0.0f, 179.0f)));
+        return true;
+    }
+
     const char* FieldName(Handle handle)
     {
         switch (handle)

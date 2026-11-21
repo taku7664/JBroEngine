@@ -66,6 +66,21 @@ namespace JBro
         return source;
     }
 
+    ColliderMeshSource FindRendererMeshSource(const Component::MeshRenderer3D& renderer, const AssetSystem* assets)
+    {
+        ColliderMeshSource source;
+        source.id = renderer.meshId.IsNull() ? MeshLibrary::BuiltinCubeId() : renderer.meshId;
+        source.handle = renderer.mesh;
+        if (FindBuiltin(source.id) < MeshLibrary::GetBuiltinCount())
+        {
+            source.dataGeneration = 1;
+            return source;
+        }
+        const MeshData* mesh = assets != nullptr && source.handle.generation != 0 ? assets->GetMesh(source.handle) : nullptr;
+        source.dataGeneration = mesh != nullptr ? mesh->dataGeneration : UInt32(0);
+        return source;
+    }
+
     Bool GatherColliderMesh(const AssetSystem* assets, const ColliderMeshSource& source, Array<Vector3>& points, Array<UInt32>& indices)
     {
         points.Clear();

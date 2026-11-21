@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Runtime/IDebugDrawSystem.h>
 #include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/CanvasFile.h>
@@ -659,6 +660,8 @@ namespace JBro
             const Extent2D& extent,
             Float centerX, Float centerY, Float centerZ,
             Float distance, Float yawDegrees, Float pitchDegrees);
+        // 3D 캔버스 뷰에 이번 프레임 그릴 편집 화면 선(바닥 격자, D-441). `RequestCanvasView3D` 뒤에 부른다 - 요청이 비운다.
+        void SetCanvasViewLines(const DebugLine* lines, UInt32 count);
         TextureHandle GetCanvasViewTexture() const;
         // 실제로 잡혀 있는 텍스처의 크기다. 요청한 크기를 **올림**한 값이라 패널을
         // 조금 끌 때마다 텍스처를 다시 만들지 않는다.
@@ -1176,6 +1179,7 @@ namespace JBro
         // 편집 뷰 요청이 가리키는 선택 번호들이다. 요청은 다음 요청까지 이것을 가리킨다. 용량은 그대로 다시 쓴다.
         Array<InstanceId> m_canvasViewSelection;
         EditorViewDesc m_canvasViewRequest;
+        Array<DebugLine> m_canvasViewLines;
         Bool m_canvasViewRequested = false;
         // 이번 프레임에 요청된 크기의 텍스처를 마련한다. 이미 그 크기면 아무 일도 하지 않는다.
         Bool EnsureCanvasViewTexture(const Extent2D& extent);

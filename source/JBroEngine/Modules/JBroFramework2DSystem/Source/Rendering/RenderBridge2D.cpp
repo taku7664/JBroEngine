@@ -271,6 +271,7 @@ namespace JBro::Internal
         }
 
         parameters.target = view.target;
+        parameters.editorView = true;
         parameters.targetExtent = view.extent;
         // 캔버스 뷰도 게임 카메라의 후처리로 보인다(D-344, 계획 §2.6). 단추로 끄고, UI 보기는 늘 없다. 선택 외곽선은 후처리 뒤다.
         if (view.postProcess && false == view.screenSpace)

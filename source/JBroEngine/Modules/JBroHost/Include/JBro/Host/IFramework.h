@@ -13,6 +13,7 @@
 
 namespace JBro
 {
+    struct DebugLine;
     class AssetSystem;
     class IShaderCompiler;
     class NetworkHost;
@@ -87,6 +88,10 @@ namespace JBro
         Float pitchDegrees = -25.0f;
         // 세로 화각(도). 직교가 아니라 원근이다 - 3D 는 깊이가 보여야 한다.
         Float verticalFieldOfView = 60.0f;
+        // **편집 화면에만 그리는 선이다**(D-441, 바닥 격자). 스크립트의 디버그 선과 같은 길로 그려 메시에 가려진다 -
+        // 화면 위에 덧그리면 큐브 너머로 격자가 비쳐 보였다. 배열은 부르는 쪽이 이 프레임의 그리기가 끝날 때까지 든다.
+        const DebugLine* lines = nullptr;
+        UInt32 lineCount = 0;
     };
 
     // **레이어 썸네일 하나**(D-288, 기존 `ImEditor::RenderLayerThumbnails`). 그 레이어만 켠 게임 화면의 축소판이다 - 게임 카메라·패럴랙스는 그대로이고,

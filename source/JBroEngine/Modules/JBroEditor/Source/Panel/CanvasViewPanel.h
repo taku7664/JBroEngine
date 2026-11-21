@@ -15,6 +15,7 @@
 #include <JBro/Types/Table.h>
 #include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/RHI/RHI.h>
+#include <JBro/Runtime/IDebugDrawSystem.h>
 #include <JBro/Types/Array.h>
 
 #include "../Gizmo/GizmoEditing.h"
@@ -354,6 +355,13 @@ namespace JBro
             Array<UInt32> indices;
         };
         Table<InstanceId, ColliderMeshDrawing> m_colliderMeshes;
+        // 3D 고르기가 광선을 맞춰 볼 메시의 사본(D-441). 메시 렌더러마다, 메시가 바뀔 때만 다시 읽는다. 점과 함께 로컬 상자를 든다.
+        Table<InstanceId, ColliderMeshDrawing> m_pickMeshes;
+        // 3D 바닥 격자의 선(D-441). 엔진이 메시 뒤에서 깊이로 가려 그린다.
+        Array<DebugLine> m_gridLines;
+        // 메시 렌더러가 그리는 메시를 화면 점의 광선이 맞히면 그 거리(광선 매개변수)를 준다. 맞히지 않으면 거짓이다.
+        Bool RayHitsRenderedMesh(Canvas& canvas, Object::GameObject& object, const Vector3& origin, const Vector3& direction,
+            Float& distance);
         Array<Component::DistanceJoint2D*> m_distanceJointScratch;
         Array<Component::HingeJoint2D*> m_hingeJointScratch;
         Array<Vector2> m_screenScratch;

@@ -20976,6 +20976,31 @@ namespace
         Check(editor.GetSelectedObject() == cube, "clicking the middle of the view picks the cube the view looks at");
         ScenarioShot(editor, "d04_cube_picked");
 
+        // ── 3a. 큐브의 몸 어디를 눌러도 골라지고, 빈 곳을 누르면 풀린다(D-441) ─────────────
+        // 전에는 오브젝트의 자리를 화면에 찍은 점에서 18 픽셀 안만 봤다 - 실제 에디터에서 큐브의 면을 눌러도 골라지지 않았다(2026-11-21 사용자 보고).
+        // 큐브를 네 배로 키워 화면에서 크게 보이게 하고, 가운데에서 40 픽셀 떨어진 면을 누른다.
+        Spot empty;
+        empty.x = static_cast<JBro::Int32>(picture.minX.Get()) + 8;
+        empty.y = static_cast<JBro::Int32>(picture.minY.Get()) + 8;
+        ClickAt(editor, hwnd, empty);
+        Check(editor.Tick(Frame), "the empty click is taken");
+        Check(editor.GetSelectedObject() == nullptr, "clicking empty floor clears the selection");
+        auto* cubeShape = canvas->FindComponentRaw<JBro::Component::Transform3D>(cube);
+        Check(cubeShape != nullptr, "the cube has a transform to grow");
+        cubeShape->scale = JBro::Vector3{4.0f, 4.0f, 4.0f};
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the bigger cube is drawn");
+        }
+        Spot face = center;
+        face.x += 40;
+        ClickAt(editor, hwnd, face);
+        Check(editor.Tick(Frame), "the face click is taken");
+        Check(editor.GetSelectedObject() == cube, "clicking the cube's face away from its middle picks it - the ray hits the drawn mesh");
+        ScenarioShot(editor, "d04a_face_picked");
+        cubeShape->scale = JBro::Vector3{1.0f, 1.0f, 1.0f};
+        Check(editor.Tick(Frame), "the cube is back to its size");
+
         // ── 3b. 인스펙터의 메시 칸에서 도형을 바꾸고 되돌린다(D-388 우선순위 2) ─────────────
         // 빌트인 도형은 레지스트리에 없지만 목록 앞에 이름으로 선다. 전에는 칸이 `(없는 에셋)` 이었다.
         {
@@ -21019,6 +21044,99 @@ namespace
         Check(editor.GetCommands().Undo(), "the move is one edit to undo");
         Check(editor.Tick(Frame), "the undo settles");
         Check(std::fabs(cubeTransform->position.x) < 0.0001f, "undo puts the cube back at the origin");
+
+        // ── 4a. 회전 고리로 돌리고 크기 손잡이로 늘린 뒤 되돌린다(D-441, 전에는 옮기기만 지났다) ─────────────
+        Check(RunEditorAction(editor, "canvas_view.gizmo_rotate"), "the rotate tool is chosen");
+        Check(editor.Tick(Frame), "the rotate gizmo is drawn");
+        Spot ring;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), ring), "the x ring stands on the cube");
+        DragFrom(editor, hwnd, ring, ring.x + 60);
+        Check(editor.Tick(Frame), "the turn settles");
+        Check(std::fabs(cubeTransform->rotation.x) > 0.01f, "dragging the x ring turns the cube");
+        Check(std::fabs(cubeTransform->rotation.y) < 0.0001f && std::fabs(cubeTransform->rotation.z) < 0.0001f,
+            "only about its x axis");
+        ScenarioShot(editor, "d05a_cube_turned");
+        Check(editor.GetCommands().Undo(), "the turn is one edit to undo");
+        Check(editor.Tick(Frame), "the undo settles");
+        Check(std::fabs(cubeTransform->rotation.x) < 0.0001f && std::fabs(cubeTransform->rotation.w - 1.0f) < 0.0001f,
+            "undo puts the cube's rotation back");
+
+        Check(RunEditorAction(editor, "canvas_view.gizmo_scale"), "the scale tool is chosen");
+        Check(editor.Tick(Frame), "the scale gizmo is drawn");
+        Spot stretch;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##gizmo_x"), stretch), "the x scale handle stands on the cube");
+        DragFrom(editor, hwnd, stretch, stretch.x + 80);
+        Check(editor.Tick(Frame), "the stretch settles");
+        Check(std::fabs(cubeTransform->scale.x - 1.0f) > 0.05f, "dragging the x scale handle stretches the cube");
+        Check(std::fabs(cubeTransform->scale.y - 1.0f) < 0.0001f && std::fabs(cubeTransform->scale.z - 1.0f) < 0.0001f,
+            "only along its x axis");
+        ScenarioShot(editor, "d05b_cube_stretched");
+        Check(editor.GetCommands().Undo(), "the stretch is one edit to undo");
+        Check(editor.Tick(Frame), "the undo settles");
+        Check(std::fabs(cubeTransform->scale.x - 1.0f) < 0.0001f, "undo puts the cube's size back");
+        Check(RunEditorAction(editor, "canvas_view.gizmo_translate"), "the move tool is chosen again");
+
+        // ── 4b. 바닥 격자는 큐브에 가려진다(D-441) ─────────────
+        // 전에는 격자를 그린 그림 위에 덧그려 큐브 너머로 비쳐 보였다(2026-11-21 사용자 보고). 원점의 두 축선이 큐브 한가운데를 지나므로
+        // 격자를 켜고 끈 두 그림이 큐브 한가운데에서는 같아야 하고, 큐브 밖의 바닥에서는 달라야 한다.
+        editor.ClearSelection();
+        Spot gridButton;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, "##canvas_grid"), gridButton), "the grid button is on the tool bar");
+        Spot rest;
+        rest.x = static_cast<JBro::Int32>(picture.minX.Get()) + 4;
+        rest.y = static_cast<JBro::Int32>(picture.minY.Get() + static_cast<float>(drawn.height.Get())) - 4;
+        const auto settle = [&]() {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(rest.x, rest.y));
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the canvas view redraws");
+            }
+        };
+        settle();
+        JBro::Array<std::byte> gridOn;
+        JBro::Array<std::byte> gridOff;
+        JBro::TextureReadback gridReadback;
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, gridOn, gridReadback);
+        ClickAt(editor, hwnd, gridButton);
+        settle();
+        ReadBackBufferInto(*editor.GetRenderer(), ScenarioWidth, ScenarioHeight, gridOff, gridReadback);
+        ClickAt(editor, hwnd, gridButton);
+        settle();
+        const JBro::UInt32 middleX = static_cast<JBro::UInt32>(center.x);
+        const JBro::UInt32 middleY = static_cast<JBro::UInt32>(center.y);
+        const std::size_t insideCube = CountDifferingPixelsIn(gridOn, gridOff, gridReadback, middleX - 4, middleY - 4, middleX + 5, middleY + 5);
+        const std::size_t onFloor = CountDifferingPixelsIn(gridOn, gridOff, gridReadback,
+            static_cast<JBro::UInt32>(picture.minX.Get()), static_cast<JBro::UInt32>(picture.minY.Get()),
+            static_cast<JBro::UInt32>(picture.minX.Get()) + drawn.width.Get() / 2, static_cast<JBro::UInt32>(picture.minY.Get()) + drawn.height.Get() / 2);
+        std::cout << "  grid pixels: " << insideCube << " in the cube's middle, " << onFloor << " on the floor" << std::endl;
+        Check(onFloor > 50, "the floor grid is drawn");
+        Check(insideCube == 0, "the cube hides the grid behind it");
+
+        // ── 4c. 가운데 버튼으로 끌면 바라보는 점이 옮겨진다(D-441) ─────────────
+        // 전에는 3D 에서 어느 버튼이든 돌기만 했다. 오른쪽으로 100 픽셀 끌면 큐브도 100 픽셀 오른쪽에 보여 그 자리를 누르면 골라진다.
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(center.x, center.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_MBUTTONDOWN, MK_MBUTTON, MAKELPARAM(center.x, center.y));
+        Check(editor.Tick(Frame), "the pan starts");
+        for (JBro::Int32 step = 1; step <= 8; ++step)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_MBUTTON, MAKELPARAM(center.x + 100 * step / 8, center.y));
+            Check(editor.Tick(Frame), "the pan follows the hand");
+        }
+        PostMessageW(hwnd, WM_MBUTTONUP, 0, MAKELPARAM(center.x + 100, center.y));
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the pan settles");
+        }
+        ScenarioShot(editor, "d05c_panned");
+        ClickAt(editor, hwnd, center);
+        Check(editor.Tick(Frame), "the click is taken");
+        Check(editor.GetSelectedObject() == nullptr, "after the pan the old middle is empty floor");
+        Spot moved = center;
+        moved.x += 100;
+        ClickAt(editor, hwnd, moved);
+        Check(editor.Tick(Frame), "the click is taken");
+        Check(editor.GetSelectedObject() == cube, "the cube is where the hand moved it");
 
         // ── 5. 실행하면 게임 화면에 큐브가 그려진다 ─────────────
         Check(RunEditorAction(editor, "simulation.play"), "play (F5) starts");

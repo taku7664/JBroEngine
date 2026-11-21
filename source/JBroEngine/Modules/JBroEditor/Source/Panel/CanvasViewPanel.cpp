@@ -43,6 +43,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Framework3DSystem/Physics/ColliderMesh.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -969,9 +970,28 @@ namespace JBro
                 {
                     m_panMoved = true;
                 }
-                if (Is3D())
+                CameraParams drawn;
+                Renderer* renderer = m_editor->GetRenderer();
+                const Extent2D extent = m_editor->GetCanvasViewExtent();
+                if (Is3D() && ImGui::IsMouseDown(ImGuiMouseButton_Middle) && renderer != nullptr
+                    && renderer->GetLastEditorViewCamera(drawn) && extent.height != 0 && drawn.projection.values[5] != 0.0f)
                 {
-                    // **3D 는 돈다.** 평면을 밀고 당기는 것으로는 뒤를 볼 수 없다.
+                    // **3D 의 가운데 버튼은 바라보는 점을 옮긴다**(D-441). 그림이 손을 따라오도록, 바라보는 점의 깊이에서 한 픽셀이 담는
+                    // 월드 길이만큼 카메라의 오른쪽·위 축으로 민다. 투영의 [1][1] 은 cot(세로 시야 / 2) 라 그 깊이의 화면 세로는 2 x 거리 / [1][1] 이다.
+                    // 전에는 3D 에서 어느 버튼이든 돌기만 해서 바라보는 점을 옮길 길이 없었다(2026-11-21 사용자 보고).
+                    const Float perPixel = 2.0f * m_distance / (drawn.projection.values[5] * static_cast<JBro::Float>(extent.height));
+                    const Vector3 right{drawn.view.values[0], drawn.view.values[1], drawn.view.values[2]};
+                    const Vector3 up{drawn.view.values[4], drawn.view.values[5], drawn.view.values[6]};
+                    const Vector3 move = Add(Scale(right, -delta.x * perPixel), Scale(up, delta.y * perPixel));
+                    m_goalX += move.x;
+                    m_goalY += move.y;
+                    m_centerX = m_goalX;
+                    m_centerY = m_goalY;
+                    m_centerZ += move.z;
+                }
+                else if (Is3D())
+                {
+                    // **3D 의 오른쪽 버튼은 돈다.** 평면을 밀고 당기는 것으로는 뒤를 볼 수 없다.
                     m_yawDegrees -= delta.x * OrbitDegreesPerPixel;
                     m_pitchDegrees = std::clamp(
                         m_pitchDegrees - delta.y * OrbitDegreesPerPixel,
@@ -2617,8 +2637,18 @@ namespace JBro
             }
             else
             {
+                // 각은 월드에서 잰다(D-441) - 마우스 광선을 끝 원의 평면에 맞힌다. 맞힐 수 없을 때만 화면 셈이다.
+                Vector3 rayOrigin;
+                Vector3 rayDirection;
+                Degree measured;
                 Vector2 axisEnd;
-                if (project(Add(pose.position, Scale(pose.direction, LightGizmo3DModel::ShownLength(light))), axisEnd))
+                if (GizmoModel::MakeRay(camera, mouse.x, mouse.y, rayOrigin, rayDirection)
+                    && LightGizmo3DModel::DragAngleOnPlane(pose.position, pose.direction, LightGizmo3DModel::ShownLength(light), rayOrigin,
+                        rayDirection, measured))
+                {
+                    value = Float(measured.Get());
+                }
+                else if (project(Add(pose.position, Scale(pose.direction, LightGizmo3DModel::ShownLength(light))), axisEnd))
                 {
                     value = Float(LightGizmo3DModel::DragAngle(apex, axisEnd, mouse, Degree(m_light3DDragStart)).Get());
                 }
@@ -4183,41 +4213,37 @@ namespace JBro
         const Float baseX = std::floor(look.x / step) * step;
         const Float baseZ = std::floor(look.z / step) * step;
 
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        const ImU32 line = IM_COL32(255, 255, 255, 18);
-        const ImU32 strong = IM_COL32(255, 255, 255, 38);
-        const ImU32 axisX = IM_COL32(220, 90, 90, 160);
-        const ImU32 axisZ = IM_COL32(90, 130, 220, 160);
+        // **격자는 엔진이 그린다**(D-441). 전에는 그린 그림 위에 ImGui 선으로 덧그려 깊이가 없었다 - 큐브 너머로 격자가 비쳐 보였고
+        // 어두운 면일수록 잘 보여 "조명 각도에 따라 투명해진다" 로 보였다(2026-11-21 사용자 보고). 이제 스크립트의 디버그 선과 같은 길로
+        // 메시 뒤에서 깊이에 가려진다. 색은 ImGui 위에 얹던 값 그대로다.
+        const std::uint8_t line[4] = {255, 255, 255, 18};
+        const std::uint8_t strong[4] = {255, 255, 255, 38};
+        const std::uint8_t axisX[4] = {220, 90, 90, 160};
+        const std::uint8_t axisZ[4] = {90, 130, 220, 160};
 
-        // 한 선을 토막 내어 잇는다. **양 끝만 투영하면 안 된다** - 선이 카메라 평면을
-        // 가로지르면 한쪽 끝이 뒤에 있어 투영이 없고, 그러면 선 전체가 사라진다.
+        // 한 선을 토막 내어 낸다. 렌더러는 선마다 가운데의 깊이로 두께를 정하고 가운데가 카메라 뒤면 버린다 - 긴 선 하나로 내면
+        // 가까운 쪽이 굵어지거나 선이 통째로 사라진다.
         constexpr Int32 Segments = 16;
-        auto drawWorldLine = [&](const Vector3& from, const Vector3& to, ImU32 color, Float thickness)
+        m_gridLines.Clear();
+        auto drawWorldLine = [&](const Vector3& from, const Vector3& to, const std::uint8_t (&color)[4], Float thickness)
         {
-            Float previousX = 0.0f;
-            Float previousY = 0.0f;
-            Bool hasPrevious = false;
-            for (Int32 index = 0; index <= Segments; ++index)
+            for (Int32 index = 0; index < Segments; ++index)
             {
-                const Float t = static_cast<JBro::Float>(index) / static_cast<JBro::Float>(Segments);
-                const Vector3 point{
-                    from.x + (to.x - from.x) * t,
-                    from.y + (to.y - from.y) * t,
-                    from.z + (to.z - from.z) * t};
-                Float x = 0.0f;
-                Float y = 0.0f;
-                if (false == GizmoModel::Project(camera, point, x, y))
+                const Float t0 = static_cast<JBro::Float>(index) / static_cast<JBro::Float>(Segments);
+                const Float t1 = static_cast<JBro::Float>(index + 1) / static_cast<JBro::Float>(Segments);
+                DebugLine piece;
+                piece.from[0] = from.x + (to.x - from.x) * t0;
+                piece.from[1] = from.y + (to.y - from.y) * t0;
+                piece.from[2] = from.z + (to.z - from.z) * t0;
+                piece.to[0] = from.x + (to.x - from.x) * t1;
+                piece.to[1] = from.y + (to.y - from.y) * t1;
+                piece.to[2] = from.z + (to.z - from.z) * t1;
+                for (Int32 channel = 0; channel < 4; ++channel)
                 {
-                    hasPrevious = false;
-                    continue;
+                    piece.color[channel] = color[channel];
                 }
-                if (hasPrevious)
-                {
-                    draw->AddLine(ImVec2(previousX, previousY), ImVec2(x, y), color, thickness);
-                }
-                previousX = x;
-                previousY = y;
-                hasPrevious = true;
+                piece.thickness = thickness;
+                m_gridLines.Add(piece);
             }
         };
 
@@ -4238,6 +4264,7 @@ namespace JBro
         // 원점의 두 축. 어디가 (0,0,0) 인지 바닥에서 바로 보여야 한다.
         drawWorldLine(Vector3{baseX - half, 0.0f, 0.0f}, Vector3{baseX + half, 0.0f, 0.0f}, axisX, 1.5f);
         drawWorldLine(Vector3{0.0f, 0.0f, baseZ - half}, Vector3{0.0f, 0.0f, baseZ + half}, axisZ, 1.5f);
+        m_editor->SetCanvasViewLines(m_gridLines.Data(), static_cast<JBro::UInt32>(m_gridLines.Size()));
     }
 
     void CanvasViewPanel::DrawSelectionMarkers3D(const ViewRect& rect)
@@ -4286,6 +4313,93 @@ namespace JBro
         }
     }
 
+    Bool CanvasViewPanel::RayHitsRenderedMesh(Canvas& canvas, Object::GameObject& object, const Vector3& origin,
+        const Vector3& direction, Float& distance)
+    {
+        const Component::MeshRenderer3D* renderer = canvas.FindComponentRaw<Component::MeshRenderer3D>(&object);
+        const Component::Transform3D* transform = canvas.FindComponentRaw<Component::Transform3D>(&object);
+        if (renderer == nullptr || transform == nullptr)
+        {
+            return false;
+        }
+        const ColliderMeshSource source = FindRendererMeshSource(*renderer, m_editor->GetAssetSystem());
+        ColliderMeshDrawing* mesh = m_pickMeshes.Find(renderer->GetInstanceId());
+        if (mesh == nullptr)
+        {
+            m_pickMeshes.TryAdd(renderer->GetInstanceId(), ColliderMeshDrawing{});
+            mesh = m_pickMeshes.Find(renderer->GetInstanceId());
+        }
+        if (mesh->id != source.id || mesh->handle.index != source.handle.index || mesh->handle.generation != source.handle.generation
+            || mesh->dataGeneration != source.dataGeneration)
+        {
+            mesh->id = source.id;
+            mesh->handle = source.handle;
+            mesh->dataGeneration = source.dataGeneration;
+            mesh->loaded = source.dataGeneration != 0
+                && GatherColliderMesh(m_editor->GetAssetSystem(), source, mesh->points, mesh->indices);
+        }
+        if (false == mesh->loaded)
+        {
+            return false;
+        }
+
+        // 광선을 메시 로컬로 옮긴다. 광선의 매개변수는 월드와 같은 값으로 남는다 - 그래서 여러 오브젝트의 거리를 그대로 견준다.
+        const Vector3 position = transform->worldValid ? transform->worldPosition : transform->position;
+        const Quaternion rotation = transform->worldValid ? transform->worldRotation : transform->rotation;
+        const Vector3 scale = transform->worldValid ? transform->worldScale : transform->scale;
+        constexpr Float Tiny = 1.0e-6f;
+        if (std::fabs(scale.x) < Tiny || std::fabs(scale.y) < Tiny || std::fabs(scale.z) < Tiny)
+        {
+            return false;
+        }
+        const Quaternion inverse = Conjugate(rotation);
+        const Vector3 shifted = Rotate(inverse, Subtract(origin, position));
+        const Vector3 turned = Rotate(inverse, direction);
+        const Vector3 localOrigin{shifted.x / scale.x, shifted.y / scale.y, shifted.z / scale.z};
+        const Vector3 localDirection{turned.x / scale.x, turned.y / scale.y, turned.z / scale.z};
+
+        // 삼각형마다 맞혀 본다(Möller-Trumbore). 앞뒤를 가리지 않는다 - 안에서 눌러도, 뒷면만 보이는 얇은 평면도 집힌다.
+        // 누를 때 한 번만 도는 길이라 상자로 먼저 거르지 않는다.
+        Bool any = false;
+        Float nearest = 0.0f;
+        const std::size_t triangles = mesh->indices.Size() / 3;
+        for (std::size_t index = 0; index < triangles; ++index)
+        {
+            const Vector3& a = mesh->points[mesh->indices[index * 3]];
+            const Vector3& b = mesh->points[mesh->indices[index * 3 + 1]];
+            const Vector3& c = mesh->points[mesh->indices[index * 3 + 2]];
+            const Vector3 edge1 = Subtract(b, a);
+            const Vector3 edge2 = Subtract(c, a);
+            const Vector3 p = Cross(localDirection, edge2);
+            const Float determinant = Dot(edge1, p);
+            if (std::fabs(determinant) < 1.0e-12f)
+            {
+                continue;
+            }
+            const Float inverseDeterminant = 1.0f / determinant;
+            const Vector3 toOrigin = Subtract(localOrigin, a);
+            const Float u = Dot(toOrigin, p) * inverseDeterminant;
+            if (u < 0.0f || u > 1.0f)
+            {
+                continue;
+            }
+            const Vector3 q = Cross(toOrigin, edge1);
+            const Float v = Dot(localDirection, q) * inverseDeterminant;
+            if (v < 0.0f || u + v > 1.0f)
+            {
+                continue;
+            }
+            const Float t = Dot(edge2, q) * inverseDeterminant;
+            if (t > 0.0f && (false == any || t < nearest))
+            {
+                nearest = t;
+                any = true;
+            }
+        }
+        distance = nearest;
+        return any;
+    }
+
     void CanvasViewPanel::HandlePicking3D(const ViewRect& rect, Bool hovered)
     {
         // 라이트 손잡이를 누르고 놓은 것은 고르기가 아니다(2D 와 같다).
@@ -4306,13 +4420,19 @@ namespace JBro
             return;
         }
 
-        // **화면에서 가까운 것을 고른다.** 메시의 크기를 모르므로 월드의 광선 교차 대신
-        // 오브젝트의 자리를 화면으로 투영해 마우스와의 거리를 잰다 - 이것이 3D 에서
-        // "눌러서 고르기" 가 실제로 하는 일에 가장 가깝고, 짐작한 상자보다 덜 틀린다.
+        // **그린 메시를 광선으로 맞혀 고른다**(D-441). 누른 점에서 편집 카메라의 광선을 쏘아 메시 렌더러가 그리는 삼각형을 맞히고,
+        // 가장 가까운 것이 이긴다. 전에는 오브젝트의 자리를 화면으로 투영해 18 픽셀 안만 봤다 - 큐브의 몸을 눌러도 골라지지 않았고,
+        // 고른 뒤에는 그 자리에 기즈모가 서서 다른 것도 고를 수 없었다(2026-11-21 사용자 보고).
+        // 메시가 없는 것(라이트·카메라·빈 오브젝트)은 그대로 자리 투영의 반지름으로 고르고, 메시의 몸보다 먼저 이긴다 - 2D 의 표시와 같다(D-298).
         const ImGuiIO& io = ImGui::GetIO();
         constexpr Float PickRadius = 18.0f;
         Object::GameObject* best = nullptr;
         Float bestDistance = PickRadius * PickRadius;
+        Object::GameObject* bestMesh = nullptr;
+        Float bestMeshDistance = 0.0f;
+        Vector3 rayOrigin;
+        Vector3 rayDirection;
+        const Bool hasRay = GizmoModel::MakeRay(camera, io.MousePos.x, io.MousePos.y, rayOrigin, rayDirection);
         // **3D 텍스트는 글자 블록으로 고른다**(D-222). 크기를 아는 유일한 3D 그림이다 - 블록의 네 모서리를 화면으로 투영한 사각형 안을 누르면
         // 그 텍스트다(자리 투영보다 먼저 이긴다). 빌보드의 모서리는 편집 카메라의 오른쪽·위 축으로 편다(그린 것과 같은 카메라).
         System::Text3DSystem* texts = canvas->GetSystems().FindSystem<System::Text3DSystem>();
@@ -4377,6 +4497,18 @@ namespace JBro
                 bestDistance = -1.0f;
                 return;
             }
+            if (const Component::MeshRenderer3D* renderer = canvas->FindComponentRaw<Component::MeshRenderer3D>(&object);
+                renderer != nullptr && renderer->visible)
+            {
+                Float hit = 0.0f;
+                if (hasRay && RayHitsRenderedMesh(*canvas, object, rayOrigin, rayDirection, hit)
+                    && (bestMesh == nullptr || hit < bestMeshDistance))
+                {
+                    bestMesh = &object;
+                    bestMeshDistance = hit;
+                }
+                return;
+            }
             const Vector3 at = transform->worldValid ? transform->worldPosition : transform->position;
             Float x = 0.0f;
             Float y = 0.0f;
@@ -4394,6 +4526,10 @@ namespace JBro
             }
         });
 
+        if (best == nullptr)
+        {
+            best = bestMesh;
+        }
         best = MapToLevel(best);
         if (best == nullptr)
         {

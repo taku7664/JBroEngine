@@ -59,6 +59,11 @@ namespace JBro::LightGizmo3DModel
     // 마우스가 가리키는 원뿔 **전체** 각이다. `apex` 는 라이트 자리, `axisEnd` 는 축 위 한 점을 화면에 투영한 것이다.
     // 축에서 마우스까지의 화면 거리와 축을 따라 간 거리의 각의 두 배이고 0 과 179 사이다. 마우스가 꼭짓점 뒤에 있으면 `fallback` 이다.
     Degree DragAngle(Vector2 apex, Vector2 axisEnd, Vector2 mouse, Degree fallback);
+    // 같은 각을 **월드에서** 잰다(D-441). 마우스 광선(`rayOrigin`·`rayDirection`)을 원뿔 끝 원의 평면(꼭짓점에서 축을 따라 `length` 간 자리, 법선은 축)에
+    // 맞혀 축에서 떨어진 거리로 각을 낸다 - 화면에서 재면 축이 짧게 보이는 각도(내려다보는 스포트)에서 손잡이가 마우스를 따라가지 않았다.
+    // 광선이 평면과 나란하거나 평면이 광선 뒤에 있으면 거짓이다(부르는 쪽이 화면 셈으로 돌아간다). 0 과 179 사이다.
+    Bool DragAngleOnPlane(const Vector3& apex, const Vector3& direction, Float length, const Vector3& rayOrigin, const Vector3& rayDirection,
+        Degree& angle);
 
     // 손잡이가 고치는 필드의 이름과 손잡이의 ImGui Id 다.
     const char* FieldName(Handle handle);

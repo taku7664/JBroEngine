@@ -6386,6 +6386,17 @@ namespace JBro
         return true;
     }
 
+    void EditorApplication::SetCanvasViewLines(const DebugLine* lines, UInt32 count)
+    {
+        m_canvasViewLines.Clear();
+        for (UInt32 index = 0; lines != nullptr && index < count; ++index)
+        {
+            m_canvasViewLines.Add(lines[index]);
+        }
+        m_canvasViewRequest.lines = m_canvasViewLines.Data();
+        m_canvasViewRequest.lineCount = static_cast<JBro::UInt32>(m_canvasViewLines.Size());
+    }
+
     TextureHandle EditorApplication::GetCanvasViewTexture() const
     {
         return m_canvasView;

@@ -208,8 +208,9 @@ namespace JBro::Internal
         // 디버그 선을 월드 텍스트 사각형으로 낸다(D-243). 그 경로는 메시 뒤에 깊이를 보되 쓰지 않고 그리므로 선이 메시에 가려지고,
         // 텍스처가 비면 흰색이라 틴트가 선의 색이다. 사각형의 x 축은 선(길이만큼), y 축은 선과 시선에 모두 수직인 쪽(그 거리에서
         // 픽셀 두께만큼)이다 - 그래서 어느 쪽에서 봐도 선이 납작해지지 않는다.
-        void PushDebugLines3D(const System::DebugDrawSystem& debugDraw, Renderer& renderer, const RenderCamera3D& camera,
-            Float viewportHeight)
+        // 편집 화면의 선(`extra`, D-441 의 바닥 격자)은 디버그 선 뒤에 같은 길로 낸다.
+        void PushDebugLines3D(const System::DebugDrawSystem* debugDraw, const DebugLine* extra, UInt32 extraCount, Renderer& renderer,
+            const RenderCamera3D& camera, Float viewportHeight)
         {
             const Bool perspective = camera.projection == Component::CameraProjection3D::Perspective;
             const Float halfFieldTangent = std::tan(camera.verticalFieldOfView * (3.14159265f / 180.0f) * 0.5f);
@@ -217,10 +218,11 @@ namespace JBro::Internal
             constexpr UInt32 BatchSize = 64;
             WorldTextSubmit batch[BatchSize];
             UInt32 count = 0;
-            const UInt32 lineCount = debugDraw.GetLineCount();
+            const UInt32 scriptLines = debugDraw != nullptr ? debugDraw->GetLineCount() : UInt32(0);
+            const UInt32 lineCount = scriptLines + (extra != nullptr ? extraCount : UInt32(0));
             for (UInt32 index = 0; index < lineCount; ++index)
             {
-                const DebugLine& line = debugDraw.GetLine(index);
+                const DebugLine& line = index < scriptLines ? debugDraw->GetLine(index) : extra[index - scriptLines];
                 const Vector3 from{line.from[0], line.from[1], line.from[2]};
                 const Vector3 to{line.to[0], line.to[1], line.to[2]};
                 const Vector3 along = Subtract(to, from);
@@ -327,7 +329,8 @@ namespace JBro::Internal
         Bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, Bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
             const RenderCamera3D& lineCamera, Float viewportHeight, Int32 onlyLayer = -1, Bool postProcess = false,
-            const ViewLayerMask* layers = nullptr, const PostProcessStack* viewPost = nullptr, AssetHandle excludeTarget = {})
+            const ViewLayerMask* layers = nullptr, const PostProcessStack* viewPost = nullptr, AssetHandle excludeTarget = {},
+            const DebugLine* extraLines = nullptr, UInt32 extraLineCount = 0)
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
@@ -388,7 +391,7 @@ namespace JBro::Internal
             };
 
             Bool accepted = true;
-            Bool linesDrawn = debugDraw == nullptr;
+            Bool linesDrawn = debugDraw == nullptr && (extraLines == nullptr || extraLineCount == 0);
             for (std::size_t at = 0; at < orders.Size(); ++at)
             {
                 LayerBlend blend = LayerBlend::Normal;
@@ -420,7 +423,7 @@ namespace JBro::Internal
                     || (blend == LayerBlend::Normal && opacity >= 1.0f && layerCamera.layerPostProcess.entries.size == 0);
                 if (at + 1 == orders.Size() && plain && false == linesDrawn)
                 {
-                    PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
+                    PushDebugLines3D(debugDraw, extraLines, extraLineCount, renderer, lineCamera, viewportHeight);
                     linesDrawn = true;
                 }
                 if (false == renderer.EndView())
@@ -436,7 +439,7 @@ namespace JBro::Internal
                 }
                 if (false == linesDrawn)
                 {
-                    PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
+                    PushDebugLines3D(debugDraw, extraLines, extraLineCount, renderer, lineCamera, viewportHeight);
                 }
                 if (false == renderer.EndView())
                 {
@@ -495,9 +498,11 @@ namespace JBro::Internal
             return RenderResult::Failed;
         }
         parameters.target = view.target;
+        parameters.editorView = true;
         parameters.targetExtent = view.extent;
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
-            view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height), -1, view.postProcess);
+            view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height), -1, view.postProcess, nullptr, nullptr, {},
+            view.lines, view.lineCount);
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 

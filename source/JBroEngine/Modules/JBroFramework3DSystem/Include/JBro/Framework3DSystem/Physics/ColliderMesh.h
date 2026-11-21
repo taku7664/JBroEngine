@@ -18,6 +18,7 @@ namespace JBro
     namespace Component
     {
         class Collider3D;
+        class MeshRenderer3D;
     }
 
     // 메시 콜라이더가 쓸 메시다(D-418). 물리 어댑터와 캔버스 뷰의 콜라이더 그리기가 같은 길로 찾는다.
@@ -33,6 +34,9 @@ namespace JBro
     // `assets` 가 있으면 모델 메시의 자료 세대를 채운다.
     ColliderMeshSource FindColliderMeshSource(Canvas& canvas, Object::GameObject& object, const Component::Collider3D& collider,
         const AssetSystem* assets);
+
+    // 메시 렌더러가 그리는 메시다. `meshId` 가 비었으면 렌더러처럼 빌트인 정육면체다. 캔버스 뷰의 3D 고르기가 쓴다(D-441).
+    ColliderMeshSource FindRendererMeshSource(const Component::MeshRenderer3D& renderer, const AssetSystem* assets);
 
     // 정점 위치(메시 로컬)와 삼각형 인덱스를 채운다. **삼각형은 바깥에서 볼 때 반시계로 감아 돌려준다** - 엔진의 메시는 렌더러의 앞면(시계)으로
     // 감겨 있지만 물리(Jolt)는 반시계 쪽을 앞면으로 막는다. 그대로 넘기면 바닥 윗면이 뒷면이 되어 물체가 뚫고 떨어진다(D-418 에서 겪었다). 빌트인 도형은 메시 라이브러리가 짓고, 모델의 메시는 에셋 시스템의 CPU 자료를 읽는다.

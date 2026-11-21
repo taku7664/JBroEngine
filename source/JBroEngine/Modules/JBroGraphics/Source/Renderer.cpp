@@ -1840,9 +1840,12 @@ namespace JBro
             if (m_views[index].camera.target.IsValid())
             {
                 // **편집 뷰는 따로 든다**(D-140). 에디터가 같은 행렬을 한 번 더 세우면
-                // 둘로 갈리므로, 그린 쪽이 쓴 것을 그대로 내준다.
-                m_lastEditorViewCamera = m_views[index].camera;
-                m_hasLastEditorViewCamera = true;
+                // 둘로 갈리므로, 그린 쪽이 쓴 것을 그대로 내준다. 제 타깃을 든 다른 뷰(레이어 썸네일·렌더 텍스처)는 아니다(D-441).
+                if (m_views[index].camera.editorView)
+                {
+                    m_lastEditorViewCamera = m_views[index].camera;
+                    m_hasLastEditorViewCamera = true;
+                }
                 continue;
             }
             // 게임 쪽은 **첫 뷰**다. 여럿이면 앞의 것이 화면을 대표한다.
