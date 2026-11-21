@@ -3075,7 +3075,7 @@ EditorApplication::Tick
   `JBroCanvas`·`JBroNetworkSystem` 이 `JBroAssetTypes` 를 선언한다(뷰포트가 핸들을 든다). `SystemContextAbiVersion` 10 → 11 - 옛 스크립트 DLL 은 다시 빌드해야 한다. 2D API 표에 `ViewportService`·전역 `Viewports`.
   (5) 3D: 렌더 텍스처 뷰를 화면 뷰보다 먼저 그린다. 표준 머티리얼의 그림 칸이 `.jrt` 를 받아 그 렌더 타깃을 읽고(`MeshMaterialLibrary::AcquireRenderTarget`), 렌더 텍스처 뷰는 제 대상을 읽는 재질의 메시를 그리지 않는다.
   (6) 에디터: 인스펙터에 `위치(픽셀)`·`크기(픽셀)`, 레이어 칸을 `월드 레이어`·`화면 레이어` 둘로(개수 제한 없는 `LayerListField`), 그림 칸이 렌더 텍스처도 고른다. 3D 렌더 텍스처 경고와 그 문구 키를 지웠다.
-  확인과 뮤테이션은 viewport-plan §7 끝. 남은 `[열림]` 은 §6.
+  확인과 뮤테이션은 viewport-plan §7 끝 - 전체 `JBroTests` 130 묶음이 지났다(`22bc22c6`, 2026-11-21). 남은 `[열림]` 은 §6.
 
 - **D-438. 카메라 고르기·화면 배치는 캔버스의 뷰포트 목록이다 - 카메라는 눈만 든다. 2D·3D 같고, 3D 도 여러 뷰다.** (2026-11-21, [viewport-plan.md](./viewport-plan.md), 사용자 결정 "뷰포트 목록으로")
   Updates: D-187(`primary` 없으면 첫 활성 카메라 → 뷰포트의 자동), D-359(카메라의 `viewportOrigin`·`viewportSize`·`depth` → 뷰포트, 차례는 목록 차례), D-362(카메라의 `clearViewport`·`renderTextureId` → 뷰포트).

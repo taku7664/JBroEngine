@@ -157,3 +157,5 @@ D-438 이 남긴 여덟은 D-439(§7)로 닫았다.
 `EditorLocalization`·`EditorWidget`·`SpriteLibrary`·`RendererContract`.
 뮤테이션 둘: `SubmitScreenViews` 의 레이어별 경로를 끄면 "bound to the left viewport the HUD square sits ..." 가, 3D 의 `ReadsRenderTarget` 빼기를 끄면 렌더러가 프레임을 거절해 "the frame must finish" 가 잡았다
 (제 픽셀 검사보다 앞에서 멈춘다). `MeshPixel` 의 검증 레이어 검사는 이 시험 틀에서 기본으로 꺼져 있어 "debug layer stayed quiet" 는 빈 검사다.
+전체 `JBroTests`: `22bc22c6` 의 Debug 빌드로 130 묶음 `all tests passed.`(약 36 분, 건너뜀 3 - 실제 오디오 장치·기존 엔진 프로젝트·기존 캔버스, 2026-11-21).
+`source/JBroEngine` 에서 띄워야 한다 - 빌드 폴더에서 띄우면 `Markdown panels` 가 상대 경로 `Tests/Data/Markdown/checker.png` 를 못 찾아 90 묶음째에서 멈춘다.
