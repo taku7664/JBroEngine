@@ -1463,6 +1463,46 @@ namespace
         const JBro::Float spotShaded = read(1.5f, 0.0f);
         std::cout << "  spot shadow: lit " << spotLit.Get() << ", in the box's shadow " << spotShaded.Get() << std::endl;
         Check(spotLit > 0.5f && spotShaded < 0.05f, "a spot light casts the box's shadow on the floor and lights the floor beside it");
+
+        // **점광**(D-446): 스포트를 끄고 (0, 2.5, 0) 의 점광 아래에 납작한 판((0, 1.5, 0), 2.4 x 0.2 x 0.6)을 둔다. 판의 그림자는 x 로 ±3.33, z 로 ±0.83 까지다.
+        // 바닥의 x = 2.5 는 라이트에서 45 도 - 큐브의 -Y 면과 +X 면의 경계다. 그 양쪽(2.3 은 -Y 면, 2.7 은 +X 면)과 경계 위가 그림자이고,
+        // 같은 x 의 z = 1.5 는 판에 가리지 않아 밝다 - 면 사이 이음매에서 그림자가 끊기거나 엉뚱한 그림자가 서지 않는다.
+        spot->castShadows = false;
+        spot->intensity = 0.0f;
+        canvas.FindComponentRaw<JBro::Component::Transform3D>(boxObject)->scale = {2.4f, 0.2f, 0.6f};
+        JBro::Object::GameObject* pointObject = canvas.CreateObject("point");
+        canvas.AttachComponent<JBro::Component::Transform3D>(pointObject)->position = {0.0f, 2.5f, 0.0f};
+        auto* point = canvas.AttachComponent<JBro::Component::Light3D>(pointObject);
+        point->type = JBro::Component::Light3DType::Point;
+        point->intensity = 30.0f;
+        point->range = 20.0f;
+        point->castShadows = true;
+        render();
+        const JBro::Float edges[3] = {2.3f, 2.5f, 2.7f};
+        JBro::Bool allShaded = true;
+        JBro::Bool allLit = true;
+        for (const JBro::Float x : edges)
+        {
+            const JBro::Float shadedAt = read(x, 0.0f);
+            const JBro::Float litAt = read(x, 1.5f);
+            std::cout << "  point shadow at x " << x.Get() << ": behind the slab " << shadedAt.Get() << ", beside it " << litAt.Get() << std::endl;
+            allShaded = allShaded && shadedAt < 0.05f;
+            allLit = allLit && litAt > 0.5f;
+        }
+        Check(allShaded, "a point light casts the slab's shadow on both sides of the seam between two cube faces and on the seam itself");
+        Check(allLit, "and the floor the slab does not hide stays lit across the same seam");
+
+        point->shadowStrength = 0.5f;
+        render();
+        const JBro::Float pointHalf = read(2.7f, 0.0f);
+        const JBro::Float pointFull = read(2.7f, 1.5f);
+        std::cout << "  half-strength point shadow: " << pointHalf.Get() << std::endl;
+        Check(pointHalf > 0.2f && pointHalf < pointFull, "a point light's shadow strength lets part of its light through");
+        point->shadowStrength = 1.0f;
+
+        point->castShadows = false;
+        render();
+        Check(read(2.7f, 0.0f) > 0.5f, "a point light that does not cast shadows lights the floor behind the slab");
         Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
 
         framework.Shutdown();

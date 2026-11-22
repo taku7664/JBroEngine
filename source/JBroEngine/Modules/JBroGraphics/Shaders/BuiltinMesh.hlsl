@@ -65,12 +65,15 @@ Texture2D gNormalTexture : register(t3);
 Texture2D gOcclusionTexture : register(t4);
 SamplerState gSampler : register(s0);
 
-// The view's shadows (D-445). Layout mirrors GpuShadowConstants in Renderer.h. The atlas is one 4096 x 2048 depth
-// texture of 1024 tiles: the directional light's four cascades on the left (2 x 2), up to four spot lights on the right.
+// The view's shadows (D-445). Layout mirrors GpuShadowConstants in Renderer.h. The atlas is one 4096 x 4096 depth
+// texture. Its top half holds 1024 tiles: the directional light's four cascades on the left (2 x 2), up to four spot
+// lights on the right. Its bottom half holds 512 tiles, eight to a row: six cube faces for each of up to four point lights (D-446).
 cbuffer ShadowConstants : register(b3)
 {
     row_major float4x4 gCascades[4];
     row_major float4x4 gSpots[4];
+    // Point light p's face f (+X, -X, +Y, -Y, +Z, -Z) is gPoints[p * 6 + f].
+    row_major float4x4 gPoints[24];
     // The camera depth (distance along its forward) at which each cascade ends.
     float4 gCascadeSplit;
     // The world size of one texel in each cascade - how far a surface is pushed along its normal before the test.
@@ -84,13 +87,20 @@ cbuffer ShadowConstants : register(b3)
     // x the directional light's strength, y its depth bias, z the cascade count (0: no directional shadow), w the spot depth bias.
     float4 gShadowParams;
     float4 gSpotStrength;
+    // Which of the view's lights each point slot belongs to (below zero when unused), the world size of one texel one
+    // unit away from the light, and the shadow's strength (D-446).
+    float4 gPointLight;
+    float4 gPointTexel;
+    float4 gPointStrength;
 };
 Texture2D<float> gShadowAtlas : register(t5);
 
 static const float ShadowTile = 1024.0f;
+static const float PointShadowTile = 512.0f;
 
 // 3 x 3 percentage-closer filter read with Load (no comparison sampler in the RHI). 1 is lit, 0 is fully shadowed.
-float ShadowTest(float4x4 lightMatrix, float3 worldPosition, float2 tile, float bias)
+// `origin` is the tile's top-left texel in the atlas and `size` its width.
+float ShadowTest(float4x4 lightMatrix, float3 worldPosition, int2 origin, float size, float bias)
 {
     const float4 clip = mul(lightMatrix, float4(worldPosition, 1.0f));
     if (clip.w <= 0.0f)
@@ -102,8 +112,8 @@ float ShadowTest(float4x4 lightMatrix, float3 worldPosition, float2 tile, float 
     {
         return 1.0f;
     }
-    const float2 texel = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * ShadowTile - 0.5f;
-    const int2 origin = int2(tile * ShadowTile);
+    const float2 texel = float2(ndc.x * 0.5f + 0.5f, 0.5f - ndc.y * 0.5f) * size - 0.5f;
+    const int last = (int)size - 1;
     const int2 base = int2(floor(texel));
     float lit = 0.0f;
     [unroll]
@@ -112,7 +122,7 @@ float ShadowTest(float4x4 lightMatrix, float3 worldPosition, float2 tile, float 
         [unroll]
         for (int x = -1; x <= 1; ++x)
         {
-            const int2 at = origin + clamp(base + int2(x, y), int2(0, 0), int2(1023, 1023));
+            const int2 at = origin + clamp(base + int2(x, y), int2(0, 0), int2(last, last));
             lit += (ndc.z - bias <= gShadowAtlas.Load(int3(at, 0))) ? 1.0f : 0.0f;
         }
     }
@@ -137,8 +147,8 @@ float ShadowFor(uint index, float3 worldPosition, float3 normal, float3 lightPos
             if (depth <= gCascadeSplit[cascade])
             {
                 const float3 pushed = worldPosition + normal * (gCascadeTexel[cascade] * 1.5f);
-                const float2 tile = float2(cascade % 2, cascade / 2);
-                return lerp(1.0f, ShadowTest(gCascades[cascade], pushed, tile, gShadowParams.y), gShadowParams.x);
+                const int2 origin = int2(cascade % 2, cascade / 2) * (int)ShadowTile;
+                return lerp(1.0f, ShadowTest(gCascades[cascade], pushed, origin, ShadowTile, gShadowParams.y), gShadowParams.x);
             }
         }
         return 1.0f;
@@ -150,8 +160,32 @@ float ShadowFor(uint index, float3 worldPosition, float3 normal, float3 lightPos
         {
             const float distance = length(worldPosition - lightPosition);
             const float3 pushed = worldPosition + normal * (gSpotTexel[spot] * distance * 1.5f);
-            const float2 tile = float2(2 + spot % 2, spot / 2);
-            return lerp(1.0f, ShadowTest(gSpots[spot], pushed, tile, gShadowParams.w), gSpotStrength[spot]);
+            const int2 origin = int2(2 + spot % 2, spot / 2) * (int)ShadowTile;
+            return lerp(1.0f, ShadowTest(gSpots[spot], pushed, origin, ShadowTile, gShadowParams.w), gSpotStrength[spot]);
+        }
+    }
+    [unroll]
+    for (uint pointSlot = 0; pointSlot < 4; ++pointSlot)
+    {
+        if (gPointLight[pointSlot] >= 0.0f && gPointLight[pointSlot] == light)
+        {
+            const float distance = length(worldPosition - lightPosition);
+            const float3 pushed = worldPosition + normal * (gPointTexel[pointSlot] * distance * 1.5f);
+            // The face is the largest axis of the direction from the light - the same order the renderer drew them in.
+            const float3 away = pushed - lightPosition;
+            const float3 size = abs(away);
+            uint face = 4 + (away.z < 0.0f ? 1 : 0);
+            if (size.x >= size.y && size.x >= size.z)
+            {
+                face = away.x < 0.0f ? 1 : 0;
+            }
+            else if (size.y >= size.z)
+            {
+                face = 2 + (away.y < 0.0f ? 1 : 0);
+            }
+            const uint tile = pointSlot * 6 + face;
+            const int2 origin = int2((tile % 8) * (int)PointShadowTile, (int)(2.0f * ShadowTile) + (tile / 8) * (int)PointShadowTile);
+            return lerp(1.0f, ShadowTest(gPoints[tile], pushed, origin, PointShadowTile, gShadowParams.w), gPointStrength[pointSlot]);
         }
     }
     return 1.0f;

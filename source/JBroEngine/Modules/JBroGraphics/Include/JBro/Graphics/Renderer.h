@@ -728,6 +728,10 @@ namespace JBro
             Float shadowSpotStrength[4] = {1.0f, 1.0f, 1.0f, 1.0f};
             // 스포트의 원뿔 전체 각(라디안)이다. 그림자 맵의 시야각이다.
             Float shadowSpotAngle[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            // 점광은 넷까지다(D-446). 면 여섯을 아틀라스 아래 절반에 넣는다.
+            UInt32 shadowPointCount = 0;
+            Int32 shadowPoints[4] = {-1, -1, -1, -1};
+            Float shadowPointStrength[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         };
 
         // **장면 포맷 하나에 매인 파이프라인 묶음**(D-342). 장면(뷰의 타깃·레이어 텍스처)에 그리는 것은 모두 그 색 포맷으로 만든다 - D3D12·Vulkan 은
@@ -987,6 +991,10 @@ namespace JBro
             Bool castShadows = true;
             Bool receiveShadows = true;
             Bool transparent = false;
+            // 구간의 인스턴스를 모두 덮는 월드 상자다(D-446). 점광의 면은 빛이 닿는 공과 겹치지 않는 구간을 그리지 않는다.
+            // 메시의 경계 구를 인스턴스의 월드 행렬로 옮겨(반지름은 가장 큰 축의 크기만큼) 모은다.
+            Float boundsMin[3] = {0.0f, 0.0f, 0.0f};
+            Float boundsMax[3] = {0.0f, 0.0f, 0.0f};
         };
 
         // 이 멤버 순서가 정점 속성 오프셋이고 BuiltinSprite.hlsl 의 ABI 다.
@@ -1072,16 +1080,21 @@ namespace JBro
         };
         static_assert(sizeof(GpuLightConstants) == 16 + 64 * 64, "the light block is part of the shader ABI");
 
-        // **그림자**(D-445, lighting3d-plan §5). 아틀라스는 4096 x 2048 깊이 한 장이다 - 왼쪽 2048 정사각에 방향광의 캐스케이드 넷(2 x 2 칸),
-        // 오른쪽에 스포트 넷(2 x 2 칸). 칸 하나는 1024 다. 뷰마다 다시 그린다(카메라가 다르면 캐스케이드가 다르다).
+        // **그림자**(D-445, lighting3d-plan §5). 아틀라스는 4096 x 4096 깊이 한 장이다. 위 절반은 왼쪽 2048 정사각에 방향광의 캐스케이드 넷(2 x 2 칸),
+        // 오른쪽에 스포트 넷(2 x 2 칸)이고 칸 하나는 1024 다. 아래 절반은 점광 넷의 큐브 면 스물넷이고(D-446) 칸 하나는 512, 한 줄에 여덟이다.
+        // 뷰마다 다시 그린다(카메라가 다르면 캐스케이드가 다르다).
         static constexpr UInt32 ShadowTileSize = 1024;
         static constexpr UInt32 MaxShadowCascades = 4;
         static constexpr UInt32 MaxShadowSpots = 4;
+        static constexpr UInt32 PointShadowTileSize = 512;
+        static constexpr UInt32 MaxShadowPoints = 4;
         // 메시 패스의 그림자 블록(b3). `BuiltinMesh.hlsl` 의 `ShadowConstants` 와 같은 모양이다.
         struct GpuShadowConstants
         {
             Matrix4x4 cascades[4];
             Matrix4x4 spots[4];
+            // 점광마다 면 여섯(+X·-X·+Y·-Y·+Z·-Z 차례)의 뷰-투영이다(D-446). 점광 p 의 면 f 는 `points[p * 6 + f]` 다.
+            Matrix4x4 points[24];
             // 캐스케이드마다 끝나는 카메라 깊이(앞쪽 거리)다.
             Float cascadeSplit[4];
             // 캐스케이드 칸 하나의 월드 크기다. 법선 쪽으로 미는 거리다.
@@ -1095,8 +1108,12 @@ namespace JBro
             // x 방향광의 짙기, y 깊이 바이어스, z 캐스케이드 수(0 이면 그림자 없음), w 쓰지 않음.
             Float params[4];
             Float spotStrength[4];
+            // 점광 칸이 비추는 라이트의 번호(없으면 -1), 거리 1 에서 칸 하나의 월드 크기, 짙기다(D-446).
+            Float pointLight[4];
+            Float pointTexel[4];
+            Float pointStrength[4];
         };
-        static_assert(sizeof(GpuShadowConstants) == 64 * 8 + 16 * 7, "the shadow block is part of the shader ABI");
+        static_assert(sizeof(GpuShadowConstants) == 64 * 32 + 16 * 10, "the shadow block is part of the shader ABI");
         struct ShadowPassData
         {
             Renderer* renderer = nullptr;
@@ -1139,6 +1156,9 @@ namespace JBro
             BufferHandle indexBuffer;
             UInt32 indexCount = 0;
             Bool hasTangents = true;
+            // 정점을 덮는 로컬 공이다(D-446). 중심은 정점 상자의 가운데다.
+            Float boundsCenter[3] = {0.0f, 0.0f, 0.0f};
+            Float boundsRadius = 0.0f;
             UInt32 generation = 1;
             Bool occupied = false;
         };
@@ -1268,6 +1288,9 @@ namespace JBro
         static Bool ExecuteShadows(RenderGraphContext& context, const void* data);
         // 뷰의 그림자 블록을 짓는다. 그림자를 드리우는 라이트가 없으면 거짓이고 `out` 은 그림자 없음이다.
         Bool PrepareViewShadows(UInt32 viewIndex, GpuShadowConstants& out) const;
+        // 점광 면 칸 `tile`(점광 * 6 + 면)의 아틀라스 왼쪽 위 픽셀이다(D-446).
+        static UInt32 PointShadowTileX(UInt32 tile);
+        static UInt32 PointShadowTileY(UInt32 tile);
         // 뷰에 그림자 패스를 더한다. 그릴 것이 없으면 `atlas` 를 비운 채 참이다.
         Bool AddShadowPass(UInt32 viewIndex, RenderGraphTexture& atlas);
         static Bool ExecuteComposite(RenderGraphContext& context, const void* data);

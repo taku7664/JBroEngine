@@ -381,6 +381,34 @@ namespace JBro
         resource.indexCount = indices.size;
         resource.hasTangents = hasTangents;
         resource.occupied = true;
+        // 경계 공(D-446): 정점 상자의 가운데에서 가장 먼 정점까지다.
+        {
+            Float low[3] = {vertices.data[0].position[0], vertices.data[0].position[1], vertices.data[0].position[2]};
+            Float high[3] = {low[0], low[1], low[2]};
+            for (UInt32 at = 1; at < vertices.size; ++at)
+            {
+                for (Int32 axis = 0; axis < 3; ++axis)
+                {
+                    const Float value = vertices.data[at.Get()].position[axis.Get()];
+                    low[axis.Get()] = value < low[axis.Get()] ? value : low[axis.Get()];
+                    high[axis.Get()] = value > high[axis.Get()] ? value : high[axis.Get()];
+                }
+            }
+            Float farthest = 0.0f;
+            for (Int32 axis = 0; axis < 3; ++axis)
+            {
+                resource.boundsCenter[axis.Get()] = (low[axis.Get()] + high[axis.Get()]) * 0.5f;
+            }
+            for (UInt32 at = 0; at < vertices.size; ++at)
+            {
+                const Float dx = vertices.data[at.Get()].position[0] - resource.boundsCenter[0];
+                const Float dy = vertices.data[at.Get()].position[1] - resource.boundsCenter[1];
+                const Float dz = vertices.data[at.Get()].position[2] - resource.boundsCenter[2];
+                const Float distance = dx * dx + dy * dy + dz * dz;
+                farthest = distance > farthest ? distance : farthest;
+            }
+            resource.boundsRadius = std::sqrt(farthest.Get());
+        }
 
         // 빈 자리를 다시 쓴다. generation 은 그 자리가 살아온 횟수라 옛 핸들을 가른다.
         for (std::size_t slot = 0; slot < m_meshResources.Size(); ++slot)
@@ -1302,7 +1330,7 @@ namespace JBro
         {
             m_shadowAtlasWanted = false;
             TextureDesc desc;
-            desc.extent = {ShadowTileSize * 4, ShadowTileSize * 2};
+            desc.extent = {ShadowTileSize * 4, ShadowTileSize * 4};
             desc.format = TextureFormat::D32Float;
             desc.usage = TextureUsage::DepthStencil | TextureUsage::Sampled;
             m_shadowAtlas = m_device->CreateTexture(desc);
@@ -1672,7 +1700,7 @@ namespace JBro
                 gpu.cone[0] = scale;
                 gpu.cone[1] = -cosOuter * scale;
             }
-            // 그림자(D-445): 뷰의 첫 방향광 하나와 스포트 넷까지다.
+            // 그림자(D-445): 뷰의 첫 방향광 하나와 스포트 넷까지, 점광 넷까지(D-446)다.
             const Int32 index = static_cast<JBro::Int32>(view.light3DCount.Get());
             if (light.castShadows && light.kind == Light3DKind::Directional && view.shadowSun < 0)
             {
@@ -1686,6 +1714,13 @@ namespace JBro
                 view.shadowSpotStrength[slot.Get()] = Float::Clamp(light.shadowStrength, 0.0f, 1.0f);
                 view.shadowSpotAngle[slot.Get()] = light.outerAngle.Get();
                 ++view.shadowSpotCount;
+            }
+            else if (light.castShadows && light.kind == Light3DKind::Point && view.shadowPointCount < MaxShadowPoints)
+            {
+                const UInt32 slot = view.shadowPointCount;
+                view.shadowPoints[slot.Get()] = index;
+                view.shadowPointStrength[slot.Get()] = Float::Clamp(light.shadowStrength, 0.0f, 1.0f);
+                ++view.shadowPointCount;
             }
             m_lights3D.Add(gpu);
             ++view.light3DCount;
@@ -3484,6 +3519,10 @@ namespace JBro
         {
             m_noShadows.spotLight[at.Get()] = -1.0f;
         }
+        for (UInt32 at = 0; at < MaxShadowPoints; ++at)
+        {
+            m_noShadows.pointLight[at.Get()] = -1.0f;
+        }
         m_noShadows.viewForward[3] = -1.0f;
         {
             MeshVertexLayout shadowLayout;
@@ -4059,7 +4098,31 @@ namespace JBro
                     m_meshRuns.Add(added);
                     ++view.runCount;
                 }
-                ++m_meshRuns[m_meshRuns.Size() - 1].instanceCount;
+                MeshRun& current = m_meshRuns[m_meshRuns.Size() - 1];
+                // 경계(D-446): 메시의 공을 월드로 옮겨 구간의 상자에 더한다. 크기는 가장 긴 축으로 잡는다(기울어진 크기도 덮는다).
+                if (const MeshResource* resource = FindMesh(submit.mesh))
+                {
+                    const Float* m = submit.world.values;
+                    const Float* c = resource->boundsCenter;
+                    const Float center[3] = {m[0] * c[0] + m[1] * c[1] + m[2] * c[2] + m[3], m[4] * c[0] + m[5] * c[1] + m[6] * c[2] + m[7],
+                        m[8] * c[0] + m[9] * c[1] + m[10] * c[2] + m[11]};
+                    Float scale = 0.0f;
+                    for (Int32 axis = 0; axis < 3; ++axis)
+                    {
+                        const Float length = std::sqrt((m[axis.Get()] * m[axis.Get()] + m[(axis + 4).Get()] * m[(axis + 4).Get()]
+                            + m[(axis + 8).Get()] * m[(axis + 8).Get()]).Get());
+                        scale = length > scale ? length : scale;
+                    }
+                    const Float radius = resource->boundsRadius * scale;
+                    for (Int32 axis = 0; axis < 3; ++axis)
+                    {
+                        const Float low = center[axis.Get()] - radius;
+                        const Float high = center[axis.Get()] + radius;
+                        current.boundsMin[axis.Get()] = current.instanceCount == 0 || low < current.boundsMin[axis.Get()] ? low : current.boundsMin[axis.Get()];
+                        current.boundsMax[axis.Get()] = current.instanceCount == 0 || high > current.boundsMax[axis.Get()] ? high : current.boundsMax[axis.Get()];
+                    }
+                }
+                ++current.instanceCount;
                 GpuMeshInstance& instance = m_gpuMeshInstances[written++];
                 instance.world = submit.world;
                 instance.tint[0] = submit.tint[0];

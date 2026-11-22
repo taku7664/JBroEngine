@@ -10,7 +10,7 @@
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
 
-// **3D 그림자**(D-445, tasks/lighting3d-plan.md §5). 방향광 하나의 캐스케이드 넷과 스포트 넷까지를 한 장의 깊이 아틀라스에 그리고,
+// **3D 그림자**(D-445, tasks/lighting3d-plan.md §5). 방향광 하나의 캐스케이드 넷과 스포트 넷까지, 점광 넷까지의 큐브 면(D-446)을 한 장의 깊이 아틀라스에 그리고,
 // 표준 머티리얼이 3 x 3 PCF 로 읽는다. 캐스케이드는 카메라 앞 `shadowDistance` 를 넷으로 나눈 조각마다 그 조각을 덮는 공(구)에 맞춘 직교 투영이다 -
 // 공은 카메라가 돌아도 크기가 같고, 중심을 칸 크기로 맞춰 옮기면 카메라가 움직여도 그림자 가장자리가 떨지 않는다.
 namespace JBro
@@ -126,13 +126,46 @@ namespace JBro
         constexpr Float SpotBias = 0.00002f;
         // 그림자 맵 뒤로 더 물러서는 거리다 - 카메라에 보이지 않는 곳의 물체도 보이는 곳에 그림자를 드리운다.
         constexpr Float CasterReach = 50.0f;
+
+        // 점광의 큐브 면(D-446). 차례는 +X·-X·+Y·-Y·+Z·-Z 이고 셰이더의 `PointFace` 가 같은 차례로 고른다.
+        constexpr Float PointFaceDirections[6][3] = {
+            {1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}};
+        // 면은 90 도보다 조금 넓게 그린다 - 면 가장자리의 3 x 3 PCF 가 칸 안의 실제 깊이를 읽게. 반 칸(256 텍셀)에서 4 텍셀을 여유로 둔다.
+        // 셰이더는 방향의 가장 큰 축으로 면을 고르므로, 고른 면에서 점은 늘 가장자리보다 4 텍셀 안쪽이다.
+        constexpr Float PointFaceMargin = 4.0f;
+        // 점광의 가까운 면이다. 먼 면은 `range`(없으면 100)다.
+        constexpr Float PointNear = 0.05f;
+
+        // 상자와 공 [x, y, z, 반지름] 이 겹치는가(D-446).
+        Bool BoxTouchesSphere(const Float* low, const Float* high, const Float* sphere)
+        {
+            Float distance = 0.0f;
+            for (Int32 axis = 0; axis < 3; ++axis)
+            {
+                const Float value = sphere[axis.Get()];
+                const Float outside = value < low[axis.Get()] ? Float(low[axis.Get()] - value)
+                    : (value > high[axis.Get()] ? Float(value - high[axis.Get()]) : Float(0.0f));
+                distance += outside * outside;
+            }
+            return distance <= sphere[3] * sphere[3];
+        }
+    }
+
+    UInt32 Renderer::PointShadowTileX(UInt32 tile)
+    {
+        return (tile % (ShadowTileSize * 4 / PointShadowTileSize)) * PointShadowTileSize;
+    }
+
+    UInt32 Renderer::PointShadowTileY(UInt32 tile)
+    {
+        return ShadowTileSize * 2 + (tile / (ShadowTileSize * 4 / PointShadowTileSize)) * PointShadowTileSize;
     }
 
     Bool Renderer::PrepareViewShadows(UInt32 viewIndex, GpuShadowConstants& out) const
     {
         out = m_noShadows;
         const ViewPacket& view = m_views[viewIndex.Get()];
-        if (false == view.lighting3D || (view.shadowSun < 0 && view.shadowSpotCount == 0))
+        if (false == view.lighting3D || (view.shadowSun < 0 && view.shadowSpotCount == 0 && view.shadowPointCount == 0))
         {
             return false;
         }
@@ -251,6 +284,28 @@ namespace JBro
             out.spotStrength[slot.Get()] = view.shadowSpotStrength[slot.Get()];
             any = true;
         }
+
+        // 점광(D-446): 면 여섯마다 그 축을 보는 원근이다. 시야각은 90 도에 여유 텍셀만큼 넓힌 것이다.
+        const Float halfTile = static_cast<JBro::Float>(PointShadowTileSize.Get()) * 0.5f;
+        const Float halfTangent = halfTile / (halfTile - PointFaceMargin);
+        const Float pointFieldOfView = 2.0f * std::atan(halfTangent.Get());
+        for (UInt32 slot = 0; slot < view.shadowPointCount && slot < MaxShadowPoints; ++slot)
+        {
+            const Int32 index = view.shadowPoints[slot.Get()];
+            const GpuLight3D& point = m_lights3D[(view.light3DOffset + static_cast<UInt32>(index.Get())).Get()];
+            const Vector3 position{point.positionRange[0], point.positionRange[1], point.positionRange[2]};
+            const Float farPlane = point.positionRange[3] > 0.0f ? point.positionRange[3] : Float(100.0f);
+            const Matrix4x4 lightProjection = LightPerspective(pointFieldOfView, PointNear, farPlane);
+            for (UInt32 face = 0; face < 6; ++face)
+            {
+                const Float* direction = PointFaceDirections[face.Get()];
+                out.points[(slot * 6 + face).Get()] = MultiplyMatrices(lightProjection, LightView(position, Vector3{direction[0], direction[1], direction[2]}));
+            }
+            out.pointLight[slot.Get()] = static_cast<JBro::Float>(index.Get());
+            out.pointTexel[slot.Get()] = 2.0f * halfTangent / static_cast<JBro::Float>(PointShadowTileSize.Get());
+            out.pointStrength[slot.Get()] = view.shadowPointStrength[slot.Get()];
+            any = true;
+        }
         return any;
     }
 
@@ -306,16 +361,16 @@ namespace JBro
         {
             return false;
         }
-        const auto drawTile = [&](const Matrix4x4& lightMatrix, UInt32 column, UInt32 row) {
-            const UInt32 tile = ShadowTileSize;
+        // `reach` 가 있으면(점광, D-446) 그 공 [x, y, z, 반지름] 과 겹치지 않는 구간은 그리지 않는다.
+        const auto drawTile = [&](const Matrix4x4& lightMatrix, UInt32 x, UInt32 y, UInt32 tile, const Float* reach) {
             Viewport viewport;
-            viewport.x = static_cast<JBro::Float>((column * tile).Get());
-            viewport.y = static_cast<JBro::Float>((row * tile).Get());
+            viewport.x = static_cast<JBro::Float>(x.Get());
+            viewport.y = static_cast<JBro::Float>(y.Get());
             viewport.width = static_cast<JBro::Float>(tile.Get());
             viewport.height = static_cast<JBro::Float>(tile.Get());
             commands.SetViewport(viewport);
-            commands.SetScissor({static_cast<JBro::Int32>((column * tile).Get()), static_cast<JBro::Int32>((row * tile).Get()),
-                static_cast<JBro::Int32>(((column + 1) * tile).Get()), static_cast<JBro::Int32>(((row + 1) * tile).Get())});
+            commands.SetScissor({static_cast<JBro::Int32>(x.Get()), static_cast<JBro::Int32>(y.Get()),
+                static_cast<JBro::Int32>((x + tile).Get()), static_cast<JBro::Int32>((y + tile).Get())});
             MeshPushConstants push;
             push.viewProjection = lightMatrix;
             if (false == commands.SetGraphicsConstants({reinterpret_cast<const std::byte*>(&push), static_cast<JBro::UInt32>(sizeof(push))}))
@@ -326,7 +381,7 @@ namespace JBro
             {
                 const MeshRun& run = renderer.m_meshRuns[(view.runOffset + at).Get()];
                 const MeshResource* mesh = run.castShadows ? renderer.FindMesh(run.mesh) : nullptr;
-                if (mesh == nullptr)
+                if (mesh == nullptr || (reach != nullptr && false == BoxTouchesSphere(run.boundsMin, run.boundsMax, reach)))
                 {
                     continue;
                 }
@@ -342,16 +397,36 @@ namespace JBro
         const UInt32 cascades = static_cast<UInt32>(static_cast<std::uint32_t>(shadows.params[2].Get()));
         for (UInt32 cascade = 0; cascade < cascades && cascade < MaxShadowCascades; ++cascade)
         {
-            if (false == drawTile(shadows.cascades[cascade.Get()], cascade % 2, cascade / 2))
+            if (false == drawTile(shadows.cascades[cascade.Get()], (cascade % 2) * ShadowTileSize, (cascade / 2) * ShadowTileSize, ShadowTileSize, nullptr))
             {
                 return false;
             }
         }
         for (UInt32 slot = 0; slot < MaxShadowSpots; ++slot)
         {
-            if (shadows.spotLight[slot.Get()] >= 0.0f && false == drawTile(shadows.spots[slot.Get()], slot % 2 + 2, slot / 2))
+            if (shadows.spotLight[slot.Get()] >= 0.0f
+                && false == drawTile(shadows.spots[slot.Get()], (slot % 2 + 2) * ShadowTileSize, (slot / 2) * ShadowTileSize, ShadowTileSize, nullptr))
             {
                 return false;
+            }
+        }
+        for (UInt32 slot = 0; slot < MaxShadowPoints; ++slot)
+        {
+            if (false == (shadows.pointLight[slot.Get()] >= 0.0f))
+            {
+                continue;
+            }
+            const UInt32 index = static_cast<UInt32>(static_cast<std::uint32_t>(shadows.pointLight[slot.Get()].Get()));
+            const GpuLight3D& point = renderer.m_lights3D[(view.light3DOffset + index).Get()];
+            const Float reach[4] = {point.positionRange[0], point.positionRange[1], point.positionRange[2],
+                point.positionRange[3] > 0.0f ? point.positionRange[3] : Float(100.0f)};
+            for (UInt32 face = 0; face < 6; ++face)
+            {
+                const UInt32 tile = slot * 6 + face;
+                if (false == drawTile(shadows.points[tile.Get()], PointShadowTileX(tile), PointShadowTileY(tile), PointShadowTileSize, reach))
+                {
+                    return false;
+                }
             }
         }
         return true;
