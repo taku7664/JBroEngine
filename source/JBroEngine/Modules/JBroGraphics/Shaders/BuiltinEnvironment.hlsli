@@ -9,10 +9,11 @@
 
 static const float EnvironmentPi = 3.14159265f;
 
-// The sky turns by the rotation; looking up a direction in the turned sky turns the direction back.
+// The sky turns by the rotation about +Y the way an object's yaw does (a positive angle takes +X towards -Z, D-448);
+// looking up a direction in the turned sky turns the direction back by the inverse rotation.
 float3 RotateIntoSky(float3 direction, float cosine, float sine)
 {
-    return float3(cosine * direction.x + sine * direction.z, direction.y, -sine * direction.x + cosine * direction.z);
+    return float3(cosine * direction.x - sine * direction.z, direction.y, sine * direction.x + cosine * direction.z);
 }
 
 float2 SkyMapUv(float3 direction)

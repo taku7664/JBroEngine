@@ -1714,6 +1714,154 @@ namespace
         fs::remove_all(root);
     }
 
+    // **하늘 회전은 하늘을 오브젝트처럼 +Y 둘레로 돌린다**(D-448). 손으로 지은 `.hdr` 는 방위마다 색이 다르다: 정면(-Z)이 빨강, 오른쪽(+X)이 초록, 왼쪽(-X)이 파랑,
+    // 뒤(+Z)가 검정이다. 회전 90 도는 Y 축 90 도로 돈 오브젝트처럼 +X 에 있던 것을 -Z 로 가져온다 - 정면을 보는 카메라의 `Sky` 배경이 초록, -90 도면 파랑이다.
+    // 같은 회전을 확산(SH)과 반사도 쓴다: 카메라를 보는(+Z) 벽은 회전 90 도에서 원래 -X 에 있던 파랑을 받고, -90 도에서 초록을 받는다.
+    template <typename TModule>
+    void TestSkyRotationTurnsTheSky()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; the sky rotation not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroSkyRotationProbe·회전";
+        fs::remove_all(root);
+        fs::create_directories(root / "sky");
+        {
+            std::string file = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 32 +X 64\n";
+            for (int y = 0; y < 32; ++y)
+            {
+                for (int x = 0; x < 64; ++x)
+                {
+                    // u = 0.5 가 -Z, 0.75 가 +X, 0.25 가 -X 다(BuiltinEnvironment.hlsli).
+                    const float u = (static_cast<float>(x) + 0.5f) / 64.0f;
+                    const bool front = u >= 0.375f && u < 0.625f;
+                    const bool right = u >= 0.625f && u < 0.875f;
+                    const bool left = u >= 0.125f && u < 0.375f;
+                    PushRgbe(file, front ? 1.0f : 0.0f, right ? 1.0f : 0.0f, left ? 1.0f : 0.0f);
+                }
+            }
+            std::ofstream out(root / "sky" / "compass.hdr", std::ios::binary);
+            out.write(file.data(), static_cast<std::streamsize>(file.size()));
+        }
+        WriteText(root / "sky" / "mirror.jmat", "Version: 1\nMaterial:\n  shader: Standard\n  metallic: 1\n  roughness: 0\n");
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const JBro::AssetId skyId = registry.FindByPath("sky/compass.hdr")->id;
+        const JBro::AssetId mirrorId = registry.FindByPath("sky/mirror.jmat")->id;
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        // 카메라는 +Z 에서 정면(-Z)을 본다.
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 4.0f};
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        camera->background = JBro::Component::CameraBackground3D::Sky;
+        // 벽: 평면을 X 둘레로 90 도 세워 법선이 +Z(카메라 쪽)다. 처음에는 꺼 두고 배경만 본다.
+        JBro::Object::GameObject* wallObject = canvas.CreateObject("wall");
+        canvas.AttachComponent<JBro::Component::Transform3D>(wallObject)->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(1.5707963f));
+        auto* wall = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(wallObject);
+        for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+        {
+            if (std::strcmp(JBro::MeshLibrary::GetBuiltin(index).name, "Plane") == 0)
+            {
+                wall->meshId = JBro::MeshLibrary::GetBuiltin(index).id;
+            }
+        }
+        wall->visible = false;
+        JBro::Object::GameObject* darkObject = canvas.CreateObject("dark");
+        auto* dark = canvas.AttachComponent<JBro::Component::Light3D>(darkObject);
+        dark->type = JBro::Component::Light3DType::Ambient;
+        dark->intensity = 0.0f;
+        const auto setRotation = [&](float degrees, float reflection) {
+            JBro::CanvasEnvironment environment = canvas.GetEnvironment();
+            environment.ambientSource = JBro::EnvironmentAmbientSource::Sky;
+            environment.skyId = skyId;
+            environment.skyRotation = degrees;
+            environment.reflectionIntensity = reflection;
+            canvas.SetEnvironment(environment);
+        };
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        const auto render = [&]() {
+            framework.BindCanvasAssets();
+            stage.RenderOnce(framework, image, readback);
+            return ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        };
+        const auto print = [](const char* what, const Pixel& pixel) {
+            std::cout << "  " << what << ": " << pixel.r.Get() << " " << pixel.g.Get() << " " << pixel.b.Get() << std::endl;
+        };
+
+        // 배경.
+        setRotation(0.0f, 1.0f);
+        const Pixel straight = render();
+        print("background, rotation 0", straight);
+        Check(straight.r > 0.9f && straight.g < 0.05f && straight.b < 0.05f, "with no rotation the camera looking down -Z sees the sky's -Z (red)");
+        setRotation(90.0f, 1.0f);
+        const Pixel turned = render();
+        print("background, rotation 90", turned);
+        Check(turned.g > 0.9f && turned.r < 0.05f && turned.b < 0.05f, "a rotation of 90 brings the sky's +X (green) to -Z, as a 90 degree yaw turns an object's +X to -Z");
+        setRotation(-90.0f, 1.0f);
+        const Pixel back = render();
+        print("background, rotation -90", back);
+        Check(back.b > 0.9f && back.r < 0.05f && back.g < 0.05f, "a rotation of -90 brings the sky's -X (blue) to -Z");
+
+        // 확산: 반사를 끄고 +Z 를 보는 흰 벽.
+        wall->visible = true;
+        setRotation(90.0f, 0.0f);
+        const Pixel diffuseTurned = render();
+        print("diffuse wall, rotation 90", diffuseTurned);
+        Check(diffuseTurned.b > diffuseTurned.g + 0.1f && diffuseTurned.b > diffuseTurned.r + 0.1f,
+            "at 90 the wall facing +Z takes the light of the sky's -X (blue), which the rotation has brought round to +Z");
+        setRotation(-90.0f, 0.0f);
+        const Pixel diffuseBack = render();
+        print("diffuse wall, rotation -90", diffuseBack);
+        Check(diffuseBack.g > diffuseBack.b + 0.1f && diffuseBack.g > diffuseBack.r + 0.1f, "at -90 it takes the sky's +X (green)");
+        setRotation(0.0f, 0.0f);
+        const Pixel diffuseStraight = render();
+        print("diffuse wall, rotation 0", diffuseStraight);
+        setRotation(180.0f, 0.0f);
+        const Pixel diffuseAround = render();
+        print("diffuse wall, rotation 180", diffuseAround);
+        Check(diffuseAround.r > diffuseStraight.r + 0.2f, "at 180 the wall facing +Z takes the sky's -Z (red) it had at its back");
+
+        // 반사: 거울 벽은 -Z 로 보는 눈을 +Z 로 되비춘다.
+        wall->materialId = mirrorId;
+        wall->material = {};
+        setRotation(90.0f, 1.0f);
+        const Pixel mirrorTurned = render();
+        print("mirror wall, rotation 90", mirrorTurned);
+        Check(mirrorTurned.b > 0.9f && mirrorTurned.g < 0.05f && mirrorTurned.r < 0.05f, "at 90 the mirror facing +Z reflects the sky's -X (blue)");
+        setRotation(-90.0f, 1.0f);
+        const Pixel mirrorBack = render();
+        print("mirror wall, rotation -90", mirrorBack);
+        Check(mirrorBack.g > 0.9f && mirrorBack.b < 0.05f && mirrorBack.r < 0.05f, "at -90 it reflects the sky's +X (green)");
+        Check(framework.GetEnvironmentLibrary().GetBuildCount() == 1, "turning the sky does not bake it again");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+
     // **계산한 탄젠트로 노멀맵이 선다**(D-444). 시험 사각형 glTF 에는 탄젠트가 없어 임포트가 MikkTSpace 로 잰다. 바닥(법선 +Y)에 누운 사각형을 위에서 보고,
     // 빛은 옆에서만(수평) 온다 - 평평한 면은 빛을 등지지 않지만 받지도 않아 검다. 노멀맵 (1, 0.5, 0.5) 는 법선을 탄젠트(+u = +X)로 눕혀 +X 에서 오는 빛을 받고,
     // (0.5, 1, 0.5) 는 바이탄젠트(그림의 위 = -Z)로 눕혀 -Z 에서 오는 빛을 받는다. 반대쪽 빛에서는 검다 - 바이탄젠트의 부호가 틀리면 둘째가 뒤집힌다.
@@ -2618,6 +2766,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestEnvironmentLightsMeshes<JBro::D3D12RHIModule>());
     JBRO_CASE(TestEnvironmentLightsMeshes<JBro::D3D11RHIModule>());
     JBRO_CASE(TestEnvironmentLightsMeshes<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::VulkanRHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D12RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D11RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::VulkanRHIModule>());

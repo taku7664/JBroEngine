@@ -125,6 +125,7 @@
 #include <windows.h>
 #include <imm.h>
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -13498,6 +13499,168 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // RGBE 한 텍셀이다(Radiance `.hdr`).
+    void PushSkyRgbe(std::string& bytes, float r, float g, float b)
+    {
+        const float largest = (std::max)(r, (std::max)(g, b));
+        if (largest < 1e-32f)
+        {
+            bytes.append(4, '\0');
+            return;
+        }
+        int exponent = 0;
+        const float mantissa = std::frexp(largest, &exponent);
+        const float scale = mantissa * 256.0f / largest;
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(r * scale)));
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(g * scale)));
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(b * scale)));
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(exponent + 128)));
+    }
+
+    // **에디터의 3D 캔버스 뷰에 하늘 맵과 점광 그림자가 선다**(D-447·D-446, D-448). 노을 하늘 `.hdr`(천정은 짙은 파랑, 지평선은 밝은 주황, +X 쪽 낮은 해, 갈색 땅)를
+    // 프로젝트에 두고 캔버스 환경을 `Sky` 로 한다. 바닥·상자·거울 구에 그림자를 드리우는 점광 하나다. 에디터 뷰는 하늘을 배경으로 그리고, 거울 구는 하늘을 비추며,
+    // 상자는 점광 반대쪽 바닥에 그림자를 드리운다. `JBRO_EDITOR_SHOT` 이 있으면 회전 0 과 90 을 찍어 사람이 본다 - 90 이면 해가 정면(-Z) 쪽으로 온다.
+    void TestTheCanvasViewShowsTheSkyAndPointShadows()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroSkyViewProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Contents" / "Assets" / "Sky", ignored);
+        fs::create_directories(root / "Contents" / "Assets" / "Materials", ignored);
+        {
+            constexpr int width = 512;
+            constexpr int height = 256;
+            std::string file = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 256 +X 512\n";
+            // 해: +X 에서 높이 15 도. 방향과 자리는 BuiltinEnvironment.hlsli 의 등장방형(u 0.75 가 +X, v 0 이 천정)이다.
+            const float sunX = std::cos(0.2618f);
+            const float sunY = std::sin(0.2618f);
+            for (int y = 0; y < height; ++y)
+            {
+                const float theta = (static_cast<float>(y) + 0.5f) / height * 3.14159265f;
+                for (int x = 0; x < width; ++x)
+                {
+                    const float phi = ((static_cast<float>(x) + 0.5f) / width - 0.5f) * 6.2831853f;
+                    const float dx = std::sin(theta) * std::sin(phi);
+                    const float dy = std::cos(theta);
+                    const float sunCosine = dx * sunX + dy * sunY;
+                    float r = 0.0f;
+                    float g = 0.0f;
+                    float b = 0.0f;
+                    if (dy >= 0.0f)
+                    {
+                        const float up = std::pow(dy, 0.5f);
+                        r = 1.6f * (1.0f - up) + 0.10f * up;
+                        g = 0.75f * (1.0f - up) + 0.22f * up;
+                        b = 0.45f * (1.0f - up) + 0.60f * up;
+                        const float glow = std::pow((std::max)(sunCosine, 0.0f), 8.0f);
+                        r += 1.5f * glow;
+                        g += 0.7f * glow;
+                        b += 0.2f * glow;
+                    }
+                    else
+                    {
+                        r = 0.16f;
+                        g = 0.11f;
+                        b = 0.08f;
+                    }
+                    if (sunCosine > 0.9994f)
+                    {
+                        r = 60.0f;
+                        g = 45.0f;
+                        b = 30.0f;
+                    }
+                    PushSkyRgbe(file, r, g, b);
+                }
+            }
+            std::ofstream out(root / "Contents" / "Assets" / "Sky" / "sunset.hdr", std::ios::binary);
+            out.write(file.data(), static_cast<std::streamsize>(file.size()));
+        }
+        Check(WriteTextFile(TempPath("JBroSkyViewProbe\\Contents\\Assets\\Materials\\mirror.jmat"), "Version: 1\nMaterial:\n  shader: Standard\n  metallic: 1\n  roughness: 0.05\n"),
+            "the test must be able to write its mirror material");
+        const JBro::String projectPath = TempPath("JBroSkyViewProbe\\Sky.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the sky in the canvas view not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        const JBro::AssetRecord* skyRecord = editor.GetAssetRegistry().FindByPath("Sky/sunset.hdr");
+        const JBro::AssetRecord* mirrorRecord = editor.GetAssetRegistry().FindByPath("Materials/mirror.jmat");
+        Check(skyRecord != nullptr && skyRecord->type == JBro::AssetType::EnvironmentMap, "the project's .hdr is a sky map");
+        Check(mirrorRecord != nullptr, "the project's mirror material is registered");
+        const JBro::AssetId skyId = skyRecord->id;
+        const JBro::AssetId mirrorId = mirrorRecord->id;
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe has a canvas");
+
+        const auto place = [&](const char* label, JBro::Vector3 at, JBro::Vector3 scale, const char* shape) {
+            JBro::Object::GameObject* object = canvas->CreateObject(label);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(object);
+            transform->position = at;
+            transform->scale = scale;
+            auto* mesh = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(object);
+            for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+            {
+                if (std::strcmp(JBro::MeshLibrary::GetBuiltin(index).name, shape) == 0)
+                {
+                    mesh->meshId = JBro::MeshLibrary::GetBuiltin(index).id;
+                }
+            }
+            return mesh;
+        };
+        place("Floor", {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}, "Plane");
+        place("Box", {-1.2f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, "Cube");
+        JBro::Component::MeshRenderer3D* ball = place("Ball", {1.6f, 0.75f, -0.5f}, {1.5f, 1.5f, 1.5f}, "Sphere");
+        ball->materialId = mirrorId;
+        // 상자 오른쪽 앞의 점광 - 그림자는 상자의 왼쪽 뒤 바닥에 진다.
+        JBro::Object::GameObject* bulb = canvas->CreateObject("Bulb");
+        canvas->AttachComponent<JBro::Component::Transform3D>(bulb)->position = {0.0f, 1.3f, 0.9f};
+        auto* point = canvas->AttachComponent<JBro::Component::Light3D>(bulb);
+        point->type = JBro::Component::Light3DType::Point;
+        point->color = {1.0f, 0.85f, 0.6f, 1.0f};
+        point->intensity = 6.0f;
+        point->range = 6.0f;
+        point->castShadows = true;
+
+        JBro::CanvasEnvironment environment = canvas->GetEnvironment();
+        environment.ambientSource = JBro::EnvironmentAmbientSource::Sky;
+        environment.skyId = skyId;
+        environment.skyIntensity = 0.6f;
+        editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetCanvasEnvironmentCommand>(*canvas, environment, 1));
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the lit canvas");
+        }
+        Check(canvas->GetEnvironment().sky.generation != 0, "the canvas bound its sky map");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "canvas_view_sky");
+
+        environment = canvas->GetEnvironment();
+        environment.skyRotation = 90.0f;
+        editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetCanvasEnvironmentCommand>(*canvas, environment, 2));
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the turned sky");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "canvas_view_sky_turned");
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // **캔버스 자신을 골라 배경색을 고친다**(D-186, 기존 `DrawCanvasInspector`).
     // 오브젝트도 레이어도 아닌 값이 캔버스에 붙는 첫 자리다 - 그전까지는 그런 값이
     // 갈 곳도, 그것을 고를 줄도 없었다.
@@ -21571,6 +21734,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheInspectorRenamesAndTogglesThroughCommands());
     JBRO_CASE(TestTheCanvasItselfCanBeSelectedAndPainted());
     JBRO_CASE(TestTheCanvasEnvironmentIsEditedIn3D());
+    JBRO_CASE(TestTheCanvasViewShowsTheSkyAndPointShadows());
     JBRO_CASE(TestTheAssetBrowserSelectsManyFilesAtOnce());
     JBRO_CASE(TestTheAssetBrowserSortsByNameTypeOrDate());
     JBRO_CASE(TestUnknownFilesOpenAndAssetsCanBeFound());
