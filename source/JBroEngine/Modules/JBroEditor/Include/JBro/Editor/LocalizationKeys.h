@@ -283,6 +283,22 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorCanvasBackground = "inspector.canvas_background";
     // 캔버스의 뷰포트 목록(D-438).
     inline constexpr const char* InspectorCanvasViewports = "inspector.canvas_viewports";
+    inline constexpr const char* InspectorCanvasEnvironment = "inspector.canvas_environment";
+    inline constexpr const char* InspectorEnvironmentAmbientSource = "inspector.environment_ambient_source";
+    inline constexpr const char* InspectorEnvironmentAmbientSourceTooltip = "inspector.environment_ambient_source_tooltip";
+    inline constexpr const char* InspectorEnvironmentSourceColor = "inspector.environment_source_color";
+    inline constexpr const char* InspectorEnvironmentSourceGradient = "inspector.environment_source_gradient";
+    inline constexpr const char* InspectorEnvironmentSourceSky = "inspector.environment_source_sky";
+    inline constexpr const char* InspectorEnvironmentAmbientColor = "inspector.environment_ambient_color";
+    inline constexpr const char* InspectorEnvironmentSkyColor = "inspector.environment_sky_color";
+    inline constexpr const char* InspectorEnvironmentEquatorColor = "inspector.environment_equator_color";
+    inline constexpr const char* InspectorEnvironmentGroundColor = "inspector.environment_ground_color";
+    inline constexpr const char* InspectorEnvironmentAmbientIntensity = "inspector.environment_ambient_intensity";
+    inline constexpr const char* InspectorEnvironmentSky = "inspector.environment_sky";
+    inline constexpr const char* InspectorEnvironmentSkyTooltip = "inspector.environment_sky_tooltip";
+    inline constexpr const char* InspectorEnvironmentSkyIntensity = "inspector.environment_sky_intensity";
+    inline constexpr const char* InspectorEnvironmentSkyRotation = "inspector.environment_sky_rotation";
+    inline constexpr const char* InspectorEnvironmentReflectionIntensity = "inspector.environment_reflection_intensity";
     inline constexpr const char* InspectorViewportName = "inspector.viewport_name";
     inline constexpr const char* InspectorViewportActive = "inspector.viewport_active";
     inline constexpr const char* InspectorViewportCamera = "inspector.viewport_camera";

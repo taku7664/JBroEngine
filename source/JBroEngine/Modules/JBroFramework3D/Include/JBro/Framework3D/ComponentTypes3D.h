@@ -23,6 +23,19 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 3D 카메라의 배경이다(D-447). `Sky` 면 캔버스 환경의 하늘 맵을 지우기 색 위에 그린다 - 하늘 맵이 없으면 `Color` 와 같다.
+    enum class CameraBackground3D : std::uint8_t { Color, Sky };
+}
+
+namespace JBro
+{
+    JBRO_DEFINE_ENUM_TYPE(Component::CameraBackground3D, "Component::CameraBackground3D",
+        { Component::CameraBackground3D::Color, "Color" },
+        { Component::CameraBackground3D::Sky,   "Sky" });
+}
+
+namespace JBro::Component
+{
     // 후처리 볼륨의 모양이다(D-346). `Global` 은 캔버스 어디서나, `Box`·`Sphere` 는 오브젝트의 트랜스폼에 놓인 모양 안이다.
     enum class PostProcessVolumeShape3D : std::uint8_t { Global, Box, Sphere };
     // 3D 라이트의 종류다(D-407). 값의 차례는 파일과 렌더러의 `Light3DKind` 가 함께 쓰므로 뒤에만 더한다.

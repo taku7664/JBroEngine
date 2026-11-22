@@ -1045,6 +1045,94 @@ namespace JBro
                 canvas.SetViewports(viewports);
             }
         }
+
+        // **환경**(D-447). 출처는 이름으로 적는다 - 차례가 바뀌어도 파일이 그대로 읽힌다.
+        const char* const EnvironmentAmbientNames[EnvironmentAmbientSourceCount] = {"Color", "Gradient", "Sky"};
+
+        void WriteEnvironmentColor(YamlWriter& writer, const char* key, const Color& color)
+        {
+            writer.BeginMap(key);
+            writer.WriteFloat("R", color.R);
+            writer.WriteFloat("G", color.G);
+            writer.WriteFloat("B", color.B);
+            writer.EndMap();
+        }
+
+        void ReadEnvironmentColor(const YamlDocument& document, UInt32 node, const char* key, Color& color)
+        {
+            const UInt32 entry = document.Find(node, key);
+            if (entry == YamlDocument::InvalidNode)
+            {
+                return;
+            }
+            document.FindFloat(entry, "R", color.R);
+            document.FindFloat(entry, "G", color.G);
+            document.FindFloat(entry, "B", color.B);
+        }
+
+        void WriteEnvironment(const CanvasEnvironment& environment, YamlWriter& writer)
+        {
+            writer.BeginMap("Environment");
+            writer.WriteString("AmbientSource", EnvironmentAmbientNames[static_cast<std::uint8_t>(environment.ambientSource)]);
+            WriteEnvironmentColor(writer, "AmbientColor", environment.ambientColor);
+            WriteEnvironmentColor(writer, "SkyColor", environment.skyColor);
+            WriteEnvironmentColor(writer, "EquatorColor", environment.equatorColor);
+            WriteEnvironmentColor(writer, "GroundColor", environment.groundColor);
+            writer.WriteFloat("AmbientIntensity", environment.ambientIntensity);
+            if (false == environment.skyId.IsNull())
+            {
+                char id[Uuid::TextCapacity] = {};
+                environment.skyId.ToText(id, sizeof(id));
+                writer.WriteString("Sky", id);
+            }
+            writer.WriteFloat("SkyIntensity", environment.skyIntensity);
+            writer.WriteFloat("SkyRotation", environment.skyRotation);
+            writer.WriteFloat("ReflectionIntensity", environment.reflectionIntensity);
+            writer.EndMap();
+        }
+
+        // 없는 키는 기본값이다. 모르는 출처 이름과 아이디가 아닌 하늘은 거절한다 - 조용히 바꾸면 저장할 때 사용자의 값을 잃는다.
+        Bool ReadEnvironment(const YamlDocument& document, UInt32 root, Canvas& canvas, CanvasFileError& error)
+        {
+            const UInt32 node = document.Find(root, "Environment");
+            if (node == YamlDocument::InvalidNode)
+            {
+                return true;
+            }
+            CanvasEnvironment environment;
+            String source;
+            if (document.FindScalar(node, "AmbientSource", source))
+            {
+                Bool known = false;
+                for (std::uint8_t at = 0; at < EnvironmentAmbientSourceCount; ++at)
+                {
+                    if (source == EnvironmentAmbientNames[at])
+                    {
+                        environment.ambientSource = static_cast<EnvironmentAmbientSource>(at);
+                        known = true;
+                    }
+                }
+                if (false == known)
+                {
+                    return Fail(error, "the environment names an ambient source this version does not know");
+                }
+            }
+            ReadEnvironmentColor(document, node, "AmbientColor", environment.ambientColor);
+            ReadEnvironmentColor(document, node, "SkyColor", environment.skyColor);
+            ReadEnvironmentColor(document, node, "EquatorColor", environment.equatorColor);
+            ReadEnvironmentColor(document, node, "GroundColor", environment.groundColor);
+            document.FindFloat(node, "AmbientIntensity", environment.ambientIntensity);
+            String sky;
+            if (document.FindScalar(node, "Sky", sky) && false == Uuid::Parse(sky.c_str(), sky.size(), environment.skyId))
+            {
+                return Fail(error, "the environment names a sky that is not an asset id");
+            }
+            document.FindFloat(node, "SkyIntensity", environment.skyIntensity);
+            document.FindFloat(node, "SkyRotation", environment.skyRotation);
+            document.FindFloat(node, "ReflectionIntensity", environment.reflectionIntensity);
+            canvas.SetEnvironment(environment);
+            return true;
+        }
     }
 
     Bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error, CanvasWriteMode mode)
@@ -1091,6 +1179,11 @@ namespace JBro
             writer.WriteFloat("B", background.B);
             writer.WriteFloat("A", background.A);
             writer.EndMap();
+        }
+        // 환경은 기본이 아닐 때만 적는다(D-447) - 쓰지 않는 캔버스는 옛 파일과 글자까지 같다.
+        if (false == canvas.GetEnvironment().IsDefault())
+        {
+            WriteEnvironment(canvas.GetEnvironment(), writer);
         }
 
         writer.BeginSequence("Layers");
@@ -1164,6 +1257,10 @@ namespace JBro
                 document.FindFloat(background, "A", color.A);
                 canvas.SetBackgroundColor(color);
             }
+        }
+        if (false == ReadEnvironment(document, root, canvas, error))
+        {
+            return false;
         }
 
         // 레이어부터 만든다. 파일의 Id 는 그대로 쓸 수 없으므로(캔버스가 스스로 매긴다)

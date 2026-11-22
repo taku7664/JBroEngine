@@ -95,6 +95,83 @@ cbuffer ShadowConstants : register(b3)
 };
 Texture2D<float> gShadowAtlas : register(t5);
 
+#include "BuiltinEnvironment.hlsli"
+
+// The canvas environment (D-447). Layout mirrors GpuEnvironmentConstants in Renderer.h. The default block adds no light:
+// a black Color source and no sky map - the picture from before environments.
+cbuffer EnvironmentConstants : register(b4)
+{
+    // rgb the Color source; w the source (0 Color, 1 Gradient, 2 Sky).
+    float4 gEnvironmentAmbient;
+    // The Gradient source: up, sideways and down.
+    float4 gEnvironmentSkyColor;
+    float4 gEnvironmentEquatorColor;
+    float4 gEnvironmentGroundColor;
+    // The Sky source: irradiance / pi of the sky map as nine SH coefficients (rgb), in the sky's own frame.
+    float4 gEnvironmentSh[9];
+    // x cos and y sin of the sky's rotation, z the sky's intensity, w the reflection intensity.
+    float4 gEnvironmentParams;
+    // x the sky map's mip count (0: no map); a rough surface reads a lower mip (D-447 prefiltered with GGX).
+    float4 gEnvironmentMap;
+};
+Texture2D gEnvironmentTexture : register(t6);
+SamplerState gEnvironmentSampler : register(s1);
+
+// Unity's trilight: up blends towards the sky colour, down towards the ground, sideways is the equator.
+float3 EnvironmentGradient(float3 direction)
+{
+    const float up = clamp(direction.y, -1.0f, 1.0f);
+    return up >= 0.0f ? lerp(gEnvironmentEquatorColor.rgb, gEnvironmentSkyColor.rgb, up)
+                      : lerp(gEnvironmentEquatorColor.rgb, gEnvironmentGroundColor.rgb, -up);
+}
+
+// Light reaching a surface facing `normal`, as a white Lambert surface would reflect it.
+float3 EnvironmentDiffuse(float3 normal)
+{
+    if (gEnvironmentAmbient.w < 0.5f)
+    {
+        return gEnvironmentAmbient.rgb;
+    }
+    if (gEnvironmentAmbient.w < 1.5f)
+    {
+        return EnvironmentGradient(normal);
+    }
+    const float3 n = RotateIntoSky(normal, gEnvironmentParams.x, gEnvironmentParams.y);
+    const float3 result = gEnvironmentSh[0].rgb * 0.282095f
+        + gEnvironmentSh[1].rgb * (0.488603f * n.y) + gEnvironmentSh[2].rgb * (0.488603f * n.z) + gEnvironmentSh[3].rgb * (0.488603f * n.x)
+        + gEnvironmentSh[4].rgb * (1.092548f * n.x * n.y) + gEnvironmentSh[5].rgb * (1.092548f * n.y * n.z)
+        + gEnvironmentSh[6].rgb * (0.315392f * (3.0f * n.z * n.z - 1.0f)) + gEnvironmentSh[7].rgb * (1.092548f * n.x * n.z)
+        + gEnvironmentSh[8].rgb * (0.546274f * (n.x * n.x - n.y * n.y));
+    return max(result, float3(0.0f, 0.0f, 0.0f));
+}
+
+// Light arriving along `direction` for a surface of this roughness: the sky map's prefiltered mip, or the source's colour.
+float3 EnvironmentSpecular(float3 direction, float roughness)
+{
+    if (gEnvironmentAmbient.w < 0.5f)
+    {
+        return gEnvironmentAmbient.rgb;
+    }
+    if (gEnvironmentAmbient.w < 1.5f || gEnvironmentMap.x < 0.5f)
+    {
+        return gEnvironmentAmbient.w < 1.5f ? EnvironmentGradient(direction) : float3(0.0f, 0.0f, 0.0f);
+    }
+    const float3 turned = RotateIntoSky(direction, gEnvironmentParams.x, gEnvironmentParams.y);
+    const float level = roughness * (gEnvironmentMap.x - 1.0f);
+    return gEnvironmentTexture.SampleLevel(gEnvironmentSampler, SkyMapUv(turned), level).rgb * gEnvironmentParams.z;
+}
+
+// Split-sum environment BRDF without a lookup table (Karis, "Physically Based Shading on Mobile", 2014).
+float3 EnvironmentBrdf(float3 reflectance, float roughness, float normalDotView)
+{
+    const float4 c0 = float4(-1.0f, -0.0275f, -0.572f, 0.022f);
+    const float4 c1 = float4(1.0f, 0.0425f, 1.04f, -0.04f);
+    const float4 r = roughness * c0 + c1;
+    const float a004 = min(r.x * r.x, exp2(-9.28f * normalDotView)) * r.x + r.y;
+    const float2 scaleBias = float2(-1.04f, 1.04f) * a004 + r.zw;
+    return reflectance * scaleBias.x + scaleBias.y;
+}
+
 static const float ShadowTile = 1024.0f;
 static const float PointShadowTile = 512.0f;
 
@@ -344,7 +421,12 @@ float4 PSMain(VertexOutput input, bool frontFace : SV_IsFrontFace) : SV_TARGET
         direct += (diffuse + Pi * specular) * light.colour.rgb * (attenuation * normalDotLight);
     }
     const float3 ambient = gAmbientCount.rgb * base.rgb * occlusion;
-    return float4(LinearToSrgb(ambient + direct + Emissive(input)), base.a);
+    // The canvas environment (D-447): diffuse light from every side, and the reflection of what the view's mirror direction sees.
+    // The `Ambient` light above keeps its old term (no metallic) so scenes lit by it look as before.
+    const float3 environmentDiffuse = EnvironmentDiffuse(normal) * base.rgb * (1.0f - metallic) * occlusion;
+    const float3 environmentSpecular = EnvironmentSpecular(reflect(-view, normal), roughness)
+        * EnvironmentBrdf(reflectance, roughness, normalDotView) * (occlusion * gEnvironmentParams.w);
+    return float4(LinearToSrgb(ambient + environmentDiffuse + environmentSpecular + direct + Emissive(input)), base.a);
 }
 
 // The shadow map (D-445): depth only, written by the rasteriser.

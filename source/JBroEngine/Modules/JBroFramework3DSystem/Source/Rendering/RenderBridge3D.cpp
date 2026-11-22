@@ -52,6 +52,8 @@ namespace JBro::Internal
         result.clearColor[1] = source.clearColor.G;
         result.clearColor[2] = source.clearColor.B;
         result.clearColor[3] = source.clearColor.A;
+        // 배경이 `Sky` 면 하늘 뷰를 연다(D-447, `SubmitLayerViews`). 환경의 나머지는 그 함수가 싣는다.
+        result.environment.drawSky = source.background == Component::CameraBackground3D::Sky;
         return true;
     }
 
@@ -394,6 +396,21 @@ namespace JBro::Internal
                 }
             };
 
+            // **환경**(D-447): 뷰마다 캔버스의 환경을 싣는다. 부른 쪽이 `drawSky` 를 켰으면(배경이 `Sky` 인 카메라·캔버스 뷰) 하늘만 그리는 뷰를
+            // 레이어 뷰 앞에 연다 - 하늘은 레이어가 아니라 배경이라, 레이어를 블렌드로 얹어도 하늘은 그 아래에 그대로 있다. 썸네일은 그리지 않는다.
+            CameraParams lit = camera;
+            lit.environment = world.GetEnvironment();
+            lit.environment.drawSky = false;
+            if (camera.environment.drawSky && lit.environment.map.generation != 0 && onlyLayer < 0)
+            {
+                CameraParams sky = lit;
+                sky.environment.drawSky = true;
+                if (false == renderer.BeginView(sky) || false == renderer.EndView())
+                {
+                    return false;
+                }
+            }
+
             Bool accepted = true;
             Bool linesDrawn = debugDraw == nullptr && (extraLines == nullptr || extraLineCount == 0);
             for (std::size_t at = 0; at < orders.Size(); ++at)
@@ -402,7 +419,7 @@ namespace JBro::Internal
                 Float opacity = 1.0f;
                 Float parallax = 1.0f;
                 findBlend(orders[at], blend, opacity, parallax);
-                CameraParams layerCamera = camera;
+                CameraParams layerCamera = lit;
                 layerCamera.composite = onlyLayer >= 0 ? CompositeBlend::Normal : ToCompositeBlend3D(blend);
                 layerCamera.compositeOpacity = onlyLayer >= 0 ? Float(1.0f) : opacity;
                 // 레이어의 프로필 효과(D-345)는 그 뷰를 한 장으로 얹으며 건다. 썸네일과 후처리를 끈 캔버스 뷰는 걸지 않는다.
@@ -437,7 +454,7 @@ namespace JBro::Internal
             }
             if (orders.IsEmpty() || false == linesDrawn)
             {
-                if (false == renderer.BeginView(camera))
+                if (false == renderer.BeginView(lit))
                 {
                     return false;
                 }
@@ -455,7 +472,7 @@ namespace JBro::Internal
             const PostProcessStack& post = viewPost != nullptr ? *viewPost : world.GetPostProcess();
             if (postProcess && post.entries.size != 0)
             {
-                CameraParams finish = camera;
+                CameraParams finish = lit;
                 finish.composite = CompositeBlend::Normal;
                 finish.compositeOpacity = 1.0f;
                 finish.postProcess = post;
@@ -504,6 +521,8 @@ namespace JBro::Internal
         parameters.target = view.target;
         parameters.editorView = true;
         parameters.targetExtent = view.extent;
+        // 캔버스 뷰는 하늘 맵이 있으면 늘 하늘을 그린다(D-447) - 편집하는 동안 환경을 본다(Unity 의 씬 뷰와 같다).
+        parameters.environment.drawSky = true;
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
             view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height), -1, view.postProcess, nullptr, nullptr, {},
             view.lines, view.lineCount);

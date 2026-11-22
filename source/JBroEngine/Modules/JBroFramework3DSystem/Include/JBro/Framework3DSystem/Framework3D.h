@@ -9,6 +9,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3D/Internal/SystemContext.h>
 #include <JBro/Framework3D/ServiceContext.h>
+#include <JBro/Framework3DSystem/Rendering/EnvironmentLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/MeshMaterialLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Graphics/MaterialLibrary.h>
@@ -68,6 +69,11 @@ namespace JBro
         RenderWorld2D* GetScreenRenderWorld();
         // 표준 머티리얼(D-399)을 푸는 곳이다. 셰이더 머티리얼(D-347)은 `m_materials` 다.
         MeshMaterialLibrary& GetMeshMaterialLibrary();
+        // 캔버스 환경을 푸는 곳이다(D-447, 시험이 구운 횟수를 본다).
+        EnvironmentLibrary& GetEnvironmentLibrary()
+        {
+            return m_environment;
+        }
 
     private:
         void CreateDefaultSystems();
@@ -78,6 +84,8 @@ namespace JBro
         void ResolvePostProcess();
         // 렌더 텍스처 뷰의 대상과 렌더 텍스처를 읽는 재질 짝을 렌더 월드에 건다(D-439). 추출 뒤, 렌더러 프레임 밖에서 부른다.
         void ResolveCameraTargets();
+        // 캔버스 환경을 풀어 렌더 월드에 건다(D-447). 추출 뒤, 렌더러 프레임 밖에서 부른다.
+        void ResolveEnvironment();
         // 카메라 하나의 프로필에 그 자리의 볼륨을 섞고 덮어쓰기를 얹는다(D-346). `overridesFrom` 이 있으면 그 섞기의 덮어쓰기를 옮겨 온다(D-438, 둘째 뷰부터).
         void MixPostProcessFor(const RenderCamera3D& camera, PostProcessMixer& mixer, const PostProcessMixer* overridesFrom);
 
@@ -124,6 +132,8 @@ namespace JBro
         static constexpr UInt32 LayerPostProcessCapacity = 64;
         // 표준 머티리얼(D-399)·모델의 재질을 렌더러에 올린다. 셰이더 머티리얼은 위의 `m_materials` 다.
         MeshMaterialLibrary m_meshMaterials;
+        // 캔버스 환경을 렌더러의 환경으로 푼다(D-447). 하늘 맵을 굽고 올린다.
+        EnvironmentLibrary m_environment;
         Bool m_initialized = false;
         Bool m_simulationEnabled = true;
         // 스크립트에 건네는 3D 컨텍스트다(D-224). 2D 의 `Framework2D` 와 같은 자리다.

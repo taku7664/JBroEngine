@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Environment.h>
 #include <JBro/Canvas/Viewport.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Types/Array.h>
@@ -55,6 +56,27 @@ namespace JBro
         Canvas* m_canvas = nullptr;
         Array<CanvasViewport> m_before;
         Array<CanvasViewport> m_after;
+        UInt32 m_mergeKey = 0;
+    };
+
+    // **캔버스 환경을 고치는 커맨드다**(D-447). 환경 전체를 앞뒤로 뜬다. `mergeKey` 가 0 이 아니면 같은 키의 잇단 커맨드를 합친다 - 색·세기 칸을 끄는 동안
+    // 프레임마다 쌓이지 않게(뷰포트 커맨드와 같다). 풀린 하늘 핸들은 캔버스가 지킨다(`Canvas::SetEnvironment`).
+    class SetCanvasEnvironmentCommand final : public EditorCommand
+    {
+    public:
+        SetCanvasEnvironmentCommand(Canvas& canvas, const CanvasEnvironment& after, UInt32 mergeKey = 0);
+
+        const char* GetName() const override;
+        Bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+        Bool CanMerge(const EditorCommand& newer) const override;
+        Bool TryMerge(const EditorCommand& newer) override;
+
+    private:
+        Canvas* m_canvas = nullptr;
+        CanvasEnvironment m_before;
+        CanvasEnvironment m_after;
         UInt32 m_mergeKey = 0;
     };
 }

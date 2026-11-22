@@ -10,6 +10,8 @@
 #include "BuiltinMeshPS.generated.h"
 #include "BuiltinMeshUnlitPS.generated.h"
 #include "BuiltinMeshShadowPS.generated.h"
+#include "BuiltinSkyVS.generated.h"
+#include "BuiltinSkyPS.generated.h"
 #include "BuiltinSdfTextVS.generated.h"
 #include "BuiltinSdfTextPS.generated.h"
 #include "BuiltinSdfTextLitPS.generated.h"
@@ -52,6 +54,8 @@ namespace JBro::BuiltinShaderSm5
 #include "BuiltinMeshPS_SM5.generated.h"
 #include "BuiltinMeshUnlitPS_SM5.generated.h"
 #include "BuiltinMeshShadowPS_SM5.generated.h"
+#include "BuiltinSkyVS_SM5.generated.h"
+#include "BuiltinSkyPS_SM5.generated.h"
 #include "BuiltinSdfTextVS_SM5.generated.h"
 #include "BuiltinSdfTextPS_SM5.generated.h"
 #include "BuiltinSdfTextLitPS_SM5.generated.h"
@@ -93,6 +97,8 @@ namespace JBro::BuiltinShaderSpv
 #include "BuiltinMeshPS_SPV.generated.h"
 #include "BuiltinMeshUnlitPS_SPV.generated.h"
 #include "BuiltinMeshShadowPS_SPV.generated.h"
+#include "BuiltinSkyVS_SPV.generated.h"
+#include "BuiltinSkyPS_SPV.generated.h"
 #include "BuiltinSdfTextVS_SPV.generated.h"
 #include "BuiltinSdfTextPS_SPV.generated.h"
 #include "BuiltinSdfTextLitPS_SPV.generated.h"
@@ -168,7 +174,7 @@ namespace JBro
                 {{View(JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS)), View(Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5)), View(Spv::JBroBuiltinMeshVS_SPV, sizeof(Spv::JBroBuiltinMeshVS_SPV))},
                     {View(JBroBuiltinMeshPS, sizeof(JBroBuiltinMeshPS)), View(Sm5::JBroBuiltinMeshPS_SM5, sizeof(Sm5::JBroBuiltinMeshPS_SM5)), View(Spv::JBroBuiltinMeshPS_SPV, sizeof(Spv::JBroBuiltinMeshPS_SPV))},
                     {}},
-                80, 3, {3, 2}, {6, 2}, {1, 2}, {0, 0}, {0, 0}},
+                80, 3, {4, 2}, {7, 2}, {2, 2}, {0, 0}, {0, 0}},
             {"MeshUnlit",
                 {{View(JBroBuiltinMeshVS, sizeof(JBroBuiltinMeshVS)), View(Sm5::JBroBuiltinMeshVS_SM5, sizeof(Sm5::JBroBuiltinMeshVS_SM5)), View(Spv::JBroBuiltinMeshVS_SPV, sizeof(Spv::JBroBuiltinMeshVS_SPV))},
                     {View(JBroBuiltinMeshUnlitPS, sizeof(JBroBuiltinMeshUnlitPS)), View(Sm5::JBroBuiltinMeshUnlitPS_SM5, sizeof(Sm5::JBroBuiltinMeshUnlitPS_SM5)), View(Spv::JBroBuiltinMeshUnlitPS_SPV, sizeof(Spv::JBroBuiltinMeshUnlitPS_SPV))},
@@ -179,6 +185,11 @@ namespace JBro
                     {View(JBroBuiltinMeshShadowPS, sizeof(JBroBuiltinMeshShadowPS)), View(Sm5::JBroBuiltinMeshShadowPS_SM5, sizeof(Sm5::JBroBuiltinMeshShadowPS_SM5)), View(Spv::JBroBuiltinMeshShadowPS_SPV, sizeof(Spv::JBroBuiltinMeshShadowPS_SPV))},
                     {}},
                 80, 1, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+            {"Sky",
+                {{View(JBroBuiltinSkyVS, sizeof(JBroBuiltinSkyVS)), View(Sm5::JBroBuiltinSkyVS_SM5, sizeof(Sm5::JBroBuiltinSkyVS_SM5)), View(Spv::JBroBuiltinSkyVS_SPV, sizeof(Spv::JBroBuiltinSkyVS_SPV))},
+                    {View(JBroBuiltinSkyPS, sizeof(JBroBuiltinSkyPS)), View(Sm5::JBroBuiltinSkyPS_SM5, sizeof(Sm5::JBroBuiltinSkyPS_SM5)), View(Spv::JBroBuiltinSkyPS_SPV, sizeof(Spv::JBroBuiltinSkyPS_SPV))},
+                    {}},
+                80, 2, {0, 0}, {1, 2}, {1, 2}, {0, 0}, {0, 0}},
             {"OutlineGrow",
                 {{View(JBroBuiltinOutlineVS, sizeof(JBroBuiltinOutlineVS)), View(Sm5::JBroBuiltinOutlineVS_SM5, sizeof(Sm5::JBroBuiltinOutlineVS_SM5)), View(Spv::JBroBuiltinOutlineVS_SPV, sizeof(Spv::JBroBuiltinOutlineVS_SPV))},
                     {View(JBroBuiltinOutlineGrowPS, sizeof(JBroBuiltinOutlineGrowPS)), View(Sm5::JBroBuiltinOutlineGrowPS_SM5, sizeof(Sm5::JBroBuiltinOutlineGrowPS_SM5)), View(Spv::JBroBuiltinOutlineGrowPS_SPV, sizeof(Spv::JBroBuiltinOutlineGrowPS_SPV))},

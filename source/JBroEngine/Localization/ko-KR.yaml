@@ -365,6 +365,22 @@ Entries:
   inspector.canvas_properties: 캔버스
   inspector.canvas_background: 배경색
   inspector.canvas_viewports: 뷰포트
+  inspector.canvas_environment: 환경
+  inspector.environment_ambient_source: 환경광 출처
+  inspector.environment_ambient_source_tooltip: 표준 재질이 모든 방향에서 받는 빛을 어디서 가져올지 고릅니다
+  inspector.environment_source_color: 색
+  inspector.environment_source_gradient: 그라디언트
+  inspector.environment_source_sky: 하늘
+  inspector.environment_ambient_color: 환경광 색
+  inspector.environment_sky_color: 하늘 색
+  inspector.environment_equator_color: 지평선 색
+  inspector.environment_ground_color: 땅 색
+  inspector.environment_ambient_intensity: 환경광 세기
+  inspector.environment_sky: 하늘 맵
+  inspector.environment_sky_tooltip: ".hdr 파노라마 그림입니다. 카메라 배경이 Sky 면 그 뒤에 그려지고, 반사와 하늘 환경광의 출처가 됩니다"
+  inspector.environment_sky_intensity: 하늘 세기
+  inspector.environment_sky_rotation: 하늘 회전
+  inspector.environment_reflection_intensity: 반사 세기
   inspector.viewport_name: 이름
   inspector.viewport_active: 사용
   inspector.viewport_camera: 카메라

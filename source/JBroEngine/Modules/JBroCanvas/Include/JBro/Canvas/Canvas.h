@@ -9,6 +9,7 @@
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/ComponentLookupStats.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Canvas/Environment.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Canvas/ScriptPool.h>
 #include <JBro/Canvas/SystemScheduler.h>
@@ -136,6 +137,12 @@ namespace JBro
         // 캔버스를 바꿀 때마다 밖에서 다시 넣어 줘야 하고, 그 자리를 빠뜨리면 앞 씬의 색이 남는다.
         const Color& GetBackgroundColor() const;
         void SetBackgroundColor(const Color& color);
+
+        // **이 캔버스의 환경**(D-447) - 3D 의 환경광·반사·하늘이다. 배경색처럼 캔버스가 들고 `.jcanvas` 에 `Environment` 로 적힌다(기본이면 적지 않는다).
+        // `SetEnvironment` 는 같은 하늘이면 풀린 핸들(`sky`)을 지킨다.
+        const CanvasEnvironment& GetEnvironment() const;
+        CanvasEnvironment& GetEnvironment();
+        void SetEnvironment(const CanvasEnvironment& environment);
 
         // **뷰포트 목록**(D-438, viewport-plan §4.1, 기존 `CGameCanvas` 의 뷰포트). 목록 차례가 그리는 차례다.
         // 새 캔버스는 기본 하나(`Main`, 전체 화면, 카메라 자동)로 시작하고, `.jcanvas` 에 `Viewports` 로 적힌다.
@@ -333,6 +340,7 @@ namespace JBro
         // 옛 캔버스 파일을 열어도 보이던 그대로여야 한다.
         Color                                        m_backgroundColor{0.10f, 0.11f, 0.13f, 1.0f};
         Array<CanvasViewport>                        m_viewports;
+        CanvasEnvironment                            m_environment;
         LayerId                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
         // 이름으로 붙인 스크립트(DLL 이 등록한 타입)의 저장소다. 타입마다 하나씩 늦게 만든다.

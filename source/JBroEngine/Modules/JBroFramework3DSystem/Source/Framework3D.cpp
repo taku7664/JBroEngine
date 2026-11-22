@@ -88,6 +88,7 @@ namespace JBro
                 return false;
             }
             m_sprites.Initialize(context.assets, context.renderer);
+            m_environment.Initialize(context.renderer, context.assets);
             // 재질의 텍스처 칸이 가리키는 렌더 텍스처는 화면 레이어와 같은 렌더 타깃이다(D-439).
             m_meshMaterials.SetRenderTargetSource(&m_sprites);
             m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);
@@ -264,6 +265,7 @@ namespace JBro
         m_screenWorld.EndFrame();
         ResolveCameraTargets();
         ResolvePostProcess();
+        ResolveEnvironment();
     }
 
     void Framework3D::ResolveCameraTargets()
@@ -379,6 +381,14 @@ namespace JBro
         }
     }
 
+    void Framework3D::ResolveEnvironment()
+    {
+        // 캔버스의 환경(D-447). 렌더러 프레임 밖이다 - 하늘이 바뀌면 여기서 굽고 올린다.
+        Environment3D environment;
+        m_environment.Resolve(m_canvas->GetEnvironment(), environment);
+        m_renderWorld.SetEnvironment(environment);
+    }
+
     RenderResult Framework3D::Render()
     {
         if (false == m_initialized || m_context.renderer == nullptr)
@@ -453,6 +463,11 @@ namespace JBro
                 ids.Add(viewports[index].renderTextureId);
             }
         }
+        // 환경의 하늘 맵도 게임 빌드에 든다(D-447).
+        if (false == m_canvas->GetEnvironment().skyId.IsNull())
+        {
+            ids.Add(m_canvas->GetEnvironment().skyId);
+        }
     }
 
     void Framework3D::BindCanvasAssets()
@@ -478,6 +493,17 @@ namespace JBro
                 }
             }
         }
+        // 환경의 하늘 맵(D-447).
+        CanvasEnvironment& environment = m_canvas->GetEnvironment();
+        environment.sky = {};
+        if (false == environment.skyId.IsNull())
+        {
+            environment.sky = m_context.assets->Load(environment.skyId);
+            if (environment.sky.generation != 0)
+            {
+                m_canvasAssets.Add(environment.sky);
+            }
+        }
         m_context.assets->CollectUnused();
     }
 
@@ -490,6 +516,7 @@ namespace JBro
         }
         m_canvasAssets.Clear();
         m_canvas.Reset();
+        m_environment.Shutdown();
         m_meshMaterials.Shutdown();
         m_meshes.Shutdown();
         m_sprites.Shutdown();
@@ -666,6 +693,7 @@ namespace JBro
         m_screenWorld.EndFrame();
         ResolveCameraTargets();
         ResolvePostProcess();
+        ResolveEnvironment();
     }
 
     void Framework3D::EndBreakFrames()

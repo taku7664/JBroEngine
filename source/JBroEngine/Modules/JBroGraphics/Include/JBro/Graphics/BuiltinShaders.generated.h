@@ -18,6 +18,7 @@ namespace JBro
         Mesh,
         MeshUnlit,
         MeshShadow,
+        Sky,
         OutlineGrow,
         OutlineComposite,
         LayerComposite,

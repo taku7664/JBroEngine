@@ -13421,6 +13421,83 @@ namespace
         editor.Shutdown();
     }
 
+    // **3D 캔버스의 환경**(D-447). 캔버스를 고르면 인스펙터에 환경 칸이 서고(2D 캔버스에는 없다), 고치기는 환경 전체를 뜬 커맨드 하나라 되돌리기 한 번에
+    // 돌아온다. 캔버스를 저장하고 다시 열면 그대로다. `JBRO_EDITOR_SHOT` 이 있으면 `Gradient` 의 칸을 연 인스펙터를 찍는다.
+    void TestTheCanvasEnvironmentIsEditedIn3D()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroEnvironmentEditorProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Scenes", ignored);
+        const JBro::String projectPath = TempPath("JBroEnvironmentEditorProbe\\Environment.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 3D\n"
+            "RootPath: .\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the canvas environment editor not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the 3D probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr && canvas->GetEnvironment().IsDefault(), "a new 3D canvas starts with the default environment - the old picture");
+        editor.SetCanvasSelected(true);
+
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        JBro::CanvasEnvironment gradient = canvas->GetEnvironment();
+        gradient.ambientSource = JBro::EnvironmentAmbientSource::Gradient;
+        gradient.skyColor = JBro::Color{0.4f, 0.55f, 0.8f, 1.0f};
+        gradient.ambientIntensity = 1.5f;
+        editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetCanvasEnvironmentCommand>(*canvas, gradient, 1));
+        Check(canvas->GetEnvironment().ambientSource == JBro::EnvironmentAmbientSource::Gradient && canvas->GetEnvironment().ambientIntensity == 1.5f,
+            "the environment command changes the canvas");
+        JBro::CanvasEnvironment brighter = canvas->GetEnvironment();
+        brighter.ambientIntensity = 2.0f;
+        // 매니저는 마우스를 누른 동안만 합친다(끌기 경계를 스스로 잰다) - 여기서는 커맨드가 같은 키끼리 합쳐질 수 있다고 말하는지를 본다.
+        {
+            JBro::SetCanvasEnvironmentCommand first(*canvas, brighter, 1);
+            const JBro::SetCanvasEnvironmentCommand sameKey(*canvas, brighter, 1);
+            const JBro::SetCanvasEnvironmentCommand otherKey(*canvas, brighter, 2);
+            Check(first.CanMerge(sameKey) && false == first.CanMerge(otherKey), "steps of the same field merge; another field does not");
+        }
+        editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetCanvasEnvironmentCommand>(*canvas, brighter, 1));
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 2, "each environment command is an undo step");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the canvas inspector with the environment");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "canvas_environment");
+
+        JBro::CanvasFileError canvasError;
+        const JBro::String canvasPath = TempPath("JBroEnvironmentEditorProbe\\Scenes\\Lit.jcanvas");
+        Check(editor.SaveCanvas(canvasPath.c_str(), canvasError), "the canvas saves");
+        Check(editor.GetCommands().Undo(), "undo runs");
+        Check(canvas->GetEnvironment().ambientIntensity == 1.5f, "one undo takes back the last step");
+        Check(editor.GetCommands().Undo() && canvas->GetEnvironment().IsDefault(), "and the next brings back the default environment");
+        Check(editor.LoadCanvas(canvasPath.c_str(), canvasError), "the saved canvas opens again");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the reopened canvas");
+        }
+        const JBro::CanvasEnvironment& reopened = editor.GetCanvas()->GetEnvironment();
+        Check(reopened.ambientSource == JBro::EnvironmentAmbientSource::Gradient && reopened.ambientIntensity == 2.0f && reopened.skyColor.B == 0.8f,
+            "and its environment is what was saved");
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // **캔버스 자신을 골라 배경색을 고친다**(D-186, 기존 `DrawCanvasInspector`).
     // 오브젝트도 레이어도 아닌 값이 캔버스에 붙는 첫 자리다 - 그전까지는 그런 값이
     // 갈 곳도, 그것을 고를 줄도 없었다.
@@ -21493,6 +21570,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheCanvasViewGridLabelsStayOnTheirLines());
     JBRO_CASE(TestTheInspectorRenamesAndTogglesThroughCommands());
     JBRO_CASE(TestTheCanvasItselfCanBeSelectedAndPainted());
+    JBRO_CASE(TestTheCanvasEnvironmentIsEditedIn3D());
     JBRO_CASE(TestTheAssetBrowserSelectsManyFilesAtOnce());
     JBRO_CASE(TestTheAssetBrowserSortsByNameTypeOrDate());
     JBRO_CASE(TestUnknownFilesOpenAndAssetsCanBeFound());

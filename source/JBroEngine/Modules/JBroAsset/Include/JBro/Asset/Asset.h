@@ -131,6 +131,16 @@ namespace JBro
         UInt32 dataGeneration = 1;
     };
 
+    // 로드된 하늘 맵(`.hdr`, D-447)이다. 선형 빛 rgb 가 `width * height * 3` 이고 행은 위에서 아래다. `dataGeneration` 은 in-place 재로드마다 오른다 -
+    // 프레임워크의 `EnvironmentLibrary` 가 그것을 보고 다시 굽는다.
+    struct EnvironmentMapData
+    {
+        UInt32 width = 0;
+        UInt32 height = 0;
+        Array<Float> rgb;
+        UInt32 dataGeneration = 1;
+    };
+
     // 로드된 렌더 텍스처(`.jrt`, D-362)의 크기와 샘플러다. `dataGeneration` 은 in-place 재로드마다 오른다 - 스프라이트 라이브러리가 그것을 보고 타깃을 다시 만든다.
     struct RenderTextureData
     {
@@ -274,6 +284,7 @@ namespace JBro
         const StringTableData* GetStringTable(AssetHandle handle) const;
         const AudioEffectData* GetAudioEffect(AssetHandle handle) const;
         const ColorLutData* GetColorLut(AssetHandle handle) const;
+        const EnvironmentMapData* GetEnvironmentMap(AssetHandle handle) const;
         const PostProcessProfileData* GetPostProcessProfile(AssetHandle handle) const;
         const RenderTextureData* GetRenderTexture(AssetHandle handle) const;
         const ShaderAssetData* GetShader(AssetHandle handle) const;
@@ -348,6 +359,7 @@ namespace JBro
         Bool ReadStringTable(const AssetRecord& record, StringTableData& data);
         Bool ReadAudioEffect(const AssetRecord& record, AudioEffectData& data);
         Bool ReadColorLut(const AssetRecord& record, ColorLutData& data);
+        Bool ReadEnvironmentMap(const AssetRecord& record, EnvironmentMapData& data);
         Bool ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data);
         Bool ReadRenderTexture(const AssetRecord& record, RenderTextureData& data);
         Bool ReadShader(const AssetRecord& record, ShaderAssetData& data);
@@ -396,6 +408,7 @@ namespace JBro
         Pool<StringTableData> m_stringTables;
         Pool<AudioEffectData> m_audioEffects;
         Pool<ColorLutData> m_colorLuts;
+        Pool<EnvironmentMapData> m_environmentMaps;
         Pool<PostProcessProfileData> m_postProcessProfiles;
         Pool<RenderTextureData> m_renderTextures;
         Pool<ShaderAssetData> m_shaders;

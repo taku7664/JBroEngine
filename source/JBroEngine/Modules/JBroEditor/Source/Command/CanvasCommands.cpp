@@ -111,4 +111,56 @@ namespace JBro
         m_after = static_cast<const SetCanvasViewportsCommand&>(newer).m_after;
         return true;
     }
+
+    SetCanvasEnvironmentCommand::SetCanvasEnvironmentCommand(Canvas& canvas, const CanvasEnvironment& after, UInt32 mergeKey)
+        : m_canvas(&canvas)
+        , m_before(canvas.GetEnvironment())
+        , m_after(after)
+        , m_mergeKey(mergeKey)
+    {
+    }
+
+    const char* SetCanvasEnvironmentCommand::GetName() const
+    {
+        return "Set Canvas Environment";
+    }
+
+    Bool SetCanvasEnvironmentCommand::Execute()
+    {
+        if (m_canvas == nullptr)
+        {
+            return false;
+        }
+        m_canvas->SetEnvironment(m_after);
+        return true;
+    }
+
+    void SetCanvasEnvironmentCommand::Undo()
+    {
+        if (m_canvas != nullptr)
+        {
+            m_canvas->SetEnvironment(m_before);
+        }
+    }
+
+    void SetCanvasEnvironmentCommand::Redo()
+    {
+        Execute();
+    }
+
+    Bool SetCanvasEnvironmentCommand::CanMerge(const EditorCommand& newer) const
+    {
+        const auto* other = dynamic_cast<const SetCanvasEnvironmentCommand*>(&newer);
+        return other != nullptr && other->m_canvas == m_canvas && m_mergeKey != 0 && other->m_mergeKey == m_mergeKey;
+    }
+
+    Bool SetCanvasEnvironmentCommand::TryMerge(const EditorCommand& newer)
+    {
+        if (false == CanMerge(newer))
+        {
+            return false;
+        }
+        m_after = static_cast<const SetCanvasEnvironmentCommand&>(newer).m_after;
+        return true;
+    }
 }

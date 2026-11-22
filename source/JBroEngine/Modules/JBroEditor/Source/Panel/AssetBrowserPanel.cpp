@@ -77,6 +77,9 @@ namespace JBro
                 return Icons::Shader;
             case AssetType::Model:
                 return Icons::FileModel;
+            // 하늘 맵(D-447)은 둘러싼 세상의 그림이다 - 지구 모양을 쓴다(기즈모의 월드 축과 같은 글리프, 글꼴에 이미 있다).
+            case AssetType::EnvironmentMap:
+                return Icons::SpaceWorld;
             default:
                 return Icons::File;
             }

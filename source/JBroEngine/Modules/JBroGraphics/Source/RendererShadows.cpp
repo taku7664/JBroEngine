@@ -151,6 +151,11 @@ namespace JBro
         }
     }
 
+    Bool Renderer::InvertMatrix4x4(const Matrix4x4& matrix, Matrix4x4& result)
+    {
+        return InvertMatrix(matrix, result);
+    }
+
     UInt32 Renderer::PointShadowTileX(UInt32 tile)
     {
         return (tile % (ShadowTileSize * 4 / PointShadowTileSize)) * PointShadowTileSize;

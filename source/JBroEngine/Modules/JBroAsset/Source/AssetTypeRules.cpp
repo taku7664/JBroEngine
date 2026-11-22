@@ -35,6 +35,7 @@ namespace JBro
             {AssetType::PostProcessProfile, "PostProcessProfile"},
             {AssetType::RenderTexture, "RenderTexture"},
             {AssetType::Model, "Model"},
+            {AssetType::EnvironmentMap, "EnvironmentMap"},
         };
 
         struct Extension
@@ -74,6 +75,7 @@ namespace JBro
             {".cube", AssetType::ColorLut},
             {".jpost", AssetType::PostProcessProfile},
             {".jrt", AssetType::RenderTexture},
+            {".hdr", AssetType::EnvironmentMap},
         };
 
         constexpr char MetaExtension[] = ".jmeta";

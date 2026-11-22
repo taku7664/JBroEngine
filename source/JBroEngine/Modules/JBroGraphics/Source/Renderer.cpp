@@ -816,6 +816,116 @@ namespace JBro
         return AssetHandle{static_cast<JBro::UInt32>(m_textureResources.Size() - 1), resource.generation};
     }
 
+    AssetHandle Renderer::RegisterEnvironmentMap(const EnvironmentMapBuild& build)
+    {
+        if (m_device == nullptr || m_frameActive || build.levels.IsEmpty() || build.levels[0].width == 0 || build.levels[0].height == 0)
+        {
+            return {};
+        }
+        // 밉은 반씩 줄어야 한다 - 셰이더가 거칠기로 단계를 고른다.
+        for (std::size_t at = 0; at < build.levels.Size(); ++at)
+        {
+            const EnvironmentMapLevel& level = build.levels[at];
+            const UInt32 width = build.levels[0].width.Get() >> at;
+            const UInt32 height = build.levels[0].height.Get() >> at;
+            if (level.width != width || level.height != height || level.rgba16f.Size() != static_cast<std::size_t>(width.Get()) * height.Get() * 8u)
+            {
+                return {};
+            }
+        }
+        TextureDesc desc;
+        desc.extent = {build.levels[0].width, build.levels[0].height};
+        desc.format = TextureFormat::RGBA16Float;
+        desc.mipLevels = static_cast<JBro::UInt32>(build.levels.Size());
+        desc.usage = TextureUsage::Sampled | TextureUsage::CopyDestination;
+        TextureResource resource;
+        resource.texture = m_device->CreateTexture(desc);
+        if (false == resource.texture.IsValid())
+        {
+            return {};
+        }
+        for (std::size_t at = 0; at < build.levels.Size(); ++at)
+        {
+            const Array<std::byte>& bytes = build.levels[at].rgba16f;
+            if (false == m_device->WriteTexture(resource.texture, static_cast<JBro::UInt32>(at), {bytes.Data(), static_cast<JBro::UInt32>(bytes.Size())}))
+            {
+                m_device->DestroyTexture(resource.texture);
+                return {};
+            }
+        }
+        resource.extent = desc.extent;
+        resource.mipLevels = desc.mipLevels;
+        resource.occupied = true;
+        for (std::size_t slot = 0; slot < m_textureResources.Size(); ++slot)
+        {
+            if (false == m_textureResources[slot].occupied)
+            {
+                resource.generation = m_textureResources[slot].generation + 1;
+                m_textureResources[slot] = resource;
+                return AssetHandle{static_cast<JBro::UInt32>(slot), resource.generation};
+            }
+        }
+        m_textureResources.Add(resource);
+        return AssetHandle{static_cast<JBro::UInt32>(m_textureResources.Size() - 1), resource.generation};
+    }
+
+    void Renderer::MakeEnvironmentConstants(const Environment3D& environment, GpuEnvironmentConstants& block) const
+    {
+        block = {};
+        block.ambient[3] = static_cast<JBro::Float>(static_cast<std::uint8_t>(environment.ambient));
+        for (Int32 channel = 0; channel < 3; ++channel)
+        {
+            block.ambient[channel.Get()] = environment.ambientColor[channel.Get()];
+            block.skyColor[channel.Get()] = environment.skyColor[channel.Get()];
+            block.equatorColor[channel.Get()] = environment.equatorColor[channel.Get()];
+            block.groundColor[channel.Get()] = environment.groundColor[channel.Get()];
+        }
+        for (Int32 at = 0; at < 9; ++at)
+        {
+            for (Int32 channel = 0; channel < 3; ++channel)
+            {
+                block.sh[at.Get()][channel.Get()] = environment.sh[at.Get()][channel.Get()];
+            }
+        }
+        block.params[0] = std::cos(environment.skyRotation.Get());
+        block.params[1] = std::sin(environment.skyRotation.Get());
+        block.params[2] = environment.skyIntensity;
+        block.params[3] = environment.reflectionIntensity;
+        const TextureResource* map = FindTexture(environment.map);
+        block.map[0] = map != nullptr && map->depth == 1 ? static_cast<JBro::Float>(map->mipLevels.Get()) : Float(0.0f);
+    }
+
+    Bool Renderer::DrawSky(IRHICommandContext& commands, const ViewPacket& view, UInt32 scene) const
+    {
+        const Environment3D& environment = view.camera.environment;
+        const TextureResource* map = FindTexture(environment.map);
+        const GraphicsPipelineHandle pipeline = scene < SceneFormatCount ? m_scene[scene.Get()].sky : GraphicsPipelineHandle{};
+        if (map == nullptr || map->depth != 1 || false == pipeline.IsValid())
+        {
+            return true;
+        }
+        SkyPushConstants push;
+        if (false == InvertMatrix4x4(Multiply(view.camera.projection, view.camera.view), push.inverseViewProjection))
+        {
+            // 행렬이 풀리지 않는 카메라다. 하늘 없이 지우기 색 그대로 둔다.
+            return true;
+        }
+        push.params[0] = std::cos(environment.skyRotation.Get());
+        push.params[1] = std::sin(environment.skyRotation.Get());
+        push.params[2] = environment.skyIntensity;
+        return commands.SetGraphicsPipeline(pipeline)
+            && commands.SetGraphicsConstants({reinterpret_cast<const std::byte*>(&push), static_cast<JBro::UInt32>(sizeof(push))})
+            && commands.SetTexture(0, map->texture)
+            && commands.SetSampler(0, m_environmentSampler)
+            && commands.DrawInstanced(3, 1, 0, 0);
+    }
+
+    TextureHandle Renderer::EnvironmentTexture(const Environment3D& environment) const
+    {
+        const TextureResource* map = FindTexture(environment.map);
+        return map != nullptr && map->depth == 1 ? map->texture : m_whiteTexture;
+    }
+
     Bool Renderer::GetRegisteredTextureSize(AssetHandle texture, UInt32& width, UInt32& height, UInt32& depth) const
     {
         const TextureResource* resource = FindTexture(texture);
@@ -1371,6 +1481,7 @@ namespace JBro
         ResetSubmissionStorage();
         m_lightRing.BeginFrame(m_frame.slot);
         m_shadowRing.BeginFrame(m_frame.slot);
+        m_environmentRing.BeginFrame(m_frame.slot);
         m_viewShadows.Clear();
         return FrameStatus::Ready;
     }
@@ -3086,6 +3197,11 @@ namespace JBro
             ++renderer.m_currentStats.uncompositedLayerCount;
         }
 
+        // 하늘 뷰는 다른 무엇보다 먼저 하늘을 깐다(D-447). 하늘 뷰는 그릴 것이 하늘뿐이라 첫 구간 패스 하나에서만 그린다.
+        if (pass.countView && view.camera.environment.drawSky && false == renderer.DrawSky(commands, view, pass.scene))
+        {
+            return false;
+        }
         const ScenePipelines& pipelines = renderer.m_scene[pass.scene.Get()];
         if (view.spriteCount != 0
             && false == renderer.DrawSpriteRuns(commands, pass.scene, view, pass.firstRun, pass.endRun, lightMap, withDepth, pass.viewport,
@@ -3131,6 +3247,15 @@ namespace JBro
             }
             const TextureHandle shadowTexture = pass.shadowAtlas.IsValid() && context.HasTexture(pass.shadowAtlas)
                 ? context.GetTexture(pass.shadowAtlas) : renderer.m_whiteTexture;
+            // 환경 블록(b4)과 하늘 맵(t6)이다(D-447). 환경이 없는 뷰도 묶는다(검은 `Color`) - 표준 머티리얼이 자리를 선언한다.
+            GpuEnvironmentConstants environmentBlock;
+            renderer.MakeEnvironmentConstants(view.camera.environment, environmentBlock);
+            const ConstantRange environmentRange = renderer.m_environmentRing.Push(environmentBlock);
+            if (false == environmentRange.IsValid())
+            {
+                return false;
+            }
+            const TextureHandle environmentTexture = renderer.EnvironmentTexture(view.camera.environment);
             const BufferHandle instances = renderer.m_meshInstanceBuffers[renderer.m_frame.slot];
             // 구간은 (머티리얼, 메시)마다 이어 놓였다. 셰이더 머티리얼이 바뀌거나 표준 머티리얼이 바뀔 때만 파이프라인과 자원을 다시 건다.
             const auto bindShaderMaterial = [&](UInt32 material) {
@@ -3161,6 +3286,9 @@ namespace JBro
                     && (unlit || commands.SetTexture(4, renderer.MaterialTexture(desc.occlusionTexture, renderer.m_whiteTexture)))
                     && (unlit || commands.SetConstantBuffer(3, shadowRange.buffer, shadowRange.offset, shadowRange.size))
                     && (unlit || commands.SetTexture(5, shadowTexture))
+                    && (unlit || commands.SetConstantBuffer(4, environmentRange.buffer, environmentRange.offset, environmentRange.size))
+                    && (unlit || commands.SetTexture(6, environmentTexture))
+                    && (unlit || commands.SetSampler(1, renderer.m_environmentSampler))
                     && commands.SetSampler(0, sampler);
             };
             UInt32 boundShaderMaterial = 0;
@@ -3492,6 +3620,10 @@ namespace JBro
         nearest.minFilter = FilterMode::Nearest;
         nearest.magFilter = FilterMode::Nearest;
         m_meshNearestSampler = m_device->CreateSampler(nearest);
+        // 하늘 맵(D-447)은 가로(경도)로 돌고 세로(극)에서 멈춘다 - 세로까지 돌면 바로 위를 읽을 때 맨 아래 줄(땅)이 섞인다.
+        SamplerDesc sky = linear;
+        sky.addressV = AddressMode::ClampToEdge;
+        m_environmentSampler = m_device->CreateSampler(sky);
         TextureDesc flatDesc;
         flatDesc.extent = {1, 1};
         flatDesc.format = TextureFormat::RGBA8Unorm;
@@ -3510,6 +3642,12 @@ namespace JBro
         // 그림자 블록도 뷰마다 하나다(D-445). 그림자 맵을 그리는 파이프라인은 깊이만 쓴다 - 메시 정점 단계에 라이트의 뷰-투영을 밀어 넣는다.
         const std::size_t shadowSlot = (sizeof(GpuShadowConstants) + alignment - 1) / alignment * alignment;
         if (false == m_shadowRing.Create(*m_device, shadowSlot * m_config.maxViews.Get()))
+        {
+            return false;
+        }
+        // 환경 블록도 뷰마다 하나다(D-447).
+        const std::size_t environmentSlot = (sizeof(GpuEnvironmentConstants) + alignment - 1) / alignment * alignment;
+        if (false == m_environmentRing.Create(*m_device, environmentSlot * m_config.maxViews.Get()))
         {
             return false;
         }
@@ -3559,7 +3697,7 @@ namespace JBro
         sun.color[0] = 0.75f;
         sun.color[1] = 0.75f;
         sun.color[2] = 0.75f;
-        return m_meshLinearSampler.IsValid() && m_meshNearestSampler.IsValid() && m_flatNormalTexture.IsValid()
+        return m_meshLinearSampler.IsValid() && m_meshNearestSampler.IsValid() && m_environmentSampler.IsValid() && m_flatNormalTexture.IsValid()
             && m_device->WriteTexture(m_flatNormalTexture, 0, {flat, 4}) && m_defaultMeshMaterial.constants.IsValid();
     }
 
@@ -3571,6 +3709,7 @@ namespace JBro
         }
         m_lightRing.Destroy();
         m_shadowRing.Destroy();
+        m_environmentRing.Destroy();
         if (m_shadowPipeline.IsValid())
         {
             m_device->DestroyGraphicsPipeline(m_shadowPipeline);
@@ -3599,7 +3738,7 @@ namespace JBro
             m_device->DestroyTexture(m_flatNormalTexture);
             m_flatNormalTexture = {};
         }
-        for (SamplerHandle* sampler : {&m_meshLinearSampler, &m_meshNearestSampler})
+        for (SamplerHandle* sampler : {&m_meshLinearSampler, &m_meshNearestSampler, &m_environmentSampler})
         {
             if (sampler->IsValid())
             {
@@ -4636,6 +4775,22 @@ namespace JBro
         {
             return false;
         }
+        // 하늘 배경(D-447). 정점 버퍼가 없다 - 정점 번호로 뷰를 덮는 삼각형 하나다. 하늘 뷰는 깊이가 없다.
+        GraphicsPipelineDesc skyDesc;
+        if (false == ApplyShader(skyDesc, BuiltinShader::Sky, m_config.api, sizeof(SkyPushConstants)))
+        {
+            return false;
+        }
+        skyDesc.colorFormats = {colorFormats, 1};
+        skyDesc.blend = BlendMode::Opaque;
+        skyDesc.cull = CullMode::None;
+        skyDesc.depthTest = false;
+        skyDesc.depthWrite = false;
+        pipelines.sky = m_device->CreateGraphicsPipeline(skyDesc);
+        if (false == pipelines.sky.IsValid())
+        {
+            return false;
+        }
 
         // 메시(D-110). 정점 배치는 머티리얼 메시와 같다(D-348).
         MeshVertexLayout meshLayout;
@@ -4717,7 +4872,7 @@ namespace JBro
             {&pipelines.sprite, &pipelines.spriteOverDepth, &pipelines.sdfText, &pipelines.sdfTextOverDepth, &pipelines.litSprite,
                 &pipelines.litSdfText, &pipelines.worldText, &pipelines.mesh[0], &pipelines.mesh[1], &pipelines.mesh[2], &pipelines.mesh[3],
                 &pipelines.meshUnlit[0], &pipelines.meshUnlit[1], &pipelines.meshUnlit[2], &pipelines.meshUnlit[3], &pipelines.layerBackdrop, &pipelines.layerComposite[0],
-                &pipelines.layerComposite[1], &pipelines.layerComposite[2], &pipelines.layerComposite[3]})
+                &pipelines.layerComposite[1], &pipelines.layerComposite[2], &pipelines.layerComposite[3], &pipelines.sky})
         {
             if (pipeline->IsValid())
             {

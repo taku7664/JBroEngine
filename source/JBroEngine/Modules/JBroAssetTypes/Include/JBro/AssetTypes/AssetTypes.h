@@ -59,7 +59,9 @@ namespace JBro
         RenderTexture,
         // 3D 모델 파일 하나다(D-391, `.fbx .gltf .glb .obj`). 파일 안의 메시·재질은 `owner` 가 이 모델인 하위 `Mesh`·`Material` 레코드다.
         // 하위 목록은 `.jmeta` 의 `Model.SubAssets` 에 있고 아이디가 키(`Mesh/Body`)로 고정된다.
-        Model
+        Model,
+        // 하늘 맵이다(D-447, `.hdr` - Radiance RGBE 의 등장방형 그림). 캔버스 환경의 `skyId` 가 가리키고, 프레임워크가 SH 와 미리 거른 밉으로 구워 올린다.
+        EnvironmentMap
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반

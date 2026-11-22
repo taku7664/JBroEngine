@@ -178,6 +178,7 @@ namespace JBro
         m_stringTables = {};
         m_audioEffects = {};
         m_colorLuts = {};
+        m_environmentMaps = {};
         m_postProcessProfiles = {};
         m_shaders = {};
         m_materials = {};
@@ -829,6 +830,33 @@ namespace JBro
         return slot != nullptr ? &slot->data : nullptr;
     }
 
+    Bool AssetSystem::ReadEnvironmentMap(const AssetRecord& record, EnvironmentMapData& data)
+    {
+        Array<std::byte> bytes;
+        if (m_source == nullptr || false == m_source->Read(record, AssetBlob::Source, bytes))
+        {
+            return false;
+        }
+        DecodedHdrImage image;
+        if (false == DecodeHdrImage({bytes.Data(), static_cast<JBro::UInt32>(bytes.Size())}, image))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a sky map could not be read (%s): only Radiance .hdr pictures are skies", record.relativePath.c_str());
+            return false;
+        }
+        EnvironmentMapData read;
+        read.width = image.width;
+        read.height = image.height;
+        read.rgb = std::move(image.rgb);
+        data = std::move(read);
+        return true;
+    }
+
+    const EnvironmentMapData* AssetSystem::GetEnvironmentMap(AssetHandle handle) const
+    {
+        const Slot<EnvironmentMapData>* slot = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     Bool AssetSystem::ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data)
     {
         Array<std::byte> bytes;
@@ -1376,6 +1404,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::EnvironmentMap:
+                if (Slot<EnvironmentMapData>* slot = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             case AssetType::PostProcessProfile:
                 if (Slot<PostProcessProfileData>* slot = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
                 {
@@ -1518,6 +1553,16 @@ namespace JBro
             handle = Occupy(m_colorLuts, AssetType::ColorLut, id, std::move(data));
             break;
         }
+        case AssetType::EnvironmentMap:
+        {
+            EnvironmentMapData data;
+            if (false == ReadEnvironmentMap(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_environmentMaps, AssetType::EnvironmentMap, id, std::move(data));
+            break;
+        }
         case AssetType::PostProcessProfile:
         {
             PostProcessProfileData data;
@@ -1645,6 +1690,14 @@ namespace JBro
             }
             return;
         }
+        if (Slot<EnvironmentMapData>* sky = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap))
+        {
+            if (sky->referenceCount != 0)
+            {
+                --sky->referenceCount;
+            }
+            return;
+        }
         if (Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
         {
             if (profile->referenceCount != 0)
@@ -1701,6 +1754,7 @@ namespace JBro
             || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr
             || FindSlot(m_audioEffects, handle, AssetType::AudioEffect) != nullptr
             || FindSlot(m_colorLuts, handle, AssetType::ColorLut) != nullptr
+            || FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap) != nullptr
             || FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile) != nullptr
             || FindSlot(m_renderTextures, handle, AssetType::RenderTexture) != nullptr
             || FindSlot(m_shaders, handle, AssetType::Shader) != nullptr
@@ -1741,6 +1795,10 @@ namespace JBro
         if (const Slot<ColorLutData>* lut = FindSlot(m_colorLuts, handle, AssetType::ColorLut))
         {
             return lut->referenceCount;
+        }
+        if (const Slot<EnvironmentMapData>* sky = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap))
+        {
+            return sky->referenceCount;
         }
         if (const Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, handle, AssetType::PostProcessProfile))
         {
@@ -1898,6 +1956,17 @@ namespace JBro
             }
             fresh.dataGeneration = lut->data.dataGeneration + 1;
             lut->data = std::move(fresh);
+            return true;
+        }
+        if (Slot<EnvironmentMapData>* sky = FindSlot(m_environmentMaps, *loaded, AssetType::EnvironmentMap))
+        {
+            EnvironmentMapData fresh;
+            if (false == ReadEnvironmentMap(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = sky->data.dataGeneration + 1;
+            sky->data = std::move(fresh);
             return true;
         }
         if (Slot<PostProcessProfileData>* profile = FindSlot(m_postProcessProfiles, *loaded, AssetType::PostProcessProfile))
@@ -2064,6 +2133,15 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_colorLuts, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_environmentMaps.slots.Size(); ++index)
+        {
+            Slot<EnvironmentMapData>& slot = m_environmentMaps.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_environmentMaps, index);
                 ++freed;
             }
         }

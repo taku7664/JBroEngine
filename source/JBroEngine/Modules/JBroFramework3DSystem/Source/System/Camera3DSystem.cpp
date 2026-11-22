@@ -106,6 +106,7 @@ namespace JBro::System
         item.nearPlane = camera->nearPlane;
         item.farPlane = camera->farPlane;
         item.clearColor = camera->clearColor;
+        item.background = camera->background;
         item.postProcessProfile = camera->postProcessProfile;
         item.viewportOrigin = viewport.origin;
         item.viewportSize = viewport.size;

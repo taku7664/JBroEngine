@@ -32,6 +32,7 @@ JBro::Int32 RunSpritePixelTests();
 JBro::Int32 RunLight2DPixelTests();
 JBro::Int32 RunPostProcessPixelTests();
 JBro::Int32 RunColorLutTests();
+JBro::Int32 RunEnvironmentTests();
 JBro::Int32 RunPostProcessProfileTests();
 JBro::Int32 RunPostProcessMixerTests();
 JBro::Int32 RunMaterialTests();
@@ -550,6 +551,10 @@ int main()
             return 1;
         }
         if (false == RunSuite("ColorLut", &RunColorLutTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("Environment", &RunEnvironmentTests))
         {
             return 1;
         }

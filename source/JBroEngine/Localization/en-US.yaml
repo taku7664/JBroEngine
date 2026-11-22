@@ -365,6 +365,22 @@ Entries:
   inspector.canvas_properties: Canvas
   inspector.canvas_background: Background colour
   inspector.canvas_viewports: Viewports
+  inspector.canvas_environment: Environment
+  inspector.environment_ambient_source: Ambient Source
+  inspector.environment_ambient_source_tooltip: where the light a standard material receives from every side comes from
+  inspector.environment_source_color: Color
+  inspector.environment_source_gradient: Gradient
+  inspector.environment_source_sky: Sky
+  inspector.environment_ambient_color: Ambient Color
+  inspector.environment_sky_color: Sky Color
+  inspector.environment_equator_color: Equator Color
+  inspector.environment_ground_color: Ground Color
+  inspector.environment_ambient_intensity: Ambient Intensity
+  inspector.environment_sky: Sky Map
+  inspector.environment_sky_tooltip: "a .hdr panorama: drawn behind cameras whose background is Sky, and the source of reflections and sky ambient light"
+  inspector.environment_sky_intensity: Sky Intensity
+  inspector.environment_sky_rotation: Sky Rotation
+  inspector.environment_reflection_intensity: Reflection Intensity
   inspector.viewport_name: Name
   inspector.viewport_active: Active
   inspector.viewport_camera: Camera

@@ -2,6 +2,8 @@
 
 #include <JBro/Asset/MaterialShader.h>
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Graphics/Environment3D.h>
+#include <JBro/Graphics/EnvironmentMap.h>
 #include <JBro/Graphics/PostProcess.h>
 #include <JBro/Graphics/RenderGraph.h>
 #include <JBro/RHI/ConstantRing.h>
@@ -151,6 +153,8 @@ namespace JBro
         Float compositeOpacity = 1.0f;
         // **그림자를 그리는 거리**(D-445). 카메라 앞 이 깊이까지 방향광의 캐스케이드 넷을 나눠 덮는다. 그 너머는 그림자가 없다.
         Float shadowDistance = 50.0f;
+        // **환경**(D-447) - 표준 머티리얼의 환경광·반사와, `drawSky` 면 하늘 배경이다.
+        Environment3D environment;
     };
 
     // 2D 스프라이트의 월드 변환이다. 열 벡터 규약의 2x3 아핀 여섯 값과 깊이 하나를 담는다(D-54).
@@ -552,6 +556,9 @@ namespace JBro
         // 차례로 이어 준다. 프레임 밖에서만 부른다. 크기가 0 이거나 장치 상한을 넘거나 바이트 수가 맞지 않으면 빈 핸들이다.
         // 지우기는 `UnregisterTexture` 다. `UpdateTexture`·`UpdateTextureRegion` 은 3D 를 받지 않는다.
         AssetHandle RegisterVolumeTexture(UInt32 width, UInt32 height, UInt32 depth, JArrayView<std::byte> rgba16f);
+        // **하늘 맵을 올린다**(D-447). `EnvironmentMapBuild`(`BuildEnvironmentMap`)의 밉을 차례로 담은 `RGBA16Float` 2D 텍스처다 - 밉 0 이 거울이고
+        // 아래로 갈수록 거친 면의 반사다. 프레임 밖에서만 부른다. 지우기는 `UnregisterTexture` 다. `Environment3D::map` 이 이 핸들이다.
+        AssetHandle RegisterEnvironmentMap(const EnvironmentMapBuild& build);
         // sRGB 로 보거나 밉 체인을 만들어 올린다(3D 재질의 그림). `UpdateTexture` 는 밉을 다시 만든다.
         AssetHandle RegisterTexture(const Extent2D& extent, JArrayView<std::byte> rgba8, const TextureUploadOptions& options);
         // 같은 크기의 새 픽셀로 갈아 끼운다(에셋의 in-place 재로드). 크기가 다르면 거짓이다 - 새로 등록한다.
@@ -755,6 +762,8 @@ namespace JBro
             GraphicsPipelineHandle layerComposite[4];
             // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
             GraphicsPipelineHandle layerBackdrop;
+            // 하늘 배경(D-447). 깊이 없는 패스에 덮어쓴다 - 하늘 뷰에는 다른 그릴 것이 없다.
+            GraphicsPipelineHandle sky;
         };
         static constexpr UInt32 SceneFormatCount = 2;
         static constexpr UInt32 LdrScene = 0;
@@ -1058,6 +1067,13 @@ namespace JBro
             Float cameraAndFlags[4];
         };
         static_assert(sizeof(MeshPushConstants) == 80, "the mesh push constants are part of the shader ABI");
+        // 하늘 배경의 푸시 상수다(D-447, `BuiltinSky.hlsl`). 역 뷰-투영과 하늘 회전의 cos·sin·세기.
+        struct SkyPushConstants
+        {
+            Matrix4x4 inverseViewProjection;
+            Float params[4];
+        };
+        static_assert(sizeof(SkyPushConstants) == 80, "the sky push constants are part of the shader ABI");
         // 3D 라이트 하나(D-407). `BuiltinMesh.hlsl` 의 `Light` 와 같은 모양이다.
         struct GpuLight3D
         {
@@ -1114,6 +1130,25 @@ namespace JBro
             Float pointStrength[4];
         };
         static_assert(sizeof(GpuShadowConstants) == 64 * 32 + 16 * 10, "the shadow block is part of the shader ABI");
+        // **메시 패스의 환경 블록**(b4, D-447). `BuiltinMesh.hlsl` 의 `EnvironmentConstants` 와 같은 모양이다.
+        struct GpuEnvironmentConstants
+        {
+            // rgb `Color` 의 색, w 출처(0 `Color`, 1 `Gradient`, 2 `Sky`).
+            Float ambient[4];
+            Float skyColor[4];
+            Float equatorColor[4];
+            Float groundColor[4];
+            Float sh[9][4];
+            // x·y 하늘 회전의 cos·sin, z 하늘의 세기, w 반사의 세기.
+            Float params[4];
+            // x 하늘 맵의 밉 수(0 이면 없음).
+            Float map[4];
+        };
+        static_assert(sizeof(GpuEnvironmentConstants) == 16 * 15, "the environment block is part of the shader ABI");
+        // 뷰의 환경을 블록으로 옮긴다. 하늘 맵이 풀리지 않으면 밉 수 0 이다.
+        void MakeEnvironmentConstants(const Environment3D& environment, GpuEnvironmentConstants& block) const;
+        // 뷰의 하늘 맵 텍스처다. 없으면 흰 텍스처다(블록의 밉 수가 0 이라 읽지 않는다).
+        TextureHandle EnvironmentTexture(const Environment3D& environment) const;
         struct ShadowPassData
         {
             Renderer* renderer = nullptr;
@@ -1288,6 +1323,10 @@ namespace JBro
         static Bool ExecuteShadows(RenderGraphContext& context, const void* data);
         // 뷰의 그림자 블록을 짓는다. 그림자를 드리우는 라이트가 없으면 거짓이고 `out` 은 그림자 없음이다.
         Bool PrepareViewShadows(UInt32 viewIndex, GpuShadowConstants& out) const;
+        // 4 x 4 역행렬이다(여인수). 행렬식이 0 이면 거짓이다. 그림자의 캐스케이드와 하늘 배경(D-447)이 쓴다.
+        static Bool InvertMatrix4x4(const Matrix4x4& matrix, Matrix4x4& result);
+        // 하늘 뷰면(`Environment3D::drawSky`) 그 사각형을 하늘로 덮는다(D-447). 하늘 맵이 없으면 아무것도 하지 않는다.
+        Bool DrawSky(IRHICommandContext& commands, const ViewPacket& view, UInt32 scene) const;
         // 점광 면 칸 `tile`(점광 * 6 + 면)의 아틀라스 왼쪽 위 픽셀이다(D-446).
         static UInt32 PointShadowTileX(UInt32 tile);
         static UInt32 PointShadowTileY(UInt32 tile);
@@ -1367,6 +1406,8 @@ namespace JBro
         ConstantRing m_shadowRing;
         Array<GpuShadowConstants> m_viewShadows;
         GpuShadowConstants m_noShadows{};
+        // 환경 블록(b4, D-447)의 링이다. 뷰마다 한 번 올린다.
+        ConstantRing m_environmentRing;
         GpuLightConstants m_lightBlock{};
         // 라이트 기능 전의 고정 방향광과 주변광이다. 3D 라이트를 받지 않은 뷰가 쓴다.
         GpuLightConstants m_defaultLightBlock{};
@@ -1481,6 +1522,8 @@ namespace JBro
         // 재질 그림은 반복해 읽는다(타일). 2D 의 샘플러는 가장자리를 늘린다.
         SamplerHandle m_meshLinearSampler;
         SamplerHandle m_meshNearestSampler;
+        // 하늘 맵의 샘플러다(D-447) - 가로는 돌고 세로는 멈춘다.
+        SamplerHandle m_environmentSampler;
         RendererFrameStats m_currentStats;
         RendererFrameStats m_lastStats;
         CameraParams m_lastViewCamera;

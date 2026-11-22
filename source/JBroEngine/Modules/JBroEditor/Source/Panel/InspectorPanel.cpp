@@ -545,6 +545,96 @@ namespace JBro
                 }
             });
         DrawCanvasViewports(*canvas);
+        // 환경은 3D 의 것이다(D-447) - 2D 캔버스에는 보이지 않는다.
+        if (m_editor->GetFrameworkKind() == FrameworkKind::Framework3D)
+        {
+            DrawCanvasEnvironment(*canvas);
+        }
+    }
+
+    // **캔버스 환경**(D-447, Unity 의 Lighting 창 Environment 자리). 출처에 따라 그 출처의 칸만 보인다. 편집은 환경 전체를 뜬 커맨드 하나다.
+    void InspectorPanel::DrawCanvasEnvironment(Canvas& canvas)
+    {
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorCanvasEnvironment, "Environment")).SpacingBefore().Draw();
+        const CanvasEnvironment& environment = canvas.GetEnvironment();
+        CanvasEnvironment next = environment;
+        UInt32 key = 0;
+        Bool changed = false;
+        const AssetChoices& skies = ChoicesFor(AssetType::EnvironmentMap);
+        {
+            Widget::FormLayout layout("##environment");
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnvironmentAmbientSource, "Ambient Source"))
+                    .Tooltip(Loc::TextOr(LocKeys::InspectorEnvironmentAmbientSourceTooltip, "where the light a standard material receives from every side comes from")),
+                [&]() {
+                    const char* const names[EnvironmentAmbientSourceCount] = {Loc::TextOr(LocKeys::InspectorEnvironmentSourceColor, "Color"),
+                        Loc::TextOr(LocKeys::InspectorEnvironmentSourceGradient, "Gradient"), Loc::TextOr(LocKeys::InspectorEnvironmentSourceSky, "Sky")};
+                    Int32 chosen = static_cast<JBro::Int32>(static_cast<std::uint8_t>(environment.ambientSource));
+                    if (Widget::FilterCombo("##environmentSource", ArrayView<const char* const>(names, EnvironmentAmbientSourceCount), chosen).ShowFilter(false).Draw()
+                        && chosen >= 0 && chosen < static_cast<JBro::Int32>(EnvironmentAmbientSourceCount))
+                    {
+                        next.ambientSource = static_cast<EnvironmentAmbientSource>(static_cast<std::uint8_t>(chosen.Get()));
+                        changed = true;
+                    }
+                });
+            const auto colorRow = [&](const char* label, const char* fallback, const char* id, Color CanvasEnvironment::*field, UInt32 mergeKey) {
+                layout.Row(Widget::FieldLabel(Loc::TextOr(label, fallback)), [&]() {
+                    Color color = environment.*field;
+                    if (Widget::ColorField(id, color.Data()))
+                    {
+                        next.*field = color;
+                        key = mergeKey;
+                        changed = true;
+                    }
+                });
+            };
+            if (environment.ambientSource == EnvironmentAmbientSource::Color)
+            {
+                colorRow(LocKeys::InspectorEnvironmentAmbientColor, "Ambient Color", "##environmentColor", &CanvasEnvironment::ambientColor, 1);
+            }
+            else if (environment.ambientSource == EnvironmentAmbientSource::Gradient)
+            {
+                colorRow(LocKeys::InspectorEnvironmentSkyColor, "Sky Color", "##environmentSkyColor", &CanvasEnvironment::skyColor, 2);
+                colorRow(LocKeys::InspectorEnvironmentEquatorColor, "Equator Color", "##environmentEquatorColor", &CanvasEnvironment::equatorColor, 3);
+                colorRow(LocKeys::InspectorEnvironmentGroundColor, "Ground Color", "##environmentGroundColor", &CanvasEnvironment::groundColor, 4);
+            }
+            const auto scalarRow = [&](const char* label, const char* fallback, const char* id, Float CanvasEnvironment::*field, Float speed, Bool clamp,
+                                       Float low, Float high, UInt32 mergeKey) {
+                layout.Row(Widget::FieldLabel(Loc::TextOr(label, fallback)), [&]() {
+                    Float value = environment.*field;
+                    if (Widget::ScalarRunField(id, &value, 1, speed, clamp, low, high))
+                    {
+                        next.*field = value;
+                        key = mergeKey;
+                        changed = true;
+                    }
+                });
+            };
+            scalarRow(LocKeys::InspectorEnvironmentAmbientIntensity, "Ambient Intensity", "##environmentAmbientIntensity", &CanvasEnvironment::ambientIntensity,
+                0.01f, true, 0.0f, 8.0f, 5);
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnvironmentSky, "Sky Map"))
+                    .Tooltip(Loc::TextOr(LocKeys::InspectorEnvironmentSkyTooltip, "a .hdr panorama")),
+                [&]() {
+                    AssetId sky = environment.skyId;
+                    if (Widget::AssetField("##environmentSky", ArrayView<const char* const>(skies.namePointers.Data(), skies.namePointers.Size()),
+                            ArrayView<const AssetId>(skies.ids.Data(), skies.ids.Size()), sky)
+                            .Draw())
+                    {
+                        next.skyId = sky;
+                        changed = true;
+                    }
+                });
+            scalarRow(LocKeys::InspectorEnvironmentSkyIntensity, "Sky Intensity", "##environmentSkyIntensity", &CanvasEnvironment::skyIntensity,
+                0.01f, true, 0.0f, 8.0f, 6);
+            scalarRow(LocKeys::InspectorEnvironmentSkyRotation, "Sky Rotation", "##environmentSkyRotation", &CanvasEnvironment::skyRotation,
+                1.0f, true, -360.0f, 360.0f, 7);
+            scalarRow(LocKeys::InspectorEnvironmentReflectionIntensity, "Reflection Intensity", "##environmentReflection", &CanvasEnvironment::reflectionIntensity,
+                0.01f, true, 0.0f, 1.0f, 8);
+        }
+        if (changed && false == next.SameSettings(environment))
+        {
+            // **커맨드로만 고친다**(§11.5). 하늘을 바꾸면 에디터가 커맨드 뒤에 캔버스 에셋을 다시 묶어(D-115) 핸들이 풀린다.
+            m_editor->GetCommands().Execute(MakeOwnerPtr<SetCanvasEnvironmentCommand>(canvas, next, key));
+        }
     }
 
     void InspectorPanel::DrawCanvasViewports(Canvas& canvas)

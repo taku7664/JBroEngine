@@ -250,6 +250,8 @@ namespace JBro
         // 뷰포트도 기본 하나로 되돌린다(D-438). 남겨 두면 다음 캔버스가 앞 캔버스의 카메라 번호를 가리킨다.
         m_viewports.Clear();
         m_viewports.Add(MakeDefaultViewport());
+        // 환경도 기본으로 되돌린다(D-447). 배경색과 같은 까닭이다.
+        m_environment = CanvasEnvironment{};
         MarkScriptOrderDirty();
         return true;
     }
@@ -587,6 +589,27 @@ namespace JBro
     const Color& Canvas::GetBackgroundColor() const
     {
         return m_backgroundColor;
+    }
+
+    const CanvasEnvironment& Canvas::GetEnvironment() const
+    {
+        return m_environment;
+    }
+
+    CanvasEnvironment& Canvas::GetEnvironment()
+    {
+        return m_environment;
+    }
+
+    void Canvas::SetEnvironment(const CanvasEnvironment& environment)
+    {
+        // 풀린 하늘은 같은 하늘이면 그대로 둔다 - 다른 하늘이면 다시 묶을 때까지 비운다.
+        const AssetHandle sky = environment.skyId == m_environment.skyId ? m_environment.sky : AssetHandle{};
+        m_environment = environment;
+        if (environment.sky.generation == 0)
+        {
+            m_environment.sky = sky;
+        }
     }
 
     void Canvas::SetBackgroundColor(const Color& color)

@@ -216,6 +216,8 @@ namespace JBro
         void DrawCanvas();
         // 캔버스의 뷰포트 목록이다(D-438, viewport-plan §4.5). 기존 `DrawViewportProperties` 와 같은 자리.
         void DrawCanvasViewports(Canvas& canvas);
+        // 3D 캔버스의 환경(D-447) - 환경광 출처와 색·하늘 맵·세기.
+        void DrawCanvasEnvironment(Canvas& canvas);
         // 레이어를 골랐을 때의 화면이다(D-279).
         void DrawLayer(LayerId layerId);
         // 머리의 태그 칸(D-297). 프로젝트 태그 목록에서 고르고, 맨 끝 항목이 새 태그를 더한다.

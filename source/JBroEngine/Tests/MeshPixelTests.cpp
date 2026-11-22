@@ -1511,6 +1511,209 @@ namespace
         fs::remove_all(root);
     }
 
+    // RGBE 한 텍셀이다(Radiance `.hdr`). 하늘 맵 시험이 그림을 손으로 짓는다.
+    void PushRgbe(std::string& bytes, float r, float g, float b)
+    {
+        const float largest = std::max(r, std::max(g, b));
+        if (largest < 1e-32f)
+        {
+            bytes.append(4, '\0');
+            return;
+        }
+        int exponent = 0;
+        const float mantissa = std::frexp(largest, &exponent);
+        const float scale = mantissa * 256.0f / largest;
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(r * scale)));
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(g * scale)));
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(b * scale)));
+        bytes.push_back(static_cast<char>(static_cast<unsigned char>(exponent + 128)));
+    }
+
+    // 셰이더의 `EnvironmentBrdf` 와 같은 식이다(Karis 2014, 표 없는 split-sum).
+    float EnvironmentBrdf(float reflectance, float roughness, float normalDotView)
+    {
+        const float r[4] = {roughness * -1.0f + 1.0f, roughness * -0.0275f + 0.0425f, roughness * -0.572f + 1.04f, roughness * 0.022f - 0.04f};
+        const float a004 = std::min(r[0] * r[0], std::exp2(-9.28f * normalDotView)) * r[0] + r[1];
+        return reflectance * (-1.04f * a004 + r[2]) + (1.04f * a004 + r[3]);
+    }
+
+    // **캔버스 환경이 표준 재질을 비춘다**(D-447). 위에서 내려다보는 흰 바닥(기본 재질: metallic 0, roughness 1)에 직접광 없이(세기 0 의 `Ambient` 하나 - 라이트가 있으니
+    // 렌더러의 기본 빛이 꺼진다) 환경만 비춘다. `Color` 는 그 색 x (확산 1 + 거친 반사), 세기 2 는 두 배다. `Gradient` 는 위를 보는 바닥이 하늘 색이다.
+    // `Sky` 는 손으로 지은 `.hdr`(위 반구 파랑, 아래 반구 빨강)이다: 바닥은 파랗고, 세기 0 이면 검다. 거울 같은 금속 바닥은 반사로만 파랗고 반사 세기 0 이면 검다.
+    // 위를 보는 카메라의 배경이 `Sky` 면 하늘(파랑)이 지우기 색(검정) 위에 그려진다. 하늘은 한 번만 굽는다(세기를 바꿔도 다시 굽지 않는다).
+    template <typename TModule>
+    void TestEnvironmentLightsMeshes()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; the environment not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroEnvironmentProbe·환경";
+        fs::remove_all(root);
+        fs::create_directories(root / "sky");
+        {
+            std::string file = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 32 +X 64\n";
+            for (int y = 0; y < 32; ++y)
+            {
+                for (int x = 0; x < 64; ++x)
+                {
+                    PushRgbe(file, y < 16 ? 0.0f : 1.0f, 0.0f, y < 16 ? 1.0f : 0.0f);
+                }
+            }
+            // RGBE 에는 0 바이트가 있다 - 글자로 쓰면 첫 0 에서 잘린다. 길이째 쓴다.
+            std::ofstream out(root / "sky" / "split.hdr", std::ios::binary);
+            out.write(file.data(), static_cast<std::streamsize>(file.size()));
+        }
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const JBro::AssetRecord* skyRecord = registry.FindByPath("sky/split.hdr");
+        Check(skyRecord != nullptr && skyRecord->type == JBro::AssetType::EnvironmentMap, "the .hdr file is registered as a sky map");
+        // 다시 훑으면 레지스트리의 레코드가 옮겨진다 - 아이디는 값으로 떠 둔다.
+        const JBro::AssetId skyId = skyRecord->id;
+        WriteText(root / "sky" / "mirror.jmat", "Version: 1\nMaterial:\n  shader: Standard\n  metallic: 1\n  roughness: 0\n");
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the folder scans again with the material");
+        const JBro::AssetId mirrorId = registry.FindByPath("sky/mirror.jmat")->id;
+        const JBro::UInt32 texturesBefore = stage.renderer.GetTextureCount();
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 4.0f, 0.0f};
+        canvas.FindComponentRaw<JBro::Component::Transform3D>(eye)->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-1.5707963f));
+        canvas.AttachComponent<JBro::Component::Camera3D>(eye)->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* floorObject = canvas.CreateObject("floor");
+        canvas.AttachComponent<JBro::Component::Transform3D>(floorObject);
+        auto* floor = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(floorObject);
+        for (JBro::UInt32 index = 0; index < JBro::MeshLibrary::GetBuiltinCount(); ++index)
+        {
+            if (std::strcmp(JBro::MeshLibrary::GetBuiltin(index).name, "Plane") == 0)
+            {
+                floor->meshId = JBro::MeshLibrary::GetBuiltin(index).id;
+            }
+        }
+        // 세기 0 의 환경광 하나 - 라이트가 있으니 기본 빛(고정 방향광)이 꺼지고 환경만 남는다.
+        JBro::Object::GameObject* darkObject = canvas.CreateObject("dark");
+        auto* dark = canvas.AttachComponent<JBro::Component::Light3D>(darkObject);
+        dark->type = JBro::Component::Light3DType::Ambient;
+        dark->intensity = 0.0f;
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        const auto render = [&]() {
+            framework.BindCanvasAssets();
+            stage.RenderOnce(framework, image, readback);
+            return ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        };
+        const auto encode = [](float linear) {
+            return linear <= 0.0031308f ? linear * 12.92f : 1.055f * std::pow(linear, 1.0f / 2.4f) - 0.055f;
+        };
+        const auto setEnvironment = [&](auto change) {
+            JBro::CanvasEnvironment environment = canvas.GetEnvironment();
+            change(environment);
+            canvas.SetEnvironment(environment);
+        };
+
+        const Pixel before = render();
+        Check(Near(before.r, 0.0f, 0.01f) && Near(before.g, 0.0f, 0.01f), "the default environment adds no light - the floor is black with no direct light");
+
+        // 색: 확산 c 와 거친 반사 c x 환경 BRDF(0.04, 거칠기 1, 바로 위에서 봄).
+        setEnvironment([](JBro::CanvasEnvironment& environment) {
+            environment.ambientSource = JBro::EnvironmentAmbientSource::Color;
+            environment.ambientColor = JBro::Color{0.2f, 0.3f, 0.4f, 1.0f};
+        });
+        const float lift = 1.0f + EnvironmentBrdf(0.04f, 1.0f, 1.0f);
+        const Pixel colored = render();
+        std::cout << "  colour ambient: " << colored.r.Get() << " " << colored.g.Get() << " " << colored.b.Get() << " (want "
+                  << encode(0.2f * lift) << " " << encode(0.3f * lift) << " " << encode(0.4f * lift) << ")" << std::endl;
+        Check(Near(colored.r, encode(0.2f * lift), 0.02f) && Near(colored.g, encode(0.3f * lift), 0.02f) && Near(colored.b, encode(0.4f * lift), 0.02f),
+            "a Color environment lights the white floor with its colour");
+        setEnvironment([](JBro::CanvasEnvironment& environment) { environment.ambientIntensity = 2.0f; });
+        const Pixel doubled = render();
+        Check(Near(doubled.r, encode(0.4f * lift), 0.02f) && Near(doubled.b, encode(0.8f * lift), 0.02f), "the ambient intensity scales it");
+
+        // 그라디언트: 위를 보는 바닥은 하늘 색만 받는다.
+        setEnvironment([](JBro::CanvasEnvironment& environment) {
+            environment.ambientSource = JBro::EnvironmentAmbientSource::Gradient;
+            environment.ambientIntensity = 1.0f;
+            environment.skyColor = JBro::Color{0.5f, 0.0f, 0.0f, 1.0f};
+            environment.equatorColor = JBro::Color{0.0f, 0.5f, 0.0f, 1.0f};
+            environment.groundColor = JBro::Color{0.0f, 0.0f, 0.5f, 1.0f};
+        });
+        const Pixel gradient = render();
+        std::cout << "  gradient ambient: " << gradient.r.Get() << " " << gradient.g.Get() << " " << gradient.b.Get() << std::endl;
+        Check(Near(gradient.r, encode(0.5f * lift), 0.02f) && gradient.g < 0.1f && gradient.b < 0.1f,
+            "a Gradient environment lights an upward face with the sky colour, not the equator or the ground");
+
+        // 하늘: 위 반구가 파랑, 아래가 빨강이다.
+        setEnvironment([&](JBro::CanvasEnvironment& environment) {
+            environment.ambientSource = JBro::EnvironmentAmbientSource::Sky;
+            environment.skyId = skyId;
+        });
+        const Pixel sky = render();
+        std::cout << "  sky ambient: " << sky.r.Get() << " " << sky.g.Get() << " " << sky.b.Get() << std::endl;
+        // 확산만(반사 0)에 하늘 세기 0.1: 위 반구가 1 인 하늘은 위를 보는 흰 면을 1 로 비추므로(SH 의 정확한 값) 0.1 이 그대로 나와야 한다.
+        setEnvironment([](JBro::CanvasEnvironment& environment) {
+            environment.reflectionIntensity = 0.0f;
+            environment.skyIntensity = 0.1f;
+        });
+        const Pixel dim = render();
+        std::cout << "  sky 0.1, diffuse only: " << dim.r.Get() << " " << dim.g.Get() << " " << dim.b.Get() << " (want " << encode(0.1f) << ")" << std::endl;
+        Check(Near(dim.b, encode(0.1f), 0.02f) && dim.r < 0.02f, "the sky's diffuse light is the sky's own brightness on a face looking into it");
+        setEnvironment([](JBro::CanvasEnvironment& environment) {
+            environment.reflectionIntensity = 1.0f;
+            environment.skyIntensity = 1.0f;
+        });
+        Check(framework.GetEnvironmentLibrary().GetUploadedMap().generation != 0, "the sky map is baked and uploaded");
+        Check(sky.b > 0.8f && sky.r < sky.b * 0.5f && sky.g < 0.05f, "a Sky environment lights the floor with the sky above it, not the ground below");
+        setEnvironment([](JBro::CanvasEnvironment& environment) { environment.skyIntensity = 0.0f; });
+        const Pixel unlit = render();
+        Check(unlit.b < 0.02f && unlit.r < 0.02f, "a sky intensity of 0 takes its light away");
+        setEnvironment([](JBro::CanvasEnvironment& environment) { environment.skyIntensity = 1.0f; });
+
+        // 거울 금속: 확산이 없고 반사로만 위의 하늘(파랑)을 비춘다.
+        floor->materialId = mirrorId;
+        floor->material = {};
+        const Pixel mirror = render();
+        std::cout << "  mirror floor: " << mirror.r.Get() << " " << mirror.g.Get() << " " << mirror.b.Get() << std::endl;
+        Check(mirror.b > 0.9f && mirror.r < 0.1f, "a mirror metal reflects the sky above it");
+        setEnvironment([](JBro::CanvasEnvironment& environment) { environment.reflectionIntensity = 0.0f; });
+        const Pixel dull = render();
+        Check(dull.b < 0.02f, "a reflection intensity of 0 leaves a metal with nothing to show");
+        setEnvironment([](JBro::CanvasEnvironment& environment) { environment.reflectionIntensity = 1.0f; });
+        Check(framework.GetEnvironmentLibrary().GetBuildCount() == 1, "the sky was baked once - changing intensities does not bake it again");
+
+        // 하늘 배경: 위를 보는 카메라. 배경이 `Color` 면 지우기 색(검정), `Sky` 면 위 반구(파랑)다.
+        canvas.FindComponentRaw<JBro::Component::Transform3D>(eye)->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(1.5707963f));
+        const Pixel cleared = render();
+        Check(cleared.b < 0.02f, "a camera whose background is Color keeps its clear colour");
+        canvas.FindComponentRaw<JBro::Component::Camera3D>(eye)->background = JBro::Component::CameraBackground3D::Sky;
+        const Pixel background = render();
+        std::cout << "  sky background: " << background.r.Get() << " " << background.g.Get() << " " << background.b.Get() << std::endl;
+        Check(background.b > 0.95f && background.r < 0.05f, "a camera whose background is Sky draws the sky map behind everything");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+
+        framework.Shutdown();
+        Check(stage.renderer.GetTextureCount() == texturesBefore, "shutting the framework down unregisters every texture it made, the sky map with them");
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+
     // **계산한 탄젠트로 노멀맵이 선다**(D-444). 시험 사각형 glTF 에는 탄젠트가 없어 임포트가 MikkTSpace 로 잰다. 바닥(법선 +Y)에 누운 사각형을 위에서 보고,
     // 빛은 옆에서만(수평) 온다 - 평평한 면은 빛을 등지지 않지만 받지도 않아 검다. 노멀맵 (1, 0.5, 0.5) 는 법선을 탄젠트(+u = +X)로 눕혀 +X 에서 오는 빛을 받고,
     // (0.5, 1, 0.5) 는 바이탄젠트(그림의 위 = -Z)로 눕혀 -Z 에서 오는 빛을 받는다. 반대쪽 빛에서는 검다 - 바이탄젠트의 부호가 틀리면 둘째가 뒤집힌다.
@@ -2412,6 +2615,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestShadowsFallBehindMeshes<JBro::D3D12RHIModule>());
     JBRO_CASE(TestShadowsFallBehindMeshes<JBro::D3D11RHIModule>());
     JBRO_CASE(TestShadowsFallBehindMeshes<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestEnvironmentLightsMeshes<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestEnvironmentLightsMeshes<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestEnvironmentLightsMeshes<JBro::VulkanRHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D12RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D11RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::VulkanRHIModule>());

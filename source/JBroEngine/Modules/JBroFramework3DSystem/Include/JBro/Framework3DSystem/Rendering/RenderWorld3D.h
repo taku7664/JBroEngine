@@ -7,6 +7,7 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
+#include <JBro/Graphics/Environment3D.h>
 #include <JBro/Graphics/PostProcess.h>
 #include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Types/Angle.h>
@@ -39,6 +40,8 @@ namespace JBro
         Float nearPlane = 0.1f;
         Float farPlane = 1000.0f;
         Color clearColor{0.08f, 0.09f, 0.11f, 1.0f};
+        // 배경(D-447). `Sky` 면 브리지가 레이어 뷰 앞에 하늘 뷰를 연다.
+        Component::CameraBackground3D background = Component::CameraBackground3D::Color;
         // 카메라의 후처리 프로필 에셋이다(D-344). 프레임워크가 풀어 `RenderWorld3D::SetPostProcess` 로 건다.
         AssetHandle postProcessProfile;
         // 뷰포트(D-438, D-439): 대상 안의 사각형(왼쪽 위 원점, 비율 0..1 x 대상 + 픽셀), 앞 뷰가 그린 대상에서 제 사각형을 칠하는가, 그릴 레이어 차례.
@@ -217,6 +220,15 @@ namespace JBro
         {
             return m_postProcess;
         }
+        // **캔버스의 환경**(D-447). 프레임워크가 캔버스 환경을 풀어(`EnvironmentLibrary`) 건다. 뷰마다 같다. `BeginFrame` 이 비우지 않는다.
+        void SetEnvironment(const Environment3D& environment)
+        {
+            m_environment = environment;
+        }
+        const Environment3D& GetEnvironment() const
+        {
+            return m_environment;
+        }
         // **레이어 차례마다의 후처리**(D-345). 프레임워크가 레이어의 프로필을 풀어 차례(`LayerOrder`) 자리에 건다. 프로필이 없는 레이어는 빈 목록이다.
         // 가리키는 곳은 프레임워크의 `PostProcessLibrary` 다. 자리는 프레임워크를 세울 때 잡고(`ReserveLayerPostProcess`), 레이어가 그보다 많아질 때만
         // 늘린다 - 프레임 밖(추출 뒤)에서 부른다.
@@ -278,6 +290,7 @@ namespace JBro
         Array<RenderTargetRead> m_renderTargetReads;
         Array<PostProcessStack> m_cameraPostProcess;
         PostProcessStack m_postProcess;
+        Environment3D m_environment;
         Array<PostProcessStack> m_layerPostProcess;
         Bool m_hasCamera = false;
         Array<MeshRenderItem> m_meshes;
