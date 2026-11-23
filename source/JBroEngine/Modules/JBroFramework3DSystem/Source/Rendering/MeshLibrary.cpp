@@ -435,7 +435,26 @@ namespace JBro
         const JArrayView<MeshVertex> vertexView{vertices.Data(), static_cast<UInt32>(vertices.Size())};
         const JArrayView<UInt32> indexView{mesh->indices.Data(), static_cast<UInt32>(mesh->indices.Size())};
         entry.asset = meshAsset;
-        entry.rendererMesh = m_renderer->RegisterMesh(vertexView, indexView, mesh->hasTangents);
+        // 스킨 메시(D-458)는 뼈 번호·가중치 흐름을 함께 올린다. 뼈 번호는 정수를 그대로 든 실수다(셰이더가 반올림해 읽는다).
+        if (mesh->skin.Size() == mesh->vertices.Size() && false == mesh->skin.IsEmpty())
+        {
+            Array<MeshSkinVertex> skin;
+            skin.Resize(mesh->skin.Size());
+            for (std::size_t at = 0; at < skin.Size(); ++at)
+            {
+                for (UInt32 slot = 0; slot < 4; ++slot)
+                {
+                    skin[at].bones[slot.Get()] = static_cast<JBro::Float>(mesh->skin[at].bones[slot.Get()].Get());
+                    skin[at].weights[slot.Get()] = mesh->skin[at].weights[slot.Get()];
+                }
+            }
+            entry.rendererMesh = m_renderer->RegisterSkinnedMesh(vertexView, indexView, mesh->hasTangents,
+                {skin.Data(), static_cast<UInt32>(skin.Size())});
+        }
+        else
+        {
+            entry.rendererMesh = m_renderer->RegisterMesh(vertexView, indexView, mesh->hasTangents);
+        }
         if (entry.rendererMesh.generation == 0)
         {
             entry.failedGeneration = mesh->dataGeneration;

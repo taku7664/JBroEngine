@@ -10,6 +10,9 @@
 #include "BuiltinMeshPS.generated.h"
 #include "BuiltinMeshUnlitPS.generated.h"
 #include "BuiltinMeshShadowPS.generated.h"
+#include "BuiltinMeshSkinnedVS.generated.h"
+#include "BuiltinMeshUnlitSkinnedVS.generated.h"
+#include "BuiltinMeshShadowSkinnedVS.generated.h"
 #include "BuiltinSkyVS.generated.h"
 #include "BuiltinSkyPS.generated.h"
 #include "BuiltinSdfTextVS.generated.h"
@@ -54,6 +57,9 @@ namespace JBro::BuiltinShaderSm5
 #include "BuiltinMeshPS_SM5.generated.h"
 #include "BuiltinMeshUnlitPS_SM5.generated.h"
 #include "BuiltinMeshShadowPS_SM5.generated.h"
+#include "BuiltinMeshSkinnedVS_SM5.generated.h"
+#include "BuiltinMeshUnlitSkinnedVS_SM5.generated.h"
+#include "BuiltinMeshShadowSkinnedVS_SM5.generated.h"
 #include "BuiltinSkyVS_SM5.generated.h"
 #include "BuiltinSkyPS_SM5.generated.h"
 #include "BuiltinSdfTextVS_SM5.generated.h"
@@ -97,6 +103,9 @@ namespace JBro::BuiltinShaderSpv
 #include "BuiltinMeshPS_SPV.generated.h"
 #include "BuiltinMeshUnlitPS_SPV.generated.h"
 #include "BuiltinMeshShadowPS_SPV.generated.h"
+#include "BuiltinMeshSkinnedVS_SPV.generated.h"
+#include "BuiltinMeshUnlitSkinnedVS_SPV.generated.h"
+#include "BuiltinMeshShadowSkinnedVS_SPV.generated.h"
 #include "BuiltinSkyVS_SPV.generated.h"
 #include "BuiltinSkyPS_SPV.generated.h"
 #include "BuiltinSdfTextVS_SPV.generated.h"
@@ -185,6 +194,21 @@ namespace JBro
                     {View(JBroBuiltinMeshShadowPS, sizeof(JBroBuiltinMeshShadowPS)), View(Sm5::JBroBuiltinMeshShadowPS_SM5, sizeof(Sm5::JBroBuiltinMeshShadowPS_SM5)), View(Spv::JBroBuiltinMeshShadowPS_SPV, sizeof(Spv::JBroBuiltinMeshShadowPS_SPV))},
                     {}},
                 80, 1, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+            {"MeshSkinned",
+                {{View(JBroBuiltinMeshSkinnedVS, sizeof(JBroBuiltinMeshSkinnedVS)), View(Sm5::JBroBuiltinMeshSkinnedVS_SM5, sizeof(Sm5::JBroBuiltinMeshSkinnedVS_SM5)), View(Spv::JBroBuiltinMeshSkinnedVS_SPV, sizeof(Spv::JBroBuiltinMeshSkinnedVS_SPV))},
+                    {View(JBroBuiltinMeshPS, sizeof(JBroBuiltinMeshPS)), View(Sm5::JBroBuiltinMeshPS_SM5, sizeof(Sm5::JBroBuiltinMeshPS_SM5)), View(Spv::JBroBuiltinMeshPS_SPV, sizeof(Spv::JBroBuiltinMeshPS_SPV))},
+                    {}},
+                80, 3, {5, 3}, {7, 2}, {2, 2}, {0, 0}, {0, 0}},
+            {"MeshUnlitSkinned",
+                {{View(JBroBuiltinMeshUnlitSkinnedVS, sizeof(JBroBuiltinMeshUnlitSkinnedVS)), View(Sm5::JBroBuiltinMeshUnlitSkinnedVS_SM5, sizeof(Sm5::JBroBuiltinMeshUnlitSkinnedVS_SM5)), View(Spv::JBroBuiltinMeshUnlitSkinnedVS_SPV, sizeof(Spv::JBroBuiltinMeshUnlitSkinnedVS_SPV))},
+                    {View(JBroBuiltinMeshUnlitPS, sizeof(JBroBuiltinMeshUnlitPS)), View(Sm5::JBroBuiltinMeshUnlitPS_SM5, sizeof(Sm5::JBroBuiltinMeshUnlitPS_SM5)), View(Spv::JBroBuiltinMeshUnlitPS_SPV, sizeof(Spv::JBroBuiltinMeshUnlitPS_SPV))},
+                    {}},
+                80, 1, {2, 3}, {2, 2}, {1, 2}, {0, 0}, {0, 0}},
+            {"MeshShadowSkinned",
+                {{View(JBroBuiltinMeshShadowSkinnedVS, sizeof(JBroBuiltinMeshShadowSkinnedVS)), View(Sm5::JBroBuiltinMeshShadowSkinnedVS_SM5, sizeof(Sm5::JBroBuiltinMeshShadowSkinnedVS_SM5)), View(Spv::JBroBuiltinMeshShadowSkinnedVS_SPV, sizeof(Spv::JBroBuiltinMeshShadowSkinnedVS_SPV))},
+                    {View(JBroBuiltinMeshShadowPS, sizeof(JBroBuiltinMeshShadowPS)), View(Sm5::JBroBuiltinMeshShadowPS_SM5, sizeof(Sm5::JBroBuiltinMeshShadowPS_SM5)), View(Spv::JBroBuiltinMeshShadowPS_SPV, sizeof(Spv::JBroBuiltinMeshShadowPS_SPV))},
+                    {}},
+                80, 1, {1, 1}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
             {"Sky",
                 {{View(JBroBuiltinSkyVS, sizeof(JBroBuiltinSkyVS)), View(Sm5::JBroBuiltinSkyVS_SM5, sizeof(Sm5::JBroBuiltinSkyVS_SM5)), View(Spv::JBroBuiltinSkyVS_SPV, sizeof(Spv::JBroBuiltinSkyVS_SPV))},
                     {View(JBroBuiltinSkyPS, sizeof(JBroBuiltinSkyPS)), View(Sm5::JBroBuiltinSkyPS_SM5, sizeof(Sm5::JBroBuiltinSkyPS_SM5)), View(Spv::JBroBuiltinSkyPS_SPV, sizeof(Spv::JBroBuiltinSkyPS_SPV))},

@@ -11,6 +11,7 @@ namespace JBro
         try
         {
             m_meshes.Reserve(capacity);
+            m_skinPalettes.Reserve(capacity);
 
             m_layerOrders.Reserve(m_meshes.Capacity() + m_texts.Capacity());
         }
@@ -34,6 +35,16 @@ namespace JBro
             return false;
         }
         return true;
+    }
+
+    Array<UInt32>& RenderWorld3D::GetSkinPaletteScratch() const
+    {
+        return m_skinPalettes;
+    }
+
+    UInt64& RenderWorld3D::GetSkinPaletteFrame() const
+    {
+        return m_skinPaletteFrame;
     }
 
     void RenderWorld3D::BeginFrame()

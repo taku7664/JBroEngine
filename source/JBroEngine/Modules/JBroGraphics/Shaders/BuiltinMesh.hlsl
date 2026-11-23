@@ -313,6 +313,113 @@ VertexOutput VSMain(VertexInput input)
     return output;
 }
 
+// Skinned meshes (D-458, skeletal-plan stage 1b). A second vertex stream carries four bone numbers (as floats - the RHI
+// has no integer vertex formats, and small integers are exact in a float) and four weights that sum to one
+// (ATTRIBUTE9/10, after the instance and UV/tangent attributes so their numbers stay). The bones are skinning matrices
+// (bone model matrix x inverse bind), three rows each, in model space; the instance world matrix then places the model.
+// Each program reads them at the first slot after the blocks its pixel stage declares, so no program declares a slot
+// it never reads: b5 for the Standard material (after the material, light, shadow and environment blocks), b2 for
+// Unlit (after its material block), b1 for the shadow pass (it binds nothing else). Each entry point references only
+// its own block, so the others are compiled out. Renderer::SubmitSkinPalette writes MaxSkinBones bones' worth per
+// palette and binds it whole.
+static const uint MaxSkinBones = 256;
+
+cbuffer SkinConstants : register(b5)
+{
+    float4 gSkinRows[768];
+};
+
+cbuffer UnlitSkinConstants : register(b2)
+{
+    float4 gUnlitSkinRows[768];
+};
+
+cbuffer ShadowSkinConstants : register(b1)
+{
+    float4 gShadowSkinRows[768];
+};
+
+struct SkinnedVertexInput
+{
+    float3 position : ATTRIBUTE0;
+    float3 normal : ATTRIBUTE1;
+    float4 worldRow0 : ATTRIBUTE2;
+    float4 worldRow1 : ATTRIBUTE3;
+    float4 worldRow2 : ATTRIBUTE4;
+    float4 worldRow3 : ATTRIBUTE5;
+    float4 tint : ATTRIBUTE6;
+    float2 uv : ATTRIBUTE7;
+    float4 tangent : ATTRIBUTE8;
+    float4 bones : ATTRIBUTE9;
+    float4 weights : ATTRIBUTE10;
+};
+
+// The weighted sum of the vertex's four skinning matrices, as three rows - once per block, since an entry point must
+// name the block it reads.
+#define JBRO_SKIN_ROWS(NAME, ROWS)                                                              \
+    void NAME(float4 bones, float4 weights, out float4 row0, out float4 row1, out float4 row2)  \
+    {                                                                                           \
+        row0 = float4(0.0f, 0.0f, 0.0f, 0.0f);                                                  \
+        row1 = float4(0.0f, 0.0f, 0.0f, 0.0f);                                                  \
+        row2 = float4(0.0f, 0.0f, 0.0f, 0.0f);                                                  \
+        [unroll] for (uint slot = 0; slot < 4; ++slot)                                          \
+        {                                                                                       \
+            const uint bone = min((uint)(bones[slot] + 0.5f), MaxSkinBones - 1) * 3;           \
+            row0 += ROWS[bone + 0] * weights[slot];                                             \
+            row1 += ROWS[bone + 1] * weights[slot];                                             \
+            row2 += ROWS[bone + 2] * weights[slot];                                             \
+        }                                                                                       \
+    }
+
+JBRO_SKIN_ROWS(SkinRows, gSkinRows)
+JBRO_SKIN_ROWS(UnlitSkinRows, gUnlitSkinRows)
+JBRO_SKIN_ROWS(ShadowSkinRows, gShadowSkinRows)
+
+// Moves the vertex by the summed rows and hands it to the ordinary vertex stage. Normals and tangents use the upper
+// 3x3 (exact for rotations and uniform scale, like the instance matrix).
+VertexInput Skin(SkinnedVertexInput input, float4 row0, float4 row1, float4 row2)
+{
+    VertexInput skinned;
+    const float4 position = float4(input.position, 1.0f);
+    skinned.position = float3(dot(row0, position), dot(row1, position), dot(row2, position));
+    skinned.normal = float3(dot(row0.xyz, input.normal), dot(row1.xyz, input.normal), dot(row2.xyz, input.normal));
+    skinned.worldRow0 = input.worldRow0;
+    skinned.worldRow1 = input.worldRow1;
+    skinned.worldRow2 = input.worldRow2;
+    skinned.worldRow3 = input.worldRow3;
+    skinned.tint = input.tint;
+    skinned.uv = input.uv;
+    skinned.tangent = float4(dot(row0.xyz, input.tangent.xyz), dot(row1.xyz, input.tangent.xyz), dot(row2.xyz, input.tangent.xyz), input.tangent.w);
+    return skinned;
+}
+
+VertexOutput VSSkinnedMain(SkinnedVertexInput input)
+{
+    float4 row0;
+    float4 row1;
+    float4 row2;
+    SkinRows(input.bones, input.weights, row0, row1, row2);
+    return VSMain(Skin(input, row0, row1, row2));
+}
+
+VertexOutput VSUnlitSkinnedMain(SkinnedVertexInput input)
+{
+    float4 row0;
+    float4 row1;
+    float4 row2;
+    UnlitSkinRows(input.bones, input.weights, row0, row1, row2);
+    return VSMain(Skin(input, row0, row1, row2));
+}
+
+VertexOutput VSShadowSkinnedMain(SkinnedVertexInput input)
+{
+    float4 row0;
+    float4 row1;
+    float4 row2;
+    ShadowSkinRows(input.bones, input.weights, row0, row1, row2);
+    return VSMain(Skin(input, row0, row1, row2));
+}
+
 static const float Pi = 3.14159265f;
 
 float3 LinearToSrgb(float3 colour)

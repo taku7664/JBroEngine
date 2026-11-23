@@ -5,6 +5,7 @@
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
@@ -1982,6 +1983,129 @@ namespace
         fs::remove_all(root);
     }
 
+    // **스킨 메시가 애니메이터를 따라 그려진다**(D-458). 시험 모델(`TestModels::SkinnedGltf`)의 사각형은 쉬는 자세에서 (0..1, 0..1) 이고, 클립 끝(1 초)에서는
+    // Hip 이 y 2 로 오르고 Spine 이 Z 둘레로 90 도 돌아 아래 변이 y 2, 위 꼭짓점이 (0, 3)·(0, 4) 로 간다. 정면(-Z)을 보는 직교 카메라로 두 자리를 본다:
+    // (0.5, 0.5) 는 쉬는 자세에서만, (0.2, 2.3) 은 끝 자세에서만 덮인다. 그림자를 드리우는 방향광을 두어 스킨 그림자 파이프라인도 돈다. 검증 레이어를 켠다.
+    template <typename TModule>
+    void TestASkinnedMeshFollowsItsAnimator()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open(true))
+        {
+            std::cout << "  [skip] no device (or validation layer) for this API; skinned meshes not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroSkinProbe·스킨";
+        fs::remove_all(root);
+        fs::create_directories(root / "Art");
+        {
+            const std::string gltf = TestModels::SkinnedGltf();
+            std::ofstream out(root / "Art" / "walker.gltf", std::ios::binary);
+            out.write(gltf.data(), static_cast<std::streamsize>(gltf.size()));
+        }
+        WriteText(root / "Art" / "flat.jmat", "Version: 1\nMaterial:\n  shader: Unlit\n");
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        const JBro::AssetRecord* model = registry.FindByPath("Art/walker.gltf");
+        Check(model != nullptr, "the skinned model registers");
+        JBro::Array<JBro::AssetId> owned;
+        registry.CollectOwned(model->id, owned);
+        JBro::AssetId meshId;
+        JBro::AssetId clipId;
+        for (const JBro::AssetId& id : owned)
+        {
+            meshId = registry.Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
+            clipId = registry.Find(id)->type == JBro::AssetType::AnimationClip ? id : clipId;
+        }
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        context.assets = &assets;
+        Check(framework.Initialize(context), "the 3D framework initializes");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        const JBro::Vector3 eyeAt{0.5f, 2.0f, 10.0f};
+        const JBro::Float halfHeight = 3.0f;
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = eyeAt;
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->projection = JBro::Component::CameraProjection3D::Orthographic;
+        camera->orthographicSize = halfHeight;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        JBro::Object::GameObject* sunObject = canvas.CreateObject("sun");
+        canvas.AttachComponent<JBro::Component::Transform3D>(sunObject)->rotation = JBro::FromAxisAngle({1.0f, 0.0f, 0.0f}, JBro::Radian(-0.3f));
+        auto* sun = canvas.AttachComponent<JBro::Component::Light3D>(sunObject);
+        sun->type = JBro::Component::Light3DType::Directional;
+        sun->castShadows = true;
+        JBro::Object::GameObject* character = canvas.CreateObject("character");
+        canvas.AttachComponent<JBro::Component::Transform3D>(character);
+        auto* animator = canvas.AttachComponent<JBro::Component::Animator3D>(character);
+        animator->clipId = clipId;
+        animator->loop = false;
+        // 한 프레임(1/60 초)에 1 초가 흐르게 - 시뮬레이션을 켠 첫 프레임이 클립의 끝이다.
+        animator->speed = 60.0f;
+        JBro::Object::GameObject* body = canvas.CreateObject("body");
+        canvas.AttachComponent<JBro::Component::Transform3D>(body);
+        body->SetParent(character);
+        auto* renderer = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(body);
+        renderer->meshId = meshId;
+
+        // 월드의 점 → 대상의 픽셀(직교, -Z 를 본다).
+        const auto pixelOf = [&](JBro::Float x, JBro::Float y) {
+            const JBro::Float halfWidth = halfHeight * (static_cast<JBro::Float>(TargetWidth) / static_cast<JBro::Float>(TargetHeight));
+            const JBro::Float ndcX = (x - eyeAt.x) / halfWidth;
+            const JBro::Float ndcY = (y - eyeAt.y) / halfHeight;
+            return std::pair<JBro::UInt32, JBro::UInt32>{static_cast<JBro::UInt32>(((ndcX + 1.0f) * 0.5f * static_cast<JBro::Float>(TargetWidth)).Get()),
+                static_cast<JBro::UInt32>(((1.0f - ndcY) * 0.5f * static_cast<JBro::Float>(TargetHeight)).Get())};
+        };
+        const auto covered = [](const Pixel& pixel) { return pixel.r + pixel.g + pixel.b > 0.15f; };
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        const auto sample = [&](JBro::Float x, JBro::Float y) {
+            const auto at = pixelOf(x, y);
+            return ReadPixel(image, readback.rowPitch, at.first, at.second);
+        };
+
+        framework.SetSimulationEnabled(false);
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, image, readback);
+        stage.RenderOnce(framework, image, readback);
+        const Pixel restInside = sample(0.5f, 0.5f);
+        const Pixel restAbove = sample(0.2f, 2.3f);
+        std::cout << "  rest (0.5, 0.5): " << restInside.r.Get() << " " << restInside.g.Get() << " " << restInside.b.Get()
+                  << ", (0.2, 2.3): " << restAbove.r.Get() << std::endl;
+        Check(covered(restInside) && false == covered(restAbove), "stopped at time 0 the skinned quad draws in its rest pose");
+
+        framework.SetSimulationEnabled(true);
+        stage.RenderOnce(framework, image, readback);
+        const Pixel endInside = sample(0.5f, 0.5f);
+        const Pixel endAbove = sample(0.2f, 2.3f);
+        std::cout << "  end (0.5, 0.5): " << endInside.r.Get() << ", (0.2, 2.3): " << endAbove.r.Get() << " " << endAbove.g.Get() << " " << endAbove.b.Get()
+                  << std::endl;
+        Check(false == covered(endInside) && covered(endAbove), "at the clip's end the quad is drawn where the bones moved it");
+        // `Unlit` 재질은 뼈를 다른 자리(b2)에서 읽는 프로그램이다 - 같은 끝 자세로 그린다.
+        renderer->materialId = registry.FindByPath("Art/flat.jmat")->id;
+        framework.BindCanvasAssets();
+        stage.RenderOnce(framework, image, readback);
+        stage.RenderOnce(framework, image, readback);
+        Check(false == covered(sample(0.5f, 0.5f)) && covered(sample(0.2f, 2.3f)), "an Unlit skinned mesh follows the bones too");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet through the skinned main and shadow passes");
+
+        framework.Shutdown();
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+
     // **계산한 탄젠트로 노멀맵이 선다**(D-444). 시험 사각형 glTF 에는 탄젠트가 없어 임포트가 MikkTSpace 로 잰다. 바닥(법선 +Y)에 누운 사각형을 위에서 보고,
     // 빛은 옆에서만(수평) 온다 - 평평한 면은 빛을 등지지 않지만 받지도 않아 검다. 노멀맵 (1, 0.5, 0.5) 는 법선을 탄젠트(+u = +X)로 눕혀 +X 에서 오는 빛을 받고,
     // (0.5, 1, 0.5) 는 바이탄젠트(그림의 위 = -Z)로 눕혀 -Z 에서 오는 빛을 받는다. 반대쪽 빛에서는 검다 - 바이탄젠트의 부호가 틀리면 둘째가 뒤집힌다.
@@ -2890,6 +3014,9 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::D3D11RHIModule>());
     JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::VulkanRHIModule>());
     JBRO_CASE(TestSkyBakesOnWorkers<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestASkinnedMeshFollowsItsAnimator<JBro::D3D12RHIModule>());
+    JBRO_CASE(TestASkinnedMeshFollowsItsAnimator<JBro::D3D11RHIModule>());
+    JBRO_CASE(TestASkinnedMeshFollowsItsAnimator<JBro::VulkanRHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D12RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D11RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::VulkanRHIModule>());

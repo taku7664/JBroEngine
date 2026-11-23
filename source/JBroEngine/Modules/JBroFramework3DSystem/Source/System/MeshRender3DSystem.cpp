@@ -1,6 +1,9 @@
 ﻿#include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
 
+#include <JBro/Asset/Asset.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Framework3D/Component/Animator3D.h>
+#include <JBro/Framework3DSystem/System/Animation3DSystem.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -37,6 +40,12 @@ namespace JBro::System
     void MeshRender3DSystem::SetMeshMaterialLibrary(MeshMaterialLibrary* library)
     {
         m_meshMaterials = library;
+    }
+
+    void MeshRender3DSystem::SetAnimation(AssetSystem* assets, const Animation3DSystem* animation)
+    {
+        m_assets = assets;
+        m_animation = animation;
     }
 
     void MeshRender3DSystem::ExtractRenderWorld(Canvas& canvas)
@@ -98,6 +107,29 @@ namespace JBro::System
                 if (item.meshMaterial.generation == 0)
                 {
                     item.meshMaterial = m_meshMaterials->ResolveMeshMaterial(renderer.mesh);
+                }
+            }
+            // **스킨 메시**(D-458): 자기나 가장 가까운 조상의 애니메이터를 따른다. 스키닝 행렬은 모델 뿌리 기준이라 자리는 애니메이터 오브젝트의 것이다.
+            const MeshData* meshData = m_assets != nullptr && m_animation != nullptr && renderer.mesh.generation != 0 ? m_assets->GetMesh(renderer.mesh) : nullptr;
+            if (meshData != nullptr && false == meshData->skin.IsEmpty())
+            {
+                for (Object::GameObject* at = owner; at != nullptr; at = at->GetParent())
+                {
+                    const auto* animator = canvas.FindComponentRaw<Component::Animator3D>(at);
+                    if (animator == nullptr || false == animator->IsActiveComponent())
+                    {
+                        continue;
+                    }
+                    const Array<Matrix4x4>* skin = m_animation->FindSkinMatrices(animator->GetInstanceId());
+                    const auto* place = canvas.FindComponentRaw<Component::Transform3D>(at);
+                    if (skin != nullptr && place != nullptr && place->worldValid)
+                    {
+                        item.skin = skin;
+                        item.position = place->worldPosition;
+                        item.rotation = place->worldRotation;
+                        item.scale = place->worldScale;
+                    }
+                    break;
                 }
             }
             item.tint = renderer.tint;

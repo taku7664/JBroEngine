@@ -332,9 +332,47 @@ namespace JBro
 
     AssetHandle Renderer::RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices, Bool hasTangents)
     {
+        return RegisterSkinnedMesh(vertices, indices, hasTangents, {});
+    }
+
+    UInt64 Renderer::GetFrameSerial() const
+    {
+        return m_frameSerial;
+    }
+
+    UInt32 Renderer::SubmitSkinPalette(JArrayView<Matrix4x4> bones)
+    {
+        if (false == m_frameActive || bones.data == nullptr || bones.size == 0 || bones.size > MaxSkinBones || m_skinPaletteCount >= m_config.maxSkinPalettes
+            || m_frame.slot >= MaxFrameSlots || false == m_skinBuffers[m_frame.slot].IsValid())
+        {
+            ++m_currentStats.droppedMeshCount;
+            return 0;
+        }
+        // 뼈마다 행렬의 위 세 행이다(행 우선, 열 벡터 - 셰이더가 점과 내적한다). 쓰지 않는 칸은 버퍼에 남은 것 그대로다 - 정점이 가리키지 않는다.
+        Float rows[256 * 12];
+        for (UInt32 bone = 0; bone < bones.size; ++bone)
+        {
+            for (UInt32 at = 0; at < 12; ++at)
+            {
+                rows[(bone * 12 + at).Get()] = bones.data[bone.Get()].values[at.Get()];
+            }
+        }
+        const std::size_t offset = static_cast<std::size_t>(m_skinPaletteCount.Get()) * SkinPaletteBytes;
+        if (false == m_device->WriteBuffer(m_skinBuffers[m_frame.slot], offset,
+                {reinterpret_cast<const std::byte*>(rows), static_cast<JBro::UInt32>(static_cast<std::size_t>(bones.size.Get()) * 12 * sizeof(Float))}))
+        {
+            return 0;
+        }
+        ++m_skinPaletteCount;
+        return m_skinPaletteCount;
+    }
+
+    AssetHandle Renderer::RegisterSkinnedMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices, Bool hasTangents, JArrayView<MeshSkinVertex> skin)
+    {
         if (m_device == nullptr || m_frameActive
             || vertices.data == nullptr || vertices.size == 0
-            || indices.data == nullptr || indices.size == 0 || indices.size % 3 != 0)
+            || indices.data == nullptr || indices.size == 0 || indices.size % 3 != 0
+            || (skin.size != 0 && (skin.data == nullptr || skin.size != vertices.size)))
         {
             return {};
         }
@@ -377,6 +415,39 @@ namespace JBro
                 m_device->DestroyBuffer(resource.indexBuffer);
             }
             return {};
+        }
+        // 스킨 흐름(D-458). 뼈 번호가 `MaxSkinBones` 를 넘으면 받지 않는다 - 셰이더는 자르지만 엉뚱한 뼈를 읽는다.
+        if (skin.size != 0)
+        {
+            for (UInt32 at = 0; at < skin.size; ++at)
+            {
+                for (UInt32 slot = 0; slot < 4; ++slot)
+                {
+                    const Float bone = skin.data[at.Get()].bones[slot.Get()];
+                    if (false == (bone >= 0.0f) || bone >= static_cast<JBro::Float>(MaxSkinBones.Get()))
+                    {
+                        m_device->DestroyBuffer(resource.vertexBuffer);
+                        m_device->DestroyBuffer(resource.indexBuffer);
+                        return {};
+                    }
+                }
+            }
+            BufferDesc skinDesc;
+            skinDesc.size = static_cast<std::size_t>(skin.size) * sizeof(MeshSkinVertex);
+            skinDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+            skinDesc.memory = MemoryType::Upload;
+            resource.skinBuffer = m_device->CreateBuffer(skinDesc);
+            if (false == resource.skinBuffer.IsValid()
+                || false == m_device->WriteBuffer(resource.skinBuffer, 0, {reinterpret_cast<const std::byte*>(skin.data), static_cast<JBro::UInt32>(skinDesc.size)}))
+            {
+                if (resource.skinBuffer.IsValid())
+                {
+                    m_device->DestroyBuffer(resource.skinBuffer);
+                }
+                m_device->DestroyBuffer(resource.vertexBuffer);
+                m_device->DestroyBuffer(resource.indexBuffer);
+                return {};
+            }
         }
         resource.indexCount = indices.size;
         resource.hasTangents = hasTangents;
@@ -438,8 +509,13 @@ namespace JBro
         // 지난 프레임이 아직 이 버퍼를 읽고 있을 수 있다. 디바이스가 은퇴 펜스로 미뤄 놓는다.
         m_device->DestroyBuffer(resource.vertexBuffer);
         m_device->DestroyBuffer(resource.indexBuffer);
+        if (resource.skinBuffer.IsValid())
+        {
+            m_device->DestroyBuffer(resource.skinBuffer);
+        }
         resource.vertexBuffer = {};
         resource.indexBuffer = {};
+        resource.skinBuffer = {};
         resource.indexCount = 0;
         resource.occupied = false;
     }
@@ -1021,6 +1097,16 @@ namespace JBro
         layout.buffers[1] = {static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), VertexStepMode::Instance, {layout.instance, 5}};
     }
 
+    void Renderer::MakeSkinnedMeshVertexLayout(SkinnedMeshVertexLayout& layout)
+    {
+        MakeMeshVertexLayout(layout.mesh);
+        layout.skin[0] = {9, static_cast<JBro::UInt32>(offsetof(MeshSkinVertex, bones)), VertexFormat::Float4};
+        layout.skin[1] = {10, static_cast<JBro::UInt32>(offsetof(MeshSkinVertex, weights)), VertexFormat::Float4};
+        layout.buffers[0] = layout.mesh.buffers[0];
+        layout.buffers[1] = layout.mesh.buffers[1];
+        layout.buffers[2] = {static_cast<JBro::UInt32>(sizeof(MeshSkinVertex)), VertexStepMode::Vertex, {layout.skin, 2}};
+    }
+
     Bool Renderer::CreateMaterialPipelines(MaterialResource& resource, const CompiledMaterialShader& shader)
     {
         const ShaderCodeFormat format = CodeFormatOf(m_config.api);
@@ -1478,6 +1564,8 @@ namespace JBro
         // 프레임마다 여기서 통째로 덮어쓴다. 그래서 프레임을 닫을 때 따로 비울 것이 없다.
         m_frameTarget = target;
         m_frameActive = true;
+        ++m_frameSerial;
+        m_skinPaletteCount = 0;
         ResetSubmissionStorage();
         m_lightRing.BeginFrame(m_frame.slot);
         m_shadowRing.BeginFrame(m_frame.slot);
@@ -3269,12 +3357,14 @@ namespace JBro
                     && (resource.parameterBytes != 0 || commands.SetConstantBuffer(1, lightRange.buffer, lightRange.offset, lightRange.size))
                     && commands.SetConstantBuffer(2, lightRange.buffer, lightRange.offset, lightRange.size);
             };
-            const auto bindMeshMaterial = [&](const MeshMaterialResource& material) {
+            const auto bindMeshMaterial = [&](const MeshMaterialResource& material, Bool skinned) {
                 const MeshMaterialDesc& desc = material.desc;
                 const Bool unlit = desc.shading == MeshShading::Unlit;
                 const SamplerHandle sampler = desc.nearestFilter ? renderer.m_meshNearestSampler : renderer.m_meshLinearSampler;
                 const UInt32 variant = (desc.blend ? 2u : 0u) + (desc.doubleSided ? 1u : 0u);
-                return commands.SetGraphicsPipeline(unlit ? pipelines.meshUnlit[variant.Get()] : pipelines.mesh[variant.Get()])
+                const GraphicsPipelineHandle pipeline = skinned ? (unlit ? pipelines.meshUnlitSkinned[variant.Get()] : pipelines.meshSkinned[variant.Get()])
+                                                                : (unlit ? pipelines.meshUnlit[variant.Get()] : pipelines.mesh[variant.Get()]);
+                return commands.SetGraphicsPipeline(pipeline)
                     && commands.SetVertexBuffer(1, instances, static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
                     && commands.SetConstantBuffer(1, material.constants, 0, renderer.m_device->GetCaps().constantBufferAlignment)
                     // `Unlit` 은 라이트 블록과 기본색·발광 밖의 칸을 선언하지 않는다 - 묶으면 거절된다.
@@ -3293,6 +3383,7 @@ namespace JBro
             };
             UInt32 boundShaderMaterial = 0;
             const MeshMaterialResource* boundMeshMaterial = nullptr;
+            Bool boundSkinned = false;
             for (UInt32 at = 0; at < view.runCount; ++at)
             {
                 const MeshRun& run = renderer.m_meshRuns[(view.runOffset + at).Get()];
@@ -3319,14 +3410,25 @@ namespace JBro
                 {
                     const MeshMaterialResource* found = renderer.FindMeshMaterial(run.meshMaterial);
                     const MeshMaterialResource& material = found != nullptr ? *found : renderer.m_defaultMeshMaterial;
-                    if (boundMeshMaterial != &material)
+                    const Bool skinned = run.skinPalette != 0 && mesh->skinBuffer.IsValid();
+                    if (boundMeshMaterial != &material || boundSkinned != skinned)
                     {
-                        if (false == bindMeshMaterial(material))
+                        if (false == bindMeshMaterial(material, skinned))
                         {
                             return false;
                         }
                         boundMeshMaterial = &material;
                         boundShaderMaterial = 0;
+                        boundSkinned = skinned;
+                    }
+                    // 스킨 메시(D-458): 둘째 흐름과 이 항목의 뼈 묶음이다. 자리는 픽셀 단계의 블록 다음이다 - `Standard` 는 b5, `Unlit` 은 b2.
+                    const UInt32 boneSlot = material.desc.shading == MeshShading::Unlit ? 2u : 5u;
+                    if (skinned
+                        && (false == commands.SetVertexBuffer(2, mesh->skinBuffer, static_cast<JBro::UInt32>(sizeof(MeshSkinVertex)), 0)
+                            || false == commands.SetConstantBuffer(boneSlot, renderer.m_skinBuffers[renderer.m_frame.slot],
+                                static_cast<std::size_t>((run.skinPalette - 1).Get()) * SkinPaletteBytes, SkinPaletteBytes)))
+                    {
+                        return false;
                     }
                     // w 의 1 은 탄젠트가 있음, 2 는 그림자를 받지 않음이다(D-445).
                     push.cameraAndFlags[3] = (mesh->hasTangents ? 1.0f : 0.0f) + (run.receiveShadows ? 0.0f : 2.0f);
@@ -3609,6 +3711,22 @@ namespace JBro
                 return false;
             }
         }
+        // 뼈 묶음(D-458). 상한 0 이면 스킨 메시는 늘 쉬는 자세다.
+        if (m_config.maxSkinPalettes != 0)
+        {
+            BufferDesc skinBufferDesc;
+            skinBufferDesc.size = static_cast<std::size_t>(m_config.maxSkinPalettes.Get()) * SkinPaletteBytes;
+            skinBufferDesc.usage = BufferUsage::Constant | BufferUsage::CopySource;
+            skinBufferDesc.memory = MemoryType::Upload;
+            for (UInt32 slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
+            {
+                m_skinBuffers[slot] = m_device->CreateBuffer(skinBufferDesc);
+                if (false == m_skinBuffers[slot].IsValid())
+                {
+                    return false;
+                }
+            }
+        }
 
         // 표준 머티리얼의 샘플러·평평한 노멀·기본 머티리얼이다(D-402). 파이프라인은 장면 포맷마다 `CreateScenePipelines` 가 짓는다.
         // 재질 그림은 반복해 읽는다(타일 UV). 밉은 샘플러가 이미 끝까지 읽는다(세 백엔드의 최대 LOD 가 무제한).
@@ -3681,6 +3799,20 @@ namespace JBro
             {
                 return false;
             }
+            // 스킨 메시의 그림자(D-458): 같은 깊이 단계에 뼈를 b1 에서 읽는 정점 단계다.
+            SkinnedMeshVertexLayout skinnedLayout;
+            MakeSkinnedMeshVertexLayout(skinnedLayout);
+            GraphicsPipelineDesc skinnedDesc = shadowDesc;
+            if (false == ApplyShader(skinnedDesc, BuiltinShader::MeshShadowSkinned, m_config.api, sizeof(MeshPushConstants)))
+            {
+                return false;
+            }
+            skinnedDesc.vertexBuffers = {skinnedLayout.buffers, 3};
+            m_skinnedShadowPipeline = m_device->CreateGraphicsPipeline(skinnedDesc);
+            if (false == m_skinnedShadowPipeline.IsValid())
+            {
+                return false;
+            }
         }
         // 기본 빛: 라이트 기능 전의 고정 방향광(빛 쪽 (0.4, 0.8, 0.45), 세기 0.75)과 주변광 0.25 다.
         m_defaultLightBlock = {};
@@ -3715,6 +3847,11 @@ namespace JBro
             m_device->DestroyGraphicsPipeline(m_shadowPipeline);
             m_shadowPipeline = {};
         }
+        if (m_skinnedShadowPipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_skinnedShadowPipeline);
+            m_skinnedShadowPipeline = {};
+        }
         if (m_shadowAtlas.IsValid())
         {
             m_device->DestroyTexture(m_shadowAtlas);
@@ -3747,6 +3884,14 @@ namespace JBro
             }
         }
         for (BufferHandle& buffer : m_meshInstanceBuffers)
+        {
+            if (buffer.IsValid())
+            {
+                m_device->DestroyBuffer(buffer);
+                buffer = {};
+            }
+        }
+        for (BufferHandle& buffer : m_skinBuffers)
         {
             if (buffer.IsValid())
             {
@@ -4215,13 +4360,19 @@ namespace JBro
                 m_meshSortKeys[keyCount++] = (group << 48) | shadowBits | ((UInt64(submit.mesh.index) & MeshMask) << 24) | (UInt64(at - view.meshOffset) & OrderMask);
             }
             std::sort(m_meshSortKeys.Data(), m_meshSortKeys.Data() + keyCount);
+            Bool previousSkinned = false;
             for (std::size_t at = 0; at < keyCount; ++at)
             {
                 const UInt64 key = m_meshSortKeys[at];
                 const MeshSubmit& submit = m_meshes[view.meshOffset + static_cast<UInt32>(key & OrderMask)];
                 const UInt64 run = key >> 24;
                 const Bool transparent = (key & TransparentBit) != 0;
-                if (at == 0 || transparent || run != (m_meshSortKeys[at - 1] >> 24))
+                // 스킨 항목(D-458)은 저마다 뼈 묶음이 달라 인스턴스로 묶지 않는다 - 앞뒤 어느 쪽이든 스킨이면 새 구간이다.
+                const MeshResource* skinMesh = submit.skinPalette != 0 ? FindMesh(submit.mesh) : nullptr;
+                const Bool skinned = skinMesh != nullptr && skinMesh->skinBuffer.IsValid();
+                const Bool breakRun = skinned || previousSkinned;
+                previousSkinned = skinned;
+                if (at == 0 || transparent || breakRun || run != (m_meshSortKeys[at - 1] >> 24))
                 {
                     // 반투명의 열쇠에는 재질이 없다 - 제출에서 다시 읽는다(표준 머티리얼만 반투명이다).
                     const UInt64 group = transparent ? UInt64(submit.meshMaterial.index) + 1 : (key >> 48) & UInt64(0x7FFF);
@@ -4234,6 +4385,7 @@ namespace JBro
                     added.transparent = transparent;
                     added.castShadows = false == transparent && submit.castShadows;
                     added.receiveShadows = submit.receiveShadows;
+                    added.skinPalette = skinned ? submit.skinPalette : UInt32(0);
                     m_meshRuns.Add(added);
                     ++view.runCount;
                 }
@@ -4827,6 +4979,35 @@ namespace JBro
                 return false;
             }
         }
+        // 스킨 메시(D-458)의 쌍둥이다. 같은 픽셀 단계, 정점 단계만 뼈로 옮기는 것이고 흐름이 하나 더 있다.
+        SkinnedMeshVertexLayout skinnedLayout;
+        MakeSkinnedMeshVertexLayout(skinnedLayout);
+        GraphicsPipelineDesc skinnedDesc = meshDesc;
+        GraphicsPipelineDesc skinnedUnlitDesc = meshUnlitDesc;
+        if (false == ApplyShader(skinnedDesc, BuiltinShader::MeshSkinned, m_config.api, sizeof(MeshPushConstants))
+            || false == ApplyShader(skinnedUnlitDesc, BuiltinShader::MeshUnlitSkinned, m_config.api, sizeof(MeshPushConstants)))
+        {
+            return false;
+        }
+        skinnedDesc.vertexBuffers = {skinnedLayout.buffers, 3};
+        skinnedUnlitDesc.vertexBuffers = {skinnedLayout.buffers, 3};
+        for (UInt32 variant = 0; variant < 4; ++variant)
+        {
+            const Bool blended = (variant.Get() & 2u) != 0;
+            const Bool twoSided = (variant.Get() & 1u) != 0;
+            skinnedDesc.blend = blended ? BlendMode::Alpha : BlendMode::Opaque;
+            skinnedDesc.depthWrite = false == blended;
+            skinnedDesc.cull = twoSided ? CullMode::None : CullMode::Back;
+            skinnedUnlitDesc.blend = skinnedDesc.blend;
+            skinnedUnlitDesc.depthWrite = skinnedDesc.depthWrite;
+            skinnedUnlitDesc.cull = skinnedDesc.cull;
+            pipelines.meshSkinned[variant.Get()] = m_device->CreateGraphicsPipeline(skinnedDesc);
+            pipelines.meshUnlitSkinned[variant.Get()] = m_device->CreateGraphicsPipeline(skinnedUnlitDesc);
+            if (false == pipelines.meshSkinned[variant.Get()].IsValid() || false == pipelines.meshUnlitSkinned[variant.Get()].IsValid())
+            {
+                return false;
+            }
+        }
 
         // 월드 텍스트(D-222). 상한 0 은 월드 텍스트를 쓰지 않는 렌더러다.
         if (m_config.maxWorldTextSubmissions == 0)
@@ -4871,7 +5052,10 @@ namespace JBro
         for (GraphicsPipelineHandle* pipeline :
             {&pipelines.sprite, &pipelines.spriteOverDepth, &pipelines.sdfText, &pipelines.sdfTextOverDepth, &pipelines.litSprite,
                 &pipelines.litSdfText, &pipelines.worldText, &pipelines.mesh[0], &pipelines.mesh[1], &pipelines.mesh[2], &pipelines.mesh[3],
-                &pipelines.meshUnlit[0], &pipelines.meshUnlit[1], &pipelines.meshUnlit[2], &pipelines.meshUnlit[3], &pipelines.layerBackdrop, &pipelines.layerComposite[0],
+                &pipelines.meshUnlit[0], &pipelines.meshUnlit[1], &pipelines.meshUnlit[2], &pipelines.meshUnlit[3],
+                &pipelines.meshSkinned[0], &pipelines.meshSkinned[1], &pipelines.meshSkinned[2], &pipelines.meshSkinned[3],
+                &pipelines.meshUnlitSkinned[0], &pipelines.meshUnlitSkinned[1], &pipelines.meshUnlitSkinned[2], &pipelines.meshUnlitSkinned[3],
+                &pipelines.layerBackdrop, &pipelines.layerComposite[0],
                 &pipelines.layerComposite[1], &pipelines.layerComposite[2], &pipelines.layerComposite[3], &pipelines.sky})
         {
             if (pipeline->IsValid())

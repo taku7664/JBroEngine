@@ -79,6 +79,17 @@ namespace JBro::Internal
             constexpr std::size_t BatchSize = 64;
             MeshSubmit batch[BatchSize];
             Bool accepted = world.GetDroppedMeshCount() == 0;
+            // 뼈 묶음(D-458)은 렌더러 프레임마다 한 번 올린다. 새 프레임이면 표를 0 으로 되돌린다(예약해 둔 만큼이라 할당이 없다).
+            Array<UInt32>& palettes = world.GetSkinPaletteScratch();
+            if (world.GetSkinPaletteFrame() != renderer.GetFrameSerial() || palettes.Size() != world.GetMeshCount())
+            {
+                world.GetSkinPaletteFrame() = renderer.GetFrameSerial();
+                palettes.Clear();
+                for (std::size_t at = 0; at < world.GetMeshCount() && at < palettes.Capacity(); ++at)
+                {
+                    palettes.Add(0);
+                }
+            }
             std::size_t next = 0;
             while (next < world.GetMeshCount())
             {
@@ -104,6 +115,16 @@ namespace JBro::Internal
                     submit.tint[3] = item.tint.A;
                     submit.castShadows = item.castShadows;
                     submit.receiveShadows = item.receiveShadows;
+                    submit.skinPalette = 0;
+                    if (item.skin != nullptr && false == item.skin->IsEmpty() && next - 1 < palettes.Size())
+                    {
+                        UInt32& palette = palettes[next - 1];
+                        if (palette == 0)
+                        {
+                            palette = renderer.SubmitSkinPalette({item.skin->Data(), static_cast<JBro::UInt32>(item.skin->Size())});
+                        }
+                        submit.skinPalette = palette;
+                    }
                 }
                 if (count == 0)
                 {

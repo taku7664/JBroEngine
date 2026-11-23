@@ -36,6 +36,8 @@ namespace JBro
         UInt32 maxPostProcessEntries = 64;
         UInt32 postProcessBlockBytes = 4096;
         UInt32 maxMeshSubmissions = 16384;
+        // 한 프레임의 뼈 묶음(`SubmitSkinPalette`) 상한이다(D-458). 묶음 하나가 `MaxSkinBones` 뼈의 자리(12 KiB)라 프레임 슬롯마다 이만큼의 상수 버퍼를 둔다.
+        UInt32 maxSkinPalettes = 128;
         // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-222).
         UInt32 maxWorldTextSubmissions = 16384;
         // 한 프레임의 레이어 묶음(`BeginLayer`) 상한이다(D-279). 뷰마다 합성하는 레이어 수의 합이다.
@@ -293,6 +295,9 @@ namespace JBro
         // **그림자**(D-445). 드리우기는 그림자 맵에 그리는가, 받기는 표준 머티리얼이 그림자를 읽는가다. 반투명은 드리우지 않는다.
         Bool castShadows = true;
         Bool receiveShadows = true;
+        // **스키닝**(D-458). 이 프레임의 `SubmitSkinPalette` 가 준 번호다(0 이면 없다). 스킨 메시(`RegisterSkinnedMesh`)에 표준 머티리얼일 때만 정점 셰이더가 뼈로 옮긴다 -
+        // 셰이더 머티리얼이거나 번호가 없으면 쉬는 자세로 그린다. 스킨 항목은 인스턴스 묶음에 들지 않고 하나씩 그린다.
+        UInt32 skinPalette = 0;
     };
 
     // **월드 텍스트**(D-222). 3D 뷰에 놓는 글자 사각형 하나다. 스프라이트와 같은 단위 쿼드(-0.5..0.5)를 `world`(행 우선 4x4, 열 벡터)로
@@ -364,6 +369,17 @@ namespace JBro
         Float uv[2] = {0.0f, 0.0f};
         Float tangent[4] = {1.0f, 0.0f, 0.0f, 1.0f};
     };
+
+    // **스킨 정점**(D-458). 메시 정점과 같은 차례의 둘째 흐름이다 - 뼈 번호 넷(정수를 그대로 든 실수, RHI 에 정수 정점 형식이 없다)과 합이 1 인 가중치 넷.
+    // `BuiltinMesh.hlsl` 의 ATTRIBUTE9·10 이 읽는다.
+    struct MeshSkinVertex
+    {
+        Float bones[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        Float weights[4] = {1.0f, 0.0f, 0.0f, 0.0f};
+    };
+
+    // 뼈 묶음 하나의 뼈 상한이다(D-458). 셰이더의 상수 블록(`SkinConstants`)이 이만큼의 3 행을 선언한다.
+    inline constexpr UInt32 MaxSkinBones = 256;
 
     // **머티리얼 하나를 올릴 것**(D-347, `Renderer::RegisterMaterial`). 셰이더는 자리(`shader->domain`)로 구운 것이고, 렌더러의 API 에 맞는 바이트코드가
     // 있어야 한다. 파라미터는 `shader->parameterBytes` 바이트(셰이더의 `cbuffer Material` 그대로의 배치)다. 텍스처는 t 자리 - 1 의 칸에 렌더러가
@@ -546,6 +562,13 @@ namespace JBro
         // 발급한다(`[가정]`, framework3d-plan §2.3).
         // `hasTangents` 가 거짓이면 그 메시는 노멀맵을 읽지 않는다 - 탄젠트가 없는 모델 파일이다(D-399 (5)).
         AssetHandle RegisterMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices, Bool hasTangents = true);
+        // **스킨 메시**(D-458). `skin` 은 정점마다 하나다(크기가 다르면 빈 핸들). 그리기는 `MeshSubmit::skinPalette` 가 있을 때 뼈로 옮긴다.
+        AssetHandle RegisterSkinnedMesh(JArrayView<MeshVertex> vertices, JArrayView<UInt32> indices, Bool hasTangents, JArrayView<MeshSkinVertex> skin);
+        // **뼈 묶음을 올린다**(D-458). 스키닝 행렬(뼈 모델 행렬 x 역바인드, 행 우선 4x4)을 이 프레임의 상수 버퍼에 쓰고 `MeshSubmit::skinPalette` 에 넣을 번호를 준다.
+        // 프레임 안에서만 부르고, 뼈가 `MaxSkinBones` 를 넘거나 묶음이 차면 0 이다(그 메시는 쉬는 자세로 그린다). 같은 묶음을 여러 뷰·패스가 함께 쓴다.
+        UInt32 SubmitSkinPalette(JArrayView<Matrix4x4> bones);
+        // 이 렌더러가 프레임을 연 횟수다. 프레임마다 한 번 올릴 것(뼈 묶음)을 쓰는 쪽이 같은 프레임인지 가른다.
+        UInt64 GetFrameSerial() const;
         void UnregisterMesh(AssetHandle mesh);
         UInt32 GetMeshCount() const;
         // RGBA8 픽셀(왼쪽 위 원점, 행마다 `width * 4` 바이트)을 GPU 에 올리고 `SpriteSubmit::texture` 에 넣을 핸들을
@@ -758,6 +781,9 @@ namespace JBro
             // 표준 머티리얼의 `Standard`·`Unlit` 이다(D-402). 차례는 `MeshPipelineIndex` 다 - 반투명(D-443)이 2, 양면이 1 을 더한다.
             GraphicsPipelineHandle mesh[4];
             GraphicsPipelineHandle meshUnlit[4];
+            // 스킨 메시(D-458)의 쌍둥이다.
+            GraphicsPipelineHandle meshSkinned[4];
+            GraphicsPipelineHandle meshUnlitSkinned[4];
             // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
             GraphicsPipelineHandle layerComposite[4];
             // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
@@ -996,6 +1022,8 @@ namespace JBro
             UInt32 material = 0;
             UInt32 firstInstance = 0;
             UInt32 instanceCount = 0;
+            // 스킨 메시의 뼈 묶음 번호다(D-458, 0 이면 없다). 스킨 구간은 인스턴스 하나다.
+            UInt32 skinPalette = 0;
             // 그림자(D-445). 묶음은 이 둘로도 갈린다(정렬 열쇠의 46·47 비트). 반투명 묶음은 그림자 맵에 그리지 않는다.
             Bool castShadows = true;
             Bool receiveShadows = true;
@@ -1166,6 +1194,9 @@ namespace JBro
         static_assert(offsetof(MeshVertex, uv) == 24, "attribute 7 reads the UV from offset 24");
         static_assert(offsetof(MeshVertex, tangent) == 32, "attribute 8 reads the tangent from offset 32");
         static_assert(sizeof(GpuMeshInstance) == 80, "mesh instance stride is part of the shader ABI");
+        static_assert(sizeof(MeshSkinVertex) == 32, "skin vertex stride is part of the shader ABI");
+        // 뼈 하나가 float4 셋(3 행)이다. 셰이더의 `SkinConstants` 가 `MaxSkinBones` 뼈를 선언하므로 늘 통째로 묶는다.
+        static constexpr std::size_t SkinPaletteBytes = static_cast<std::size_t>(256) * 3 * 16;
         static_assert(offsetof(GpuMeshInstance, tint) == 64, "attribute 6 reads the tint from offset 64");
 
         // 월드 텍스트 인스턴스다. `BuiltinWorldText.hlsl` 의 ATTRIBUTE1..8 이 읽는다. 월드는 메시처럼 행 넷이다.
@@ -1189,6 +1220,8 @@ namespace JBro
         {
             BufferHandle vertexBuffer;
             BufferHandle indexBuffer;
+            // 스킨 메시의 둘째 정점 흐름이다(D-458). 비면 스킨 메시가 아니다.
+            BufferHandle skinBuffer;
             UInt32 indexCount = 0;
             Bool hasTangents = true;
             // 정점을 덮는 로컬 공이다(D-446). 중심은 정점 상자의 가운데다.
@@ -1265,6 +1298,14 @@ namespace JBro
             VertexAttributeDesc instance[5];
             VertexBufferLayoutDesc buffers[2];
         };
+        // 스킨 메시(D-458): 메시의 두 흐름에 스킨 흐름(뼈 번호·가중치, ATTRIBUTE9·10)을 더한다.
+        struct SkinnedMeshVertexLayout
+        {
+            MeshVertexLayout mesh;
+            VertexAttributeDesc skin[2];
+            VertexBufferLayoutDesc buffers[3];
+        };
+        static void MakeSkinnedMeshVertexLayout(SkinnedMeshVertexLayout& layout);
         static void MakeMeshVertexLayout(MeshVertexLayout& layout);
         // 머티리얼의 텍스처(t1..)·샘플러 넷·파라미터(b1)를 묶는다. t0 은 부르는 쪽이 묶는다.
         // `parameters` 를 주면 머티리얼의 블록 대신 그것(같은 크기)을 올린다(볼륨이 섞은 것, D-348).
@@ -1403,6 +1444,7 @@ namespace JBro
         // 아틀라스를 바란 프레임이 있었다. 다음 `BeginFrame` 이 프레임 밖에서 만든다.
         Bool m_shadowAtlasWanted = false;
         GraphicsPipelineHandle m_shadowPipeline;
+        GraphicsPipelineHandle m_skinnedShadowPipeline;
         ConstantRing m_shadowRing;
         Array<GpuShadowConstants> m_viewShadows;
         GpuShadowConstants m_noShadows{};
@@ -1512,6 +1554,10 @@ namespace JBro
         TextureHandle m_clearedTargets[MaxClearedTargets];
         std::size_t m_clearedTargetCount = 0;
         BufferHandle m_meshInstanceBuffers[MaxFrameSlots];
+        // 뼈 묶음의 상수 버퍼다(D-458). 프레임 슬롯마다 `maxSkinPalettes` 칸이고 칸 하나가 `SkinPaletteBytes` 다.
+        BufferHandle m_skinBuffers[MaxFrameSlots];
+        UInt32 m_skinPaletteCount = 0;
+        UInt64 m_frameSerial = 0;
         // 뷰마다 (머티리얼, 메시, 제출 차례)를 한 값에 담아 정렬하는 작업 배열이다. 크기는 메시 제출 상한이라 프레임 안에서 할당하지 않는다.
         Array<UInt64> m_meshSortKeys;
         Array<MeshMaterialResource> m_meshMaterialResources;

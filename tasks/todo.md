@@ -3103,6 +3103,21 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-458. 스켈레탈 1b: 정점 셰이더 스키닝. 스킨 메시는 뼈 번호·가중치의 둘째 정점 흐름을 들고, 뼈 행렬은 프레임마다 한 번 올린 묶음을 각 프로그램이 픽셀 단계의 블록 다음 자리에서 읽는다.** (2026-11-23, 사용자: "1b 진행")
+  Updates: D-456 (skeletal-plan §3.4 의 7 - 뼈 번호는 정수를 든 실수 넷, RHI 에 정수 정점 형식이 없다), D-457 (메시는 애니메이터 행렬로 그린다).
+  (1) **렌더러**: `MeshSkinVertex`(뼈 넷·가중치 넷, 32 B), `RegisterSkinnedMesh`(스킨 흐름 버퍼, 뼈 번호가 256 을 넘으면 거절), `SubmitSkinPalette`(스키닝 행렬의 위 세 행을 프레임 슬롯의
+  상수 버퍼 `maxSkinPalettes`(128) 칸 가운데 하나에 쓰고 번호를 준다 - 셰이더 블록이 뼈 256 개를 선언하므로 칸은 늘 12 KiB 를 통째로 묶는다), `MeshSubmit::skinPalette`,
+  `GetFrameSerial`. 스킨 항목은 인스턴스 묶음에 들지 않는다. 장면 파이프라인에 스킨 쌍둥이 여덟과 그림자 하나가 늘었다.
+  (2) **셰이더**: `BuiltinMesh.hlsl` 의 스킨 입구 셋이 뼈 넷의 가중 합을 메시 좌표에서 하고 보통 정점 단계(`VSMain`)에 넘긴다. 뼈 블록은 프로그램마다 **픽셀 단계가 선언한 블록 다음 자리**다 -
+  `Standard` b5, `Unlit` b2, 그림자 b1. 처음에는 `Unlit` 도 b5 로 두고 b2..b4 를 빈 채 묶었는데, 셰이더 표 시험의 "a program declares no slot its shaders never read" 가 막아 자리를 갈랐다.
+  (3) **프레임워크**: 메시 라이브러리가 `MeshData::skin` 이 있으면 스킨 메시로 올리고, 렌더 시스템이 스킨 메시면 자기나 가장 가까운 조상의 `Animator3D` 행렬(`Animation3DSystem::FindSkinMatrices`)을
+  들려 자리를 그 애니메이터 오브젝트의 것으로 한다. 브리지가 렌더러 프레임마다 항목의 뼈 묶음을 한 번 올리고(렌더 월드의 표), 뷰·레이어가 같은 번호를 쓴다.
+  시험: `MeshPixel` 의 `TestASkinnedMeshFollowsItsAnimator`(세 백엔드, 검증 레이어 켬 - 쉬는 자세와 클립 끝 자세의 덮인 자리, 그림자를 드리우는 방향광으로 스킨 그림자 파이프라인,
+  `Unlit` 재질). 시험 기대값: 렌더러 계약의 파이프라인 수 27 → 36, 셰이더 프로그램 수 30 → 33. 뮤테이션: 브리지가 뼈 묶음 번호를 넘기지 않으면
+  "at the clip's end the quad is drawn where the bones moved it" 가 죽는다.
+  빌드: Debug(오류 0). 시험: RendererContract·BuiltinShader·MeshPixel·Animation3D·Framework3DSystem·AssetSystem·PostProcessPixel·UserScenario 통과(관련 묶음, 전체 시험은 푸시 전).
+  남은 것: 1c 스크립트 핸들·인스펙터, 셰이더 머티리얼의 스킨, 스킨 메시의 경계(점광 면 걸러 내기), 화면 밖 건너뛰기, 워커 포즈(skeletal-plan §4).
+
 - **D-457. 스켈레탈 1a: `Animator3D` 와 자세 셈·애니메이터 시스템. 스킨 메시는 실릴 때 제 뼈대를 잡고, 애니메이터는 비었으면 그것을 쓴다.** (2026-11-23, 사용자: "1단계로")
   Updates: D-453 (컴포넌트·레이어·마스크의 실제 모양), D-456 (`MeshData::skeletonAsset`).
   (1) **컴포넌트**: `Component::Animator3D` - `skeletonId`/`skeleton`, `clipId`/`clip`(레이어 0 의 시작 클립), `playOnStart`, `loop`, `speed`. 새 갈래 `Animation`(로컬라이징 키 둘), 한 오브젝트에 하나.

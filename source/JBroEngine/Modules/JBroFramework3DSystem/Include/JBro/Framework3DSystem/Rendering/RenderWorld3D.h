@@ -12,6 +12,7 @@
 #include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Types/Angle.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Matrix4x4.h>
 #include <JBro/Types/Color.h>
 #include <JBro/Types/Math3D.h>
 
@@ -91,6 +92,9 @@ namespace JBro
         // 그림자(D-445).
         Bool castShadows = true;
         Bool receiveShadows = true;
+        // **스키닝 행렬**(D-458). 스킨 메시면 따르는 애니메이터의 행렬(뼈마다 하나, 애니메이터 시스템이 든다 - 이 프레임 동안 산다)이고, 자리·회전·크기는 그 애니메이터 오브젝트의 것이다.
+        // 아니면 비어 있다. 브리지가 프레임마다 한 번 렌더러의 뼈 묶음으로 올린다.
+        const Array<Matrix4x4>* skin = nullptr;
     };
 
     // 3D 텍스트의 글자 하나다(D-222). 사각형은 **오브젝트 로컬 XY 평면의 유닛**이고(왼쪽 위와 크기, y 위쪽), 월드 자리·회전·크기는 오브젝트의
@@ -281,6 +285,9 @@ namespace JBro
         const WorldTextRenderItem& GetText(std::size_t index) const;
         // 뷰마다 뒤→앞으로 늘어놓는 번호 배열이다. 브리지가 쓴다 - 용량은 `ReserveTexts` 가 잡아 매 프레임 할당하지 않는다.
         Array<UInt32>& GetTextOrderScratch() const;
+        // 메시 항목마다의 뼈 묶음 번호와 그것을 올린 렌더러 프레임이다(D-458). 뷰·레이어마다 메시를 다시 내도 묶음은 한 번 올린다.
+        Array<UInt32>& GetSkinPaletteScratch() const;
+        UInt64& GetSkinPaletteFrame() const;
         // 이번 프레임에 그릴 것이 있는 레이어 차례를 모으는 배열이다(D-280). 아이템 수만큼 잡아 두어 매 프레임 할당하지 않는다.
         Array<std::uint16_t>& GetLayerOrderScratch() const;
 
@@ -300,6 +307,8 @@ namespace JBro
         Array<Light3DRenderItem> m_lights;
         std::size_t m_droppedLightCount = 0;
         mutable Array<UInt32> m_textOrder;
+        mutable Array<UInt32> m_skinPalettes;
+        mutable UInt64 m_skinPaletteFrame = 0;
         mutable Array<std::uint16_t> m_layerOrders;
     };
 }

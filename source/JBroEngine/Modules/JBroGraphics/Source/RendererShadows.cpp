@@ -366,6 +366,8 @@ namespace JBro
         {
             return false;
         }
+        // 지금 걸린 그림자 파이프라인이 스킨 쪽인가다(D-458). 위에서 일반 쪽을 걸었다.
+        Bool skinnedBound = false;
         // `reach` 가 있으면(점광, D-446) 그 공 [x, y, z, 반지름] 과 겹치지 않는 구간은 그리지 않는다.
         const auto drawTile = [&](const Matrix4x4& lightMatrix, UInt32 x, UInt32 y, UInt32 tile, const Float* reach) {
             Viewport viewport;
@@ -378,10 +380,23 @@ namespace JBro
                 static_cast<JBro::Int32>((x + tile).Get()), static_cast<JBro::Int32>((y + tile).Get())});
             MeshPushConstants push;
             push.viewProjection = lightMatrix;
-            if (false == commands.SetGraphicsConstants({reinterpret_cast<const std::byte*>(&push), static_cast<JBro::UInt32>(sizeof(push))}))
+            const JArrayView<std::byte> pushBytes{reinterpret_cast<const std::byte*>(&push), static_cast<JBro::UInt32>(sizeof(push))};
+            if (false == commands.SetGraphicsConstants(pushBytes))
             {
                 return false;
             }
+            // 스킨 메시(D-458)는 뼈를 b1 에서 읽는 파이프라인으로 그린다. 파이프라인을 바꾸면 루트 시그니처가 바뀌므로 푸시 상수와 인스턴스 흐름을 다시 건다.
+            // 어느 쪽이 걸려 있는지는 타일을 넘어 이어진다(`skinnedBound`, 아래 람다 밖).
+            const auto usePipeline = [&](Bool skinned) {
+                if (skinned == skinnedBound)
+                {
+                    return true;
+                }
+                skinnedBound = skinned;
+                return commands.SetGraphicsPipeline(skinned ? renderer.m_skinnedShadowPipeline : renderer.m_shadowPipeline)
+                    && commands.SetVertexBuffer(1, instances, static_cast<JBro::UInt32>(sizeof(GpuMeshInstance)), 0)
+                    && commands.SetGraphicsConstants(pushBytes);
+            };
             for (UInt32 at = 0; at < view.runCount; ++at)
             {
                 const MeshRun& run = renderer.m_meshRuns[(view.runOffset + at).Get()];
@@ -389,6 +404,18 @@ namespace JBro
                 if (mesh == nullptr || (reach != nullptr && false == BoxTouchesSphere(run.boundsMin, run.boundsMax, reach)))
                 {
                     continue;
+                }
+                const Bool skinned = run.skinPalette != 0 && mesh->skinBuffer.IsValid() && renderer.m_skinnedShadowPipeline.IsValid();
+                if (false == usePipeline(skinned))
+                {
+                    return false;
+                }
+                if (skinned
+                    && (false == commands.SetVertexBuffer(2, mesh->skinBuffer, static_cast<JBro::UInt32>(sizeof(MeshSkinVertex)), 0)
+                        || false == commands.SetConstantBuffer(1, renderer.m_skinBuffers[renderer.m_frame.slot],
+                            static_cast<std::size_t>((run.skinPalette - 1).Get()) * SkinPaletteBytes, SkinPaletteBytes)))
+                {
+                    return false;
                 }
                 if (false == commands.SetVertexBuffer(0, mesh->vertexBuffer, static_cast<JBro::UInt32>(sizeof(MeshVertex)), 0)
                     || false == commands.SetIndexBuffer(mesh->indexBuffer, IndexFormat::UInt32, 0)

@@ -20,6 +20,9 @@
         @{ Symbol = 'BuiltinMeshPS';             File = 'BuiltinMesh.hlsl';             Entry = 'PSMain';         Stage = 'Pixel' }
         @{ Symbol = 'BuiltinMeshUnlitPS';        File = 'BuiltinMesh.hlsl';             Entry = 'PSUnlitMain';    Stage = 'Pixel' }
         @{ Symbol = 'BuiltinMeshShadowPS';       File = 'BuiltinMesh.hlsl';             Entry = 'PSShadowMain';   Stage = 'Pixel' }
+        @{ Symbol = 'BuiltinMeshSkinnedVS';      File = 'BuiltinMesh.hlsl';             Entry = 'VSSkinnedMain';  Stage = 'Vertex' }
+        @{ Symbol = 'BuiltinMeshUnlitSkinnedVS'; File = 'BuiltinMesh.hlsl';             Entry = 'VSUnlitSkinnedMain'; Stage = 'Vertex' }
+        @{ Symbol = 'BuiltinMeshShadowSkinnedVS'; File = 'BuiltinMesh.hlsl';            Entry = 'VSShadowSkinnedMain'; Stage = 'Vertex' }
         @{ Symbol = 'BuiltinSkyVS';              File = 'BuiltinSky.hlsl';              Entry = 'VSMain';         Stage = 'Vertex' }
         @{ Symbol = 'BuiltinSkyPS';              File = 'BuiltinSky.hlsl';              Entry = 'PSMain';         Stage = 'Pixel' }
         @{ Symbol = 'BuiltinSdfTextVS';          File = 'BuiltinSdfText.hlsl';          Entry = 'VSMain';         Stage = 'Vertex' }
@@ -67,6 +70,11 @@
         @{ Name = 'MeshUnlit';        Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshUnlitPS';        PushConstantBytes = 80; PushConstantStages = 'Vertex'; ConstantBuffers = 1; ConstantBufferStages = 'Pixel'; SampledTextures = 2; Samplers = 1 }
         # The shadow map (D-445): the mesh vertex stage with a light's view-projection pushed in, depth only.
         @{ Name = 'MeshShadow';       Vertex = 'BuiltinMeshVS';      Pixel = 'BuiltinMeshShadowPS';       PushConstantBytes = 80; PushConstantStages = 'Vertex' }
+        # Skinned meshes (D-458): the same pixel stages over a skinning vertex stage that reads the bones at the first slot after the pixel stage's blocks:
+        # b5 for Standard, b2 for Unlit, b1 for the shadow map.
+        @{ Name = 'MeshSkinned';      Vertex = 'BuiltinMeshSkinnedVS'; Pixel = 'BuiltinMeshPS';           PushConstantBytes = 80; PushConstantStages = 'Vertex|Pixel'; ConstantBuffers = 5; ConstantBufferStages = 'Vertex|Pixel'; SampledTextures = 7; Samplers = 2 }
+        @{ Name = 'MeshUnlitSkinned'; Vertex = 'BuiltinMeshUnlitSkinnedVS'; Pixel = 'BuiltinMeshUnlitPS'; PushConstantBytes = 80; PushConstantStages = 'Vertex'; ConstantBuffers = 2; ConstantBufferStages = 'Vertex|Pixel'; SampledTextures = 2; Samplers = 1 }
+        @{ Name = 'MeshShadowSkinned'; Vertex = 'BuiltinMeshShadowSkinnedVS'; Pixel = 'BuiltinMeshShadowPS'; PushConstantBytes = 80; PushConstantStages = 'Vertex'; ConstantBuffers = 1; ConstantBufferStages = 'Vertex' }
         # The sky background (D-447): one triangle from vertex ids, the inverse view-projection and the sky's rotation and intensity pushed to the pixel stage, t0 the sky map.
         @{ Name = 'Sky';              Vertex = 'BuiltinSkyVS';       Pixel = 'BuiltinSkyPS';              PushConstantBytes = 80; PushConstantStages = 'Pixel'; SampledTextures = 1; Samplers = 1 }
         # Full screen passes over a quad: the selection outline and layer compositing read their inputs in the pixel stage.
