@@ -252,6 +252,9 @@
 - `AssetSystem` 은 타입별 풀과 index+generation 핸들이다(`IAsset` 가상 기반 없음). 로드는 동기·메인 스레드이고
   프레임 경로에서 부르지 않는다 - 해석 패스(`BindComponentAssets`: `xxxId` → `xxx`)가 캔버스 로드 뒤와 편집 뒤에만 돈다.
   참조 수 0 은 곧 언로드가 아니고 `CollectUnused` 가 내린다. in-place 재로드는 핸들을 보존한다. (MUST) (D-111)
+- **에디터의 `Load` 는 무거운 디코드를 기다리지 않는다**(`EngineConfig::deferAssetDecode`, 에디터만 참): 그림 파일·모델의 메시와 재질·내장 그림·하늘 맵은 빈 자리(`IsPending`, `Get*` 은 null)를
+  곧장 주고, 호스트가 프레임마다 `SubmitDeferredAssetDecodes` 로 워커에 보내며 `AdoptDecoded` 가 채우고 자료 세대를 올린다. 같은 모델의 자리는 작업 하나다. 쓰는 쪽은 null 을
+  "아직" 으로 보고 실패로 기억하지 않는다. 에셋 시스템을 내리기 전에 `WaitDeferredAssetDecodes` 로 기다린다. (MUST) (D-455)
 - 무거운 디코드(텍스처·오디오)를 워커로 보낼 때는 세 단계를 지킨다: `PrepareDecode`(메인, 메타를 읽고 레코드를 값으로 떠 온다) → `DecodeAssetFile`
   (워커, 소스의 `Read`·`OpenStream` 과 디코더만 쓰고 에셋 시스템과 `Log` 를 보지 않는다) → `AdoptDecoded`(메인, 풀에 넣는다). 워커에서 읽는 것은
   `IAssetSource::CanReadOnWorkers()` 가 참인 소스뿐이다(폴더). 로드 묶음은 `SubmitAssetLoad` 하나로 만들고, 그 결과가 잡은 참조는 바인딩한 **뒤에**

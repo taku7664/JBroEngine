@@ -74,6 +74,8 @@ namespace JBro
         IRHIDevice* m_device = nullptr;
         AssetSystem* m_assets = nullptr;
         Array<Entry> m_entries;
+        // 아직 디코드 중인 그림이다(D-455). 서기까지 참조 하나를 들고 기다린다 - 실패로 기억하지 않는다.
+        Array<AssetHandle> m_waiting;
         UInt32 m_budget = 0;
     };
 }

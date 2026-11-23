@@ -255,6 +255,11 @@ namespace JBro
         }
         for (std::size_t at = 0; at < material.textures.Size(); ++at)
         {
+            // 아직 디코드 중인 그림은 기다린다(D-455) - 서면 세대가 올라 그때 다시 짓는다. 기다리는 동안 프레임마다 다시 짓지 않는다.
+            if (m_assets->IsPending(material.textures[at]))
+            {
+                continue;
+            }
             const TextureData* texture = m_assets->GetTexture(material.textures[at]);
             if (texture == nullptr || texture->pixelGeneration != material.textureGenerations[at])
             {

@@ -42,4 +42,11 @@ namespace JBro
     // 파일은 에셋 시스템의 소스(`AssetSystem::GetSource`)로 읽는다. 워커에서 읽을 수 없는 소스(패키지)면 보낼 것이 없다(D-236).
     TaskGroupId SubmitAssetLoad(TaskManager& tasks, AssetSystem& assets,
         ArrayView<const AssetId> ids, const char* groupNameKey, AssetLoadResult& result);
+
+    // **미룬 디코드를 워커로 보낸다**(D-455). 에셋 시스템이 미룬 자리(`AssetSystem::TakeDeferredJobs`)를 태스크 하나씩으로 묶어 제출하고 그 묶음 번호를
+    // `groups` 에 더한다. 끝난 묶음은 `groups` 에서 뺀다. 보낼 것이 없으면 제출하지 않는다. 프레임마다 부른다(메인 스레드, 태스크 `Update` 뒤).
+    // 묶음 이름은 로컬라이징 키 `groupNameKey` 다(에디터의 태스크 목록이 보인다).
+    void SubmitDeferredAssetDecodes(TaskManager& tasks, AssetSystem& assets, const char* groupNameKey, Array<TaskGroupId>& groups);
+    // 도는 미룬 디코드에 멈추라고 하고 끝날 때까지 기다린다. 태스크가 에셋 시스템과 그 바이트 출처를 가리키므로 에셋 시스템을 풀거나 내리기 전에 부른다.
+    void WaitDeferredAssetDecodes(TaskManager& tasks, Array<TaskGroupId>& groups);
 }

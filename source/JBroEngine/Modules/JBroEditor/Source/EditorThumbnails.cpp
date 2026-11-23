@@ -38,6 +38,14 @@ namespace JBro
             }
         }
         m_entries.Clear();
+        if (m_assets != nullptr)
+        {
+            for (std::size_t index = 0; index < m_waiting.Size(); ++index)
+            {
+                m_assets->Release(m_waiting[index]);
+            }
+        }
+        m_waiting.Clear();
     }
 
     EditorThumbnails::Entry* EditorThumbnails::Find(AssetId asset, UInt32 maxSide)
@@ -181,6 +189,36 @@ namespace JBro
                 }
             }
             return found->texture;
+        }
+        // 그림이 아직 디코드 중이면 기다린다(D-455) - 서면 세대가 올라 있고 그때 만든다. 기다리는 동안은 칸이 빈다.
+        {
+            const AssetHandle probe = m_assets->Load(asset);
+            if (m_assets->IsPending(probe))
+            {
+                Bool held = false;
+                for (std::size_t index = 0; index < m_waiting.Size(); ++index)
+                {
+                    held = held || (m_waiting[index].index == probe.index && m_waiting[index].generation == probe.generation);
+                }
+                if (held)
+                {
+                    m_assets->Release(probe);
+                }
+                else
+                {
+                    m_waiting.Add(probe);
+                }
+                return TextureHandle{};
+            }
+            for (std::size_t index = m_waiting.Size(); index > 0; --index)
+            {
+                if (m_waiting[index - 1].index == probe.index && m_waiting[index - 1].generation == probe.generation)
+                {
+                    m_assets->Release(m_waiting[index - 1]);
+                    m_waiting.RemoveAt(index - 1);
+                }
+            }
+            m_assets->Release(probe);
         }
         if (m_budget == 0)
         {

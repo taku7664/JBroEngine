@@ -323,6 +323,9 @@ namespace JBro
             engineConfig.tasks.useWorkers = config.taskWorkers;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
+            // 에디터의 프레임은 무거운 디코드를 기다리지 않는다(D-455).
+            engineConfig.deferAssetDecode = true;
+            engineConfig.deferredDecodeGroupNameKey = LocKeys::TaskLoadAssets;
             // 에디터에서 재생한 게임의 세이브는 실제 게임의 것과 다른 폴더다(D-218).
             engineConfig.editorSaves = true;
             engineConfig.watchAssetDirectory = true;
@@ -1794,6 +1797,14 @@ namespace JBro
         m_selectedMaterialLoaded = false;
         m_selectedMaterialReadOnly = false;
         m_selectedMaterialText.clear();
+        if (m_selectedMaterialWaiting.generation != 0)
+        {
+            if (AssetSystem* waiting = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr)
+            {
+                waiting->Release(m_selectedMaterialWaiting);
+            }
+            m_selectedMaterialWaiting = {};
+        }
         if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
         {
             return;
@@ -1812,6 +1823,13 @@ namespace JBro
         if (false == record->owner.IsNull())
         {
             const AssetHandle handle = assets->Load(record->id);
+            // 모델이 아직 디코드 중이면(D-455) 참조를 들고 기다린다 - 서면 프레임 첫머리가 다시 읽는다.
+            if (assets->IsPending(handle))
+            {
+                m_selectedMaterialWaiting = handle;
+                m_selectedMaterialReadOnly = true;
+                return;
+            }
             if (const MaterialData* material = assets->GetMaterial(handle))
             {
                 *m_selectedMaterial = material->desc;
@@ -7970,6 +7988,15 @@ namespace JBro
             {
                 Log::Write(LogLevel::Warning, "asset",
                     "the asset folder could not be rescanned; the registry keeps its previous contents");
+            }
+            // 고른 모델 재질이 다 디코드됐으면 인스펙터의 값을 채운다(D-455).
+            if (m_selectedMaterialWaiting.generation != 0)
+            {
+                AssetSystem* assets = m_engine->GetAssetSystem();
+                if (assets == nullptr || false == assets->IsPending(m_selectedMaterialWaiting))
+                {
+                    ReloadSelectedMaterial();
+                }
             }
         }
         // 워커로 여는 캔버스가 끝났으면 여기서 바인딩한다(D-236). UI 보다 먼저라 이 프레임부터 그림이 붙는다.

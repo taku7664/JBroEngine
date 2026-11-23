@@ -242,6 +242,12 @@ namespace JBro
             }
             if (entry.textures[slot.Get()] < 0)
             {
+                // 올리지 못한 칸이다. 그림이 그 뒤에 섰으면(미룬 디코드가 끝났다, D-455) 다시 올린다 - 올릴 때 본 세대와 다르다.
+                const TextureData* later = entry.pictures[slot.Get()].generation != 0 ? m_assets->GetTexture(entry.pictures[slot.Get()]) : nullptr;
+                if (later != nullptr && later->width > 0 && later->pixelGeneration != entry.texturePixels[slot.Get()])
+                {
+                    return true;
+                }
                 continue;
             }
             // 재질이 가리키는 그 그림이다 - 나눠 쓰는 텍스처를 처음 올린 그림이 아니다.
@@ -300,11 +306,12 @@ namespace JBro
                 continue;
             }
             entry.textures[at.Get()] = AcquireTexture(ids[at.Get()], srgbByDefault[at.Get()], entry.pictures[at.Get()]);
+            // 올렸든 못 올렸든 본 세대를 둔다 - 아직 디코드 중인 그림(D-455)이 서면 세대가 올라 `TexturesChanged` 가 다시 올린다.
+            const TextureData* seen = m_assets->GetTexture(entry.pictures[at.Get()]);
+            entry.texturePixels[at.Get()] = seen != nullptr ? seen->pixelGeneration : UInt32(0);
             if (entry.textures[at.Get()] >= 0)
             {
                 handles[at.Get()] = m_textures[static_cast<std::size_t>(entry.textures[at.Get()].Get())].rendererTexture;
-                const TextureData* data = m_assets->GetTexture(entry.pictures[at.Get()]);
-                entry.texturePixels[at.Get()] = data != nullptr ? data->pixelGeneration : UInt32(0);
             }
         }
         MeshMaterialDesc desc;

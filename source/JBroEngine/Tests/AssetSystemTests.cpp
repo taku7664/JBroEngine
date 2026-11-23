@@ -18,12 +18,14 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Task/TaskManager.h>
 
+#include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/UInt.h>
@@ -696,6 +698,172 @@ namespace
     }
     // **재질**(material-plan 2 단계). 모델의 하위 Material 은 파일의 값과 그림 칸(내장 그림은 그 하위 Texture, 바깥 그림은 모델 폴더 기준 경로의 Texture)으로 읽히고,
     // 메시는 제 재질을 안다. 사용자의 `.jmat` 은 같은 값을 YAML 로 들고, 고치면 제자리 재로드가 새 값을 읽으며, 모르는 키는 싣지 않는다.
+    // **미룬 디코드**(D-455). 켜면 `Load` 가 그림·모델의 메시와 재질·내장 그림·하늘 맵을 디코드하지 않고 빈 자리를 곧장 준다. 같은 모델의 자리는 작업 하나이고,
+    // 워커가 디코드한 것을 받으면 자리가 차고 세대가 오른다. 스프라이트는 크기가 필요해 제 텍스처를 그 자리에서 채운다. 디코드 중에 다시 읽으라고 하면
+    // 옛 결과는 버려지고 새로 내준다. 호스트의 펌프가 태스크로 돌리고, 멈추게 하면 기다린다.
+    void TestDeferredDecodeHandsOutSlotsAndFillsThem()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const std::string png(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        const std::string gltf = TestModels::SelfContainedQuadGltf("Bricks", png);
+        WriteBytes(fixture.root / "Art" / "crate.gltf", gltf.data(), gltf.size());
+        const char obj[] = "mtllib parts.mtl\nv 0 0 0\nv 0 0 1\nv 1 0 1\nv 1 0 0\no Crate\nusemtl Wood\nf 1 2 3\nusemtl Metal\nf 1 3 4\n";
+        const char mtl[] = "newmtl Metal\nKd 0.7 0.7 0.7\nnewmtl Wood\nKd 0.6 0.4 0.2\n";
+        WriteBytes(fixture.root / "Art" / "Props" / "parts.obj", obj, sizeof(obj) - 1);
+        WriteBytes(fixture.root / "Art" / "Props" / "parts.mtl", mtl, sizeof(mtl) - 1);
+        // 2 x 1 하늘, 텍셀마다 1.0(RGBE 128,128,128,129).
+        std::string hdr = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 1 +X 2\n";
+        for (int at = 0; at < 2; ++at)
+        {
+            hdr += static_cast<char>(128);
+            hdr += static_cast<char>(128);
+            hdr += static_cast<char>(128);
+            hdr += static_cast<char>(129);
+        }
+        WriteBytes(fixture.root / "Art" / "sky.hdr", hdr.data(), hdr.size());
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(fixture.registry.Scan(fixture.platform, Utf8(fixture.root).c_str(), options, report), "the folder scans with models and a sky");
+        const auto partsOf = [&](const char* path, JBro::AssetType type, JBro::Array<JBro::AssetId>& out) {
+            const JBro::AssetRecord* model = fixture.registry.FindByPath(path);
+            Check(model != nullptr, "the model registers");
+            JBro::Array<JBro::AssetId> owned;
+            fixture.registry.CollectOwned(model->id, owned);
+            for (const JBro::AssetId& id : owned)
+            {
+                if (fixture.registry.Find(id)->type == type)
+                {
+                    out.Add(id);
+                }
+            }
+        };
+        JBro::Array<JBro::AssetId> partMeshes;
+        JBro::Array<JBro::AssetId> partMaterials;
+        JBro::Array<JBro::AssetId> crateImages;
+        partsOf("Art/Props/parts.obj", JBro::AssetType::Mesh, partMeshes);
+        partsOf("Art/Props/parts.obj", JBro::AssetType::Material, partMaterials);
+        partsOf("Art/crate.gltf", JBro::AssetType::Texture, crateImages);
+        Check(partMeshes.Size() == 2 && partMaterials.Size() == 2 && crateImages.Size() == 1, "the OBJ splits into two meshes and two materials, the glTF has an image");
+        const JBro::AssetId skyId = fixture.registry.FindByPath("Art/sky.hdr")->id;
+
+        fixture.assets.SetDeferredDecode(true);
+        const JBro::AssetHandle texture = fixture.assets.Load(fixture.textureId);
+        const JBro::AssetHandle meshA = fixture.assets.Load(partMeshes[0]);
+        const JBro::AssetHandle meshB = fixture.assets.Load(partMeshes[1]);
+        const JBro::AssetHandle wood = fixture.assets.Load(partMaterials[0]);
+        const JBro::AssetHandle bricks = fixture.assets.Load(crateImages[0]);
+        const JBro::AssetHandle sky = fixture.assets.Load(skyId);
+        Check(texture.generation != 0 && meshA.generation != 0 && meshB.generation != 0 && wood.generation != 0 && bricks.generation != 0 && sky.generation != 0,
+            "a deferred load still hands out a handle at once");
+        Check(fixture.assets.IsPending(texture) && fixture.assets.IsPending(meshA) && fixture.assets.IsPending(wood) && fixture.assets.IsPending(bricks)
+                && fixture.assets.IsPending(sky),
+            "and the slot waits for its decode");
+        Check(fixture.assets.GetTexture(texture) == nullptr && fixture.assets.GetMesh(meshA) == nullptr && fixture.assets.GetMaterial(wood) == nullptr
+                && fixture.assets.GetEnvironmentMap(sky) == nullptr,
+            "a waiting slot has no data to read");
+        Check(fixture.assets.Load(fixture.textureId).index == texture.index, "loading the same id again gives the same waiting slot");
+        fixture.assets.Release(texture);
+
+        // 스프라이트는 크기로 프레임을 지으므로 제 텍스처를 그 자리에서 채운다.
+        const JBro::AssetHandle sprite = fixture.assets.Load(fixture.spriteId);
+        const JBro::SpriteData* spriteData = fixture.assets.GetSprite(sprite);
+        Check(spriteData != nullptr && false == fixture.assets.IsPending(texture), "a sprite finishes its texture on the spot to build its frames");
+        const JBro::TextureData* pixels = fixture.assets.GetTexture(texture);
+        Check(pixels != nullptr && pixels->width == 2 && pixels->pixelGeneration == 2 && PixelIs(*pixels, 0, 0, 255, 0, 0, 255),
+            "the finished texture has its pixels and a raised generation");
+
+        // 같은 모델의 자리는 작업 하나다. 모델 둘과 하늘 하나.
+        JBro::Array<JBro::AssetDecodeJob> jobs;
+        Check(fixture.assets.TakeDeferredJobs(jobs) == 3 && jobs.Size() == 3, "one job per model and one for the sky");
+        std::size_t partsJob = jobs.Size();
+        std::size_t crateJob = jobs.Size();
+        std::size_t skyJob = jobs.Size();
+        for (std::size_t at = 0; at < jobs.Size(); ++at)
+        {
+            if (jobs[at].record.relativePath == "Art/Props/parts.obj")
+            {
+                partsJob = at;
+            }
+            if (jobs[at].record.relativePath == "Art/crate.gltf")
+            {
+                crateJob = at;
+            }
+            if (jobs[at].type == JBro::AssetType::EnvironmentMap)
+            {
+                skyJob = at;
+            }
+        }
+        Check(partsJob < jobs.Size() && jobs[partsJob].type == JBro::AssetType::Model && jobs[partsJob].targets.Size() == 3,
+            "the OBJ's two meshes and its one waiting material share a model job");
+        Check(crateJob < jobs.Size() && jobs[crateJob].targets.Size() == 1 && jobs[crateJob].targets[0].embeddedName == "Bricks",
+            "the glTF job names the embedded image to decode");
+        Check(skyJob < jobs.Size(), "the sky is a job of its own");
+        JBro::Array<JBro::AssetDecodeJob> again;
+        Check(fixture.assets.TakeDeferredJobs(again) == 0, "a slot is handed out once");
+
+        // 워커에서 디코드한다 - 에셋 시스템을 보지 않고 소스와 디코더만 쓴다. 그사이 하늘을 다시 읽으라고 한다.
+        const JBro::IAssetSource* source = fixture.assets.GetSource();
+        std::thread worker([&]() {
+            for (std::size_t at = 0; at < jobs.Size(); ++at)
+            {
+                JBro::DecodeAssetFile(*source, jobs[at]);
+            }
+        });
+        worker.join();
+        Check(jobs[partsJob].decoded && jobs[crateJob].decoded && jobs[skyJob].decoded, "every job decodes on another thread (the OBJ reads its .mtl there)");
+        Check(fixture.assets.ReloadInPlace(skyId), "a waiting slot can be asked to read again");
+        for (std::size_t at = 0; at < jobs.Size(); ++at)
+        {
+            fixture.assets.AdoptDecoded(jobs[at]);
+        }
+        const JBro::MeshData* filledA = fixture.assets.GetMesh(meshA);
+        const JBro::MeshData* filledB = fixture.assets.GetMesh(meshB);
+        Check(filledA != nullptr && filledB != nullptr && filledA->vertices.Size() > 0 && filledB->indices.Size() == 3 && filledA->dataGeneration == 2,
+            "the meshes fill from the one decoded model with a raised generation");
+        const JBro::MaterialData* filledWood = fixture.assets.GetMaterial(wood);
+        Check(filledWood != nullptr && filledWood->standard && filledWood->dataGeneration == 2, "the waiting material fills from the same model");
+        const JBro::TextureData* filledBricks = fixture.assets.GetTexture(bricks);
+        Check(filledBricks != nullptr && filledBricks->width == 2 && PixelIs(*filledBricks, 1, 0, 0, 255, 0, 255) && filledBricks->options.mipmaps,
+            "the embedded image fills with the pixels the worker decoded and its options");
+        Check(fixture.assets.IsPending(sky) && fixture.assets.GetEnvironmentMap(sky) == nullptr, "the sky asked to read again drops the old result");
+        Check(fixture.assets.Load(partMaterials[1]).generation != 0 && false == fixture.assets.IsPending(fixture.assets.Find(partMaterials[1])),
+            "the model's other material is copied from the held model, not deferred again");
+
+        // 호스트의 펌프: 다시 내준 하늘을 태스크로 돌려 채운다.
+        JBro::TaskManager tasks;
+        Check(tasks.Initialize(LoadWorkers()), "the task manager starts");
+        JBro::Array<JBro::TaskGroupId> groups;
+        JBro::SubmitDeferredAssetDecodes(tasks, fixture.assets, "task.load_assets", groups);
+        Check(groups.Size() == 1, "the pump submits the waiting sky as a group");
+        for (int frame = 0; frame < 2000 && fixture.assets.IsPending(sky); ++frame)
+        {
+            tasks.Update();
+            JBro::SubmitDeferredAssetDecodes(tasks, fixture.assets, "task.load_assets", groups);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        const JBro::EnvironmentMapData* filledSky = fixture.assets.GetEnvironmentMap(sky);
+        Check(filledSky != nullptr && filledSky->width == 2 && filledSky->rgb.Size() == 6 && filledSky->rgb[0] > 0.99f && filledSky->rgb[0] < 1.01f,
+            "the pump's worker fills the sky");
+
+        // 풀기 전에 기다린다: 새로 미룬 것을 보내고 곧장 멈추게 해도 무사히 끝난다.
+        fixture.assets.Release(meshA);
+        fixture.assets.Release(meshB);
+        fixture.assets.Release(wood);
+        fixture.assets.Release(bricks);
+        fixture.assets.Release(sky);
+        fixture.assets.Release(sprite);
+        fixture.assets.CollectUnused();
+        const JBro::AssetHandle late = fixture.assets.Load(skyId);
+        Check(fixture.assets.IsPending(late), "a collected sky defers again");
+        JBro::SubmitDeferredAssetDecodes(tasks, fixture.assets, "task.load_assets", groups);
+        JBro::WaitDeferredAssetDecodes(tasks, groups);
+        Check(groups.IsEmpty(), "waiting clears the groups");
+        tasks.Shutdown();
+        fixture.Close();
+    }
+
     void TestMaterialsLoadFromModelsAndFiles()
     {
         Fixture fixture;
@@ -1005,6 +1173,7 @@ JBro::Int32 RunAssetSystemTests()
     JBRO_CASE(TestAModelsEmbeddedImageLoadsAsATexture());
     JBRO_CASE(TestTheSameEmbeddedImageIsReadOnce());
     JBRO_CASE(TestMaterialsLoadFromModelsAndFiles());
+    JBRO_CASE(TestDeferredDecodeHandsOutSlotsAndFillsThem());
     std::cout << "Asset system tests passed.\n";
     return 0;
 }

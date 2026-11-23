@@ -211,6 +211,28 @@ namespace JBro
         UInt32 audioSampleRate = 0;
         Bool decoded = false;
         String failure;
+
+        // **미뤄 둔 로드의 자리들이다**(D-455). 비어 있으면 캔버스 로드의 옛 길(`PrepareDecode`)이고, 차 있으면 `TakeDeferredJobs` 가 만든 작업이다 -
+        // 받는 쪽(`AdoptDecoded`)이 새 자리를 잡지 않고 이 자리들을 채운다. 번호는 자리를 다시 읽으라고 했을 때 옛 결과를 버리는 데 쓴다.
+        struct Target
+        {
+            AssetHandle handle;
+            UInt32 serial = 0;
+            // 모델의 내장 그림이면 모델 안의 이름이다. 워커가 그 그림을 디코드해 `embedded` 의 같은 자리에 둔다.
+            String embeddedName;
+        };
+        Array<Target> targets;
+        // 이 작업을 만들 때의 묶음 번호다. 그사이 프로젝트를 닫았다 열었으면 결과를 버린다.
+        UInt32 bindSerial = 0;
+        // `EnvironmentMap` 이면 디코드한 하늘이다.
+        EnvironmentMapData environment;
+        // `Model` 이면 모델 전체와 옵션, 곁 파일(`.gltf` 의 `.bin`, OBJ 의 `.mtl`)을 읽을 플랫폼과 에셋 폴더다. 곁 파일은 에셋이 아니라 레지스트리에 없다.
+        ModelData model;
+        ModelImportOptions modelOptions;
+        IPlatform* platform = nullptr;
+        String assetRoot;
+        // 자리마다 디코드한 내장 그림이다(`targets` 와 같은 순서, 내장 그림이 아닌 자리는 빈다).
+        Array<TextureData> embedded;
     };
 
     // 소스의 `Read`·`OpenStream` 과 디코더만 쓰고 에셋 시스템을 보지 않는다. 워커에서 부를 때는 `source.CanReadOnWorkers()` 가 참이어야 한다 -
@@ -269,6 +291,17 @@ namespace JBro
         // 디코드한 자료를 풀에 넣고 참조 하나를 잡은 핸들을 준다. 그사이 누가 실었으면 자료는 버리고 그 핸들의 참조를 올린다.
         // 디코드가 실패했거나 묶이지 않았으면 빈 핸들이고, 실패 사유는 로그에 남는다. 메인 스레드다.
         AssetHandle AdoptDecoded(AssetDecodeJob& job);
+        // **무거운 디코드를 미룬다**(D-455). 켜면 `Load` 가 그림 파일·모델의 내장 그림·모델의 메시와 재질·하늘 맵을 그 자리에서 디코드하지 않고
+        // 빈 자리의 핸들을 곧바로 준다. 자리는 `IsPending` 이 참이고 `Get*` 은 null 이다. `TakeDeferredJobs` 가 작업을 내주고 워커가 디코드한 것을
+        // `AdoptDecoded` 가 그 자리에 채우며 자료 세대를 올린다 - 그리는 쪽은 세대를 보고 다시 올린다. 에디터가 켠다(프레임이 디코드를 기다리지 않는다).
+        // 워커에서 읽을 수 없는 소스(패키지)·빌드가 꺼내 둔 블롭·이미 실린 같은 그림·이미 디코드해 둔 모델은 그대로 동기다(복사뿐이다).
+        void SetDeferredDecode(Bool deferred);
+        Bool IsDeferredDecode() const;
+        // 자리는 잡혔고 자료는 아직 디코드 중이다.
+        Bool IsPending(AssetHandle handle) const;
+        // 아직 내주지 않은 미룬 자리를 작업으로 묶어 `jobs` 에 더한다. 같은 모델의 메시·재질·내장 그림은 작업 하나다(모델을 한 번만 디코드한다).
+        // 더한 수를 돌려준다. 메인 스레드다. 작업은 `DecodeAssetFile` 로 워커에서 디코드하고 `AdoptDecoded` 로 돌려준다.
+        UInt32 TakeDeferredJobs(Array<AssetDecodeJob>& jobs);
         // 참조 수를 내린다. 0 이 되어도 자료는 `CollectUnused` 까지 산다.
         void Release(AssetHandle handle);
         // 로드돼 있으면 그 핸들, 아니면 빈 핸들. 참조 수를 건드리지 않는다.
@@ -326,6 +359,10 @@ namespace JBro
             UInt32 generation = 1;
             UInt32 referenceCount = 0;
             Bool occupied = false;
+            // 미룬 로드(D-455): 자료가 아직 없다, 작업으로 내줬다, 몇 번째 요청이다.
+            Bool pending = false;
+            Bool queued = false;
+            UInt32 requestSerial = 0;
         };
 
         template <typename TData>
@@ -389,6 +426,16 @@ namespace JBro
         void ForgetMeta(AssetId id);
         Table<AssetId, AssetMetaFile> m_metaCache;
         Bool BuildSprite(const AssetRecord& record, SpriteData& data);
+        // 미룰 수 있으면 빈 자리를 잡아 `handle` 에 준다(D-455).
+        Bool TryDeferLoad(const AssetRecord& record, AssetHandle& handle);
+        // 미룬 텍스처 자리를 그 자리에서 채운다 - 스프라이트가 크기를 알아야 프레임을 짓는다.
+        void FinishPendingTextureNow(AssetHandle handle);
+        // 미룬 자리들에 디코드한 것을 채운다.
+        void AdoptDeferred(AssetDecodeJob& job);
+        template <typename TData>
+        Slot<TData>* FindPendingTarget(Pool<TData>& pool, AssetType type, const AssetDecodeJob::Target& target);
+        Bool m_deferDecode = false;
+        UInt32 m_bindSerial = 1;
         String MetaPathOf(const AssetRecord& record) const;
         String SourcePathOf(const AssetRecord& record) const;
 

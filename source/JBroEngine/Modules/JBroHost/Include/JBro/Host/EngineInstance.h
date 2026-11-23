@@ -71,6 +71,11 @@ namespace JBro
         // 참이면 프로젝트를 열 때 메타가 없는 에셋 파일에 `.jmeta` 를 만든다. **에디터만 참이다**(D-111) -
         // 게임 실행은 프로젝트 폴더에 파일을 쓰지 않는다.
         Bool createMissingAssetMeta = false;
+        // 참이면 무거운 에셋 디코드(그림·모델·하늘 맵)를 워커로 미룬다(D-455) - `Load` 가 기다리지 않고 자료는 뒤 프레임에 선다. **에디터만 참이다** -
+        // 게임은 캔버스를 열 때 워커로 미리 읽는다(D-236).
+        Bool deferAssetDecode = false;
+        // 미룬 디코드 묶음의 이름(로컬라이징 키)이다. 에디터가 제 키를 준다.
+        const char* deferredDecodeGroupNameKey = nullptr;
         // 참이면 프로젝트를 열 때 에셋 폴더를 감시하고 `PollAssetChanges` 가 그 변경을 적용한다. **에디터만 참이다**
         // (D-117) - 게임 실행에는 감시가 없다.
         Bool watchAssetDirectory = false;
@@ -396,6 +401,10 @@ namespace JBro
         State m_state = State::Stopped;
         Bool m_exitRequested = false;
         Bool m_createMissingAssetMeta = false;
+        Bool m_deferAssetDecode = false;
+        String m_deferredDecodeGroupNameKey;
+        // 워커에서 도는 미룬 디코드의 묶음이다(D-455). 에셋 시스템을 풀기 전에 기다린다.
+        Array<TaskGroupId> m_deferredDecodeGroups;
         Bool m_watchAssetDirectory = false;
         String m_assetRoot;
         // 감시가 쌓아 둔 것을 프레임마다 여기로 꺼낸다. 스택에 두면 프레임마다 그만큼을 비우게 된다.

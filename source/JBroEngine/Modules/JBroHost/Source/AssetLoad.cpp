@@ -85,6 +85,99 @@ namespace JBro
         };
     }
 
+    namespace
+    {
+        // 미룬 디코드 하나(D-455). 결과는 끝난 뒤 메인에서 미룬 자리들에 채운다 - 실패해도 채운다(빈 자료로 끝나 그리는 쪽이 건너뛴다).
+        class DeferredDecodeTask final : public Task
+        {
+        public:
+            DeferredDecodeTask(AssetDecodeJob&& job, AssetSystem& assets, const IAssetSource& source)
+                : Task(FileNameOf(job.record.relativePath))
+                , m_job(std::move(job))
+                , m_assets(assets)
+                , m_source(source)
+            {
+            }
+
+        protected:
+            void Run() override
+            {
+                if (false == DecodeAssetFile(m_source, m_job))
+                {
+                    FailSubTask(0, m_job.failure.c_str());
+                }
+            }
+
+            void OnFinished(const TaskResult& result) override
+            {
+                // 멈춘 것은 에셋 시스템을 풀거나 내리는 중이다 - 자리도 함께 사라진다.
+                if (result.state == TaskState::Canceled)
+                {
+                    return;
+                }
+                m_assets.AdoptDecoded(m_job);
+            }
+
+        private:
+            AssetDecodeJob m_job;
+            AssetSystem& m_assets;
+            const IAssetSource& m_source;
+        };
+    }
+
+    void SubmitDeferredAssetDecodes(TaskManager& tasks, AssetSystem& assets, const char* groupNameKey, Array<TaskGroupId>& groups)
+    {
+        for (std::size_t index = groups.Size(); index > 0; --index)
+        {
+            const TaskGroup* group = tasks.FindGroup(groups[index - 1]);
+            if (group == nullptr || group->IsFinished())
+            {
+                groups.RemoveAt(index - 1);
+            }
+        }
+        const IAssetSource* source = assets.GetSource();
+        if (false == tasks.IsInitialized() || source == nullptr || false == assets.IsDeferredDecode())
+        {
+            return;
+        }
+        Array<AssetDecodeJob> jobs;
+        if (assets.TakeDeferredJobs(jobs) == 0)
+        {
+            return;
+        }
+        OwnerPtr<TaskGroup> group = MakeOwnerPtr<TaskGroup>(String(groupNameKey != nullptr ? groupNameKey : ""), TaskGroupOrder::Parallel);
+        for (std::size_t index = 0; index < jobs.Size(); ++index)
+        {
+            group->Add(MakeOwnerPtr<DeferredDecodeTask>(std::move(jobs[index]), assets, *source));
+        }
+        const TaskGroupId id = tasks.Submit(std::move(group));
+        if (id != InvalidTaskGroupId)
+        {
+            groups.Add(id);
+        }
+    }
+
+    void WaitDeferredAssetDecodes(TaskManager& tasks, Array<TaskGroupId>& groups)
+    {
+        if (false == tasks.IsInitialized())
+        {
+            groups.Clear();
+            return;
+        }
+        for (std::size_t index = 0; index < groups.Size(); ++index)
+        {
+            if (TaskGroup* group = tasks.FindGroup(groups[index]))
+            {
+                group->RequestCancel();
+            }
+        }
+        for (std::size_t index = 0; index < groups.Size(); ++index)
+        {
+            tasks.Wait(groups[index]);
+        }
+        groups.Clear();
+    }
+
     TaskGroupId SubmitAssetLoad(TaskManager& tasks, AssetSystem& assets,
         ArrayView<const AssetId> ids, const char* groupNameKey, AssetLoadResult& result)
     {

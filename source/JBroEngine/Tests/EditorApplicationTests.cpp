@@ -281,6 +281,23 @@ namespace
     constexpr JBro::Int32 ClearGreen = 23;
     constexpr JBro::Int32 ClearBlue = 28;
 
+    // **썸네일이 설 때까지 프레임을 돌린다**(D-455). 그림의 디코드는 워커에서 돌아 처음 물은 프레임에는 칸이 비고, 몇 프레임 뒤에 선다.
+    JBro::Bool WaitForThumbnail(JBro::EditorApplication& editor, JBro::AssetId asset)
+    {
+        for (JBro::Int32 frame = 0; frame < 600; ++frame)
+        {
+            if (editor.GetAssetThumbnail(asset).IsValid())
+            {
+                return true;
+            }
+            if (false == editor.Tick(1.0f / 60.0f))
+            {
+                return false;
+            }
+        }
+        return editor.GetAssetThumbnail(asset).IsValid();
+    }
+
     JBro::Bool DiffersFromClear(const unsigned char* pixel)
     {
         const auto apart = [](unsigned char got, JBro::Int32 want) {
@@ -5020,7 +5037,7 @@ namespace
             }
             // 그림이 실제로 만들어졌는가. 화면을 읽기 전에 이것부터 묻는다 -
             // 화면만 보면 단추가 눌린 것과 그림이 선 것을 가르지 못한다.
-            Check(editor.GetAssetThumbnail(heroTextureId).IsValid(),
+            Check(WaitForThumbnail(editor, heroTextureId),
                 "the texture must have a thumbnail the editor can draw");
             ReadBackBufferInto(*shotRenderer, 1024, 768, asIcons, readback);
             const std::size_t changed =
@@ -5064,7 +5081,7 @@ namespace
             Check(editor.Tick(Frame), "the editor must settle on the asset");
         }
         // 고른 에셋의 인스펙터에는 **그림이 먼저 선다**(D-147).
-        Check(editor.GetAssetThumbnail(hero->id).IsValid(),
+        Check(WaitForThumbnail(editor, hero->id),
             "the inspector has a picture of what it is editing");
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
@@ -9227,7 +9244,7 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
-        Check(editor.GetAssetThumbnail(firstHero->id).IsValid(), "and a thumbnail for it");
+        Check(WaitForThumbnail(editor, firstHero->id), "and a thumbnail for it");
 
         editor.CloseProject();
         Check(editor.OpenProjectFile(secondPath.c_str(), error), "the second project opens");
@@ -9238,7 +9255,7 @@ namespace
             Check(editor.Tick(Frame), "the editor must settle in the second project");
         }
         // 이 줄이 예전에는 죽은 에셋 시스템을 건드렸다.
-        Check(editor.GetAssetThumbnail(secondHero->id).IsValid(),
+        Check(WaitForThumbnail(editor, secondHero->id),
             "a thumbnail in the reopened project comes from the living asset system");
 
         editor.Shutdown();
@@ -13652,17 +13669,22 @@ namespace
         // **하늘은 워커에서 굽는다**(D-449). 굽는 동안에도 에디터는 프레임을 그린다 - 굽기가 끝날 때까지 돌리며 가장 긴 프레임을 잰다.
         JBro::TaskManager* tasks = editor.GetTaskManager();
         Check(tasks != nullptr && tasks->UsesWorkers(), "the editor bakes on task workers");
-        const auto baking = [&]() -> JBro::Bool {
+        // `.hdr` 디코드도 워커다(D-455) - 먼저 그 묶음이 돌고, 다 풀리면 굽기 묶음이 선다.
+        const auto running = [&](const char* name) -> JBro::Bool {
             for (JBro::UInt32 index = 0; tasks != nullptr && index < tasks->GetGroupCount(); ++index)
             {
                 const JBro::TaskGroup& group = tasks->GetGroupAt(index);
-                if (group.GetName() == "Bake a sky map" && false == group.IsFinished())
+                if (group.GetName() == name && false == group.IsFinished())
                 {
                     return true;
                 }
             }
             return false;
         };
+        const auto baking = [&]() -> JBro::Bool {
+            return running("Bake a sky map");
+        };
+        JBro::Bool sawBake = false;
         JBro::Int32 framesWhileBaking = 0;
         double longestFrame = 0.0;
         const auto bakeStart = std::chrono::steady_clock::now();
@@ -13672,7 +13694,8 @@ namespace
             Check(editor.Tick(Frame), "the editor must draw the lit canvas");
             const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - before).count();
             longestFrame = took > longestFrame ? took : longestFrame;
-            if (false == baking())
+            sawBake = sawBake || baking();
+            if (sawBake && false == baking() && false == running("task.load_assets"))
             {
                 break;
             }
@@ -13682,7 +13705,7 @@ namespace
         std::cout << "  sky bake: " << bakeTook << " s, " << framesWhileBaking.Get() << " frames drawn meanwhile, longest frame " << longestFrame << " s" << std::endl;
         Check(framesWhileBaking > 3, "the editor keeps drawing frames while the sky map bakes");
         Check(longestFrame < bakeTook * 0.2, "no editor frame waits for the sky map bake");
-        Check(false == baking(), "the sky map bake finishes");
+        Check(sawBake && false == baking(), "the sky map decodes, then bakes, and the bake finishes");
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw the lit canvas");

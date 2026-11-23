@@ -198,7 +198,9 @@ namespace JBro
 
         // 하늘 맵. 하늘이 바뀌었거나 같은 하늘이 다시 읽혔으면(자료 세대) 워커에서 다시 굽고, 다 구운 것은 여기서 올린다(D-449).
         const EnvironmentMapData* data = m_assets != nullptr && environment.sky.generation != 0 ? m_assets->GetEnvironmentMap(environment.sky) : nullptr;
-        if (data == nullptr || m_renderer == nullptr)
+        // 하늘 파일이 아직 디코드 중이면(D-455) 하늘을 비운 것이 아니다 - 앞 하늘을 그대로 그리며 기다린다.
+        const Bool waiting = data == nullptr && m_assets != nullptr && environment.sky.generation != 0 && m_assets->IsPending(environment.sky);
+        if ((data == nullptr && false == waiting) || m_renderer == nullptr)
         {
             // 하늘을 비웠다. 굽던 것을 멈추고 올린 것을 바로 내린다.
             if (m_wantedActive)
@@ -211,56 +213,60 @@ namespace JBro
             }
             return;
         }
-        const auto matches = [&](AssetHandle sky, UInt32 generation) -> Bool {
-            return sky.index == environment.sky.index && sky.generation == environment.sky.generation && generation == data->dataGeneration;
-        };
-        const Bool uploaded = m_uploaded.generation != 0 && matches(m_source, m_sourceGeneration);
-        const Bool failed = m_failed.generation != 0 && matches(m_failed, m_failedGeneration);
-        if (false == uploaded && false == failed && false == (m_wantedActive && matches(m_wanted, m_wantedGeneration)))
+        if (false == waiting)
         {
-            StartBake(environment.sky, *data);
-        }
-        if (m_bakedReady && m_wantedActive && matches(m_wanted, m_wantedGeneration))
-        {
-            // 다 구웠다. 앞 하늘을 내리고 올린다. 굽지 못했으면 이 하늘·이 세대는 다시 굽지 않는다(파일이 바뀌면 세대가 오른다).
-            Release();
-            if (m_bakedOk)
+            const auto matches = [&](AssetHandle sky, UInt32 generation) -> Bool {
+                return sky.index == environment.sky.index && sky.generation == environment.sky.generation && generation == data->dataGeneration;
+            };
+            const Bool uploaded = m_uploaded.generation != 0 && matches(m_source, m_sourceGeneration);
+            const Bool failed = m_failed.generation != 0 && matches(m_failed, m_failedGeneration);
+            if (false == uploaded && false == failed && false == (m_wantedActive && matches(m_wanted, m_wantedGeneration)))
             {
-                m_uploaded = m_renderer->RegisterEnvironmentMap(m_baked);
-                ++m_buildCount;
+                StartBake(environment.sky, *data);
             }
-            if (m_uploaded.generation != 0)
+            if (m_bakedReady && m_wantedActive && matches(m_wanted, m_wantedGeneration))
             {
-                m_source = m_wanted;
-                m_sourceGeneration = m_wantedGeneration;
-                for (Int32 at = 0; at < 9; ++at)
+                // 다 구웠다. 앞 하늘을 내리고 올린다. 굽지 못했으면 이 하늘·이 세대는 다시 굽지 않는다(파일이 바뀌면 세대가 오른다).
+                Release();
+                if (m_bakedOk)
                 {
-                    for (Int32 channel = 0; channel < 3; ++channel)
-                    {
-                        m_sh[at.Get()][channel.Get()] = m_baked.sh[at.Get()][channel.Get()];
-                    }
+                    m_uploaded = m_renderer->RegisterEnvironmentMap(m_baked);
+                    ++m_buildCount;
                 }
-                m_failed = {};
-                m_failedGeneration = 0;
+                if (m_uploaded.generation != 0)
+                {
+                    m_source = m_wanted;
+                    m_sourceGeneration = m_wantedGeneration;
+                    for (Int32 at = 0; at < 9; ++at)
+                    {
+                        for (Int32 channel = 0; channel < 3; ++channel)
+                        {
+                            m_sh[at.Get()][channel.Get()] = m_baked.sh[at.Get()][channel.Get()];
+                        }
+                    }
+                    m_failed = {};
+                    m_failedGeneration = 0;
+                }
+                else
+                {
+                    Log::Write(LogLevel::Warning, "environment", "a sky map could not be baked or uploaded; the canvas draws without it");
+                    m_failed = m_wanted;
+                    m_failedGeneration = m_wantedGeneration;
+                }
+                m_wanted = {};
+                m_wantedGeneration = 0;
+                m_wantedActive = false;
+                m_bakedReady = false;
+                m_baked = EnvironmentMapBuild{};
             }
-            else
-            {
-                Log::Write(LogLevel::Warning, "environment", "a sky map could not be baked or uploaded; the canvas draws without it");
-                m_failed = m_wanted;
-                m_failedGeneration = m_wantedGeneration;
-            }
-            m_wanted = {};
-            m_wantedGeneration = 0;
-            m_wantedActive = false;
-            m_bakedReady = false;
-            m_baked = EnvironmentMapBuild{};
         }
         // 굽는 동안은 앞 하늘을 그대로 그린다(처음이면 하늘 없이).
         if (m_uploaded.generation == 0)
         {
             return;
         }
-        result.map = m_uploaded;        // 확산광은 하늘의 세기와 환경광 세기를 함께 받는다(배경과 반사는 하늘의 세기만).
+        result.map = m_uploaded;
+        // 확산광은 하늘의 세기와 환경광 세기를 함께 받는다(배경과 반사는 하늘의 세기만).
         for (Int32 at = 0; at < 9; ++at)
         {
             for (Int32 channel = 0; channel < 3; ++channel)

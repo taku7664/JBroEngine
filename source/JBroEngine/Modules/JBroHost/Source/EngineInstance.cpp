@@ -1,6 +1,7 @@
 ﻿#include <JBro/Core/Log.h>
 #include <JBro/Core/Profiler.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Host/AssetLoad.h>
 
 #include <JBro/Input/InputSystem.h>
 #include <JBro/Host/DebugDrawSystem.h>
@@ -247,6 +248,8 @@ namespace JBro
             m_frameworkContext.tasks = m_tasks.Get();
             m_frameworkContext.shaderCompiler = config.shaderCompiler;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
+            m_deferAssetDecode = config.deferAssetDecode;
+            m_deferredDecodeGroupNameKey = config.deferredDecodeGroupNameKey != nullptr ? config.deferredDecodeGroupNameKey : "";
             m_watchAssetDirectory = config.watchAssetDirectory;
             if (m_exitRequested)
             {
@@ -359,6 +362,7 @@ namespace JBro
         m_assets->SetDefaultTextureFilter(project.textureFilter);
         m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));
         m_assets->Bind(*m_platform, m_assetRegistry, m_assetRoot.c_str());
+        m_assets->SetDeferredDecode(m_deferAssetDecode);
         // 문자열 표를 모으고 로케일을 프로젝트의 기본으로 둔다(D-226). 텍스트가 첫 프레임부터 그 로케일로 나온다.
         if (m_localization)
         {
@@ -788,6 +792,11 @@ namespace JBro
         {
             const ProfileScope scope("Tasks");
             m_tasks->Update();
+            // 미룬 에셋 디코드를 워커로 보낸다(D-455). 끝난 것은 위의 `Update` 가 자리에 채웠다.
+            if (m_assets)
+            {
+                SubmitDeferredAssetDecodes(*m_tasks, *m_assets, m_deferredDecodeGroupNameKey.c_str(), m_deferredDecodeGroups);
+            }
         }
         // 문자열 표가 바뀌었는지 본다(D-226). 표를 싣는 것은 레지스트리가 바뀐 프레임뿐이고, 프레임 경로 앞이다.
         if (m_localization)
@@ -1672,6 +1681,11 @@ namespace JBro
         }
         if (m_assets)
         {
+            // 워커가 에셋 시스템과 그 바이트 출처를 읽고 있을 수 있다(D-455).
+            if (m_tasks)
+            {
+                WaitDeferredAssetDecodes(*m_tasks, m_deferredDecodeGroups);
+            }
             m_assets->Shutdown();
             m_assets.Reset();
         }

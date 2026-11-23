@@ -1164,6 +1164,8 @@ namespace JBro
         OwnerPtr<MaterialDesc> m_selectedMaterial;
         Bool m_selectedMaterialLoaded = false;
         Bool m_selectedMaterialReadOnly = false;
+        // 고른 모델 재질이 아직 디코드 중이다(D-455). 참조 하나를 들고 서면 다시 읽는다.
+        AssetHandle m_selectedMaterialWaiting;
         String m_selectedMaterialText;
         void ReloadSelectedMaterial();
         EditorObjectRegistry m_objectIds;

@@ -193,6 +193,10 @@ namespace JBro
         m_assetRoot.clear();
         m_looseSource.Bind(nullptr, nullptr);
         m_source = nullptr;
+        // 워커에서 도는 미룬 작업의 결과는 버린다(D-455).
+        ++m_bindSerial;
+        m_decodedModelId = {};
+        m_decodedModel = {};
     }
 
     Bool AssetSystem::IsBound() const
@@ -268,6 +272,8 @@ namespace JBro
         slot.id = {};
         slot.referenceCount = 0;
         slot.occupied = false;
+        slot.pending = false;
+        slot.queued = false;
         // 세대를 올려 옛 핸들을 무효로 만든다. 0 은 빈 핸들의 표지라 건너뛴다.
         ++slot.generation;
         if (slot.generation == 0)
@@ -440,6 +446,101 @@ namespace JBro
             // `Streaming` 은 보이스마다 여는 디코더가 클립의 채널로 푼다 - 모노면 1 로 알린다(D-231).
             read.channels = read.options.mono ? UInt32(1) : format.channels;
             read.frameCount = format.frameCount;
+            job.decoded = true;
+            return true;
+        }
+        if (job.type == AssetType::EnvironmentMap)
+        {
+            Array<std::byte> bytes;
+            if (false == source.Read(job.record, AssetBlob::Source, bytes))
+            {
+                job.failure = "cannot read " + name;
+                return false;
+            }
+            DecodedHdrImage image;
+            if (false == DecodeHdrImage({bytes.Data(), static_cast<JBro::UInt32>(bytes.Size())}, image))
+            {
+                job.failure = "a sky map could not be read (" + name + "): only Radiance .hdr pictures are skies";
+                return false;
+            }
+            job.environment.width = image.width;
+            job.environment.height = image.height;
+            job.environment.rgb = std::move(image.rgb);
+            job.decoded = true;
+            return true;
+        }
+        if (job.type == AssetType::Model)
+        {
+            // 모델 하나를 통째로 디코드하고(MikkTSpace 탄젠트까지), 기다리는 내장 그림을 푼다. 메시·재질은 받는 쪽이 디코드한 모델에서 옮긴다.
+            Array<std::byte> bytes;
+            if (false == source.Read(job.record, AssetBlob::Source, bytes))
+            {
+                job.failure = name + ": the model file could not be read";
+                return false;
+            }
+            struct SideReader
+            {
+                IPlatform* platform;
+                String folder;
+                static Bool Read(void* user, const char* relativePath, Array<std::byte>& out)
+                {
+                    const SideReader& self = *static_cast<const SideReader*>(user);
+                    out.Clear();
+                    if (self.platform == nullptr || self.folder.empty())
+                    {
+                        return false;
+                    }
+                    String path = self.folder;
+                    path += relativePath;
+                    return self.platform->ReadWholeFile(path.c_str(), out);
+                }
+            };
+            SideReader side{job.platform, String()};
+            if (false == job.assetRoot.empty())
+            {
+                side.folder = job.assetRoot;
+                if (side.folder.back() != '/' && side.folder.back() != '\\')
+                {
+                    side.folder += "/";
+                }
+                const std::size_t slash = name.find_last_of('/');
+                if (slash != String::npos)
+                {
+                    side.folder += String(name.substr(0, slash + 1));
+                }
+            }
+            ModelFileReader reader;
+            reader.read = &SideReader::Read;
+            reader.user = &side;
+            String error;
+            if (false == DecodeModel({bytes.Data(), static_cast<UInt32>(bytes.Size())}, ModelFormatFromPath(name), job.modelOptions, reader, job.model, error))
+            {
+                job.failure = name + ": " + error;
+                return false;
+            }
+            job.embedded.Resize(job.targets.Size());
+            Array<ModelSubAsset> listed;
+            ListModelSubAssets(job.model, listed);
+            for (std::size_t at = 0; at < job.targets.Size(); ++at)
+            {
+                if (job.targets[at].embeddedName.empty())
+                {
+                    continue;
+                }
+                const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Texture, job.targets[at].embeddedName);
+                if (sub == nullptr)
+                {
+                    continue;
+                }
+                const ModelImage& image = job.model.images[sub->index.Get()];
+                DecodedImage pixels;
+                if (DecodeImage({image.embedded.Data(), static_cast<JBro::UInt32>(image.embedded.Size())}, pixels))
+                {
+                    job.embedded[at].width = pixels.width;
+                    job.embedded[at].height = pixels.height;
+                    job.embedded[at].pixels = std::move(pixels.pixels);
+                }
+            }
             job.decoded = true;
             return true;
         }
@@ -620,6 +721,11 @@ namespace JBro
 
     AssetHandle AssetSystem::AdoptDecoded(AssetDecodeJob& job)
     {
+        if (false == job.targets.IsEmpty())
+        {
+            AdoptDeferred(job);
+            return {};
+        }
         if (false == IsBound() || job.id.IsNull())
         {
             return {};
@@ -854,7 +960,7 @@ namespace JBro
     const EnvironmentMapData* AssetSystem::GetEnvironmentMap(AssetHandle handle) const
     {
         const Slot<EnvironmentMapData>* slot = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap);
-        return slot != nullptr ? &slot->data : nullptr;
+        return slot != nullptr && false == slot->pending ? &slot->data : nullptr;
     }
 
     Bool AssetSystem::ReadPostProcessProfile(const AssetRecord& record, PostProcessProfileData& data)
@@ -936,7 +1042,7 @@ namespace JBro
     const MeshData* AssetSystem::GetMesh(AssetHandle handle) const
     {
         const Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
-        return slot != nullptr ? &slot->data : nullptr;
+        return slot != nullptr && false == slot->pending ? &slot->data : nullptr;
     }
 
     Bool AssetSystem::ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const
@@ -1122,7 +1228,7 @@ namespace JBro
     const MaterialData* AssetSystem::GetMaterial(AssetHandle handle) const
     {
         const Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material);
-        return slot != nullptr ? &slot->data : nullptr;
+        return slot != nullptr && false == slot->pending ? &slot->data : nullptr;
     }
 
     Bool AssetSystem::CopySharedImage(const AssetRecord& record, TextureData& data) const
@@ -1133,7 +1239,7 @@ namespace JBro
         }
         for (const Slot<TextureData>& slot : m_textures.slots)
         {
-            if (slot.occupied && slot.id != record.id && slot.data.sharedImageKey == record.sharedImageKey && slot.data.width > 0)
+            if (slot.occupied && false == slot.pending && slot.id != record.id && slot.data.sharedImageKey == record.sharedImageKey && slot.data.width > 0)
             {
                 data.width = slot.data.width;
                 data.height = slot.data.height;
@@ -1321,8 +1427,9 @@ namespace JBro
         {
             return false;
         }
-        // 텍스처를 먼저 잡는다. 스프라이트가 사는 동안 텍스처는 내려가지 않는다.
+        // 텍스처를 먼저 잡는다. 스프라이트가 사는 동안 텍스처는 내려가지 않는다. 프레임을 지으려면 크기가 지금 있어야 한다 - 미룬 텍스처면 여기서 채운다(D-455).
         built.texture = Load(record.owner);
+        FinishPendingTextureNow(built.texture);
         const TextureData* texture = GetTexture(built.texture);
         if (texture == nullptr)
         {
@@ -1335,6 +1442,386 @@ namespace JBro
         }
         data = std::move(built);
         return true;
+    }
+
+    void AssetSystem::SetDeferredDecode(Bool deferred)
+    {
+        m_deferDecode = deferred;
+    }
+
+    Bool AssetSystem::IsDeferredDecode() const
+    {
+        return m_deferDecode;
+    }
+
+    Bool AssetSystem::IsPending(AssetHandle handle) const
+    {
+        switch (GetHandleType(handle))
+        {
+        case AssetType::Texture:
+        {
+            const Slot<TextureData>* slot = FindSlot(m_textures, handle, AssetType::Texture);
+            return slot != nullptr && slot->pending;
+        }
+        case AssetType::Mesh:
+        {
+            const Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
+            return slot != nullptr && slot->pending;
+        }
+        case AssetType::Material:
+        {
+            const Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material);
+            return slot != nullptr && slot->pending;
+        }
+        case AssetType::EnvironmentMap:
+        {
+            const Slot<EnvironmentMapData>* slot = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap);
+            return slot != nullptr && slot->pending;
+        }
+        default:
+            return false;
+        }
+    }
+
+    Bool AssetSystem::TryDeferLoad(const AssetRecord& record, AssetHandle& handle)
+    {
+        if (m_source == nullptr || false == m_source->CanReadOnWorkers())
+        {
+            return false;
+        }
+        const AssetRecord* model = OwnerModelOf(record);
+        switch (record.type)
+        {
+        case AssetType::Texture:
+        {
+            // 빌드가 꺼내 둔 픽셀과 이미 실린 같은 그림은 복사뿐이다.
+            if (CookedImageOf(record) != nullptr)
+            {
+                return false;
+            }
+            if (record.sharedImageKey != 0)
+            {
+                for (const Slot<TextureData>& slot : m_textures.slots)
+                {
+                    if (slot.occupied && false == slot.pending && slot.data.sharedImageKey == record.sharedImageKey && slot.data.width > 0)
+                    {
+                        return false;
+                    }
+                }
+            }
+            handle = Occupy(m_textures, AssetType::Texture, record.id, TextureData{});
+            Slot<TextureData>* slot = FindSlot(m_textures, handle, AssetType::Texture);
+            if (slot == nullptr)
+            {
+                return false;
+            }
+            slot->pending = true;
+            slot->queued = false;
+            return true;
+        }
+        case AssetType::Mesh:
+        case AssetType::Material:
+        {
+            // 모델의 하위만 미룬다. `.jmat` 파일은 글자 하나를 읽을 뿐이고, 디코드해 둔 모델이면 옮길 뿐이다.
+            if (model == nullptr || m_decodedModelId == model->id || m_source->Has(record, AssetBlob::CookedMesh)
+                || m_source->Has(record, AssetBlob::CookedMaterial))
+            {
+                return false;
+            }
+            if (record.type == AssetType::Mesh)
+            {
+                handle = Occupy(m_meshes, AssetType::Mesh, record.id, MeshData{});
+                Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh);
+                if (slot == nullptr)
+                {
+                    return false;
+                }
+                slot->pending = true;
+                slot->queued = false;
+                return true;
+            }
+            handle = Occupy(m_materials, AssetType::Material, record.id, MaterialData{});
+            Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material);
+            if (slot == nullptr)
+            {
+                return false;
+            }
+            slot->pending = true;
+            slot->queued = false;
+            return true;
+        }
+        case AssetType::EnvironmentMap:
+        {
+            handle = Occupy(m_environmentMaps, AssetType::EnvironmentMap, record.id, EnvironmentMapData{});
+            Slot<EnvironmentMapData>* slot = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap);
+            if (slot == nullptr)
+            {
+                return false;
+            }
+            slot->pending = true;
+            slot->queued = false;
+            return true;
+        }
+        default:
+            return false;
+        }
+    }
+
+    void AssetSystem::FinishPendingTextureNow(AssetHandle handle)
+    {
+        Slot<TextureData>* slot = FindSlot(m_textures, handle, AssetType::Texture);
+        const AssetRecord* record = slot != nullptr && slot->pending && m_registry != nullptr ? m_registry->Find(slot->id) : nullptr;
+        if (record == nullptr)
+        {
+            return;
+        }
+        TextureData fresh;
+        const Bool read = ReadTexture(*record, fresh);
+        // 다시 디코드하지 않게 잡은 자리를 다시 찾는다 - 내장 그림이면 모델을 읽는 사이 풀이 늘었을 수 있다.
+        slot = FindSlot(m_textures, handle, AssetType::Texture);
+        if (slot == nullptr)
+        {
+            return;
+        }
+        const UInt32 generation = slot->data.pixelGeneration + 1;
+        slot->data = read ? std::move(fresh) : TextureData{};
+        slot->data.pixelGeneration = generation;
+        slot->pending = false;
+        slot->queued = false;
+        // 도는 작업이 있으면 그 결과는 버려진다.
+        ++slot->requestSerial;
+    }
+
+    UInt32 AssetSystem::TakeDeferredJobs(Array<AssetDecodeJob>& jobs)
+    {
+        if (false == IsBound() || m_source == nullptr)
+        {
+            return 0;
+        }
+        UInt32 added = 0;
+        // 모델마다 작업 하나다. 같은 모델의 자리를 그 작업에 모은다.
+        Array<AssetId> modelIds;
+        Array<std::size_t> modelJobs;
+        const auto jobForModel = [&](const AssetRecord& model) -> AssetDecodeJob* {
+            for (std::size_t at = 0; at < modelIds.Size(); ++at)
+            {
+                if (modelIds[at] == model.id)
+                {
+                    return &jobs[modelJobs[at]];
+                }
+            }
+            AssetMetaFile meta;
+            if (false == ReadMeta(model, meta))
+            {
+                return nullptr;
+            }
+            AssetDecodeJob job;
+            job.id = model.id;
+            job.type = AssetType::Model;
+            job.record = model;
+            job.bindSerial = m_bindSerial;
+            job.modelOptions = meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{};
+            job.platform = m_platform;
+            job.assetRoot = m_assetRoot;
+            modelIds.Add(model.id);
+            modelJobs.Add(jobs.Size());
+            jobs.Add(std::move(job));
+            ++added;
+            return &jobs[jobs.Size() - 1];
+        };
+        const auto give = [&](auto& pool, AssetType type) {
+            for (UInt32 index = 0; index < pool.slots.Size(); ++index)
+            {
+                auto& slot = pool.slots[index];
+                if (false == slot.occupied || false == slot.pending || slot.queued)
+                {
+                    continue;
+                }
+                const AssetRecord* record = m_registry->Find(slot.id);
+                if (record == nullptr)
+                {
+                    slot.pending = false;
+                    continue;
+                }
+                AssetDecodeJob::Target target;
+                target.handle = MakeHandle(type, index, slot.generation);
+                target.serial = slot.requestSerial;
+                if (const AssetRecord* model = OwnerModelOf(*record))
+                {
+                    AssetDecodeJob* job = jobForModel(*model);
+                    if (job == nullptr)
+                    {
+                        // 모델의 메타가 읽히지 않는다. 빈 자료로 끝낸다(그리는 쪽은 빈 것을 건너뛴다).
+                        slot.pending = false;
+                        continue;
+                    }
+                    if (type == AssetType::Texture)
+                    {
+                        target.embeddedName = record->name;
+                    }
+                    job->targets.Add(std::move(target));
+                    slot.queued = true;
+                    continue;
+                }
+                AssetDecodeJob job;
+                job.id = record->id;
+                job.type = type;
+                job.record = *record;
+                job.bindSerial = m_bindSerial;
+                if (type == AssetType::Texture && false == ReadTextureOptions(*record, job.texture.options))
+                {
+                    slot.pending = false;
+                    continue;
+                }
+                job.targets.Add(std::move(target));
+                jobs.Add(std::move(job));
+                slot.queued = true;
+                ++added;
+            }
+        };
+        give(m_textures, AssetType::Texture);
+        give(m_meshes, AssetType::Mesh);
+        give(m_materials, AssetType::Material);
+        give(m_environmentMaps, AssetType::EnvironmentMap);
+        return added;
+    }
+
+    template <typename TData>
+    AssetSystem::Slot<TData>* AssetSystem::FindPendingTarget(Pool<TData>& pool, AssetType type, const AssetDecodeJob::Target& target)
+    {
+        Slot<TData>* slot = FindSlot(pool, target.handle, type);
+        return slot != nullptr && slot->pending && slot->requestSerial == target.serial ? slot : nullptr;
+    }
+
+    void AssetSystem::AdoptDeferred(AssetDecodeJob& job)
+    {
+        if (false == IsBound() || job.bindSerial != m_bindSerial)
+        {
+            return;
+        }
+        if (false == job.decoded && false == job.failure.empty())
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s", job.failure.c_str());
+        }
+        // 디코드한 모델은 들고 있는다 - 같은 모델의 다음 메시·재질은 옮길 뿐이다.
+        if (job.decoded && job.type == AssetType::Model)
+        {
+            m_decodedModel = std::move(job.model);
+            m_decodedModelId = job.record.id;
+        }
+        for (std::size_t at = 0; at < job.targets.Size(); ++at)
+        {
+            const AssetDecodeJob::Target& target = job.targets[at];
+            switch (GetHandleType(target.handle))
+            {
+            case AssetType::Texture:
+            {
+                Slot<TextureData>* slot = FindPendingTarget(m_textures, AssetType::Texture, target);
+                const AssetRecord* record = slot != nullptr ? m_registry->Find(slot->id) : nullptr;
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                TextureData fresh;
+                if (job.decoded && record != nullptr)
+                {
+                    if (job.type == AssetType::Model)
+                    {
+                        if (at < job.embedded.Size() && job.embedded[at].width > 0 && ReadTextureOptions(*record, fresh.options))
+                        {
+                            fresh.width = job.embedded[at].width;
+                            fresh.height = job.embedded[at].height;
+                            fresh.pixels = std::move(job.embedded[at].pixels);
+                        }
+                        else
+                        {
+                            Log::Write(LogLevel::Warning, "asset", "%s: the embedded image %s could not be decoded", job.record.relativePath.c_str(),
+                                record->name.c_str());
+                        }
+                    }
+                    else
+                    {
+                        fresh.options = job.texture.options;
+                        fresh.width = job.texture.width;
+                        fresh.height = job.texture.height;
+                        fresh.pixels = std::move(job.texture.pixels);
+                    }
+                    fresh.sharedImageKey = record->sharedImageKey;
+                    fresh.filter = fresh.options.filter == TextureFilter::Default ? m_defaultTextureFilter : fresh.options.filter;
+                }
+                fresh.pixelGeneration = slot->data.pixelGeneration + 1;
+                slot->data = std::move(fresh);
+                slot->pending = false;
+                slot->queued = false;
+                break;
+            }
+            case AssetType::EnvironmentMap:
+            {
+                Slot<EnvironmentMapData>* slot = FindPendingTarget(m_environmentMaps, AssetType::EnvironmentMap, target);
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                EnvironmentMapData fresh = job.decoded ? std::move(job.environment) : EnvironmentMapData{};
+                fresh.dataGeneration = slot->data.dataGeneration + 1;
+                slot->data = std::move(fresh);
+                slot->pending = false;
+                slot->queued = false;
+                break;
+            }
+            case AssetType::Mesh:
+            {
+                Slot<MeshData>* slot = FindPendingTarget(m_meshes, AssetType::Mesh, target);
+                const AssetRecord* record = slot != nullptr ? m_registry->Find(slot->id) : nullptr;
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                // 들고 있는 모델에서 옮긴다(`ReadMesh` 가 디코드한 모델을 본다). 모델이 풀리지 않았으면 빈 메시다.
+                MeshData fresh;
+                if (false == job.decoded || record == nullptr || m_decodedModelId != job.record.id || false == ReadMesh(*record, fresh))
+                {
+                    fresh = MeshData{};
+                }
+                slot = FindSlot(m_meshes, target.handle, AssetType::Mesh);
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                fresh.dataGeneration = slot->data.dataGeneration + 1;
+                slot->data = std::move(fresh);
+                slot->pending = false;
+                slot->queued = false;
+                break;
+            }
+            case AssetType::Material:
+            {
+                Slot<MaterialData>* slot = FindPendingTarget(m_materials, AssetType::Material, target);
+                const AssetRecord* record = slot != nullptr ? m_registry->Find(slot->id) : nullptr;
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                MaterialData fresh;
+                if (false == job.decoded || record == nullptr || m_decodedModelId != job.record.id || false == ReadMaterial(*record, fresh))
+                {
+                    fresh = MaterialData{};
+                }
+                slot = FindSlot(m_materials, target.handle, AssetType::Material);
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                fresh.dataGeneration = slot->data.dataGeneration + 1;
+                slot->data = std::move(fresh);
+                slot->pending = false;
+                slot->queued = false;
+                break;
+            }
+            default:
+                break;
+            }
+        }
     }
 
     AssetHandle AssetSystem::Load(AssetId id)
@@ -1459,6 +1946,11 @@ namespace JBro
             return {};
         }
         AssetHandle handle;
+        if (m_deferDecode && TryDeferLoad(*record, handle))
+        {
+            m_loaded.TryAdd(id, handle);
+            return handle;
+        }
         switch (record->type)
         {
         case AssetType::Texture:
@@ -1826,7 +2318,7 @@ namespace JBro
     const TextureData* AssetSystem::GetTexture(AssetHandle handle) const
     {
         const Slot<TextureData>* slot = FindSlot(m_textures, handle, AssetType::Texture);
-        return slot != nullptr ? &slot->data : nullptr;
+        return slot != nullptr && false == slot->pending ? &slot->data : nullptr;
     }
 
     const SpriteData* AssetSystem::GetSprite(AssetHandle handle) const
@@ -1848,6 +2340,27 @@ namespace JBro
         if (loaded == nullptr || record == nullptr)
         {
             return false;
+        }
+        // 아직 디코드 중이면 다시 내준다. 도는 작업의 결과는 번호가 달라 버려진다(D-455).
+        if (IsPending(*loaded))
+        {
+            if (OwnerModelOf(*record) != nullptr)
+            {
+                m_decodedModelId = {};
+                m_decodedModel = {};
+            }
+            const auto requeue = [](auto* slot) {
+                if (slot != nullptr)
+                {
+                    ++slot->requestSerial;
+                    slot->queued = false;
+                }
+            };
+            requeue(FindSlot(m_textures, *loaded, AssetType::Texture));
+            requeue(FindSlot(m_meshes, *loaded, AssetType::Mesh));
+            requeue(FindSlot(m_materials, *loaded, AssetType::Material));
+            requeue(FindSlot(m_environmentMaps, *loaded, AssetType::EnvironmentMap));
+            return true;
         }
         if (Slot<TextureData>* texture = FindSlot(m_textures, *loaded, AssetType::Texture))
         {

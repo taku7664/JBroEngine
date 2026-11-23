@@ -823,6 +823,8 @@ namespace JBro::LocKeys
     // ── 로딩과 상태 표시줄 (D-217·D-236) ───────────────────────────────────
     // 캔버스를 열 때 워커로 에셋을 읽는 묶음의 이름이다. 상태 표시줄과 태스크 목록이 보인다.
     inline constexpr const char* TaskLoadCanvas = "task.load_canvas";
+    // 엔진의 미룬 에셋 디코드 묶음 이름이다(D-455) - 에디터가 엔진 설정으로 넘긴다(`EngineConfig::deferredDecodeGroupNameKey`).
+    inline constexpr const char* TaskLoadAssets = "task.load_assets";
     inline constexpr const char* NotifyCanvasAssetsFailedTitle = "notify.canvas_assets_failed_title";
     // 수와 첫 사유(파일)를 받는다.
     inline constexpr const char* NotifyCanvasAssetsFailedMessage = "notify.canvas_assets_failed_message";
