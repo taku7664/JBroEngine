@@ -6,6 +6,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework3D/Component/Animator3D.h>
+#include <JBro/Framework3D/Handle/Animator3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Animation/AnimationPose.h>
@@ -205,7 +206,8 @@ namespace
         auto* renderer = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(body);
         // 해석 패스가 하는 일을 손으로 한다.
         renderer->mesh = assets.Load(meshId);
-        animator->clip = assets.Load(clipId);
+        animator->animationClips.Add(assets.Load(clipId));
+        animator->startClip = 0;
         // 한 번 재생이다 - 반복이면 정확히 1 초에 0 으로 감긴다(감기는 `WrapClipTime` 시험이 본다).
         animator->loop = false;
         const JBro::MeshData* mesh = assets.GetMesh(renderer->mesh);
@@ -228,7 +230,7 @@ namespace
 
         // 위 레이어가 Spine 만 덮어쓴다: 같은 클립을 0 에서 시작해 마스크를 Spine 으로.
         const JBro::InstanceId instance = animator->GetInstanceId();
-        Check(system.Play(instance, 1, animator->clip, false), "a script plays a clip on layer 1");
+        Check(system.Play(instance, 1, animator->animationClips[0], false), "a script plays a clip on layer 1");
         Check(system.SetLayerMask(instance, 1, "Spine", 0), "and masks it to Spine");
         Check(false == system.SetLayerMask(instance, 1, "Tail", 0), "a bone the skeleton does not have is refused");
         Check(system.SetLayerWeight(instance, 1, 1.0f), "at full weight");
@@ -236,9 +238,38 @@ namespace
         Check(Near(state->pose[1].rotation.z, 0.0f) && Near(state->pose[0].position.y, 2.0f),
             "layer 1 at time 0 puts Spine back at rest and leaves Hip to layer 0 (held at its end, lifted)");
         system.SetLayerWeight(instance, 1, 0.0f);
-        Check(system.CrossFade(instance, 0, animator->clip, 1.0f, true), "a cross-fade starts");
+        Check(system.CrossFade(instance, 0, animator->animationClips[0], 1.0f, true), "a cross-fade starts");
         system.Update(canvas, 0.5f);
         Check(state->pose[1].rotation.z > 0.0f, "half way through the fade the pose mixes the old and the new time");
+
+        // **스크립트의 명령**(D-459): 컴포넌트에 쌓고 다음 갱신이 처리하며, 레이어 상태를 컴포넌트에 돌려 적는다.
+        Check(animator->Stop(1) && animator->Play(2, 0, false) && animator->SetLayerWeight(2, 1.0f) && animator->SetLayerMask(2, "Spine", 0),
+            "a script queues commands on the component");
+        Check(false == animator->Play(4, 0, false), "a layer past the last is refused");
+        Check(false == animator->SetLayerMask(2, std::string(80, 'x'), 0), "a bone name too long for the command is refused");
+        system.Update(canvas, 0.25f);
+        Check(animator->IsPlaying(2) && animator->GetLayerClip(2) == 0 && Near(animator->GetLayerTime(2), 0.25f) && false == animator->IsPlaying(1),
+            "the next update plays layer 2 from the clip list, stops layer 1, and writes the layer state back");
+        Check(Near(state->pose[0].position.y, 2.0f) && state->pose[1].rotation.z > 0.1f && state->pose[1].rotation.z < 0.2f,
+            "layer 2 masked to Spine sets Spine a quarter of the way while Hip stays with layer 0");
+        Check(animator->Play(2, 7, false), "a clip number the list does not have is queued");
+        system.Update(canvas, 0.0f);
+        Check(animator->GetLayerClip(2) == 0, "and ignored by the system, which keeps what it was playing");
+        system.Update(canvas, 1.0f);
+        Check(false == animator->IsPlaying(2) && Near(animator->GetLayerTime(2), 1.0f), "a one-shot layer past its end holds there and is no longer playing");
+
+        // **스크립트의 핸들**(D-459): 같은 명령을 핸들로 건다. 속도는 모든 레이어에 곱한다.
+        JBro::Handle::Animator3D handle = character->GetScriptHandle().GetComponent<JBro::Handle::Animator3D>();
+        Check(handle.IsValid() && handle.GetLayerClip(2) == 0 && false == handle.IsPlaying(2), "the handle reads the layer state the system wrote back");
+        handle.SetSpeed(2.0f);
+        Check(handle.Play(3, 0, false) && handle.SetLayerMask(3, "Spine") && handle.SetLayerMask(3, nullptr) && handle.CrossFade(3, 0, 0.5f, true)
+                && handle.SetLayerWeight(3, 0.5f) && handle.SetLayerAdditive(3, false),
+            "the handle queues commands, and a null bone name clears the mask");
+        system.Update(canvas, 0.25f);
+        Check(handle.IsPlaying(3) && Near(handle.GetLayerTime(3), 0.5f) && handle.GetSpeed() == 2.0f, "the next update plays layer 3 at twice the speed");
+        Check(handle.Stop(3), "the handle stops a layer");
+        system.Update(canvas, 0.0f);
+        Check(false == handle.IsPlaying(3) && handle.GetLayerClip(3) == -1, "and the stopped layer has no clip");
 
         canvas.DestroyObject(character);
         canvas.FlushPendingDestroy();

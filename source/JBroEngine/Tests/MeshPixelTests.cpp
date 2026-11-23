@@ -2049,7 +2049,7 @@ namespace
         JBro::Object::GameObject* character = canvas.CreateObject("character");
         canvas.AttachComponent<JBro::Component::Transform3D>(character);
         auto* animator = canvas.AttachComponent<JBro::Component::Animator3D>(character);
-        animator->clipId = clipId;
+        animator->animationClipIds.Add(clipId);
         animator->loop = false;
         // 한 프레임(1/60 초)에 1 초가 흐르게 - 시뮬레이션을 켠 첫 프레임이 클립의 끝이다.
         animator->speed = 60.0f;

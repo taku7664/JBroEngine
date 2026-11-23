@@ -63,6 +63,8 @@ namespace
         Check(TypeOfIdFieldName("spriteId") == JBro::AssetType::Sprite && TypeOfIdFieldName("fontId") == JBro::AssetType::Font,
             "a field named after a type picks that type");
         Check(TypeOfIdFieldName("clipId") == JBro::AssetType::Audio, "clip is the one alias");
+        Check(TypeOfIdFieldName("animationClipId") == JBro::AssetType::AnimationClip && TypeOfIdFieldName("skeletonId") == JBro::AssetType::Skeleton,
+            "an animation clip and a skeleton are picked by their whole type names, not the audio alias");
         Check(TypeOfIdFieldName("regularFontId") == JBro::AssetType::Font && TypeOfIdFieldName("boldItalicFontId") == JBro::AssetType::Font,
             "a family slot picks fonts by its last word");
         Check(TypeOfIdFieldName("fontFamilyId") == JBro::AssetType::FontFamily, "the whole name wins over the last word");

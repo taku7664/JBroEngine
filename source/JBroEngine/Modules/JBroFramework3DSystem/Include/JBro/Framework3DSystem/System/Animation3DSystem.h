@@ -46,6 +46,8 @@ namespace JBro::System
         struct Layer
         {
             AssetHandle clip;
+            // 애니메이터의 `animationClips` 에서의 번호다(스크립트가 고른 것, D-459). 시스템 함수로 핸들을 직접 건 것은 -1.
+            Int32 clipIndex = -1;
             UInt32 clipGeneration = 0;
             Array<Int32> tracks;
             Float time = 0.0f;
@@ -110,6 +112,10 @@ namespace JBro::System
 
     private:
         AssetHandle FindSkeleton(Canvas& canvas, const Component::Animator3D& animator) const;
+        // 컴포넌트에 쌓인 스크립트의 명령을 처리하고 비운다(D-459).
+        void ApplyCommands(State& state, Component::Animator3D& animator);
+        // 셈한 레이어 상태를 컴포넌트에 적는다(스크립트가 읽는다).
+        void WriteBack(const State& state, Component::Animator3D& animator) const;
         Bool Prepare(State& state, AssetHandle skeleton);
         Bool BindLayerClip(const State& state, AssetHandle clip, UInt32& generation, Array<Int32>& tracks);
         void Evaluate(State& state, const Component::Animator3D& animator, Float deltaTime);

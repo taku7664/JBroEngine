@@ -7,6 +7,7 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include <cstring>
 #include <utility>
 
 namespace JBro::System
@@ -251,14 +252,17 @@ namespace JBro::System
                     return;
                 }
             }
-            // 레이어 0 은 컴포넌트의 클립이다. 처음 서거나 칸이 바뀌면(에디터의 편집) 다시 재생한다.
-            Layer& base = state->layers[0];
-            if (false == state->started || false == SameHandle(base.clip, animator.clip))
+            // 레이어 0 의 시작 클립이다(`animationClips[startClip]`). 처음 서면 재생한다.
+            if (false == state->started)
             {
                 state->started = true;
-                if (animator.playOnStart && animator.clip.generation != 0)
+                const Int32 start = animator.startClip;
+                if (animator.playOnStart && start >= 0 && static_cast<std::size_t>(start.Get()) < animator.animationClips.Size()
+                    && animator.animationClips[static_cast<std::size_t>(start.Get())].generation != 0)
                 {
-                    base.clip = animator.clip;
+                    Layer& base = state->layers[0];
+                    base.clip = animator.animationClips[static_cast<std::size_t>(start.Get())];
+                    base.clipIndex = start;
                     BindLayerClip(*state, base.clip, base.clipGeneration, base.tracks);
                     base.time = 0.0f;
                     base.loop = animator.loop;
@@ -266,7 +270,9 @@ namespace JBro::System
                     base.fade = 0.0f;
                 }
             }
+            ApplyCommands(*state, animator);
             Evaluate(*state, animator, deltaTime);
+            WriteBack(*state, animator);
         });
         // 사라진 애니메이터의 상태를 치운다(드물다). 뒤에서 앞으로 맨 끝 것과 바꿔 지운다.
         for (std::size_t index = m_states.Size(); index > 0; --index)
@@ -286,6 +292,84 @@ namespace JBro::System
                 }
             }
             m_states.RemoveAt(last);
+        }
+    }
+
+    void Animation3DSystem::ApplyCommands(State& state, Component::Animator3D& animator)
+    {
+        const UInt32 count = animator.m_commandCount;
+        animator.m_commandCount = 0;
+        for (UInt32 at = 0; at < count; ++at)
+        {
+            const Component::Animator3D::Command& command = animator.m_commands[at.Get()];
+            if (command.layer >= state.layers.Size())
+            {
+                continue;
+            }
+            Layer& layer = state.layers[command.layer.Get()];
+            const Bool known = command.clip >= 0 && static_cast<std::size_t>(command.clip.Get()) < animator.animationClips.Size();
+            const AssetHandle clip = known ? animator.animationClips[static_cast<std::size_t>(command.clip.Get())] : AssetHandle{};
+            switch (command.kind)
+            {
+            case Component::Animator3D::CommandKind::Play:
+            case Component::Animator3D::CommandKind::CrossFade:
+            {
+                if (clip.generation == 0)
+                {
+                    break;
+                }
+                if (command.kind == Component::Animator3D::CommandKind::CrossFade && layer.playing && layer.clip.generation != 0 && command.value > 0.0f)
+                {
+                    layer.fromClip = layer.clip;
+                    layer.fromGeneration = layer.clipGeneration;
+                    std::swap(layer.fromTracks, layer.tracks);
+                    layer.fromTime = layer.time;
+                    layer.fromLoop = layer.loop;
+                    layer.fade = command.value;
+                    layer.fadeElapsed = 0.0f;
+                }
+                else
+                {
+                    layer.fade = 0.0f;
+                    layer.fadeElapsed = 0.0f;
+                }
+                layer.clip = clip;
+                layer.clipIndex = command.clip;
+                BindLayerClip(state, clip, layer.clipGeneration, layer.tracks);
+                layer.time = 0.0f;
+                layer.loop = command.flag;
+                layer.playing = true;
+                break;
+            }
+            case Component::Animator3D::CommandKind::Stop:
+                layer.playing = false;
+                layer.fade = 0.0f;
+                break;
+            case Component::Animator3D::CommandKind::SetWeight:
+                layer.weight = command.value < 0.0f ? Float(0.0f) : (command.value > 1.0f ? Float(1.0f) : command.value);
+                break;
+            case Component::Animator3D::CommandKind::SetAdditive:
+                layer.mode = command.flag ? AnimatorLayerMode::Additive : AnimatorLayerMode::Override;
+                break;
+            case Component::Animator3D::CommandKind::SetMask:
+                // 이름은 명령마다 한 번 번호로 푼다 - 프레임마다 견주지 않는다.
+                SetLayerMask(state.instance, command.layer, std::string_view(command.bone, std::strlen(command.bone)),
+                    static_cast<UInt32>(static_cast<std::uint32_t>(command.value.Get())));
+                break;
+            }
+        }
+    }
+
+    void Animation3DSystem::WriteBack(const State& state, Component::Animator3D& animator) const
+    {
+        for (std::size_t at = 0; at < Component::Animator3D::LayerCount && at < state.layers.Size(); ++at)
+        {
+            const Layer& layer = state.layers[at];
+            const AnimationClipData* clip = layer.clip.generation != 0 && m_assets != nullptr ? m_assets->GetAnimationClip(layer.clip) : nullptr;
+            animator.m_layerTime[at] = clip != nullptr ? WrapClipTime(layer.time, clip->animation.duration, layer.loop) : Float(0.0f);
+            // 한 번 재생은 끝을 지나면 서 있다 - 재생 중이 아니다.
+            animator.m_layerPlaying[at] = layer.playing && clip != nullptr && (layer.loop || layer.time < clip->animation.duration);
+            animator.m_layerClip[at] = layer.playing ? layer.clipIndex : Int32(-1);
         }
     }
 

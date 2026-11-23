@@ -41,6 +41,7 @@
 
 // 빌트인 컴포넌트는 핸들로만 보인다(D-302). 데이터 헤더(`Component/*.h`)는 스크립트 대상 빌드에서 `#error` 다.
 #include <JBro/Framework3D/ComponentTypes3D.h>
+#include <JBro/Framework3D/Handle/Animator3D.h>
 #include <JBro/Framework3D/Handle/AudioListener3D.h>
 #include <JBro/Framework3D/Handle/Camera3D.h>
 #include <JBro/Framework3D/Handle/CharacterController3D.h>

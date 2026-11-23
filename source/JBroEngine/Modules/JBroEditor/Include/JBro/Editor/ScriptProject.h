@@ -60,6 +60,7 @@ namespace JBro
             Text3D,
             AudioListener3D,
             Light3D,
+            Animator3D,
             AudioSource,
             Count
         };

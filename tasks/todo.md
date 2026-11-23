@@ -3103,6 +3103,22 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-459. 스켈레탈 1c: 스크립트의 `Animator3D` 핸들과 인스펙터. 클립은 애니메이터의 목록이고 스크립트는 번호로 고른다. 명령은 컴포넌트에 쌓이고 다음 갱신이 처리한다.** (2026-11-23, 사용자: "1c 진행")
+  Updates: D-457 (컴포넌트 필드 `clipId`/`clip` → 목록 `animationClipIds`/`animationClips` 와 `startClip`, 시스템 레이어에 클립 번호).
+  (1) **필드**: `animationClipIds`(`Array<AssetId>`)·`animationClips`(해석된 핸들, 숨김)·`startClip`(레이어 0 이 시작할 때 재생할 번호, -1 이면 없음). 이름이 `clipIds` 가 아닌 까닭: 인스펙터는
+  필드 이름으로 에셋 타입을 고르는데(`AssetTypeRules::TypeOfIdFieldName`) `clip` 은 소리(Audio)의 별명이다. 목록 원소는 `animationClipId` 로 읽혀 AnimationClip 만 고른다.
+  1a 의 `clipId` 는 푸시 전이라 옮길 파일이 없다.
+  (2) **명령**: 컴포넌트에 고정 칸 16 개(`Play`·`CrossFade`·`Stop`·`SetWeight`·`SetAdditive`·`SetMask`)를 쌓고, `Animation3DSystem` 이 같은 프레임의 다음 갱신(실행 순서 350, 스크립트 뒤)에 처리하고 비운다 -
+  캐릭터 컨트롤러의 `Move` 와 같은 꼴이다. 넘치거나 레이어가 4 이상이면 거짓이다. 마스크의 뼈 이름은 DLL 경계를 넘으므로 고정 64 바이트 글자이고(63 바이트 넘으면 거짓), 시스템이 명령마다 한 번 번호로 푼다.
+  목록에 없는 클립 번호는 무시하고 하던 것을 이어 간다.
+  (3) **돌려 적기**: 시스템이 셈한 뒤 레이어마다 시간(감은 값)·재생 중·클립 번호를 컴포넌트에 적는다. 한 번 재생은 끝을 지나면 재생 중이 아니다.
+  (4) **핸들**: `JBro::Handle::Animator3D`(24 B) - `Play`·`CrossFade`·`Stop`·`SetLayerWeight`·`SetLayerAdditive`·`SetLayerMask(layer, const char*, depth)`·`GetLayerTime`·`IsPlaying`·`GetLayerClip`·`GetSpeed`/`SetSpeed`.
+  3D 스크립트 프렐류드에 들고, 스크립트 필드 타입(`ScriptProject` 의 `FieldType::Animator3D`, 3D 만)으로 고를 수 있다.
+  시험: `Animation3D` 에 명령(쌓기·레이어 4 거절·긴 뼈 이름 거절·다음 갱신의 재생과 멈춤과 돌려 적기·Spine 마스크 레이어 2·없는 번호 무시·한 번 재생의 끝),
+  `EditorApplication` 의 `TestTheAnimatorInspectorListsClips`(스크린숏으로 클립 목록 칸에 `rig.gltf / Wave` 가 보이고 핸들 칸이 숨은 것을 봤다), `AssetRegistry` 의 필드 이름 규칙.
+  빌드: Debug(오류 0). 시험: Animation3D·MeshPixel·AssetSystem·Framework3DSystem·ScriptApiPrelude·ScriptApiCatalog·BuiltinComponentProperty·ComponentMenuTable·EditorLocalization·ScriptProject·ScriptBuild·UserScenario 통과(관련 묶음, 전체 시험은 푸시 전).
+  남은 것: 인스펙터의 레이어 편집(모델 에디터 단계), 클립을 이름으로 고르는 길(지금은 번호뿐), 화면 밖 건너뛰기, 워커 포즈(skeletal-plan §4).
+
 - **D-458. 스켈레탈 1b: 정점 셰이더 스키닝. 스킨 메시는 뼈 번호·가중치의 둘째 정점 흐름을 들고, 뼈 행렬은 프레임마다 한 번 올린 묶음을 각 프로그램이 픽셀 단계의 블록 다음 자리에서 읽는다.** (2026-11-23, 사용자: "1b 진행")
   Updates: D-456 (skeletal-plan §3.4 의 7 - 뼈 번호는 정수를 든 실수 넷, RHI 에 정수 정점 형식이 없다), D-457 (메시는 애니메이터 행렬로 그린다).
   (1) **렌더러**: `MeshSkinVertex`(뼈 넷·가중치 넷, 32 B), `RegisterSkinnedMesh`(스킨 흐름 버퍼, 뼈 번호가 256 을 넘으면 거절), `SubmitSkinPalette`(스키닝 행렬의 위 세 행을 프레임 슬롯의

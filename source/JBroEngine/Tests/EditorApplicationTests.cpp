@@ -76,6 +76,8 @@
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/ScreenUi/System/Button2DSystem.h>
 #include <JBro/ScreenUi/System/Text2DSystem.h>
+#include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -15534,6 +15536,69 @@ namespace
         editor.Shutdown();
     }
 
+    // **애니메이터의 인스펙터**(D-459). 스킨 모델을 둔 3D 프로젝트에서 `Animator3D` 를 붙인 오브젝트를 고르면 인스펙터가 클립 목록 `animationClipIds` 를 보이고,
+    // 그 원소는 `animationClipId` 로 읽혀 AnimationClip 만 고른다(소리의 별명 `clip` 이 아니다). 해석된 핸들 칸은 숨는다. `JBRO_EDITOR_SHOT` 이 있으면 찍는다.
+    void TestTheAnimatorInspectorListsClips()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the animator inspector not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroAnimatorInspectorProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        {
+            std::ofstream model(root / "Assets" / "rig.gltf", std::ios::binary);
+            model << TestModels::SkinnedGltf();
+        }
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath("rig.gltf");
+        Check(model != nullptr, "the skinned model is registered");
+        JBro::AssetId clipId;
+        if (model != nullptr)
+        {
+            JBro::Array<JBro::AssetId> parts;
+            editor.GetAssetRegistry().CollectOwned(model->id, parts);
+            for (const JBro::AssetId& id : parts)
+            {
+                clipId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::AnimationClip ? id : clipId;
+            }
+        }
+        Check(false == clipId.IsNull(), "and owns an animation clip");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* rig = canvas->CreateObject("Rig");
+        auto* animator = canvas->AttachComponent<JBro::Component::Animator3D>(rig);
+        Check(animator != nullptr, "an animator attaches");
+        animator->animationClipIds.Add(clipId);
+        JBro::Object::GameObject* chosen[] = {rig};
+        editor.SelectObjects({chosen, 1});
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the animator inspector");
+        }
+        Check(JBro::AssetTypeRules::TypeOfIdFieldName("animationClipId") == JBro::AssetType::AnimationClip,
+            "the list's element reads as animationClipId and picks animation clips");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "animator_inspector");
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
     // **새 폰트 패밀리**(D-225). 에셋 브라우저의 메뉴가 부르는 길이다. 겹치지 않는 이름의 `.jfontfamily` 가 FontFamily 로 등록되고
     // 골라지며, 인스펙터가 네 칸을 에셋 옵션 블록으로 보인다(칸 필드 이름이 `...FontId` 라 고르기가 폰트만 보인다).
     // **에디터의 재질**(material-plan 4 단계). 브라우저의 `새 재질` 이 기본값의 `.jmat` 을 만들어 고르고, 인스펙터의 재질 블록이 그 값을 보인다.
@@ -21837,6 +21902,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheEditorMakesAndOpensCanvases());
     JBRO_CASE(TestTheEditorMakesFontFamilies());
     JBRO_CASE(TestTheEditorMakesAndEditsMaterials());
+    JBRO_CASE(TestTheAnimatorInspectorListsClips());
     JBRO_CASE(TestTheEditorPreviewsGameLanguages());
     JBRO_CASE(TestScreenLayersInTheEditor());
     JBRO_CASE(TestTheEditorSaysWhatIsChosen());
