@@ -84,6 +84,7 @@
 #include <JBro/Framework3D/Handle/CharacterController3D.h>
 #include <JBro/Framework3D/Handle/DistanceJoint3D.h>
 #include <JBro/Framework3D/Handle/HingeJoint3D.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Physics3D/World.h>
 #include <JBro/Framework3DSystem/System/Physics3DSystem.h>
@@ -125,6 +126,7 @@
 #include <windows.h>
 #include <imm.h>
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -13637,12 +13639,51 @@ namespace
         point->range = 6.0f;
         point->castShadows = true;
 
+        // 캔버스를 먼저 몇 프레임 그린다. 3D 캔버스의 셋째 프레임은 하늘이 없어도 0.4 초쯤 걸린다(디버그, 하늘과 무관한 첫 준비) - 아래에서 재는 것은 굽는 동안의 프레임뿐이다.
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the canvas before its sky");
+        }
         JBro::CanvasEnvironment environment = canvas->GetEnvironment();
         environment.ambientSource = JBro::EnvironmentAmbientSource::Sky;
         environment.skyId = skyId;
         environment.skyIntensity = 0.6f;
         editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetCanvasEnvironmentCommand>(*canvas, environment, 1));
-        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        // **하늘은 워커에서 굽는다**(D-449). 굽는 동안에도 에디터는 프레임을 그린다 - 굽기가 끝날 때까지 돌리며 가장 긴 프레임을 잰다.
+        JBro::TaskManager* tasks = editor.GetTaskManager();
+        Check(tasks != nullptr && tasks->UsesWorkers(), "the editor bakes on task workers");
+        const auto baking = [&]() -> JBro::Bool {
+            for (JBro::UInt32 index = 0; tasks != nullptr && index < tasks->GetGroupCount(); ++index)
+            {
+                const JBro::TaskGroup& group = tasks->GetGroupAt(index);
+                if (group.GetName() == "Bake a sky map" && false == group.IsFinished())
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        JBro::Int32 framesWhileBaking = 0;
+        double longestFrame = 0.0;
+        const auto bakeStart = std::chrono::steady_clock::now();
+        for (JBro::Int32 frame = 0; frame < 2000; ++frame)
+        {
+            const auto before = std::chrono::steady_clock::now();
+            Check(editor.Tick(Frame), "the editor must draw the lit canvas");
+            const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - before).count();
+            longestFrame = took > longestFrame ? took : longestFrame;
+            if (false == baking())
+            {
+                break;
+            }
+            ++framesWhileBaking;
+        }
+        const double bakeTook = std::chrono::duration<double>(std::chrono::steady_clock::now() - bakeStart).count();
+        std::cout << "  sky bake: " << bakeTook << " s, " << framesWhileBaking.Get() << " frames drawn meanwhile, longest frame " << longestFrame << " s" << std::endl;
+        Check(framesWhileBaking > 3, "the editor keeps drawing frames while the sky map bakes");
+        Check(longestFrame < bakeTook * 0.2, "no editor frame waits for the sky map bake");
+        Check(false == baking(), "the sky map bake finishes");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must draw the lit canvas");
         }

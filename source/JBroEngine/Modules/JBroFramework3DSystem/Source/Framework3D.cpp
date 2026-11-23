@@ -88,7 +88,7 @@ namespace JBro
                 return false;
             }
             m_sprites.Initialize(context.assets, context.renderer);
-            m_environment.Initialize(context.renderer, context.assets);
+            m_environment.Initialize(context.renderer, context.assets, context.tasks);
             // 재질의 텍스처 칸이 가리키는 렌더 텍스처는 화면 레이어와 같은 렌더 타깃이다(D-439).
             m_meshMaterials.SetRenderTargetSource(&m_sprites);
             m_materials.Initialize(context.assets, context.renderer, context.shaderCompiler);

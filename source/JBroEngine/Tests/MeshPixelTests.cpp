@@ -12,6 +12,8 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Framework3DSystem/Rendering/EnvironmentLibrary.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -35,6 +37,7 @@
 #include <JBro/Package/PackageReader.h>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <cmath>
@@ -43,6 +46,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -1862,6 +1866,122 @@ namespace
         fs::remove_all(root);
     }
 
+    // **하늘은 워커에서 굽는다**(D-449). 하늘을 고르는 `Resolve` 는 원본을 떠 넘기고 곧장 돌아오며, 그동안은 앞 하늘(처음이면 하늘 없이)을 그린다.
+    // 굽는 도중 하늘이 또 바뀌면 앞 굽기는 멈추고 결과를 버린다. 내려갈 때는 굽기를 멈추게 해 다 굽기를 기다리지 않는다. 태스크 관리자가 없으면 그 자리에서 굽는다.
+    template <typename TModule>
+    void TestSkyBakesOnWorkers()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; the sky bake on workers not verified" << std::endl;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / L"JBroSkyBakeProbe·굽기";
+        fs::remove_all(root);
+        fs::create_directories(root / "sky");
+        // 한 색의 하늘 둘이다. 1024 x 512 라 디버그에서 한 번 굽는 데 2 초쯤 걸린다 - 도중에 바꾸고 멈출 틈이 있다.
+        const auto writeSky = [&](const char* name, float r, float b) {
+            std::string file = "#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 512 +X 1024\n";
+            for (int at = 0; at < 1024 * 512; ++at)
+            {
+                PushRgbe(file, r, 0.0f, b);
+            }
+            std::ofstream out(root / "sky" / name, std::ios::binary);
+            out.write(file.data(), static_cast<std::streamsize>(file.size()));
+        };
+        writeSky("red.hdr", 1.0f, 0.0f);
+        writeSky("blue.hdr", 0.0f, 1.0f);
+        const std::u8string rootText = root.u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(stage.platform, rootPath.c_str(), options, report), "the probe folder scans");
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(stage.memory), "the asset system initializes");
+        assets.Bind(stage.platform, registry, rootPath.c_str());
+        const JBro::AssetHandle red = assets.Load(registry.FindByPath("sky/red.hdr")->id);
+        const JBro::AssetHandle blue = assets.Load(registry.FindByPath("sky/blue.hdr")->id);
+        Check(red.generation != 0 && blue.generation != 0, "both skies load");
+
+        JBro::TaskManager tasks;
+        JBro::TaskManagerDesc desc;
+        desc.workerCount = 2;
+        Check(tasks.Initialize(desc) && tasks.UsesWorkers(), "the task manager runs workers");
+        JBro::EnvironmentLibrary library;
+        library.Initialize(&stage.renderer, &assets, &tasks);
+        JBro::CanvasEnvironment environment;
+        environment.ambientSource = JBro::EnvironmentAmbientSource::Sky;
+        environment.ambientIntensity = 1.0f;
+        environment.skyIntensity = 1.0f;
+        JBro::Environment3D result;
+        using Clock = std::chrono::steady_clock;
+        const auto seconds = [](Clock::time_point from) {
+            return std::chrono::duration<double>(Clock::now() - from).count();
+        };
+        const auto settle = [&]() {
+            const auto from = Clock::now();
+            while (library.IsBaking() && seconds(from) < 120.0)
+            {
+                tasks.Update();
+                library.Resolve(environment, result);
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            return seconds(from);
+        };
+
+        // 빨강을 고른다. 곧장 돌아오고 아직 하늘이 없다.
+        environment.sky = red;
+        auto from = Clock::now();
+        library.Resolve(environment, result);
+        const double handOff = seconds(from);
+        std::cout << "  handing the bake to a worker took " << handOff << " s" << std::endl;
+        Check(library.IsBaking() && result.map.generation == 0, "picking a sky hands its bake to a worker and draws without a sky meanwhile");
+        // 굽는 도중 파랑으로 바꾼다. 빨강은 멈추고 버려진다.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        environment.sky = blue;
+        library.Resolve(environment, result);
+        const double blueBake = settle();
+        std::cout << "  the blue bake finished in " << blueBake << " s" << std::endl;
+        Check(handOff < blueBake * 0.1, "handing a bake over is a small part of the bake itself");
+        Check(false == library.IsBaking() && result.map.generation != 0 && result.map.index == library.GetUploadedMap().index,
+            "the finished bake is uploaded by the next resolve");
+        Check(library.GetBuildCount() == 1, "the red bake was stopped and dropped - only the blue sky was uploaded");
+        Check(result.sh[0][2] > 0.1f && result.sh[0][0] < 0.01f, "the uploaded sky is the blue one");
+
+        // 빨강으로 다시 바꾼다. 굽는 동안 파랑이 그대로 남는다.
+        environment.sky = red;
+        library.Resolve(environment, result);
+        Check(library.IsBaking() && result.map.generation != 0 && result.sh[0][2] > 0.1f && result.sh[0][0] < 0.01f,
+            "while the new sky bakes the old one keeps drawing");
+        // 굽는 도중 내린다. 다 굽기를 기다리지 않는다.
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        from = Clock::now();
+        library.Shutdown();
+        const double shutdown = seconds(from);
+        std::cout << "  shutting down mid-bake took " << shutdown << " s" << std::endl;
+        Check(shutdown < blueBake * 0.5, "shutting down stops the bake instead of waiting it out");
+        Check(false == library.IsBaking() && library.GetUploadedMap().generation == 0, "and leaves nothing behind");
+
+        // 태스크 관리자가 없으면 그 자리에서 굽고 올린다(시험·워커 없는 빌드).
+        library.Initialize(&stage.renderer, &assets, nullptr);
+        environment.sky = red;
+        library.Resolve(environment, result);
+        Check(false == library.IsBaking() && result.map.generation != 0 && result.sh[0][0] > 0.1f && result.sh[0][2] < 0.01f,
+            "without a task manager the sky is baked and uploaded on the spot");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer stayed quiet");
+        library.Shutdown();
+        tasks.Shutdown();
+        assets.Release(red);
+        assets.Release(blue);
+        assets.Shutdown();
+        stage.Close();
+        fs::remove_all(root);
+    }
+
     // **계산한 탄젠트로 노멀맵이 선다**(D-444). 시험 사각형 glTF 에는 탄젠트가 없어 임포트가 MikkTSpace 로 잰다. 바닥(법선 +Y)에 누운 사각형을 위에서 보고,
     // 빛은 옆에서만(수평) 온다 - 평평한 면은 빛을 등지지 않지만 받지도 않아 검다. 노멀맵 (1, 0.5, 0.5) 는 법선을 탄젠트(+u = +X)로 눕혀 +X 에서 오는 빛을 받고,
     // (0.5, 1, 0.5) 는 바이탄젠트(그림의 위 = -Z)로 눕혀 -Z 에서 오는 빛을 받는다. 반대쪽 빛에서는 검다 - 바이탄젠트의 부호가 틀리면 둘째가 뒤집힌다.
@@ -2769,6 +2889,7 @@ JBro::Int32 RunMeshPixelTests()
     JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::D3D12RHIModule>());
     JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::D3D11RHIModule>());
     JBRO_CASE(TestSkyRotationTurnsTheSky<JBro::VulkanRHIModule>());
+    JBRO_CASE(TestSkyBakesOnWorkers<JBro::D3D12RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D12RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::D3D11RHIModule>());
     JBRO_CASE(TestCalculatedTangentsBendTheNormalMap<JBro::VulkanRHIModule>());

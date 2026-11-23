@@ -38,9 +38,17 @@ namespace JBro
     void EnvironmentDirection(Float u, Float v, Float& x, Float& y, Float& z);
     void EnvironmentUv(Float x, Float y, Float z, Float& u, Float& v);
 
-    // `rgb` 는 `width * height * 3` 의 선형 빛이다(행은 위에서 아래). 크기가 0 이거나 값이 모자라면 거짓이다.
-    // 할당이 있다 - 로드 경로에서만 부른다.
-    Bool BuildEnvironmentMap(const Float* rgb, UInt32 width, UInt32 height, EnvironmentMapBuild& result);
+    // 굽기를 도중에 멈출지 묻는다(D-449). 굽기는 워커에서 도므로 하늘이 다시 바뀌거나 캔버스가 내려가면 남은 줄을 버리고 빨리 돌아와야 한다.
+    // `requested` 가 비면 끝까지 굽는다.
+    struct EnvironmentMapCancel
+    {
+        Bool (*requested)(const void* context) = nullptr;
+        const void* context = nullptr;
+    };
+
+    // `rgb` 는 `width * height * 3` 의 선형 빛이다(행은 위에서 아래). 크기가 0 이거나 값이 모자라면 거짓이다. 멈추라고 하면 거짓이다.
+    // 할당이 있고 디버그 빌드에서 몇 초 걸린다 - 프레임 경로가 아니라 워커에서 부른다(`EnvironmentLibrary`).
+    Bool BuildEnvironmentMap(const Float* rgb, UInt32 width, UInt32 height, EnvironmentMapBuild& result, const EnvironmentMapCancel& cancel = {});
 
     // 조도 / π 의 SH 9 계수만 낸다. `BuildEnvironmentMap` 도 이것을 쓴다(밉 0 에서).
     void ProjectEnvironmentSh(const Float* rgb, UInt32 width, UInt32 height, Float (&sh)[9][3]);

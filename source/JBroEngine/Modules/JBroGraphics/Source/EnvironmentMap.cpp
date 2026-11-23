@@ -323,8 +323,11 @@ namespace JBro
         }
     }
 
-    Bool BuildEnvironmentMap(const Float* rgb, UInt32 width, UInt32 height, EnvironmentMapBuild& result)
+    Bool BuildEnvironmentMap(const Float* rgb, UInt32 width, UInt32 height, EnvironmentMapBuild& result, const EnvironmentMapCancel& cancel)
     {
+        const auto cancelled = [&cancel]() -> Bool {
+            return cancel.requested != nullptr && cancel.requested(cancel.context);
+        };
         if (rgb == nullptr || width == 0 || height == 0)
         {
             return false;
@@ -343,10 +346,18 @@ namespace JBro
         // 원본 피라미드: 밉 0 크기로 맞춘 것에서 반씩 줄인다. 미리 거르기가 표본의 입체각에 맞는 단계를 읽는다.
         // 16 x 8 에서 멈춘다 - 그보다 거친 단계의 텍셀은 하늘의 반을 덮어, 거친 표본이 읽으면 반대편의 빛이 새어 든다(시험에서 0.03).
         Array<Image> pyramid;
+        if (cancelled())
+        {
+            return false;
+        }
         pyramid.Add(Image{});
         Resample(source, EnvironmentMapWidth, EnvironmentMapHeight, pyramid[0]);
         while (pyramid[pyramid.Size() - 1].width > 16 && pyramid[pyramid.Size() - 1].height > 8)
         {
+            if (cancelled())
+            {
+                return false;
+            }
             const Image& last = pyramid[pyramid.Size() - 1];
             Image smaller;
             Resample(last, last.width / 2, last.height / 2, smaller);
@@ -366,6 +377,11 @@ namespace JBro
             level.rgb.Resize(static_cast<std::size_t>(level.width.Get()) * level.height.Get() * 3u);
             for (UInt32 y = 0; y < level.height; ++y)
             {
+                // 줄마다 묻는다. 가장 무거운 단계의 한 줄도 디버그에서 몇십 ms 안이다.
+                if (cancelled())
+                {
+                    return false;
+                }
                 const Float v = (static_cast<JBro::Float>(y.Get()) + 0.5f) / static_cast<JBro::Float>(level.height.Get());
                 for (UInt32 x = 0; x < level.width; ++x)
                 {
