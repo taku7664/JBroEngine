@@ -429,6 +429,43 @@
 - `[열림]` 이전부터 열려 있던 것: 스크립트 DLL 없는 프로젝트가 열리지 않는 문제, 엔진 설치가 자기 버전을 말하는 방법,
   컴포넌트 이름·카테고리의 한국어 표시(B2), 픽셀 테스트가 반투명을 그리지 않는 항목 - 아래 절들의 `[열림]` 표시.
 
+### 메인 스레드를 막는 일 - 워커로 옮길 목록 (2026-11-23)
+
+사용자: "에디터는 블로킹이 되면 절대 안됨"(D-449 에서 하늘 굽기를 워커로 옮긴 뒤 "워커로 옮길 목록들 리스트업 해두고"). 코드를 훑어 모은 목록이고 **아직 손대지 않았다**.
+차례는 제안이다 - 자주 부딪히고 큰 것부터. 시간은 실측한 것만 적었고 나머지는 재지 않았다. 경로는 `source/JBroEngine/Modules/` 아래다.
+이미 워커인 것: 캔버스를 열 때의 그림·오디오 디코드(`SubmitAssetLoad`, `JBroHost/Source/AssetLoad.cpp`), 하늘 맵 굽기(D-449), 글리프 미리 뜨기(D-216), 마크다운 패널의 글·그림.
+스크립트 빌드는 자식 프로세스라 기다리지 않는다.
+
+**1 순위 - 에디터를 쓰다 자주 멈춘다**
+
+- `[열림]` **동기 `AssetSystem::Load` 의 디코드 전부.** 그림 디코드(`Asset.cpp` 의 `ReadTexture` → `DecodeImage`)와 렌더러의 CPU 밉 짓기(`Renderer::WriteTextureLevels` - sRGB 는 텍셀마다 `pow`)가
+  3D 재질의 텍스처(`MeshMaterialLibrary.cpp`), 썸네일, 인스펙터, 편집 뒤 다시 묶기(`BindCanvasAssets`)에서 프레임 안에 돈다. 캔버스를 열 때만 워커다(그것도 모델 내장·쿡된 그림은 빼고).
+  방향: `Load` 를 "요청하고 다음 프레임들에 받는" 비동기 길로 바꾸고 그동안은 자리 그림(회색·체커)을 그린다. 밉은 워커에서 짓고 올리기만 메인이다.
+- `[열림]` **모델 디코드와 MikkTSpace 탄젠트**(`DecodeOwnerModel` → `DecodeModel`, `ModelDecoder.cpp`). 메시·내장 그림을 처음 읽을 때, 썸네일, 모델 옵션 편집(`RefreshModelSubAssets`), 재스캔의 새 모델에서 돈다.
+  디코드한 모델은 하나만 들고 있어 두 모델을 오가면 매번 다시 푼다. **model-import-plan(D-391)은 "모델을 읽어야 나와 워커로 보내지 않는다" 로 정했다 - 옮기려면 그 결정을 바꾼다(사용자 확인).**
+- `[열림]` **썸네일**(`EditorThumbnails::Build`): 에셋 하나를 다 읽고(디코드) 줄인다. 프레임마다 새 썸네일 넷까지다 - 큰 그림 넷이면 그 프레임이 멈춘다. 내장 그림의 썸네일은 모델 전체를 푼다.
+  마크다운 패널의 워커 그림 읽기가 본보기다.
+- `[열림]` **파일 감시와 재스캔**(`EngineInstance.cpp` 의 `ScanAssets`·`ReloadInPlace`·`ReloadAllInPlace`, `AssetRegistry::Scan`): 파일이 하나 생기거나 이름이 바뀌어도 모든 `.jmeta` 를 다시 읽고 파싱하며,
+  바뀐 에셋은 제자리에서 다시 디코드한다. 가져오기·새 에셋·셰이더 그래프 저장·메뉴의 다시 훑기도 같은 길이다.
+- `[열림]` **`.hdr` 디코드**(`ReadEnvironmentMap`): 2048 x 1024 에 0.26 초, 4096 x 2048 에 1.05 초(D-448 실측, 디버그). 굽기 앞의 원본 사본(4096 이면 약 100 MB)도 메인이다(D-449).
+- `[열림]` **머티리얼 셰이더 컴파일**(`MaterialLibrary::Compile` → `ShaderCompiler::Compile`): 셰이더 하나에 fxc O3 와 dxc 두 번. 셰이더·셰이더 그래프를 저장하거나 인스펙터에서 고칠 때 돈다.
+  에디터를 켤 때 시험 컴파일 한 번도 있다(`ShaderCompiler::Initialize`).
+- `[열림]` **게임 빌드**(`BuildGame` - 스캔·모델과 그림 디코드·폰트 아틀라스·셰이더 컴파일·`.jpak` 짓기·쓰기): package-plan §3 이 "편집기 스레드에서 돈다(에셋이 많으면 멈춘다)" 로 남겼다.
+  워커로 돌리고 진행률을 태스크 목록에 보인다.
+
+**2 순위 - 드물거나 짧다고 보이지만 멈춘다**
+
+- `[열림]` 오디오: 인스펙터의 파형(`ComputeAudioPeaks`)이 스트리밍 클립을 통째로 디코드한다. 인스펙터·사운드 이펙트 창의 시험 재생이 읽히지 않은 클립을 디코드한다.
+- `[열림]` 에셋 옵션 편집(`SetAssetFileCommand`·`SetAssetSourceCommand`)이 고칠 때마다·되돌릴 때마다 그림을 다시 디코드한다. 모델의 하위 재질을 고르면 모델 디코드가 날 수 있다(`ReloadSelectedMaterial`).
+- `[열림]` 프로젝트 열기(`OpenProjectFile` - 엔진 열기·전체 스캔·세션 되살리기), 캔버스 글 파싱(`ReadCanvasFile`)과 저장, 재생 시작의 스냅숏 쓰기.
+- `[열림]` 첫 스크립트 빌드의 `vswhere` 찾기가 메인에서 10 ms 씩 자며 10 초까지 기다린다(`ScriptBuild.cpp`, `LocateVisualStudio` 도 같다). 핫 리로드(`ReloadScripts` - DLL 복사·`LoadLibraryW`·되살리기)는 재지 않았다.
+- `[열림]` 메인이 워커를 기다리는 자리: 폰트를 다시 읽거나 옵션을 바꾸면 미리 뜨기가 끝날 때까지 돈다(`TextLibrary::WaitForPrewarm` - KS X 1001 이면 글리프 수천 개), 캔버스 읽기 취소(`CancelCanvasLoad`),
+  하늘 굽기의 내리기(D-449, 실측 53 ms).
+- `[열림]` 파이프라인 짓기: 머티리얼마다 PSO 2~4 개(`CreateMaterialPipelines`), 후처리 파이프라인은 처음 쓰는 프레임에 짓는다. **3D 캔버스의 셋째 프레임이 하늘 없이도 0.43 초**(D-449 임시 계측)인데
+  이것이 원인인지는 보지 않았다 - 먼저 잰다.
+
+**재지 않아 모르는 것**: `.cube` LUT 파싱(64³ 이면 글 26 만 줄), 편집 뒤 `BindCanvasAssets`(다 읽혀 있으면 싸지만 새 메시·하늘이면 위의 디코드가 난다).
+
 ## Goal
 
 `source/JBroEngine` 신규 트리를 **기존 엔진(`source/repos/JBroEngine/Engine`)의
