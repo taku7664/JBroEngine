@@ -3103,6 +3103,25 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-457. 스켈레탈 1a: `Animator3D` 와 자세 셈·애니메이터 시스템. 스킨 메시는 실릴 때 제 뼈대를 잡고, 애니메이터는 비었으면 그것을 쓴다.** (2026-11-23, 사용자: "1단계로")
+  Updates: D-453 (컴포넌트·레이어·마스크의 실제 모양), D-456 (`MeshData::skeletonAsset`).
+  (1) **컴포넌트**: `Component::Animator3D` - `skeletonId`/`skeleton`, `clipId`/`clip`(레이어 0 의 시작 클립), `playOnStart`, `loop`, `speed`. 새 갈래 `Animation`(로컬라이징 키 둘), 한 오브젝트에 하나.
+  레이어 1 이상과 마스크는 저장되지 않고 스크립트가 건다 - 인스펙터의 레이어 편집은 모델 에디터 단계다.
+  (2) **자세 셈**(`Framework3DSystem/Animation/AnimationPose`): 렌더러도 캔버스도 모르는 함수들이고 프레임 경로라 할당하지 않는다(트랙 묶기·마스크 짓기만 묶을 때 잡는다).
+  (3) **시스템**(`Animation3DSystem`, 실행 순서 350): 애니메이터마다 상태(레이어 4 칸·자세·뼈 행렬·스키닝 행렬)를 들고, 처음 만나거나 뼈대가 바뀔 때만 배열을 잡는다.
+  덮어쓰기 레이어는 지금 자세에서 시작해 트랙이 닿는 뼈만 바꾸고(클립에 없는 뼈는 아래 레이어 것), 레이어 0 은 가중치를 보지 않는 바탕, 더하기는 쉬는 자세 기준의 차다.
+  시간은 시뮬레이션이 돌 때만 흐른다(멈추면 델타 0). 사라진 애니메이터의 상태는 그 프레임 끝에 치운다.
+  (4) **뼈대 찾기**: 애니메이터의 뼈대가 비면 이 오브젝트·자식의 `MeshRenderer3D` 메시가 잡은 뼈대다. 그러려고 에셋 시스템이 스킨 메시를 실을 때 그 뼈대를 함께 잡고
+  메시가 내려가거나 다시 읽히면 놓는다(`MeshData::skeletonAsset`) - 프레임 경로에서 `Load` 를 부르지 않는다.
+  시험: 새 묶음 `Animation3D` - 쉬는 자세의 스키닝 행렬이 단위 행렬, 반쯤의 회전 45 도, STEP 의 앞 키, 끝 자세에서 Spine 의 정점이 관절을 돌고 Hip 과 함께 오름, 시간 맞추기·마스크(깊이)·
+  섞기·더하기, 시스템(자식 메시의 뼈대·시작 클립·끝 자세 유지·레이어 1 의 마스크·없는 뼈 거절·크로스페이드·지운 애니메이터의 상태 치우기).
+  뮤테이션: 마스크를 무시하면 "an override layer moves only the masked bones by its weight" 가 죽는다.
+  빌드: Debug(오류 0). 시험: Animation3D·AssetSystem·Framework3DSystem·EditorLocalization·CanvasFile·BuiltinComponentProperty·ComponentMenuTable·PropertyRegistry·ReflectedYaml·
+  ScriptApiCatalog·UserScenario 통과(관련 묶음, 전체 시험은 푸시 전). 새 공개 헤더 셋의 자기포함 단위를 더했다.
+  찾은 것(이번 일과 무관, 손대지 않음): 자기포함 단위 생성기를 돌리면 뷰포트 헤더 넷(`Canvas/CanvasViewportSystem.h`·`Canvas/Viewport.h`·`Runtime/IViewportSystem.h`·
+  `Runtime/ViewportService.h`)의 단위가 새로 생긴다 - D-438 때 생성기를 다시 돌리지 않은 것으로 보인다. Windows PowerShell 5 로 생성기를 돌리면 쓰기 전에 지운 뒤 멈춰 모든 단위가 지워진다(pwsh 로 돌려야 한다).
+  남은 것: 1b 렌더러의 정점 셰이더 스키닝, 1c 스크립트 핸들과 인스펙터(skeletal-plan §4).
+
 - **D-456. 스켈레탈 0 단계(glTF): 모델의 하위 에셋 `Skeleton`·`AnimationClip`, 메시의 정점마다 뼈 넷과 가중치. 나머지 기술 기본값(skeletal-plan §3.4)을 확정한다.** (2026-11-23,
   사용자: 남은 것은 기술 기본값이라 권고대로 확정하고 진행한다는 말에 "시작해")
   Updates: D-453 (§3.4 를 확정으로), D-391 (모델의 하위 에셋 종류에 뼈대·애니메이션을 더한다), D-455 (미룬 디코드가 뼈대·클립도 같은 모델 작업으로 채운다).

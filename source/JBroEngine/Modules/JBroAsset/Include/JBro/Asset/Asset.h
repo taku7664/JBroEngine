@@ -182,6 +182,9 @@ namespace JBro
         // 스킨 메시면 정점마다 뼈 넷과 가중치이고(`vertices` 와 같은 수), `skeleton` 이 그 뼈대(모델의 하위 Skeleton)다(D-456). 아니면 비어 있다.
         Array<ModelSkinWeights> skin;
         AssetId skeleton;
+        // 그 뼈대를 메시가 잡은 참조다(스프라이트가 제 텍스처를 잡는 것과 같다) - 애니메이터가 프레임 경로에서 싣지 않고 이것을 본다(D-457).
+        // 메시가 내려가거나 다시 읽히면 놓는다.
+        AssetHandle skeletonAsset;
         UInt32 dataGeneration = 1;
     };
 

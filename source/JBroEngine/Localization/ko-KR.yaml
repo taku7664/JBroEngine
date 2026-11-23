@@ -239,6 +239,7 @@ Entries:
   component_category.Rendering: 렌더링
   component_category.Physics: 물리
   component_category.Audio: 오디오
+  component_category.Animation: 애니메이션
   component_category.UI: UI
   component_category.UiLayout: UI 배치
   component_category.Components: 컴포넌트

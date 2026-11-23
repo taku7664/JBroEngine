@@ -2,6 +2,7 @@
 
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
@@ -41,6 +42,8 @@ namespace JBro::Component
             all = RegisterComponentType<HingeJoint3D>(ComponentCategory::Physics) && all;
             all = RegisterComponentType<CharacterController3D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
+            // 한 오브젝트에 애니메이터는 하나다 - 자세가 둘이면 스킨 메시가 어느 것을 따를지 정할 수 없다(D-457).
+            all = RegisterComponentType<Animator3D>(ComponentCategory::Animation, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
             all = RegisterComponentType<AudioListener3D>(
                       ComponentCategory::Audio, ComponentMultiplicity::Single) && all;

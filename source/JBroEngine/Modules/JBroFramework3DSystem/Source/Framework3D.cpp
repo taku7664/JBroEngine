@@ -7,6 +7,7 @@
 #include <JBro/Framework3D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework3DSystem/System/Audio3DSystem.h>
 #include <JBro/Framework3DSystem/System/Physics3DSystem.h>
+#include <JBro/Framework3DSystem/System/Animation3DSystem.h>
 #include <JBro/Framework3DSystem/System/Light3DSystem.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
@@ -608,6 +609,8 @@ namespace JBro
         systems.AddSystem<System::Light3DSystem>().SetRenderWorld(&m_renderWorld);
         // **3D 물리**(D-416). 고정 스텝에서 돈다 - 재생 중에만 시간이 흐른다.
         systems.AddSystem<System::Physics3DSystem>().SetAssets(m_context.assets);
+        // 뼈대 애니메이션(D-457). 스크립트 뒤, 렌더 추출 앞에 자세를 짓는다.
+        systems.AddSystem<System::Animation3DSystem>().SetAssets(m_context.assets);
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);
         texts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);

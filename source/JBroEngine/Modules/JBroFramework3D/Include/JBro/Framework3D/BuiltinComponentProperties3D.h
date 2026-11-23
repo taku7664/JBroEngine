@@ -4,6 +4,7 @@
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/PostProcessVolume3D.h>
+#include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
@@ -41,6 +42,7 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<CharacterController3D>() && all;
             all = RegisterBuiltinProperties<AudioListener3D>() && all;
             all = RegisterBuiltinProperties<Light3D>()        && all;
+            all = RegisterBuiltinProperties<Animator3D>()     && all;
             // 소스는 차원과 무관한 모듈의 것이다(D-197). 두 프레임워크가 함께 부르고 한 번만 등록된다.
             all = RegisterBuiltinAudioComponentProperties()   && all;
             return all;

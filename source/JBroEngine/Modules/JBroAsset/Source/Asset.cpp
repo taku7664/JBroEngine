@@ -1207,6 +1207,8 @@ namespace JBro
             data.skin = mesh.skin;
             data.skeleton = mesh.skeleton >= 0 && m_registry != nullptr
                 ? FindModelSubAssetId(*m_registry, *model, listed, AssetType::Skeleton, static_cast<std::size_t>(mesh.skeleton.Get())) : AssetId{};
+            // 뼈대를 함께 잡는다(D-457). 같은 모델을 들고 있으므로 미루지 않고 옮길 뿐이다.
+            data.skeletonAsset = data.skeleton.IsNull() ? AssetHandle{} : Load(data.skeleton);
             return true;
         }
         // 메타의 목록이 파일보다 낡았다(파일이 바뀌고 목록을 아직 맞추지 않음). 에디터의 파일 감시가 맞춘다.
@@ -1886,6 +1888,7 @@ namespace JBro
                 slot = FindSlot(m_meshes, target.handle, AssetType::Mesh);
                 if (slot == nullptr)
                 {
+                    Release(fresh.skeletonAsset);
                     break;
                 }
                 fresh.dataGeneration = slot->data.dataGeneration + 1;
@@ -2751,6 +2754,7 @@ namespace JBro
                 return false;
             }
             fresh.dataGeneration = mesh->data.dataGeneration + 1;
+            Release(mesh->data.skeletonAsset);
             mesh->data = std::move(fresh);
             return true;
         }
@@ -2934,6 +2938,8 @@ namespace JBro
             Slot<MeshData>& slot = m_meshes.slots[index];
             if (slot.occupied && slot.referenceCount == 0)
             {
+                // 메시가 잡은 뼈대를 놓는다(D-457) - 아래 뼈대 순회에서 0 이 될 수 있다.
+                Release(slot.data.skeletonAsset);
                 Vacate(m_meshes, index);
                 ++freed;
             }

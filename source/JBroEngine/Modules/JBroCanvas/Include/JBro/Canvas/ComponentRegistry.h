@@ -41,6 +41,8 @@ namespace JBro
         inline constexpr const char* Rendering = "Rendering";
         inline constexpr const char* Physics = "Physics";
         inline constexpr const char* Audio = "Audio";
+        // 뼈대 애니메이션(D-457): `Animator3D`·붙이기.
+        inline constexpr const char* Animation = "Animation";
         inline constexpr const char* UI = "UI";
         // 배치·크기를 맞추는 UI(D-361): 레이아웃·크기 맞춤·가로세로비·안전 영역·목록.
         inline constexpr const char* UiLayout = "UiLayout";

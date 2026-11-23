@@ -239,6 +239,7 @@ Entries:
   component_category.Rendering: Rendering
   component_category.Physics: Physics
   component_category.Audio: Audio
+  component_category.Animation: Animation
   component_category.UI: UI
   component_category.UiLayout: UI Layout
   component_category.Components: Components
