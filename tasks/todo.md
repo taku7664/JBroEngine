@@ -3103,6 +3103,21 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-456. 스켈레탈 0 단계(glTF): 모델의 하위 에셋 `Skeleton`·`AnimationClip`, 메시의 정점마다 뼈 넷과 가중치. 나머지 기술 기본값(skeletal-plan §3.4)을 확정한다.** (2026-11-23,
+  사용자: 남은 것은 기술 기본값이라 권고대로 확정하고 진행한다는 말에 "시작해")
+  Updates: D-453 (§3.4 를 확정으로), D-391 (모델의 하위 에셋 종류에 뼈대·애니메이션을 더한다), D-455 (미룬 디코드가 뼈대·클립도 같은 모델 작업으로 채운다).
+  (1) **디코더**(`ModelDecoder`): glTF 스킨마다 뼈대 하나 - 뼈는 부모가 앞에 오게 다시 늘어놓고 메시의 조인트 번호를 그 차례로 옮긴다. 뼈 사이의 뼈가 아닌 노드는 접은 상대 자세로,
+  뿌리 뼈의 부모 노드(`Armature`)는 `rootParent` 행렬로 든다. 역바인드는 엔진 행렬(`values[row * 4 + column]`)로 옮긴다. 정점은 `JOINTS_0`·`WEIGHTS_0` 넷을 합 1 로 다시 나누고,
+  합치기가 가중치까지 견준다. 애니메이션은 뼈 이름 트랙(위치·회전·크기, LINEAR·STEP - CUBICSPLINE 은 값 키만). 임포트 배율이 위치·역바인드·뿌리 부모·위치 트랙에 함께 걸린다.
+  (2) **에셋**: 새 타입 `Skeleton`·`AnimationClip`(타입 이름표·메타의 하위 키), 하위 목록이 메시·재질·내장 그림 뒤에 뼈대·클립을 더한다. `MeshData` 에 `skin`·`skeleton`(같은 모델의 하위 Skeleton 아이디),
+  에셋 시스템에 `SkeletonData`·`AnimationClipData` 풀(동기 로드·재로드·내리기·미룬 디코드). 에디터 브라우저 아이콘은 있던 글리프(오브젝트·재생)다 - 글꼴의 글리프 이름을 맞춰 볼 도구가 없었다.
+  (3) **찾은 것**: 메타의 하위 키 검사(`SplitSubAssetKey`)가 메시·재질·그림만 받아, 뼈대가 든 모델의 메타가 "읽히지 않는 메타" 로 떨어지고 모델 자체가 등록되지 않았다 - 두 종류를 더했다.
+  시험: `ModelDecoder` 의 `TestAGltfSkinDecodesIntoSkeletonAndClip`(시험 모델 `TestModels::SkinnedGltf` - 일부러 거꾸로 적은 조인트·정규화 안 된 가중치·Armature 부모·STEP 위치 트랙, 배율 2),
+  `AssetSystem` 의 `TestSkeletonsAndClipsLoadFromTheModel`(하위 레코드·메시의 스킨과 뼈대 아이디·동기와 미룬 디코드). 뮤테이션: 가중치를 다시 나누지 않으면
+  "the shared vertex hangs half on Spine and half on Hip, its weights normalized from 2 and 2" 가 죽는다.
+  빌드: Debug(오류 0). 시험: ModelDecoder·AssetSystem·AssetRegistry·Package·CanvasFile·EditorLocalization·UserScenario 통과(관련 묶음, 전체 시험은 푸시 전).
+  남은 것(0 단계): FBX 의 스킨·애니메이션, 게임 패키지에 굽기(스킨·뼈대·클립 블롭), 전용 아이콘 - skeletal-plan §4.
+
 - **D-455. 에디터의 `Load` 는 무거운 디코드를 기다리지 않는다 - 그림 파일·모델의 메시와 재질·내장 그림·하늘 맵은 빈 자리를 곧장 주고 워커가 채운다.** (2026-11-23,
   사용자: "에디터는 블로킹이 되면 절대 안됨" 에 이어 모델 디코드까지 워커로 옮기는 D-391 변경을 묻자 "시작해")
   Updates: D-391 (모델의 하위 에셋도 워커로 디코드한다 - "모델을 읽어야 나와 워커로 보내지 않는다" 를 대체), D-111 (로드는 동기라는 계약에 미룬 자리를 더한다), D-236 (캔버스 로드의 세 단계는 그대로).

@@ -61,7 +61,11 @@ namespace JBro
         // 하위 목록은 `.jmeta` 의 `Model.SubAssets` 에 있고 아이디가 키(`Mesh/Body`)로 고정된다.
         Model,
         // 하늘 맵이다(D-447, `.hdr` - Radiance RGBE 의 등장방형 그림). 캔버스 환경의 `skyId` 가 가리키고, 프레임워크가 SH 와 미리 거른 밉으로 구워 올린다.
-        EnvironmentMap
+        EnvironmentMap,
+        // 모델의 뼈대다(D-456, skeletal-plan). 모델의 하위 에셋(`Skeleton/이름`)이고 뼈 이름·부모·쉬는 자세·역바인드를 든다.
+        Skeleton,
+        // 모델의 애니메이션 하나다(D-456). 모델의 하위 에셋(`AnimationClip/이름`)이고 뼈 이름으로 가리키는 트랙을 든다.
+        AnimationClip
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반

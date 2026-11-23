@@ -864,6 +864,83 @@ namespace
         fixture.Close();
     }
 
+    // **모델의 뼈대·애니메이션 하위 에셋**(D-456). 스캔이 `Skeleton/…`·`AnimationClip/…` 하위 레코드를 세우고, 메시는 스킨과 그 뼈대의 아이디를 든다.
+    // 동기로도, 미룬 디코드로도 같은 것을 싣는다 - 미룰 때는 같은 모델의 메시·뼈대·클립이 작업 하나다.
+    void TestSkeletonsAndClipsLoadFromTheModel()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const std::string gltf = TestModels::SkinnedGltf();
+        WriteBytes(fixture.root / "Art" / "walker.gltf", gltf.data(), gltf.size());
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(fixture.registry.Scan(fixture.platform, Utf8(fixture.root).c_str(), options, report), "the folder scans with the skinned model");
+        const JBro::AssetRecord* model = fixture.registry.FindByPath("Art/walker.gltf");
+        Check(model != nullptr, "the skinned glTF registers");
+        JBro::Array<JBro::AssetId> owned;
+        fixture.registry.CollectOwned(model->id, owned);
+        JBro::AssetId meshId;
+        JBro::AssetId skeletonId;
+        JBro::AssetId clipId;
+        for (const JBro::AssetId& id : owned)
+        {
+            const JBro::AssetRecord* child = fixture.registry.Find(id);
+            meshId = child->type == JBro::AssetType::Mesh ? id : meshId;
+            skeletonId = child->type == JBro::AssetType::Skeleton ? id : skeletonId;
+            clipId = child->type == JBro::AssetType::AnimationClip ? id : clipId;
+        }
+        Check(false == meshId.IsNull() && false == skeletonId.IsNull() && false == clipId.IsNull(), "the model lists a mesh, a skeleton and a clip");
+        Check(fixture.registry.Find(clipId)->name == "Wave" && fixture.registry.Find(skeletonId)->name == "Skeleton", "the sub-assets are named as in the file");
+
+        // 동기.
+        {
+            const JBro::AssetHandle mesh = fixture.assets.Load(meshId);
+            const JBro::MeshData* meshData = fixture.assets.GetMesh(mesh);
+            Check(meshData != nullptr && meshData->skin.Size() == meshData->vertices.Size() && meshData->skeleton == skeletonId,
+                "a skinned mesh carries its weights and the id of its skeleton");
+            const JBro::AssetHandle skeleton = fixture.assets.Load(skeletonId);
+            const JBro::SkeletonData* skeletonData = fixture.assets.GetSkeleton(skeleton);
+            Check(skeletonData != nullptr && skeletonData->skeleton.bones.Size() == 2 && skeletonData->skeleton.bones[1].name == "Spine",
+                "the skeleton loads its bones");
+            const JBro::AssetHandle clip = fixture.assets.Load(clipId);
+            const JBro::AnimationClipData* clipData = fixture.assets.GetAnimationClip(clip);
+            Check(clipData != nullptr && clipData->animation.tracks.Size() == 2 && clipData->animation.tracks[0].bone == "Spine",
+                "the clip loads its tracks by bone name");
+            Check(fixture.assets.GetSkeleton(clip) == nullptr && fixture.assets.GetAnimationClip(skeleton) == nullptr, "a handle of the other type reads nothing");
+            fixture.assets.Release(mesh);
+            fixture.assets.Release(skeleton);
+            fixture.assets.Release(clip);
+            Check(fixture.assets.CollectUnused() >= 3, "they unload like any asset");
+        }
+
+        // 미룬 디코드.
+        {
+            fixture.assets.SetDeferredDecode(true);
+            const JBro::AssetHandle mesh = fixture.assets.Load(meshId);
+            const JBro::AssetHandle skeleton = fixture.assets.Load(skeletonId);
+            const JBro::AssetHandle clip = fixture.assets.Load(clipId);
+            Check(fixture.assets.IsPending(mesh) && fixture.assets.IsPending(skeleton) && fixture.assets.IsPending(clip)
+                    && fixture.assets.GetSkeleton(skeleton) == nullptr && fixture.assets.GetAnimationClip(clip) == nullptr,
+                "deferred, the skeleton and the clip wait like the mesh");
+            JBro::Array<JBro::AssetDecodeJob> jobs;
+            Check(fixture.assets.TakeDeferredJobs(jobs) == 1 && jobs[0].targets.Size() == 3, "the mesh, the skeleton and the clip share the model's one job");
+            Check(JBro::DecodeAssetFile(*fixture.assets.GetSource(), jobs[0]), "the job decodes");
+            fixture.assets.AdoptDecoded(jobs[0]);
+            const JBro::SkeletonData* skeletonData = fixture.assets.GetSkeleton(skeleton);
+            const JBro::AnimationClipData* clipData = fixture.assets.GetAnimationClip(clip);
+            const JBro::MeshData* meshData = fixture.assets.GetMesh(mesh);
+            Check(skeletonData != nullptr && skeletonData->skeleton.bones.Size() == 2 && skeletonData->dataGeneration == 2 && clipData != nullptr
+                    && clipData->animation.tracks.Size() == 2 && meshData != nullptr && meshData->skeleton == skeletonId,
+                "adopting fills all three with a raised generation");
+            fixture.assets.Release(mesh);
+            fixture.assets.Release(skeleton);
+            fixture.assets.Release(clip);
+            fixture.assets.SetDeferredDecode(false);
+        }
+        fixture.Close();
+    }
+
     void TestMaterialsLoadFromModelsAndFiles()
     {
         Fixture fixture;
@@ -1174,6 +1251,7 @@ JBro::Int32 RunAssetSystemTests()
     JBRO_CASE(TestTheSameEmbeddedImageIsReadOnce());
     JBRO_CASE(TestMaterialsLoadFromModelsAndFiles());
     JBRO_CASE(TestDeferredDecodeHandsOutSlotsAndFillsThem());
+    JBRO_CASE(TestSkeletonsAndClipsLoadFromTheModel());
     std::cout << "Asset system tests passed.\n";
     return 0;
 }

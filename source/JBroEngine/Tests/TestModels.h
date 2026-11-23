@@ -98,6 +98,98 @@ namespace TestModels
         return json;
     }
 
+    // **스킨과 애니메이션이 든 glTF 다**(D-456). 세로로 선 사각형 하나가 뼈 둘에 걸린다 - 아래 두 정점은 `Hip`, 위 둘은 `Spine`(하나는 둘에 반반).
+    // 노드: `Armature`(z 5 로 옮김) > `Hip` > `Spine`(y 1). 스킨의 `joints` 는 일부러 `[Spine, Hip]` 차례다(디코더가 부모가 앞에 오게 다시 늘어놓는지 본다).
+    // 애니메이션 `Wave`: `Spine` 의 회전(LINEAR, 0 → Z 둘레 90 도, 1 초), `Hip` 의 위치(STEP, 0.5 초에 y 2). 버퍼는 `data:` URI 다.
+    inline std::string SkinnedGltf()
+    {
+        std::string bytes;
+        const float positions[12] = {0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0};
+        for (float value : positions)
+        {
+            Append(bytes, value);
+        }
+        // 조인트 번호는 `joints` 의 차례다: 0 = Spine, 1 = Hip.
+        const std::uint16_t joints[16] = {1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0};
+        for (std::uint16_t value : joints)
+        {
+            Append(bytes, value);
+        }
+        // 세째 정점의 가중치는 정규화되지 않았다(2, 2) - 디코더가 0.5, 0.5 로 나눈다.
+        const float weights[16] = {1, 0, 0, 0, 1, 0, 0, 0, 2, 2, 0, 0, 1, 0, 0, 0};
+        for (float value : weights)
+        {
+            Append(bytes, value);
+        }
+        const std::uint16_t indices[6] = {0, 1, 2, 2, 1, 3};
+        for (std::uint16_t value : indices)
+        {
+            Append(bytes, value);
+        }
+        // 역바인드(열 우선): Spine 의 바인드 월드는 (0, 1, 5), Hip 은 (0, 0, 5).
+        const float spineInverse[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -1, -5, 1};
+        const float hipInverse[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -5, 1};
+        for (float value : spineInverse)
+        {
+            Append(bytes, value);
+        }
+        for (float value : hipInverse)
+        {
+            Append(bytes, value);
+        }
+        const float rotationTimes[2] = {0.0f, 1.0f};
+        const float rotations[8] = {0, 0, 0, 1, 0, 0, 0.70710678f, 0.70710678f};
+        const float stepTimes[2] = {0.0f, 0.5f};
+        const float steps[6] = {0, 0, 0, 0, 2, 0};
+        for (float value : rotationTimes)
+        {
+            Append(bytes, value);
+        }
+        for (float value : rotations)
+        {
+            Append(bytes, value);
+        }
+        for (float value : stepTimes)
+        {
+            Append(bytes, value);
+        }
+        for (float value : steps)
+        {
+            Append(bytes, value);
+        }
+        std::string json = "{\"asset\":{\"version\":\"2.0\"},";
+        json += "\"buffers\":[{\"uri\":\"data:application/octet-stream;base64," + Base64(bytes) + "\",\"byteLength\":" + std::to_string(bytes.size()) + "}],";
+        json += "\"bufferViews\":["
+                "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":48},"
+                "{\"buffer\":0,\"byteOffset\":48,\"byteLength\":32},"
+                "{\"buffer\":0,\"byteOffset\":80,\"byteLength\":64},"
+                "{\"buffer\":0,\"byteOffset\":144,\"byteLength\":12},"
+                "{\"buffer\":0,\"byteOffset\":156,\"byteLength\":128},"
+                "{\"buffer\":0,\"byteOffset\":284,\"byteLength\":8},"
+                "{\"buffer\":0,\"byteOffset\":292,\"byteLength\":32},"
+                "{\"buffer\":0,\"byteOffset\":324,\"byteLength\":8},"
+                "{\"buffer\":0,\"byteOffset\":332,\"byteLength\":24}],";
+        json += "\"accessors\":["
+                "{\"bufferView\":0,\"componentType\":5126,\"count\":4,\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[1,1,0]},"
+                "{\"bufferView\":1,\"componentType\":5123,\"count\":4,\"type\":\"VEC4\"},"
+                "{\"bufferView\":2,\"componentType\":5126,\"count\":4,\"type\":\"VEC4\"},"
+                "{\"bufferView\":3,\"componentType\":5123,\"count\":6,\"type\":\"SCALAR\"},"
+                "{\"bufferView\":4,\"componentType\":5126,\"count\":2,\"type\":\"MAT4\"},"
+                "{\"bufferView\":5,\"componentType\":5126,\"count\":2,\"type\":\"SCALAR\",\"min\":[0],\"max\":[1]},"
+                "{\"bufferView\":6,\"componentType\":5126,\"count\":2,\"type\":\"VEC4\"},"
+                "{\"bufferView\":7,\"componentType\":5126,\"count\":2,\"type\":\"SCALAR\",\"min\":[0],\"max\":[0.5]},"
+                "{\"bufferView\":8,\"componentType\":5126,\"count\":2,\"type\":\"VEC3\"}],";
+        json += "\"meshes\":[{\"name\":\"Body\",\"primitives\":[{\"attributes\":{\"POSITION\":0,\"JOINTS_0\":1,\"WEIGHTS_0\":2},\"indices\":3}]}],";
+        json += "\"skins\":[{\"joints\":[2,1],\"inverseBindMatrices\":4}],";
+        json += "\"animations\":[{\"name\":\"Wave\",\"channels\":[{\"sampler\":0,\"target\":{\"node\":2,\"path\":\"rotation\"}},"
+                "{\"sampler\":1,\"target\":{\"node\":1,\"path\":\"translation\"}}],"
+                "\"samplers\":[{\"input\":5,\"output\":6,\"interpolation\":\"LINEAR\"},{\"input\":7,\"output\":8,\"interpolation\":\"STEP\"}]}],";
+        json += "\"nodes\":[{\"name\":\"Armature\",\"translation\":[0,0,5],\"children\":[1]},{\"name\":\"Hip\",\"children\":[2]},"
+                "{\"name\":\"Spine\",\"translation\":[0,1,0]},{\"name\":\"Body\",\"mesh\":0,\"skin\":0}],";
+        json += "\"scenes\":[{\"nodes\":[0,3]}],\"scene\":0}";
+        return json;
+    }
+
     // 2x2 RGBA PNG 다. 왼쪽 위 빨강, 오른쪽 위 초록, 왼쪽 아래 파랑, 오른쪽 아래 반투명(알파 약 0.5) 흰색.
     inline std::string TinyPng()
     {

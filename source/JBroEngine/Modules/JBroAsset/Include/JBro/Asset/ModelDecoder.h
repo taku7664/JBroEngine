@@ -7,6 +7,7 @@
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
 #include <JBro/Types/Math3D.h>
+#include <JBro/Types/Matrix4x4.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/UInt.h>
 
@@ -29,6 +30,14 @@ namespace JBro
         Float tangent[4] = {1.0f, 0.0f, 0.0f, 1.0f};
     };
 
+    // **정점 하나에 걸린 뼈 넷과 가중치다**(D-456, skeletal-plan §3.4). 뼈 번호는 그 메시의 뼈대(`ModelMesh::skeleton`)의 `bones` 번호이고
+    // 가중치 합은 1 이다(쓰지 않는 칸은 0). glTF 의 `JOINTS_0`·`WEIGHTS_0` 처럼 넷까지다.
+    struct ModelSkinWeights
+    {
+        UInt32 bones[4] = {0, 0, 0, 0};
+        Float weights[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    };
+
     // 메시 하나 = 재질 하나다. 파일의 메시가 재질 여럿으로 나뉘면(glTF 의 프리미티브, FBX 의 재질 부분) 그만큼의 `ModelMesh` 가 된다 -
     // 렌더러가 메시마다 재질 하나를 그리기 때문이다. 정점은 메시 자신의 좌표이고 노드의 변환은 굽지 않는다(노드는 `ModelNode` 에 따로).
     struct ModelMesh
@@ -42,6 +51,9 @@ namespace JBro
         Int32 material = -1;
         Bool hasUvs = false;
         Bool hasTangents = false;
+        // 스킨 메시면 `vertices` 와 같은 수의 뼈·가중치이고 `skeleton` 이 `ModelData::skeletons` 의 번호다. 아니면 비고 -1 이다.
+        Array<ModelSkinWeights> skin;
+        Int32 skeleton = -1;
     };
 
     // 재질의 그림 칸이다. 색 공간의 `Auto` 가 이것을 본다(D-392) - 기본색·발광은 sRGB, 나머지는 선형이다.
@@ -101,12 +113,68 @@ namespace JBro
         Array<UInt32> meshes;
     };
 
+    // **뼈 하나다**(D-456). 쉬는 자세(바인드 포즈가 아니라 파일의 노드 자세)를 부모 뼈 기준으로 든다. 역바인드는 메시 좌표를 이 뼈의 좌표로 옮긴다.
+    struct ModelBone
+    {
+        // 뼈대 안에서 겹치지 않는다. 같은 이름의 뼈대끼리 클립을 같이 쓴다(D-451) - 트랙은 이 이름을 가리킨다.
+        String name;
+        // 부모 뼈의 번호다(`bones` 안). 뿌리면 -1. 부모는 늘 앞에 있다.
+        Int32 parent = -1;
+        Vector3 position;
+        Quaternion rotation;
+        Vector3 scale{1.0f, 1.0f, 1.0f};
+        Matrix4x4 inverseBind;
+    };
+
+    // **뼈대 하나다**(D-456, `AssetType::Skeleton`). glTF 의 스킨 하나, FBX 의 스킨이 가리키는 뼈들이다.
+    struct ModelSkeleton
+    {
+        String name;
+        Array<ModelBone> bones;
+        // 뿌리 뼈의 부모 노드(뼈가 아닌 `Armature` 따위)의 월드 행렬이다. 뿌리 뼈의 자세 앞에 곱한다.
+        Matrix4x4 rootParent;
+    };
+
+    enum class ModelTrackPath : std::uint8_t
+    {
+        Position,
+        Rotation,
+        Scale
+    };
+
+    // 키 사이를 어떻게 잇는가다. glTF 의 `CUBICSPLINE` 은 값 키만 남겨 `Linear` 로 읽는다(접선은 버린다).
+    enum class ModelInterpolation : std::uint8_t
+    {
+        Linear,
+        Step
+    };
+
+    // 뼈 하나의 위치·회전·크기 가운데 하나다. 값은 키마다 셋(위치·크기) 또는 넷(회전 x,y,z,w)이다.
+    struct ModelAnimationTrack
+    {
+        String bone;
+        ModelTrackPath path = ModelTrackPath::Position;
+        ModelInterpolation interpolation = ModelInterpolation::Linear;
+        Array<Float> times;
+        Array<Float> values;
+    };
+
+    // **애니메이션 하나다**(D-456, `AssetType::AnimationClip`). 트랙은 뼈 이름으로 가리킨다 - 같은 이름의 뼈대면 다른 모델에도 쓴다.
+    struct ModelAnimation
+    {
+        String name;
+        Float duration = 0.0f;
+        Array<ModelAnimationTrack> tracks;
+    };
+
     struct ModelData
     {
         Array<ModelMesh> meshes;
         Array<ModelMaterial> materials;
         Array<ModelImage> images;
         Array<ModelNode> nodes;
+        Array<ModelSkeleton> skeletons;
+        Array<ModelAnimation> animations;
     };
 
     enum class ModelFormat : std::uint8_t

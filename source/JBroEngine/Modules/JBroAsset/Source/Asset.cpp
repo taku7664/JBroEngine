@@ -183,6 +183,8 @@ namespace JBro
         m_shaders = {};
         m_materials = {};
         m_meshes = {};
+        m_skeletons = {};
+        m_animationClips = {};
         m_fonts = {};
         m_textures = {};
         m_sprites = {};
@@ -1045,6 +1047,58 @@ namespace JBro
         return slot != nullptr && false == slot->pending ? &slot->data : nullptr;
     }
 
+    const SkeletonData* AssetSystem::GetSkeleton(AssetHandle handle) const
+    {
+        const Slot<SkeletonData>* slot = FindSlot(m_skeletons, handle, AssetType::Skeleton);
+        return slot != nullptr && false == slot->pending ? &slot->data : nullptr;
+    }
+
+    const AnimationClipData* AssetSystem::GetAnimationClip(AssetHandle handle) const
+    {
+        const Slot<AnimationClipData>* slot = FindSlot(m_animationClips, handle, AssetType::AnimationClip);
+        return slot != nullptr && false == slot->pending ? &slot->data : nullptr;
+    }
+
+    Bool AssetSystem::ReadSkeleton(const AssetRecord& record, SkeletonData& data)
+    {
+        const AssetRecord* model = OwnerModelOf(record);
+        const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
+        if (decoded == nullptr)
+        {
+            return false;
+        }
+        Array<ModelSubAsset> listed;
+        ListModelSubAssets(*decoded, listed);
+        const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::Skeleton, record.name);
+        if (sub == nullptr)
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the model has no skeleton named %s", model->relativePath.c_str(), record.name.c_str());
+            return false;
+        }
+        data.skeleton = decoded->skeletons[sub->index.Get()];
+        return true;
+    }
+
+    Bool AssetSystem::ReadAnimationClip(const AssetRecord& record, AnimationClipData& data)
+    {
+        const AssetRecord* model = OwnerModelOf(record);
+        const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
+        if (decoded == nullptr)
+        {
+            return false;
+        }
+        Array<ModelSubAsset> listed;
+        ListModelSubAssets(*decoded, listed);
+        const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::AnimationClip, record.name);
+        if (sub == nullptr)
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the model has no animation named %s", model->relativePath.c_str(), record.name.c_str());
+            return false;
+        }
+        data.animation = decoded->animations[sub->index.Get()];
+        return true;
+    }
+
     Bool AssetSystem::ReadLooseFile(std::string_view relativePath, Array<std::byte>& out) const
     {
         out.Clear();
@@ -1149,6 +1203,10 @@ namespace JBro
             data.hasUvs = mesh.hasUvs;
             data.hasTangents = mesh.hasTangents;
             data.material = m_registry != nullptr ? FindModelMeshMaterialId(*m_registry, *model, listed, mesh) : AssetId{};
+            // 스킨 메시(D-456). 뼈대는 같은 모델의 하위 Skeleton 이다.
+            data.skin = mesh.skin;
+            data.skeleton = mesh.skeleton >= 0 && m_registry != nullptr
+                ? FindModelSubAssetId(*m_registry, *model, listed, AssetType::Skeleton, static_cast<std::size_t>(mesh.skeleton.Get())) : AssetId{};
             return true;
         }
         // 메타의 목록이 파일보다 낡았다(파일이 바뀌고 목록을 아직 맞추지 않음). 에디터의 파일 감시가 맞춘다.
@@ -1478,6 +1536,16 @@ namespace JBro
             const Slot<EnvironmentMapData>* slot = FindSlot(m_environmentMaps, handle, AssetType::EnvironmentMap);
             return slot != nullptr && slot->pending;
         }
+        case AssetType::Skeleton:
+        {
+            const Slot<SkeletonData>* slot = FindSlot(m_skeletons, handle, AssetType::Skeleton);
+            return slot != nullptr && slot->pending;
+        }
+        case AssetType::AnimationClip:
+        {
+            const Slot<AnimationClipData>* slot = FindSlot(m_animationClips, handle, AssetType::AnimationClip);
+            return slot != nullptr && slot->pending;
+        }
         default:
             return false;
         }
@@ -1542,6 +1610,36 @@ namespace JBro
             }
             handle = Occupy(m_materials, AssetType::Material, record.id, MaterialData{});
             Slot<MaterialData>* slot = FindSlot(m_materials, handle, AssetType::Material);
+            if (slot == nullptr)
+            {
+                return false;
+            }
+            slot->pending = true;
+            slot->queued = false;
+            return true;
+        }
+        case AssetType::Skeleton:
+        case AssetType::AnimationClip:
+        {
+            // 모델의 하위다(D-456). 디코드해 둔 모델이면 옮길 뿐이다.
+            if (model == nullptr || m_decodedModelId == model->id)
+            {
+                return false;
+            }
+            if (record.type == AssetType::Skeleton)
+            {
+                handle = Occupy(m_skeletons, AssetType::Skeleton, record.id, SkeletonData{});
+                Slot<SkeletonData>* slot = FindSlot(m_skeletons, handle, AssetType::Skeleton);
+                if (slot == nullptr)
+                {
+                    return false;
+                }
+                slot->pending = true;
+                slot->queued = false;
+                return true;
+            }
+            handle = Occupy(m_animationClips, AssetType::AnimationClip, record.id, AnimationClipData{});
+            Slot<AnimationClipData>* slot = FindSlot(m_animationClips, handle, AssetType::AnimationClip);
             if (slot == nullptr)
             {
                 return false;
@@ -1683,6 +1781,8 @@ namespace JBro
         give(m_meshes, AssetType::Mesh);
         give(m_materials, AssetType::Material);
         give(m_environmentMaps, AssetType::EnvironmentMap);
+        give(m_skeletons, AssetType::Skeleton);
+        give(m_animationClips, AssetType::AnimationClip);
         return added;
     }
 
@@ -1818,6 +1918,54 @@ namespace JBro
                 slot->queued = false;
                 break;
             }
+            case AssetType::Skeleton:
+            {
+                Slot<SkeletonData>* slot = FindPendingTarget(m_skeletons, AssetType::Skeleton, target);
+                const AssetRecord* record = slot != nullptr ? m_registry->Find(slot->id) : nullptr;
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                SkeletonData fresh;
+                if (false == job.decoded || record == nullptr || m_decodedModelId != job.record.id || false == ReadSkeleton(*record, fresh))
+                {
+                    fresh = SkeletonData{};
+                }
+                slot = FindSlot(m_skeletons, target.handle, AssetType::Skeleton);
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                fresh.dataGeneration = slot->data.dataGeneration + 1;
+                slot->data = std::move(fresh);
+                slot->pending = false;
+                slot->queued = false;
+                break;
+            }
+            case AssetType::AnimationClip:
+            {
+                Slot<AnimationClipData>* slot = FindPendingTarget(m_animationClips, AssetType::AnimationClip, target);
+                const AssetRecord* record = slot != nullptr ? m_registry->Find(slot->id) : nullptr;
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                AnimationClipData fresh;
+                if (false == job.decoded || record == nullptr || m_decodedModelId != job.record.id || false == ReadAnimationClip(*record, fresh))
+                {
+                    fresh = AnimationClipData{};
+                }
+                slot = FindSlot(m_animationClips, target.handle, AssetType::AnimationClip);
+                if (slot == nullptr)
+                {
+                    break;
+                }
+                fresh.dataGeneration = slot->data.dataGeneration + 1;
+                slot->data = std::move(fresh);
+                slot->pending = false;
+                slot->queued = false;
+                break;
+            }
             default:
                 break;
             }
@@ -1928,6 +2076,20 @@ namespace JBro
                 break;
             case AssetType::Mesh:
                 if (Slot<MeshData>* slot = FindSlot(m_meshes, handle, AssetType::Mesh))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
+            case AssetType::Skeleton:
+                if (Slot<SkeletonData>* slot = FindSlot(m_skeletons, handle, AssetType::Skeleton))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
+            case AssetType::AnimationClip:
+                if (Slot<AnimationClipData>* slot = FindSlot(m_animationClips, handle, AssetType::AnimationClip))
                 {
                     ++slot->referenceCount;
                     return handle;
@@ -2105,6 +2267,26 @@ namespace JBro
             handle = Occupy(m_meshes, AssetType::Mesh, id, std::move(data));
             break;
         }
+        case AssetType::Skeleton:
+        {
+            SkeletonData data;
+            if (false == ReadSkeleton(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_skeletons, AssetType::Skeleton, id, std::move(data));
+            break;
+        }
+        case AssetType::AnimationClip:
+        {
+            AnimationClipData data;
+            if (false == ReadAnimationClip(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_animationClips, AssetType::AnimationClip, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -2228,6 +2410,20 @@ namespace JBro
                 --mesh->referenceCount;
             }
         }
+        if (Slot<SkeletonData>* skeleton = FindSlot(m_skeletons, handle, AssetType::Skeleton))
+        {
+            if (skeleton->referenceCount != 0)
+            {
+                --skeleton->referenceCount;
+            }
+        }
+        if (Slot<AnimationClipData>* clip = FindSlot(m_animationClips, handle, AssetType::AnimationClip))
+        {
+            if (clip->referenceCount != 0)
+            {
+                --clip->referenceCount;
+            }
+        }
     }
 
     AssetHandle AssetSystem::Find(AssetId id) const
@@ -2251,7 +2447,9 @@ namespace JBro
             || FindSlot(m_renderTextures, handle, AssetType::RenderTexture) != nullptr
             || FindSlot(m_shaders, handle, AssetType::Shader) != nullptr
             || FindSlot(m_materials, handle, AssetType::Material) != nullptr
-            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr;
+            || FindSlot(m_meshes, handle, AssetType::Mesh) != nullptr
+            || FindSlot(m_skeletons, handle, AssetType::Skeleton) != nullptr
+            || FindSlot(m_animationClips, handle, AssetType::AnimationClip) != nullptr;
     }
 
     UInt32 AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -2312,6 +2510,14 @@ namespace JBro
         {
             return mesh->referenceCount;
         }
+        if (const Slot<SkeletonData>* skeleton = FindSlot(m_skeletons, handle, AssetType::Skeleton))
+        {
+            return skeleton->referenceCount;
+        }
+        if (const Slot<AnimationClipData>* clip = FindSlot(m_animationClips, handle, AssetType::AnimationClip))
+        {
+            return clip->referenceCount;
+        }
         return 0;
     }
 
@@ -2360,6 +2566,8 @@ namespace JBro
             requeue(FindSlot(m_meshes, *loaded, AssetType::Mesh));
             requeue(FindSlot(m_materials, *loaded, AssetType::Material));
             requeue(FindSlot(m_environmentMaps, *loaded, AssetType::EnvironmentMap));
+            requeue(FindSlot(m_skeletons, *loaded, AssetType::Skeleton));
+            requeue(FindSlot(m_animationClips, *loaded, AssetType::AnimationClip));
             return true;
         }
         if (Slot<TextureData>* texture = FindSlot(m_textures, *loaded, AssetType::Texture))
@@ -2546,6 +2754,32 @@ namespace JBro
             mesh->data = std::move(fresh);
             return true;
         }
+        if (Slot<SkeletonData>* skeleton = FindSlot(m_skeletons, *loaded, AssetType::Skeleton))
+        {
+            m_decodedModelId = {};
+            m_decodedModel = {};
+            SkeletonData fresh;
+            if (false == ReadSkeleton(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = skeleton->data.dataGeneration + 1;
+            skeleton->data = std::move(fresh);
+            return true;
+        }
+        if (Slot<AnimationClipData>* clip = FindSlot(m_animationClips, *loaded, AssetType::AnimationClip))
+        {
+            m_decodedModelId = {};
+            m_decodedModel = {};
+            AnimationClipData fresh;
+            if (false == ReadAnimationClip(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = clip->data.dataGeneration + 1;
+            clip->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -2701,6 +2935,24 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_meshes, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_skeletons.slots.Size(); ++index)
+        {
+            Slot<SkeletonData>& slot = m_skeletons.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_skeletons, index);
+                ++freed;
+            }
+        }
+        for (UInt32 index = 0; index < m_animationClips.slots.Size(); ++index)
+        {
+            Slot<AnimationClipData>& slot = m_animationClips.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_animationClips, index);
                 ++freed;
             }
         }

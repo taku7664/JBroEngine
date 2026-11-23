@@ -97,6 +97,15 @@ namespace JBro
                 add("Texture/", model.images[index].name, AssetType::Texture, index);
             }
         }
+        // 뼈대와 애니메이션(D-456). 키의 앞말은 타입 이름이다(`SplitSubAssetKey` 가 타입 표로 읽는다).
+        for (std::size_t index = 0; index < model.skeletons.Size(); ++index)
+        {
+            add("Skeleton/", model.skeletons[index].name, AssetType::Skeleton, index);
+        }
+        for (std::size_t index = 0; index < model.animations.Size(); ++index)
+        {
+            add("AnimationClip/", model.animations[index].name, AssetType::AnimationClip, index);
+        }
     }
 
     const ModelSubAsset* FindModelSubAsset(const Array<ModelSubAsset>& listed, AssetType type, std::string_view name)

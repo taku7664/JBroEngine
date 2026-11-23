@@ -271,8 +271,9 @@ namespace JBro
         }
         type = AssetTypeRules::ParseTypeName(key.substr(0, slash));
         name = key.substr(slash + 1);
-        // 모델의 하위 에셋은 메시·재질·내장 그림뿐이다.
-        return type == AssetType::Mesh || type == AssetType::Material || type == AssetType::Texture;
+        // 모델의 하위 에셋은 메시·재질·내장 그림과 뼈대·애니메이션(D-456)이다.
+        return type == AssetType::Mesh || type == AssetType::Material || type == AssetType::Texture || type == AssetType::Skeleton
+            || type == AssetType::AnimationClip;
     }
 
     Bool ParseAssetMetaFile(const char* text, std::size_t length, AssetMetaFile& result, AssetMetaError& error)

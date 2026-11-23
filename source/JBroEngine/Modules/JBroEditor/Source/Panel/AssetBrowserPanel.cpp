@@ -80,6 +80,11 @@ namespace JBro
             // 하늘 맵(D-447)은 둘러싼 세상의 그림이다 - 지구 모양을 쓴다(기즈모의 월드 축과 같은 글리프, 글꼴에 이미 있다).
             case AssetType::EnvironmentMap:
                 return Icons::SpaceWorld;
+            // 뼈대와 애니메이션(D-456). 전용 글리프는 글꼴의 이름을 맞춰 본 뒤에 더한다 - 지금은 있던 것을 쓴다.
+            case AssetType::Skeleton:
+                return Icons::GameObject;
+            case AssetType::AnimationClip:
+                return Icons::Play;
             default:
                 return Icons::File;
             }

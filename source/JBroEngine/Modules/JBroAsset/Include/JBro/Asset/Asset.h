@@ -179,6 +179,23 @@ namespace JBro
         Bool hasTangents = false;
         // 이 메시가 파일에서 쓰는 재질(모델의 하위 Material)이다. 없으면 비어 있다. 컴포넌트의 `materialId` 가 비면 이것을 쓴다(D-399 (3)).
         AssetId material;
+        // 스킨 메시면 정점마다 뼈 넷과 가중치이고(`vertices` 와 같은 수), `skeleton` 이 그 뼈대(모델의 하위 Skeleton)다(D-456). 아니면 비어 있다.
+        Array<ModelSkinWeights> skin;
+        AssetId skeleton;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 뼈대(모델의 하위 Skeleton, D-456)다. `dataGeneration` 은 in-place 재로드마다 오른다.
+    struct SkeletonData
+    {
+        ModelSkeleton skeleton;
+        UInt32 dataGeneration = 1;
+    };
+
+    // 로드된 애니메이션(모델의 하위 AnimationClip, D-456)이다. 트랙은 뼈 이름으로 가리킨다. `dataGeneration` 은 in-place 재로드마다 오른다.
+    struct AnimationClipData
+    {
+        ModelAnimation animation;
         UInt32 dataGeneration = 1;
     };
 
@@ -323,6 +340,8 @@ namespace JBro
         const ShaderAssetData* GetShader(AssetHandle handle) const;
         const MeshData* GetMesh(AssetHandle handle) const;
         const MaterialData* GetMaterial(AssetHandle handle) const;
+        const SkeletonData* GetSkeleton(AssetHandle handle) const;
+        const AnimationClipData* GetAnimationClip(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
@@ -404,6 +423,9 @@ namespace JBro
         Bool ReadMesh(const AssetRecord& record, MeshData& data);
         // 재질 하나를 읽는다: 빌드가 옮겨 둔 것(`CookedMaterial`), 모델의 하위 Material(모델을 읽어 옮김), `.jmat` 파일 차례다.
         Bool ReadMaterial(const AssetRecord& record, MaterialData& data);
+        // 모델의 하위 뼈대·애니메이션을 읽는다(D-456). 주인 모델을 읽어 옮긴다.
+        Bool ReadSkeleton(const AssetRecord& record, SkeletonData& data);
+        Bool ReadAnimationClip(const AssetRecord& record, AnimationClipData& data);
         // 모델의 내장 그림 하나를 읽는다(model-import-plan 5 단계). 바이트는 모델 안에 있고 디코드는 그림 파일과 같은 이미지 디코더다.
         Bool ReadEmbeddedTexture(const AssetRecord& record, const AssetRecord& model, TextureData& data);
         // **같은 그림이 이미 실렸으면 그 픽셀을 옮겨 쓴다**(material-plan 5 단계). 모델을 다시 읽거나 블롭을 풀지 않는다. 열쇠가 0 이거나 없으면 false.
@@ -461,6 +483,8 @@ namespace JBro
         Pool<ShaderAssetData> m_shaders;
         Pool<MeshData> m_meshes;
         Pool<MaterialData> m_materials;
+        Pool<SkeletonData> m_skeletons;
+        Pool<AnimationClipData> m_animationClips;
         AudioReleaseCallback m_audioRelease = nullptr;
         UInt32 m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;

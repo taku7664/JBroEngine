@@ -30,6 +30,9 @@ namespace JBro
             Bool hasNormals = false;
             Bool hasUvs = false;
             Bool hasTangents = false;
+            // 스킨 메시면 꼭짓점마다 하나다(D-456). 합치기는 정점과 함께 견준다 - 위치가 같아도 가중치가 다르면 다른 정점이다.
+            Array<ModelSkinWeights> skinCorners;
+            Int32 skeleton = -1;
         };
 
         Vector3 PositionOf(const ModelVertex& vertex)
@@ -202,9 +205,14 @@ namespace JBro
                     raw.corners[index].position[axis.Get()] = raw.corners[index].position[axis.Get()] * scale;
                 }
             }
+            const Bool skinned = raw.skinCorners.Size() == raw.corners.Size() && raw.skeleton >= 0;
             for (std::size_t face = 0; face < count / 3; ++face)
             {
                 std::swap(raw.corners[face * 3 + 1], raw.corners[face * 3 + 2]);
+                if (skinned)
+                {
+                    std::swap(raw.skinCorners[face * 3 + 1], raw.skinCorners[face * 3 + 2]);
+                }
             }
 
             // 같은 꼭짓점(위치·법선·UV·탄젠트가 모두 같은 것)을 하나로 합친다. 바이트를 견줘 정렬하고 이웃끼리 묶는다.
@@ -215,7 +223,12 @@ namespace JBro
                 order[index] = static_cast<UInt32>(index);
             }
             const auto compare = [&](UInt32 left, UInt32 right) {
-                return std::memcmp(&raw.corners[left.Get()], &raw.corners[right.Get()], sizeof(ModelVertex));
+                const int vertex = std::memcmp(&raw.corners[left.Get()], &raw.corners[right.Get()], sizeof(ModelVertex));
+                if (vertex != 0 || false == skinned)
+                {
+                    return vertex;
+                }
+                return std::memcmp(&raw.skinCorners[left.Get()], &raw.skinCorners[right.Get()], sizeof(ModelSkinWeights));
             };
             std::sort(order.Data(), order.Data() + order.Size(), [&](UInt32 left, UInt32 right) { return compare(left, right) < 0; });
             ModelMesh mesh;
@@ -223,12 +236,17 @@ namespace JBro
             mesh.material = raw.material;
             mesh.hasUvs = raw.hasUvs;
             mesh.hasTangents = tangents;
+            mesh.skeleton = skinned ? raw.skeleton : Int32(-1);
             mesh.indices.Resize(count);
             for (std::size_t at = 0; at < count; ++at)
             {
                 if (at == 0 || compare(order[at - 1], order[at]) != 0)
                 {
                     mesh.vertices.Add(raw.corners[order[at].Get()]);
+                    if (skinned)
+                    {
+                        mesh.skin.Add(raw.skinCorners[order[at].Get()]);
+                    }
                 }
                 mesh.indices[order[at].Get()] = static_cast<UInt32>(mesh.vertices.Size() - 1);
             }
@@ -365,6 +383,211 @@ namespace JBro
             node.rotation = Normalize(q);
         }
 
+        // glTF 의 열 우선 행렬을 엔진의 `values[row * 4 + column]` 로 옮긴다. 위치는 임포트 배율로 늘린다(균일 배율이라 회전·크기는 그대로다).
+        Matrix4x4 FromGltfMatrix(const cgltf_float source[16], Float scale)
+        {
+            Matrix4x4 result;
+            for (UInt32 row = 0; row < 4; ++row)
+            {
+                for (UInt32 column = 0; column < 4; ++column)
+                {
+                    result.values[row.Get() * 4 + column.Get()] = source[column.Get() * 4 + row.Get()];
+                }
+            }
+            for (UInt32 row = 0; row < 3; ++row)
+            {
+                result.values[row.Get() * 4 + 3] = result.values[row.Get() * 4 + 3] * scale;
+            }
+            return result;
+        }
+
+        // 아핀 행렬의 역이다(마지막 행이 0 0 0 1). 3x3 의 역과 옮김의 역이다.
+        Bool InvertAffine(const cgltf_float source[16], cgltf_float result[16])
+        {
+            // 열 우선: m(row, column) = source[column * 4 + row].
+            const auto m = [&](int row, int column) { return static_cast<double>(source[column * 4 + row]); };
+            const double a = m(0, 0), b = m(0, 1), c = m(0, 2);
+            const double d = m(1, 0), e = m(1, 1), f = m(1, 2);
+            const double g = m(2, 0), h = m(2, 1), i = m(2, 2);
+            const double determinant = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+            if (std::abs(determinant) < 1e-20)
+            {
+                return false;
+            }
+            const double inverse[3][3] = {
+                {(e * i - f * h) / determinant, (c * h - b * i) / determinant, (b * f - c * e) / determinant},
+                {(f * g - d * i) / determinant, (a * i - c * g) / determinant, (c * d - a * f) / determinant},
+                {(d * h - e * g) / determinant, (b * g - a * h) / determinant, (a * e - b * d) / determinant},
+            };
+            const double t[3] = {m(0, 3), m(1, 3), m(2, 3)};
+            for (int row = 0; row < 3; ++row)
+            {
+                for (int column = 0; column < 3; ++column)
+                {
+                    result[column * 4 + row] = static_cast<cgltf_float>(inverse[row][column]);
+                }
+                result[12 + row] = static_cast<cgltf_float>(-(inverse[row][0] * t[0] + inverse[row][1] * t[1] + inverse[row][2] * t[2]));
+                result[row * 4 + 3] = 0.0f;
+            }
+            result[15] = 1.0f;
+            return true;
+        }
+
+        // 열 우선 두 행렬의 곱(left x right)이다.
+        void MultiplyGltf(const cgltf_float left[16], const cgltf_float right[16], cgltf_float result[16])
+        {
+            for (int column = 0; column < 4; ++column)
+            {
+                for (int row = 0; row < 4; ++row)
+                {
+                    cgltf_float value = 0.0f;
+                    for (int at = 0; at < 4; ++at)
+                    {
+                        value += left[at * 4 + row] * right[column * 4 + at];
+                    }
+                    result[column * 4 + row] = value;
+                }
+            }
+        }
+
+        // glTF 의 스킨을 뼈대로 옮긴다(D-456). 뼈는 스킨의 `joints` 차례이고 부모는 가장 가까운 조상 뼈다. 사이에 뼈가 아닌 노드가 끼면
+        // 그 노드들까지 접은 상대 자세를 쓴다. 이름은 뼈대 안에서 겹치지 않게 하고, 노드 → 뼈 이름 표를 `boneNameOfNode` 에 남긴다(트랙이 쓴다).
+        // `boneOfJoint` 는 스킨의 `joints` 번호 → 뼈 번호다(부모가 앞에 오게 다시 늘어놓으므로 다르다). 메시의 `JOINTS_0` 이 이것으로 옮겨진다.
+        ModelSkeleton ReadGltfSkeleton(const cgltf_data* data, const cgltf_skin& skin, Float scale, Array<String>& boneNameOfNode,
+            Array<UInt32>& boneOfJoint)
+        {
+            ModelSkeleton skeleton;
+            skeleton.name = skin.name != nullptr ? String(skin.name) : String("Skeleton");
+            const auto jointIndexOf = [&](const cgltf_node* node) -> Int32 {
+                for (cgltf_size at = 0; at < skin.joints_count; ++at)
+                {
+                    if (skin.joints[at] == node)
+                    {
+                        return static_cast<Int32>(at);
+                    }
+                }
+                return -1;
+            };
+            Array<String> taken;
+            Bool rootParentSet = false;
+            for (cgltf_size at = 0; at < skin.joints_count; ++at)
+            {
+                const cgltf_node* node = skin.joints[at];
+                ModelBone bone;
+                String wanted = node->name != nullptr ? String(node->name) : String("Bone");
+                String name = wanted;
+                for (Int32 suffix = 2; taken.Contains(name); ++suffix)
+                {
+                    name = wanted + " (" + String(std::to_string(suffix.Get()).c_str()) + ")";
+                }
+                taken.Add(name);
+                bone.name = name;
+                boneNameOfNode[static_cast<std::size_t>(node - data->nodes)] = name;
+                // 가장 가까운 조상 뼈와, 그 사이의 뼈가 아닌 노드들.
+                const cgltf_node* ancestor = node->parent;
+                while (ancestor != nullptr && jointIndexOf(ancestor) < 0)
+                {
+                    ancestor = ancestor->parent;
+                }
+                bone.parent = ancestor != nullptr ? jointIndexOf(ancestor) : Int32(-1);
+                cgltf_float relative[16];
+                if (ancestor == nullptr || ancestor == node->parent)
+                {
+                    cgltf_node_transform_local(node, relative);
+                }
+                else
+                {
+                    cgltf_float nodeWorld[16];
+                    cgltf_float ancestorWorld[16];
+                    cgltf_float ancestorInverse[16];
+                    cgltf_node_transform_world(node, nodeWorld);
+                    cgltf_node_transform_world(ancestor, ancestorWorld);
+                    if (false == InvertAffine(ancestorWorld, ancestorInverse))
+                    {
+                        cgltf_node_transform_local(node, relative);
+                    }
+                    else
+                    {
+                        MultiplyGltf(ancestorInverse, nodeWorld, relative);
+                    }
+                }
+                ModelNode decomposed;
+                Decompose(relative, decomposed);
+                bone.position = Scale(decomposed.position, scale);
+                bone.rotation = decomposed.rotation;
+                bone.scale = decomposed.scale;
+                if (skin.inverse_bind_matrices != nullptr)
+                {
+                    cgltf_float inverse[16];
+                    if (cgltf_accessor_read_float(skin.inverse_bind_matrices, at, inverse, 16))
+                    {
+                        bone.inverseBind = FromGltfMatrix(inverse, scale);
+                    }
+                }
+                if (bone.parent < 0 && node->parent != nullptr && false == rootParentSet)
+                {
+                    rootParentSet = true;
+                    cgltf_float parentWorld[16];
+                    cgltf_node_transform_world(node->parent, parentWorld);
+                    skeleton.rootParent = FromGltfMatrix(parentWorld, scale);
+                }
+                skeleton.bones.Add(std::move(bone));
+            }
+            // 부모가 늘 앞에 오게 한다 - 런타임은 앞에서부터 한 번 훑어 월드 자세를 짓는다. 스킨의 차례가 그렇지 않으면 다시 늘어놓고 번호를 고친다.
+            const std::size_t count = skeleton.bones.Size();
+            Array<Int32> placed;
+            placed.Resize(count);
+            for (std::size_t at = 0; at < count; ++at)
+            {
+                placed[at] = -1;
+            }
+            Array<UInt32> order;
+            while (order.Size() < count)
+            {
+                const std::size_t before = order.Size();
+                for (std::size_t at = 0; at < count; ++at)
+                {
+                    const Int32 parent = skeleton.bones[at].parent;
+                    if (placed[at] < 0 && (parent < 0 || placed[static_cast<std::size_t>(parent.Get())] >= 0))
+                    {
+                        placed[at] = static_cast<Int32>(order.Size());
+                        order.Add(static_cast<UInt32>(at));
+                    }
+                }
+                // 부모 고리가 있는 깨진 파일이다. 남은 것은 뿌리로 둔다.
+                if (order.Size() == before)
+                {
+                    for (std::size_t at = 0; at < count; ++at)
+                    {
+                        if (placed[at] < 0)
+                        {
+                            skeleton.bones[at].parent = -1;
+                            placed[at] = static_cast<Int32>(order.Size());
+                            order.Add(static_cast<UInt32>(at));
+                        }
+                    }
+                }
+            }
+            Array<ModelBone> sorted;
+            sorted.Reserve(count);
+            for (std::size_t at = 0; at < count; ++at)
+            {
+                ModelBone bone = std::move(skeleton.bones[order[at].Get()]);
+                if (bone.parent >= 0)
+                {
+                    bone.parent = placed[static_cast<std::size_t>(bone.parent.Get())];
+                }
+                sorted.Add(std::move(bone));
+            }
+            skeleton.bones = std::move(sorted);
+            boneOfJoint.Resize(count);
+            for (std::size_t at = 0; at < count; ++at)
+            {
+                boneOfJoint[at] = static_cast<UInt32>(placed[at].Get());
+            }
+            return skeleton;
+        }
+
         Bool DecodeGltf(JArrayView<std::byte> bytes, const ModelImportOptions& options, const ModelFileReader& reader,
             ModelData& model, String& error)
         {
@@ -488,6 +711,42 @@ namespace JBro
                 }
             }
 
+            // 스킨마다 뼈대 하나다(D-456). 노드 → 뼈 이름 표는 트랙이, 조인트 → 뼈 번호 표는 메시의 가중치가 쓴다.
+            const Float importScale = std::isfinite(options.scale.Get()) && options.scale > 0.0f ? options.scale : Float(1.0f);
+            Array<String> boneNameOfNode;
+            boneNameOfNode.Resize(data->nodes_count);
+            Array<Array<UInt32>> boneOfJointPerSkin;
+            Array<String> skeletonNames;
+            for (cgltf_size index = 0; index < data->skins_count; ++index)
+            {
+                Array<UInt32> boneOfJoint;
+                ModelSkeleton skeleton = ReadGltfSkeleton(data, data->skins[index], importScale, boneNameOfNode, boneOfJoint);
+                String name = skeleton.name;
+                for (Int32 suffix = 2; skeletonNames.Contains(name); ++suffix)
+                {
+                    name = skeleton.name + " (" + String(std::to_string(suffix.Get()).c_str()) + ")";
+                }
+                skeletonNames.Add(name);
+                skeleton.name = name;
+                model.skeletons.Add(std::move(skeleton));
+                boneOfJointPerSkin.Add(std::move(boneOfJoint));
+            }
+            // 메시를 그리는 노드가 스킨을 가리키면 그 메시는 그 뼈대의 스킨 메시다. 노드 여럿이 다른 스킨으로 한 메시를 쓰면 첫 것이다.
+            Array<Int32> skinOfMesh;
+            skinOfMesh.Resize(data->meshes_count);
+            for (cgltf_size index = 0; index < data->meshes_count; ++index)
+            {
+                skinOfMesh[index] = -1;
+            }
+            for (cgltf_size index = 0; index < data->nodes_count; ++index)
+            {
+                const cgltf_node& node = data->nodes[index];
+                if (node.mesh != nullptr && node.skin != nullptr && skinOfMesh[static_cast<std::size_t>(node.mesh - data->meshes)] < 0)
+                {
+                    skinOfMesh[static_cast<std::size_t>(node.mesh - data->meshes)] = static_cast<Int32>(node.skin - data->skins);
+                }
+            }
+
             // 메시마다 프리미티브(재질 하나)가 `ModelMesh` 하나다. 노드가 가리킬 수 있게 메시 → 결과 번호들을 남긴다.
             Array<RawMesh> raws;
             Array<Array<UInt32>> meshOutputs;
@@ -507,9 +766,19 @@ namespace JBro
                     const cgltf_accessor* normals = nullptr;
                     const cgltf_accessor* uvs = nullptr;
                     const cgltf_accessor* tangents = nullptr;
+                    const cgltf_accessor* joints = nullptr;
+                    const cgltf_accessor* weights = nullptr;
                     for (cgltf_size attribute = 0; attribute < primitive.attributes_count; ++attribute)
                     {
                         const cgltf_attribute& entry = primitive.attributes[attribute];
+                        if (entry.type == cgltf_attribute_type_joints && entry.index == 0)
+                        {
+                            joints = entry.data;
+                        }
+                        else if (entry.type == cgltf_attribute_type_weights && entry.index == 0)
+                        {
+                            weights = entry.data;
+                        }
                         if (entry.type == cgltf_attribute_type_position)
                         {
                             positions = entry.data;
@@ -547,10 +816,45 @@ namespace JBro
                     raw.name = UniqueName(raws, name);
                     const cgltf_size cornerCount = primitive.indices != nullptr ? primitive.indices->count : positions->count;
                     raw.corners.Resize(cornerCount - cornerCount % 3);
+                    const Int32 skinIndex = skinOfMesh[meshIndex];
+                    if (skinIndex >= 0 && joints != nullptr && weights != nullptr)
+                    {
+                        raw.skeleton = skinIndex;
+                        raw.skinCorners.Resize(raw.corners.Size());
+                    }
                     for (cgltf_size corner = 0; corner < raw.corners.Size(); ++corner)
                     {
                         const cgltf_size vertex = primitive.indices != nullptr ? cgltf_accessor_read_index(primitive.indices, corner) : corner;
                         ModelVertex& out = raw.corners[corner];
+                        // 뼈 넷과 가중치. 조인트 번호는 뼈대의 뼈 번호로 옮기고, 가중치는 합이 1 이 되게 다시 나눈다(파일이 정규화하지 않았어도).
+                        if (raw.skeleton >= 0)
+                        {
+                            cgltf_uint jointValues[4] = {0, 0, 0, 0};
+                            float weightValues[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                            cgltf_accessor_read_uint(joints, vertex, jointValues, 4);
+                            cgltf_accessor_read_float(weights, vertex, weightValues, 4);
+                            const Array<UInt32>& boneOfJoint = boneOfJointPerSkin[static_cast<std::size_t>(skinIndex.Get())];
+                            ModelSkinWeights& skinOut = raw.skinCorners[corner];
+                            Float sum = 0.0f;
+                            for (Int32 slot = 0; slot < 4; ++slot)
+                            {
+                                const Float weight = weightValues[slot.Get()] > 0.0f ? Float(weightValues[slot.Get()]) : Float(0.0f);
+                                const cgltf_uint joint = jointValues[slot.Get()];
+                                const Bool known = joint < boneOfJoint.Size();
+                                skinOut.bones[slot.Get()] = known ? boneOfJoint[joint] : UInt32(0);
+                                skinOut.weights[slot.Get()] = known ? weight : Float(0.0f);
+                                sum += skinOut.weights[slot.Get()];
+                            }
+                            for (Int32 slot = 0; slot < 4; ++slot)
+                            {
+                                skinOut.weights[slot.Get()] = sum > 0.0f ? Float(skinOut.weights[slot.Get()] / sum) : Float(slot == 0 ? 1.0f : 0.0f);
+                                // 쓰지 않는 칸은 뼈 0 으로 둔다 - 같은 정점이 칸의 쓰레기 번호로 갈라지지 않게.
+                                if (skinOut.weights[slot.Get()] == 0.0f && slot > 0)
+                                {
+                                    skinOut.bones[slot.Get()] = 0;
+                                }
+                            }
+                        }
                         float values[4] = {0.0f, 0.0f, 0.0f, 1.0f};
                         cgltf_accessor_read_float(positions, vertex, values, 3);
                         for (Int32 axis = 0; axis < 3; ++axis)
@@ -619,6 +923,78 @@ namespace JBro
                     node.meshes = meshOutputs[static_cast<std::size_t>(source.mesh - data->meshes)];
                 }
                 model.nodes.Add(std::move(node));
+            }
+
+            // 애니메이션마다 클립 하나다(D-456). 트랙은 노드의 뼈 이름(뼈가 아닌 노드면 노드 이름)을 가리킨다. 모프 가중치(`weights`)는 블렌드셰이프 단계다.
+            Array<String> animationNames;
+            for (cgltf_size index = 0; index < data->animations_count; ++index)
+            {
+                const cgltf_animation& source = data->animations[index];
+                ModelAnimation animation;
+                const String wanted = source.name != nullptr ? String(source.name) : String("Animation");
+                animation.name = wanted;
+                for (Int32 suffix = 2; animationNames.Contains(animation.name); ++suffix)
+                {
+                    animation.name = wanted + " (" + String(std::to_string(suffix.Get()).c_str()) + ")";
+                }
+                animationNames.Add(animation.name);
+                for (cgltf_size channelIndex = 0; channelIndex < source.channels_count; ++channelIndex)
+                {
+                    const cgltf_animation_channel& channel = source.channels[channelIndex];
+                    if (channel.target_node == nullptr || channel.sampler == nullptr || channel.sampler->input == nullptr || channel.sampler->output == nullptr)
+                    {
+                        continue;
+                    }
+                    ModelAnimationTrack track;
+                    UInt32 components = 3;
+                    if (channel.target_path == cgltf_animation_path_type_translation)
+                    {
+                        track.path = ModelTrackPath::Position;
+                    }
+                    else if (channel.target_path == cgltf_animation_path_type_rotation)
+                    {
+                        track.path = ModelTrackPath::Rotation;
+                        components = 4;
+                    }
+                    else if (channel.target_path == cgltf_animation_path_type_scale)
+                    {
+                        track.path = ModelTrackPath::Scale;
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                    const std::size_t nodeIndex = static_cast<std::size_t>(channel.target_node - data->nodes);
+                    track.bone = false == boneNameOfNode[nodeIndex].empty() ? boneNameOfNode[nodeIndex]
+                        : (channel.target_node->name != nullptr ? String(channel.target_node->name) : String("Node"));
+                    const cgltf_animation_sampler& sampler = *channel.sampler;
+                    track.interpolation = sampler.interpolation == cgltf_interpolation_type_step ? ModelInterpolation::Step : ModelInterpolation::Linear;
+                    const Bool cubic = sampler.interpolation == cgltf_interpolation_type_cubic_spline;
+                    const cgltf_size keys = sampler.input->count;
+                    track.times.Resize(keys);
+                    track.values.Resize(keys * components.Get());
+                    for (cgltf_size key = 0; key < keys; ++key)
+                    {
+                        float time = 0.0f;
+                        cgltf_accessor_read_float(sampler.input, key, &time, 1);
+                        track.times[key] = time;
+                        animation.duration = time > animation.duration ? Float(time) : animation.duration;
+                        float value[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+                        // 큐빅 스플라인은 키마다 (들어오는 접선, 값, 나가는 접선)이다 - 값만 읽는다.
+                        cgltf_accessor_read_float(sampler.output, cubic ? key * 3 + 1 : key, value, components.Get());
+                        for (UInt32 component = 0; component < components; ++component)
+                        {
+                            Float written = value[component.Get()];
+                            if (track.path == ModelTrackPath::Position)
+                            {
+                                written = written * importScale;
+                            }
+                            track.values[key * components.Get() + component.Get()] = written;
+                        }
+                    }
+                    animation.tracks.Add(std::move(track));
+                }
+                model.animations.Add(std::move(animation));
             }
             return true;
         }

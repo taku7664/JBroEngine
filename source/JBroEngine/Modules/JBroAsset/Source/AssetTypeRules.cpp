@@ -36,6 +36,8 @@ namespace JBro
             {AssetType::RenderTexture, "RenderTexture"},
             {AssetType::Model, "Model"},
             {AssetType::EnvironmentMap, "EnvironmentMap"},
+            {AssetType::Skeleton, "Skeleton"},
+            {AssetType::AnimationClip, "AnimationClip"},
         };
 
         struct Extension

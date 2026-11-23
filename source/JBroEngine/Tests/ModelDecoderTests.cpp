@@ -397,6 +397,61 @@ namespace
         }
         Check(Near(rawLargest, 50.0f), "convertUnits off keeps the file's numbers");
     }
+    // **glTF 의 스킨·뼈대·애니메이션**(D-456). 배율 2 로 읽는다 - 위치·역바인드·뿌리 부모·위치 트랙이 함께 늘어야 한다.
+    void TestAGltfSkinDecodesIntoSkeletonAndClip()
+    {
+        const std::string gltf = TestModels::SkinnedGltf();
+        JBro::ModelImportOptions options;
+        options.scale = 2.0f;
+        JBro::ModelData model;
+        JBro::String error;
+        JBro::ModelFileReader reader;
+        Check(JBro::DecodeModel({reinterpret_cast<const std::byte*>(gltf.data()), static_cast<JBro::UInt32>(gltf.size())}, JBro::ModelFormat::Gltf,
+                  options, reader, model, error),
+            "the skinned glTF decodes");
+        Check(model.skeletons.Size() == 1 && model.skeletons[0].name == "Skeleton", "one skin is one skeleton, named Skeleton when the skin has no name");
+        const JBro::ModelSkeleton& skeleton = model.skeletons[0];
+        Check(skeleton.bones.Size() == 2 && skeleton.bones[0].name == "Hip" && skeleton.bones[0].parent == -1 && skeleton.bones[1].name == "Spine"
+                && skeleton.bones[1].parent == 0,
+            "the bones are reordered so a parent comes first, whatever order the skin lists them in");
+        Check(Near(skeleton.bones[1].position.y, 2.0f) && Near(skeleton.bones[1].position.x, 0.0f), "a bone's rest position is scaled with the model");
+        Check(Near(skeleton.rootParent.values[11], 10.0f), "the root bone's parent node (Armature, z 5) is kept as the root parent, scaled");
+        Check(Near(skeleton.bones[0].inverseBind.values[11], -10.0f) && Near(skeleton.bones[1].inverseBind.values[7], -2.0f)
+                && Near(skeleton.bones[1].inverseBind.values[11], -10.0f),
+            "inverse bind matrices follow the reordered bones and the scale, in the engine's row layout");
+
+        Check(model.meshes.Size() == 1 && model.meshes[0].skeleton == 0 && model.meshes[0].skin.Size() == model.meshes[0].vertices.Size(),
+            "the mesh drawn by the skinned node is a skinned mesh with one weight set per vertex");
+        const JBro::ModelMesh& mesh = model.meshes[0];
+        JBro::Bool sawBottom = false;
+        JBro::Bool sawShared = false;
+        for (std::size_t at = 0; at < mesh.vertices.Size(); ++at)
+        {
+            const JBro::ModelSkinWeights& skin = mesh.skin[at];
+            if (Near(mesh.vertices[at].position[1], 0.0f))
+            {
+                sawBottom = sawBottom || (skin.bones[0] == 0 && Near(skin.weights[0], 1.0f));
+            }
+            if (Near(mesh.vertices[at].position[0], 0.0f) && Near(mesh.vertices[at].position[1], 2.0f))
+            {
+                sawShared = skin.bones[0] == 1 && skin.bones[1] == 0 && Near(skin.weights[0], 0.5f) && Near(skin.weights[1], 0.5f);
+            }
+        }
+        Check(sawBottom, "a bottom vertex hangs on Hip (joint 1 of the skin becomes bone 0)");
+        Check(sawShared, "the shared vertex hangs half on Spine and half on Hip, its weights normalized from 2 and 2");
+
+        Check(model.animations.Size() == 1 && model.animations[0].name == "Wave" && Near(model.animations[0].duration, 1.0f)
+                && model.animations[0].tracks.Size() == 2,
+            "the animation is one clip with its two channels as tracks and its length");
+        const JBro::ModelAnimationTrack& turn = model.animations[0].tracks[0];
+        Check(turn.bone == "Spine" && turn.path == JBro::ModelTrackPath::Rotation && turn.interpolation == JBro::ModelInterpolation::Linear
+                && turn.times.Size() == 2 && turn.values.Size() == 8 && Near(turn.values[6], 0.70710678f) && Near(turn.values[7], 0.70710678f),
+            "a rotation track names its bone and keeps four values per key");
+        const JBro::ModelAnimationTrack& lift = model.animations[0].tracks[1];
+        Check(lift.bone == "Hip" && lift.path == JBro::ModelTrackPath::Position && lift.interpolation == JBro::ModelInterpolation::Step
+                && lift.values.Size() == 6 && Near(lift.values[4], 4.0f),
+            "a position track keeps STEP and is scaled with the model");
+    }
 }
 
 JBro::Int32 RunModelDecoderTests()
@@ -408,6 +463,7 @@ JBro::Int32 RunModelDecoderTests()
     JBRO_CASE(TestAnObjWithItsMaterialFileDecodes());
     JBRO_CASE(TestCalculatedNormalsFollowTheSmoothingAngle());
     JBRO_CASE(TestAnFbxDecodesWithItsUnits());
+    JBRO_CASE(TestAGltfSkinDecodesIntoSkeletonAndClip());
     std::cout << "Model decoder tests passed.\n";
     return 0;
 }
