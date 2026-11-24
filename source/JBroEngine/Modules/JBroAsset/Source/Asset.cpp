@@ -1076,7 +1076,26 @@ namespace JBro
             return false;
         }
         data.skeleton = decoded->skeletons[sub->index.Get()];
+        ReadSubAssetSockets(record, data.sockets);
         return true;
+    }
+
+    void AssetSystem::ReadSubAssetSockets(const AssetRecord& record, Array<ModelSocket>& sockets)
+    {
+        sockets.Clear();
+        AssetMetaFile meta;
+        if (false == ReadMeta(record, meta))
+        {
+            return;
+        }
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            if (meta.subAssets[index].id == record.id)
+            {
+                sockets = meta.subAssets[index].sockets;
+                return;
+            }
+        }
     }
 
     Bool AssetSystem::ReadAnimationClip(const AssetRecord& record, AnimationClipData& data)
@@ -1209,6 +1228,7 @@ namespace JBro
                 ? FindModelSubAssetId(*m_registry, *model, listed, AssetType::Skeleton, static_cast<std::size_t>(mesh.skeleton.Get())) : AssetId{};
             // 뼈대를 함께 잡는다(D-457). 같은 모델을 들고 있으므로 미루지 않고 옮길 뿐이다.
             data.skeletonAsset = data.skeleton.IsNull() ? AssetHandle{} : Load(data.skeleton);
+            ReadSubAssetSockets(record, data.sockets);
             return true;
         }
         // 메타의 목록이 파일보다 낡았다(파일이 바뀌고 목록을 아직 맞추지 않음). 에디터의 파일 감시가 맞춘다.

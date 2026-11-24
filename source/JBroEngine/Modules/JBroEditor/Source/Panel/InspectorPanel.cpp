@@ -11,6 +11,9 @@
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3DSystem/System/Camera3DSystem.h>
+#include <JBro/Framework3DSystem/System/Animation3DSystem.h>
+#include <JBro/Framework3D/Component/Animator3D.h>
+#include <JBro/Framework3D/Component/BoneAttachment3D.h>
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
@@ -79,6 +82,24 @@
 
 namespace JBro
 {
+    // 모델 메타 하위 항목의 소켓 목록만 보이는 표다(D-460). 인스펙터의 필드 그리기가 목록 위젯·원소 편집을 그대로 쓰게 항목 자체를 가리킨다.
+    struct AssetSubEntrySockets;
+
+    template <>
+    struct TypeDescriptorOf<AssetSubEntrySockets>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&AssetSubEntry::sockets>(),
+            };
+            static const StaticPropertyTable<1> fields { entries };
+            static const TypeDescriptor descriptor = MakeStructTypeDescriptor<AssetSubEntry>("JBro.AssetSubEntrySockets", fields.Get());
+            return descriptor;
+        }
+    };
+
     namespace
     {
         const ComponentTypeId Transform2DTypeId = MakeStableTypeId(Component::Transform2D::StaticTypeName());
@@ -200,6 +221,11 @@ namespace JBro
             m_audioAsset = {};
         }
         m_audioDrawn = false;
+        if (false == m_socketDrawn && m_socketAsset.generation != 0)
+        {
+            ReleaseSocketAsset();
+        }
+        m_socketDrawn = false;
         Object::GameObject* object = m_editor->GetSelectedObject();
         if (object == nullptr)
         {
@@ -2233,6 +2259,11 @@ namespace JBro
             ImGui::PopID();
             return;
         }
+        if ((record.type == AssetType::Skeleton || record.type == AssetType::Mesh) && subIndex < meta.subAssets.Size())
+        {
+            DrawSubAssetSockets(meta, record, subIndex);
+            return;
+        }
         if (record.type != AssetType::Texture || subIndex == meta.subAssets.Size())
         {
             return;
@@ -2288,6 +2319,150 @@ namespace JBro
         if (same.Size() > 0)
         {
             Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorSameImageSplitNote, "Changing the options reads this image apart from its same images"));
+        }
+    }
+
+    void InspectorPanel::ReleaseSocketAsset()
+    {
+        if (AssetSystem* assets = m_editor != nullptr ? m_editor->GetAssetSystem() : nullptr; assets != nullptr && m_socketAsset.generation != 0)
+        {
+            assets->Release(m_socketAsset);
+        }
+        m_socketAsset = {};
+        m_socketAssetId = {};
+        m_boneNames.Clear();
+    }
+
+    void InspectorPanel::DrawSubAssetSockets(const AssetMetaFile& meta, const AssetRecord& record, std::size_t subIndex)
+    {
+        m_socketDrawn = true;
+        // **뼈 이름은 그 뼈대에서 온다.** 고른 하위 에셋(뼈대나 메시)을 실어 들고 있는다 - 모델 디코드는 워커라(D-455) 처음 몇 프레임은 뼈대가 없고,
+        // 그동안 `bone` 칸은 글자 칸이다. 다른 것을 고르면 놓는다.
+        AssetSystem* assets = m_editor->GetAssetSystem();
+        if (assets != nullptr && m_socketAssetId != record.id)
+        {
+            ReleaseSocketAsset();
+            m_socketAssetId = record.id;
+            m_socketAsset = assets->Load(record.id);
+        }
+        m_boneNames.Clear();
+        const SkeletonData* skeleton = nullptr;
+        if (assets != nullptr && m_socketAsset.generation != 0)
+        {
+            if (record.type == AssetType::Skeleton)
+            {
+                skeleton = assets->GetSkeleton(m_socketAsset);
+            }
+            else if (const MeshData* mesh = assets->GetMesh(m_socketAsset); mesh != nullptr && mesh->skeletonAsset.generation != 0)
+            {
+                skeleton = assets->GetSkeleton(mesh->skeletonAsset);
+            }
+        }
+        for (std::size_t bone = 0; skeleton != nullptr && bone < skeleton->skeleton.bones.Size(); ++bone)
+        {
+            m_boneNames.Add(skeleton->skeleton.bones[bone].name);
+        }
+
+        AssetMetaFile scratch = meta;
+        AssetSubEntry& entry = scratch.subAssets[subIndex];
+        AssetEditScope scope;
+        scope.scratch = &scratch;
+        scope.block = AssetEditScope::Block::SubSockets;
+        scope.subIndex = subIndex;
+        scope.boneNames = m_boneNames.IsEmpty() ? nullptr : &m_boneNames;
+        Context context;
+        context.asset = &scope;
+        ImGui::PushID("##subSockets");
+        if (Widget::CollapsingSection(Loc::TextOr(LocKeys::InspectorSockets, "Sockets")))
+        {
+            Widget::WrappedHintText(record.type == AssetType::Skeleton
+                    ? Loc::TextOr(LocKeys::InspectorSkeletonSocketsHint, "Every mesh that uses this skeleton shares these sockets")
+                    : Loc::TextOr(LocKeys::InspectorMeshSocketsHint, "These sockets belong to this mesh only"));
+            Widget::FormLayout layout("##sockets");
+            const TypeDescriptor& type = TypeDescriptorOf<AssetSubEntrySockets>::Get();
+            if (type.fields != nullptr)
+            {
+                DrawFieldsInto(layout, *type.fields, &entry, context);
+            }
+        }
+        ImGui::PopID();
+    }
+
+    void InspectorPanel::DrawSocketBoneField(void* address, Context& context)
+    {
+        String& bone = *static_cast<String*>(address);
+        const Array<String>& names = *context.asset->boneNames;
+        m_keyNames.Clear();
+        Int32 current = -1;
+        for (std::size_t index = 0; index < names.Size(); ++index)
+        {
+            m_keyNames.Add(names[index].c_str());
+            if (names[index] == bone)
+            {
+                current = static_cast<Int32>(index);
+            }
+        }
+        const Bool picked = Widget::FilterCombo("##value", ArrayView<const char* const>(m_keyNames.Data(), m_keyNames.Size()), current)
+                                .EmptyText(bone.empty() ? Loc::TextOr(LocKeys::InspectorNoSocket, "(none)") : bone.c_str())
+                                .Draw();
+        if (picked && current >= 0 && names[static_cast<std::size_t>(current.Get())] != bone)
+        {
+            bone = names[static_cast<std::size_t>(current.Get())];
+            CommitAssetEdit(context);
+        }
+    }
+
+    void InspectorPanel::DrawSocketNameField(const TypeDescriptor& type, void* address, Bool editable, Context& context)
+    {
+        TextId& id = *static_cast<TextId*>(address);
+        const ArrayView<const char> stored = TextStore::Get().GetText(id);
+        String draft(stored.Data() != nullptr ? stored.Data() : "", stored.Size());
+        // 가장 가까운 조상의 애니메이터가 고를 이름을 준다(붙이기 시스템과 같은 조상이다).
+        m_socketNames.Clear();
+        Canvas* canvas = m_editor->GetCanvas();
+        const Component::Animator3D* animator = nullptr;
+        for (Object::GameObject* above = context.owner != nullptr ? context.owner->GetParent() : nullptr; canvas != nullptr && above != nullptr && animator == nullptr;
+             above = above->GetParent())
+        {
+            animator = canvas->FindComponentRaw<Component::Animator3D>(above);
+        }
+        if (const auto* animation = canvas != nullptr && animator != nullptr ? canvas->GetSystems().FindSystem<System::Animation3DSystem>() : nullptr)
+        {
+            animation->CollectSocketNames(*canvas, *animator, m_socketNames);
+        }
+        if (m_socketNames.IsEmpty())
+        {
+            const Bool finished = Widget::TextField("##value", draft).CommitOnFinish().Draw();
+            String before;
+            if (finished && editable && SetPropertyCommand::ReadValue(context.attached.GetInstance(), context.typeId, context.path, before))
+            {
+                TextStore::Get().Assign(id, draft.c_str(), draft.size());
+                CommitEdit(type, address, before, context);
+            }
+            return;
+        }
+        m_socketNameViews.Clear();
+        Int32 current = -1;
+        for (std::size_t index = 0; index < m_socketNames.Size(); ++index)
+        {
+            m_socketNameViews.Add(m_socketNames[index].c_str());
+            if (m_socketNames[index] == draft)
+            {
+                current = static_cast<Int32>(index);
+            }
+        }
+        const Bool picked = Widget::FilterCombo("##value", ArrayView<const char* const>(m_socketNameViews.Data(), m_socketNameViews.Size()), current)
+                                .EmptyText(draft.empty() ? Loc::TextOr(LocKeys::InspectorNoSocket, "(none)") : draft.c_str())
+                                .Draw();
+        if (picked && editable && current >= 0)
+        {
+            String before;
+            if (SetPropertyCommand::ReadValue(context.attached.GetInstance(), context.typeId, context.path, before))
+            {
+                const String& chosen = m_socketNames[static_cast<std::size_t>(current.Get())];
+                TextStore::Get().Assign(id, chosen.c_str(), chosen.size());
+                CommitEdit(type, address, before, context);
+            }
         }
     }
 
@@ -2970,6 +3145,9 @@ namespace JBro
                 scratch.subAssets[context.asset->subIndex].hasTextureOptions = true;
             }
             break;
+        case Block::SubSockets:
+            // 소켓 목록은 항목에 그대로 있다(빈 목록은 적지 않는다). 켤 블록이 없다.
+            break;
         case Block::Texture:
         default:
             scratch.hasTextureOptions = true;
@@ -3200,6 +3378,20 @@ namespace JBro
 
         if (edits.IsEmpty())
         {
+            return;
+        }
+        // **에셋 편집본의 목록**(모델 메타의 소켓, D-460)이다. 컴포넌트가 없으니 편집을 편집본 배열에 곧장 적용하고 메타 전체를 쓰는 커맨드 하나로 남긴다.
+        // 하나라도 맞지 않으면 아무것도 쓰지 않는다 - 편집본은 다음 프레임에 원본에서 새로 뜬다.
+        if (context.asset != nullptr)
+        {
+            for (std::size_t index = 0; index < edits.Size(); ++index)
+            {
+                if (false == ApplyListEdit(type, address, edits[index]))
+                {
+                    return;
+                }
+            }
+            CommitAssetEdit(context);
             return;
         }
         const Array<EditTarget> targets = CollectEditTargets(context);
@@ -3717,6 +3909,20 @@ namespace JBro
 
         // 텍스트의 글자는 줄바꿈을 그대로 치는 여러 줄 칸이다. 한 줄 칸은 줄바꿈을 이스케이프 글자로 보여 주고
         // 512 바이트에서 끊겼다.
+        // 뼈에 붙이기의 소켓 칸은 그 애니메이터의 소켓·뼈 이름에서 고른다(D-460). 문자열 표의 키 고르기보다 먼저다.
+        if (context.element == nullptr && context.attached.IsValid() && SameName(type.typeName, "JBro.TextId") && label != nullptr
+            && std::strcmp(label, "socket") == 0 && context.typeId == MakeStableTypeId(Component::BoneAttachment3D::StaticTypeName()))
+        {
+            DrawSocketNameField(type, address, editable, context);
+            return;
+        }
+        // 모델 메타 소켓의 뼈는 그 뼈대의 뼈 이름에서 고른다(D-460).
+        if (context.asset != nullptr && context.asset->block == AssetEditScope::Block::SubSockets && context.asset->boneNames != nullptr
+            && label != nullptr && std::strcmp(label, "bone") == 0 && SameName(type.typeName, "string") && editable)
+        {
+            DrawSocketBoneField(address, context);
+            return;
+        }
         if (context.element == nullptr && context.attached.IsValid() && SameName(type.typeName, "JBro.TextId"))
         {
             // 문자열 표의 키(`textKey`, D-226)는 한 줄이다. 줄바꿈이 든 키는 표에 적을 수 없다.

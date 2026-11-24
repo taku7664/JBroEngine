@@ -8,6 +8,7 @@
 #include <JBro/Framework3DSystem/System/Audio3DSystem.h>
 #include <JBro/Framework3DSystem/System/Physics3DSystem.h>
 #include <JBro/Framework3DSystem/System/Animation3DSystem.h>
+#include <JBro/Framework3DSystem/System/BoneAttachment3DSystem.h>
 #include <JBro/Framework3DSystem/System/Light3DSystem.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
@@ -130,6 +131,8 @@ namespace JBro
         m_scriptSystems.Text3D = m_canvas->GetSystems().FindSystem<System::Text3DSystem>();
         // 3D 물리의 질의 슬롯(D-417). 물리 시스템도 늘 선다.
         m_scriptSystems.Physics3D = m_canvas->GetSystems().FindSystem<System::Physics3DSystem>();
+        // 소켓을 읽는 슬롯(D-460).
+        m_scriptSystems.Animation3D = m_canvas->GetSystems().FindSystem<System::Animation3DSystem>();
         m_scriptServices = {};
         BindFramework3DSystemContext(m_scriptSystems);
         BindFramework3DServiceContext(m_scriptServices);
@@ -613,6 +616,8 @@ namespace JBro
         auto& animation = systems.AddSystem<System::Animation3DSystem>();
         animation.SetAssets(m_context.assets);
         meshes.SetAnimation(m_context.assets, &animation);
+        // 뼈에 붙이기(D-460). 자세 뒤, 렌더 추출 앞이다.
+        systems.AddSystem<System::BoneAttachment3DSystem>().SetAnimation(&animation);
         auto& texts = systems.AddSystem<System::Text3DSystem>();
         texts.SetRenderWorld(&m_renderWorld);
         texts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);

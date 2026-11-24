@@ -3103,6 +3103,30 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-460. 스켈레탈 2: 소켓과 뼈에 붙이기. 소켓은 모델 메타의 뼈대·메시 항목에 뼈 이름으로 적고, `BoneAttachment3D` 가 가장 가까운 조상 애니메이터의 소켓을 따르며, 스크립트는 `Animation3DService` 로 소켓 자리를 읽는다.** (2026-11-25, 사용자: "2단계 진행")
+  Updates: D-451 (소켓의 저장 모양), D-453 (붙이기 컴포넌트의 이름과 실제 동작), D-457 (애니메이터 시스템이 소켓을 푼다).
+  사용자에게 물어 정한 것(2026-11-25): 컴포넌트 이름은 `BoneAttachment3D`(가칭 그대로), 모델 에디터 전에 소켓은 **에셋 인스펙터**에서 만든다, 스크립트의 `GetSocketTransform` 은 **새 서비스 `Animation3DService`** 로 둔다.
+  (1) **자료**: `ModelSocket`(이름·뼈 이름·위치·회전·크기)이 모델 `.jmeta` 의 하위 항목 `Sockets` 목록이다. `Skeleton/…` 항목의 것은 그 뼈대를 쓰는 모든 메시의 소켓, `Mesh/…` 항목의 것은 그 메시만의 소켓이다.
+  다른 종류의 항목에 있으면 읽기·쓰기 모두 실패다(조용히 버리지 않는다). 빈 목록은 적지 않는다. 뼈는 **이름**으로 적어 다시 가져와 뼈 차례가 바뀌어도 살고, 모델을 다시 읽어도(`RefreshModelSubAssets`) 같은 키의 소켓은 옮겨진다.
+  에셋 시스템이 뼈대·메시를 실을 때 메타의 제 항목에서 소켓을 읽어 `SkeletonData::sockets`·`MeshData::sockets` 에 둔다. 메타를 고치면 제자리 재로드로 `dataGeneration` 이 오른다.
+  (2) **풀기**(`Animation3DSystem::ResolveSocket`): 이름을 뼈대 소켓 → 그 애니메이터를 따르는 메시(애니메이터 오브젝트와 자식, 제 애니메이터를 든 자식 아래는 빼고)의 소켓 → 뼈 이름(오프셋 없음) 차례로 찾는다.
+  소켓의 뼈가 뼈대에 없으면 그 소켓은 없는 것이다(경고). 월드 자리(`ComputeSocketWorld`)는 애니메이터 오브젝트의 월드 x 뼈의 모델 행렬(나눠 낸 위치·회전·크기) x 소켓 오프셋이고, 겹치는 규칙은 `Transform3D` 월드 캐시와 같다(전단은 잃는다).
+  행렬을 나누는 `DecomposeTransformMatrix3D` 와 분해된 값을 겹치는 `ComposeTransform3D` 를 `Math3DMatrix.h` 에 두었다.
+  (3) **붙이기**: `Component::BoneAttachment3D`(갈래 `Animation`, 한 오브젝트에 하나) - 필드는 `socket`(`TextId`, 글자는 호스트 `TextStore`) 하나다. `BoneAttachment3DSystem`(실행 순서 360, 자세 350 뒤·렌더 400 앞)이
+  가장 가까운 **조상**(자기는 아니다)의 켜진 애니메이터를 찾아 소켓 자리 x 제 `Transform3D` 로컬 값(소켓에서의 덧 오프셋)을 그 오브젝트의 월드 캐시에 쓰고 자식에게 내린다(`Transform3DSystem::PropagateChildren`).
+  이름은 칸의 판번호나 **소켓 출처의 판**(`GetSocketSourceRevision` - 뼈대 핸들·세대와 따르는 메시의 핸들·세대·수를 섞은 정수)이 바뀔 때만 다시 푼다 - 프레임마다 이름을 견주지 않는다. 찾지 못하거나 애니메이터가 없으면 보통 트랜스폼대로 둔다.
+  에디터에서도(재생 전) 붙인 오브젝트가 소켓 자리에 선다. 물리(200)는 그 앞이라 붙은 콜라이더는 한 프레임 늦게 따른다.
+  (4) **스크립트**: 핸들 `Handle::BoneAttachment3D::SetSocket(const char*)`. 서비스 `GetFramework3DServices().Animation3D` 의 `FindSocket(animator, name)` 이 이름을 번호로 한 번 풀고(없으면 -1, 자세가 서기 전이면 번호를 주고 나중에 푼다),
+  `GetSocketTransform(animator, number, position, rotation, scale)` 이 그 월드 자리를 읽는다(스크립트가 자세 셈 앞이라 지난 프레임의 자세). 뼈대·소켓이 다시 읽히면 같은 이름으로 다시 푼다.
+  서비스는 시스템 컨텍스트의 새 슬롯 `IAnimation3DSystem` 을 거친다 - `Framework3DSystemContextAbiVersion` 2 → 3, `Framework3DServiceContextAbiVersion` 5 → 6. 스크립트 필드 타입에 `BoneAttachment3D` 가 섰다(3D 만).
+  (5) **에디터**: 브라우저에서 모델의 Skeleton·Mesh 하위 에셋을 고르면 인스펙터의 `소켓` 절이 그 항목의 소켓 목록이다(뼈대·메시마다 안내 한 줄). `bone` 칸은 그 뼈대의 뼈 이름 드롭다운이고(인스펙터가 고른 하위 에셋을 실어 들고 있다가
+  다른 것을 고르면 놓는다, 디코드 전에는 글자 칸), 편집은 메타 전체를 쓰는 커맨드 하나다. 이를 위해 인스펙터의 목록 위젯이 **에셋 편집본 안의 목록**도 다룬다 - 추가·삭제·옮기기·원소 편집을 편집본 배열에 곧장 적용하고 메타 커맨드 하나로 남긴다.
+  `BoneAttachment3D` 의 `socket` 칸은 조상 애니메이터의 소켓·뼈 이름 드롭다운이고(`Animation3DSystem::CollectSocketNames`), 고를 이름이 없으면 글자 칸이다. 리플렉션 표로 지은 구조체의 목록 원소 이름에서 `JBro.` 접두어를 뗐다(`JBro.ModelSocket` 이 그대로 보였다).
+  로컬라이징 키 넷(`inspector.sockets`·`inspector.skeleton_sockets_hint`·`inspector.mesh_sockets_hint`·`inspector.no_socket`).
+  시험: `Animation3D` 의 `TestABoneAttachmentFollowsItsSocket`(메타 왕복·클립 항목 거절·다시 가져오기 보존·실을 때 읽기·뼈대 소켓·자식 따라가기·덧 오프셋·메시 소켓·뼈 이름·없는 뼈·핸들의 이름 바꾸기·애니메이션 따라가기와 회전·서비스·메타를 고친 재로드·애니메이터 없음·상태 치우기),
+  `EditorApplication` 의 `TestTheEditorEditsSocketsAndAttaches`(실제 에디터에서 `항목 추가` 가 메타 커맨드 하나·되돌리기·뼈대 재로드·고를 이름 목록·에디터에서 소켓 자리에 섬, 스크린숏으로 펼친 소켓 원소의 `bone` 드롭다운과 `socket` 칸을 봤다).
+  남은 것: 소켓을 캔버스 뷰에서 보이고 끌어 고치기(모델 에디터 단계), 뼈 덮어쓰기(IK, 2 차), 붙은 콜라이더의 한 프레임 늦음, 게임 패키지의 스킨·소켓 굽기(지금 쿡된 메시에는 스킨이 없다, D-456 의 남은 것).
+
 - **D-459. 스켈레탈 1c: 스크립트의 `Animator3D` 핸들과 인스펙터. 클립은 애니메이터의 목록이고 스크립트는 번호로 고른다. 명령은 컴포넌트에 쌓이고 다음 갱신이 처리한다.** (2026-11-23, 사용자: "1c 진행")
   Updates: D-457 (컴포넌트 필드 `clipId`/`clip` → 목록 `animationClipIds`/`animationClips` 와 `startClip`, 시스템 레이어에 클립 번호).
   (1) **필드**: `animationClipIds`(`Array<AssetId>`)·`animationClips`(해석된 핸들, 숨김)·`startClip`(레이어 0 이 시작할 때 재생할 번호, -1 이면 없음). 이름이 `clipIds` 가 아닌 까닭: 인스펙터는

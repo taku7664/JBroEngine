@@ -674,6 +674,12 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorSameImage = "inspector.same_image";
     inline constexpr const char* InspectorMaterial = "inspector.material";
     inline constexpr const char* InspectorModelMaterialReadOnly = "inspector.model_material_read_only";
+    // 모델의 뼈대·메시 하위 에셋의 소켓 목록(D-460)
+    inline constexpr const char* InspectorSockets = "inspector.sockets";
+    inline constexpr const char* InspectorSkeletonSocketsHint = "inspector.skeleton_sockets_hint";
+    inline constexpr const char* InspectorMeshSocketsHint = "inspector.mesh_sockets_hint";
+    // 뼈에 붙이기의 소켓 칸이 비었을 때(D-460)
+    inline constexpr const char* InspectorNoSocket = "inspector.no_socket";
     inline constexpr const char* InspectorSameImageSplitNote = "inspector.same_image_split_note";
     inline constexpr const char* InspectorOwnerModel = "inspector.owner_model";
     inline constexpr const char* InspectorNoStringKey = "inspector.no_string_key";

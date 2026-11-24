@@ -2,6 +2,8 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Reflection/StringTypeDescriptor.h>
+#include <JBro/Reflection/ContainerTypeDescriptors.h>
+#include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Field.h>
@@ -107,6 +109,27 @@ namespace JBro
             static const StaticPropertyTable<5> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<ModelImportOptions>("JBro.ModelImportOptions", fields.Get());
+            return descriptor;
+        }
+    };
+
+    // 모델 `.jmeta` 하위 항목의 `Sockets` 목록 원소다(D-460). 필드 이름이 파일의 키다.
+    template <>
+    struct TypeDescriptorOf<ModelSocket>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&ModelSocket::name>(),
+                MakeFieldEntry<&ModelSocket::bone>(),
+                MakeFieldEntry<&ModelSocket::position>(),
+                MakeFieldEntry<&ModelSocket::rotation>(),
+                MakeFieldEntry<&ModelSocket::scale>(),
+            };
+            static const StaticPropertyTable<5> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<ModelSocket>("JBro.ModelSocket", fields.Get());
             return descriptor;
         }
     };

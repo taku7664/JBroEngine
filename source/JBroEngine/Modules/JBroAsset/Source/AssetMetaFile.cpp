@@ -246,6 +246,31 @@ namespace JBro
                     {
                         return false;
                     }
+                    // 소켓 목록(D-460). 뼈대·메시만 든다.
+                    const UInt32 socketsNode = document.Find(item, "Sockets");
+                    if (socketsNode != YamlDocument::InvalidNode)
+                    {
+                        if (subType != AssetType::Skeleton && subType != AssetType::Mesh)
+                        {
+                            return Fail(error, document.GetLine(socketsNode), "only a Skeleton or Mesh sub-asset has Sockets");
+                        }
+                        ReflectedYamlError reflected;
+                        if (false == ReadReflectedValue(document, socketsNode, TypeDescriptorOf<Array<ModelSocket>>::Get(), &entry.sockets, reflected))
+                        {
+                            String message = "Sockets could not be read";
+                            if (false == reflected.fieldName.empty())
+                            {
+                                message.append(" at ");
+                                message.append(reflected.fieldName);
+                            }
+                            if (false == reflected.message.empty())
+                            {
+                                message.append(": ");
+                                message.append(reflected.message);
+                            }
+                            return Fail(error, document.GetLine(socketsNode), message.c_str());
+                        }
+                    }
                     for (std::size_t seen = 0; seen < parsed.subAssets.Size(); ++seen)
                     {
                         if (parsed.subAssets[seen].key == entry.key || parsed.subAssets[seen].id == entry.id)
@@ -394,6 +419,17 @@ namespace JBro
                             TypeDescriptorOf<TextureImportOptions>::Get(), &entry.textureOptions, error))
                     {
                         return false;
+                    }
+                    if (false == entry.sockets.IsEmpty())
+                    {
+                        if (subType != AssetType::Skeleton && subType != AssetType::Mesh)
+                        {
+                            return false;
+                        }
+                        if (false == WriteReflectedValue(writer, "Sockets", TypeDescriptorOf<Array<ModelSocket>>::Get(), &entry.sockets, error))
+                        {
+                            return false;
+                        }
                     }
                     writer.EndMap();
                 }

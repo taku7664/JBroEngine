@@ -5,6 +5,9 @@
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
+#include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Math3DMatrix.h>
+#include <JBro/Core/Log.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cstring>
@@ -27,6 +30,72 @@ namespace JBro::System
         Bool SameHandle(AssetHandle left, AssetHandle right)
         {
             return left.index == right.index && left.generation == right.generation;
+        }
+
+        Bool SameText(const String& text, std::string_view name)
+        {
+            return std::string_view(text.data(), text.size()) == name;
+        }
+
+        // **이 애니메이터를 따르는 오브젝트**를 깊이 먼저 돈다(D-460): 애니메이터 오브젝트와 자식들이고, 제 `Animator3D` 를 든 자식 아래는
+        // 다른 애니메이터의 것이라 내려가지 않는다(스킨 메시가 가장 가까운 조상의 애니메이터를 따르는 것과 같다, D-458). 할당하지 않는다.
+        template <typename TVisit>
+        void VisitFollowers(Canvas& canvas, Object::GameObject* root, TVisit&& visit)
+        {
+            Object::GameObject* stack[64];
+            UInt32 depth = 0;
+            if (root != nullptr)
+            {
+                stack[depth.Get()] = root;
+                ++depth;
+            }
+            while (depth > 0)
+            {
+                --depth;
+                Object::GameObject* object = stack[depth.Get()];
+                if (object != root && canvas.FindComponentRaw<Component::Animator3D>(object) != nullptr)
+                {
+                    continue;
+                }
+                visit(*object);
+                const Array<SafePtr<Object::GameObject>>& children = object->GetChildren();
+                for (std::size_t at = children.Size(); at > 0; --at)
+                {
+                    Object::GameObject* child = children[at - 1].TryGet();
+                    if (depth < 64 && child != nullptr)
+                    {
+                        stack[depth.Get()] = child;
+                        ++depth;
+                    }
+                }
+            }
+        }
+
+        // 소켓 목록에서 그 이름을 찾아 뼈 번호로 푼다. 이름이 같은 소켓이 여럿이면 처음 것이다.
+        Bool FindNamedSocket(const Array<ModelSocket>& sockets, const ModelSkeleton& skeleton, std::string_view name,
+            Animation3DSystem::ResolvedSocket& resolved)
+        {
+            for (std::size_t index = 0; index < sockets.Size(); ++index)
+            {
+                const ModelSocket& socket = sockets[index];
+                if (socket.name.empty() || false == SameText(socket.name, name))
+                {
+                    continue;
+                }
+                const Int32 bone = FindBone(skeleton, std::string_view(socket.bone.data(), socket.bone.size()));
+                if (bone < 0)
+                {
+                    Log::Write(LogLevel::Warning, "animation", "socket %s points at a bone the skeleton does not have: %s",
+                        socket.name.c_str(), socket.bone.c_str());
+                    return false;
+                }
+                resolved.bone = bone;
+                resolved.position = socket.position;
+                resolved.rotation = socket.rotation;
+                resolved.scale = socket.scale;
+                return true;
+            }
+            return false;
         }
     }
 
@@ -216,6 +285,7 @@ namespace JBro::System
 
     void Animation3DSystem::OnUpdate(Canvas& canvas, Float deltaTime)
     {
+        m_canvas = &canvas;
         if (m_assets == nullptr)
         {
             return;
@@ -378,6 +448,184 @@ namespace JBro::System
         (void)canvas;
         m_states.Clear();
         m_stateOf.Clear();
+        m_canvas = nullptr;
+    }
+
+    UInt32 Animation3DSystem::GetSocketSourceRevision(Canvas& canvas, const Component::Animator3D& animator) const
+    {
+        const State* state = FindState(animator.GetInstanceId());
+        if (state == nullptr || state->boneCount == 0 || m_assets == nullptr)
+        {
+            return 0;
+        }
+        // 정수 몇 개를 섞는다. 같은 판이 우연히 나올 수 있지만 판은 뼈대·메시 세대가 오를 때만 바뀌므로 겹칠 일이 드물다.
+        UInt32 revision = state->skeleton.index * 2654435761u + state->skeleton.generation * 40503u + state->skeletonGeneration;
+        UInt32 meshes = 0;
+        VisitFollowers(canvas, Internal::CanvasAccess::GetOwner(animator), [&](Object::GameObject& object)
+        {
+            const auto* renderer = canvas.FindComponentRaw<Component::MeshRenderer3D>(&object);
+            if (renderer == nullptr || renderer->mesh.generation == 0)
+            {
+                return;
+            }
+            const MeshData* mesh = m_assets->GetMesh(renderer->mesh);
+            ++meshes;
+            revision = revision * 31u + renderer->mesh.index * 7u + renderer->mesh.generation + (mesh != nullptr ? mesh->dataGeneration : UInt32(0));
+        });
+        return revision * 31u + meshes + 1u;
+    }
+
+    Bool Animation3DSystem::ResolveSocket(Canvas& canvas, const Component::Animator3D& animator, std::string_view name, ResolvedSocket& socket) const
+    {
+        const State* state = FindState(animator.GetInstanceId());
+        const SkeletonData* skeleton = state != nullptr && state->boneCount > 0 && m_assets != nullptr ? m_assets->GetSkeleton(state->skeleton) : nullptr;
+        if (skeleton == nullptr || name.empty())
+        {
+            return false;
+        }
+        socket = ResolvedSocket{};
+        // 1. 뼈대 소켓 - 이 뼈대를 쓰는 모든 메시의 것이다.
+        if (FindNamedSocket(skeleton->sockets, skeleton->skeleton, name, socket))
+        {
+            return true;
+        }
+        // 2. 이 애니메이터를 따르는 메시의 소켓.
+        Bool found = false;
+        VisitFollowers(canvas, Internal::CanvasAccess::GetOwner(animator), [&](Object::GameObject& object)
+        {
+            const auto* renderer = found ? nullptr : canvas.FindComponentRaw<Component::MeshRenderer3D>(&object);
+            const MeshData* mesh = renderer != nullptr && renderer->mesh.generation != 0 ? m_assets->GetMesh(renderer->mesh) : nullptr;
+            if (mesh != nullptr && FindNamedSocket(mesh->sockets, skeleton->skeleton, name, socket))
+            {
+                found = true;
+            }
+        });
+        if (found)
+        {
+            return true;
+        }
+        // 3. 뼈 이름 - 소켓이 없어도 뼈를 그대로 고른다(오프셋 없음).
+        socket = ResolvedSocket{};
+        socket.bone = FindBone(skeleton->skeleton, name);
+        return socket.bone >= 0;
+    }
+
+    Bool Animation3DSystem::ComputeSocketWorld(Canvas& canvas, const Component::Animator3D& animator, const ResolvedSocket& socket,
+        Vector3& position, Quaternion& rotation, Vector3& scale) const
+    {
+        const State* state = FindState(animator.GetInstanceId());
+        if (state == nullptr || state->boneCount == 0 || socket.bone < 0 || static_cast<std::size_t>(socket.bone.Get()) >= state->model.Size())
+        {
+            return false;
+        }
+        const auto* place = canvas.FindComponentRaw<Component::Transform3D>(Internal::CanvasAccess::GetOwner(animator));
+        if (place == nullptr || false == place->worldValid)
+        {
+            return false;
+        }
+        Vector3 bonePosition;
+        Quaternion boneRotation;
+        Vector3 boneScale;
+        DecomposeTransformMatrix3D(state->model[static_cast<std::size_t>(socket.bone.Get())], bonePosition, boneRotation, boneScale);
+        Vector3 jointPosition;
+        Quaternion jointRotation;
+        Vector3 jointScale;
+        ComposeTransform3D(place->worldPosition, place->worldRotation, place->worldScale, bonePosition, boneRotation, boneScale,
+            jointPosition, jointRotation, jointScale);
+        ComposeTransform3D(jointPosition, jointRotation, jointScale, socket.position, socket.rotation, socket.scale, position, rotation, scale);
+        return true;
+    }
+
+    void Animation3DSystem::CollectSocketNames(Canvas& canvas, const Component::Animator3D& animator, Array<String>& names) const
+    {
+        names.Clear();
+        const State* state = FindState(animator.GetInstanceId());
+        const SkeletonData* skeleton = state != nullptr && state->boneCount > 0 && m_assets != nullptr ? m_assets->GetSkeleton(state->skeleton) : nullptr;
+        if (skeleton == nullptr)
+        {
+            return;
+        }
+        const auto add = [&](const String& name) {
+            if (name.empty())
+            {
+                return;
+            }
+            for (std::size_t index = 0; index < names.Size(); ++index)
+            {
+                if (names[index] == name)
+                {
+                    return;
+                }
+            }
+            names.Add(name);
+        };
+        for (std::size_t index = 0; index < skeleton->sockets.Size(); ++index)
+        {
+            add(skeleton->sockets[index].name);
+        }
+        VisitFollowers(canvas, Internal::CanvasAccess::GetOwner(animator), [&](Object::GameObject& object)
+        {
+            const auto* renderer = canvas.FindComponentRaw<Component::MeshRenderer3D>(&object);
+            const MeshData* mesh = renderer != nullptr && renderer->mesh.generation != 0 ? m_assets->GetMesh(renderer->mesh) : nullptr;
+            for (std::size_t index = 0; mesh != nullptr && index < mesh->sockets.Size(); ++index)
+            {
+                add(mesh->sockets[index].name);
+            }
+        });
+        for (std::size_t index = 0; index < skeleton->skeleton.bones.Size(); ++index)
+        {
+            add(skeleton->skeleton.bones[index].name);
+        }
+    }
+
+    Int32 Animation3DSystem::FindSocket(const Component::Animator3D& animator, const char* name)
+    {
+        State* state = FindState(animator.GetInstanceId());
+        if (state == nullptr || m_canvas == nullptr || name == nullptr || *name == '\0')
+        {
+            return -1;
+        }
+        const std::string_view wanted(name);
+        for (std::size_t index = 0; index < state->scriptSockets.Size(); ++index)
+        {
+            if (SameText(state->scriptSockets[index].name, wanted))
+            {
+                return static_cast<Int32>(index);
+            }
+        }
+        ScriptSocket entry;
+        entry.revision = GetSocketSourceRevision(*m_canvas, animator);
+        entry.found = ResolveSocket(*m_canvas, animator, wanted, entry.socket);
+        // 자세가 아직 서지 않았으면(판 0) 번호를 주고 나중에 푼다. 섰는데 없는 이름이면 -1 이다.
+        if (false == entry.found && entry.revision != 0)
+        {
+            return -1;
+        }
+        entry.name.assign(name);
+        state->scriptSockets.Add(std::move(entry));
+        return static_cast<Int32>(state->scriptSockets.Size() - 1);
+    }
+
+    Bool Animation3DSystem::GetSocketTransform(const Component::Animator3D& animator, Int32 socket, Vector3& position, Quaternion& rotation, Vector3& scale)
+    {
+        State* state = FindState(animator.GetInstanceId());
+        if (state == nullptr || m_canvas == nullptr || socket < 0 || static_cast<std::size_t>(socket.Get()) >= state->scriptSockets.Size())
+        {
+            return false;
+        }
+        ScriptSocket& entry = state->scriptSockets[static_cast<std::size_t>(socket.Get())];
+        const UInt32 revision = GetSocketSourceRevision(*m_canvas, animator);
+        if (revision != entry.revision)
+        {
+            // 뼈대·소켓이 다시 읽혔다. 같은 이름으로 다시 푼다(드물다).
+            entry.revision = revision;
+            entry.found = ResolveSocket(*m_canvas, animator, std::string_view(entry.name.data(), entry.name.size()), entry.socket);
+        }
+        if (false == entry.found)
+        {
+            return false;
+        }
+        return ComputeSocketWorld(*m_canvas, animator, entry.socket, position, rotation, scale);
     }
 
     Bool Animation3DSystem::Play(InstanceId animator, UInt32 layer, AssetHandle clip, Bool loop)

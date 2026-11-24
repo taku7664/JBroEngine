@@ -61,6 +61,7 @@ namespace JBro
             AudioListener3D,
             Light3D,
             Animator3D,
+            BoneAttachment3D,
             AudioSource,
             Count
         };

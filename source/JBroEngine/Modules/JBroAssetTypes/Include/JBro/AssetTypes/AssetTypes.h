@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Uuid.h>
 #include <JBro/Types/Bool.h>
@@ -144,6 +145,19 @@ namespace JBro
     {
         Import,
         Calculate
+    };
+
+    // **모델의 소켓 하나**(D-460, skeletal-plan §3.2·§3.3)다. 뼈 하나와 그 뼈에서의 오프셋이고, 모델 `.jmeta` 의 하위 항목 `Sockets` 목록에 적힌다 -
+    // `Skeleton/…` 항목의 것은 그 뼈대를 쓰는 모든 메시의 소켓이고 `Mesh/…` 항목의 것은 그 메시만의 소켓이다.
+    // 뼈는 **이름**으로 적는다. 같은 뼈대를 쓰는 다른 모델과 나누고, 다시 가져와 뼈 차례가 바뀌어도 산다. 번호로 푸는 것은 붙일 때 한 번이다.
+    // 이름이 빈 소켓은 쓰이지 않는다(목록에 막 더한 칸이다).
+    struct ModelSocket
+    {
+        String name;
+        String bone;
+        Vector3 position;
+        Quaternion rotation;
+        Vector3 scale{1.0f, 1.0f, 1.0f};
     };
 
     // `.jmeta` 의 `Model.ImportOptions` 블록이다(D-391·D-392, model-import-plan §2.7). 모델 파일 하나(`.fbx .gltf .glb .obj`)의 옵션이고

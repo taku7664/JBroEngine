@@ -185,6 +185,8 @@ namespace JBro
         // 그 뼈대를 메시가 잡은 참조다(스프라이트가 제 텍스처를 잡는 것과 같다) - 애니메이터가 프레임 경로에서 싣지 않고 이것을 본다(D-457).
         // 메시가 내려가거나 다시 읽히면 놓는다.
         AssetHandle skeletonAsset;
+        // 이 메시만의 소켓이다(모델 메타의 제 항목, D-460). 뼈 이름으로 적혀 있다.
+        Array<ModelSocket> sockets;
         UInt32 dataGeneration = 1;
     };
 
@@ -192,6 +194,8 @@ namespace JBro
     struct SkeletonData
     {
         ModelSkeleton skeleton;
+        // 이 뼈대를 쓰는 모든 메시의 소켓이다(모델 메타의 제 항목, D-460). 메타를 고치면 제자리 재로드로 바뀌고 `dataGeneration` 이 오른다.
+        Array<ModelSocket> sockets;
         UInt32 dataGeneration = 1;
     };
 
@@ -448,6 +452,8 @@ namespace JBro
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
         // 새 옵션으로 시작한다.
         Bool ReadMeta(const AssetRecord& record, AssetMetaFile& meta);
+        // 모델 메타에서 그 하위 에셋 항목의 소켓을 읽는다(D-460). 메타가 읽히지 않거나 항목이 없으면 비운다.
+        void ReadSubAssetSockets(const AssetRecord& record, Array<ModelSocket>& sockets);
         void ForgetMeta(AssetId id);
         Table<AssetId, AssetMetaFile> m_metaCache;
         Bool BuildSprite(const AssetRecord& record, SpriteData& data);

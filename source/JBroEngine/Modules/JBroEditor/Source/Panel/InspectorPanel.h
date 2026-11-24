@@ -62,6 +62,10 @@ namespace JBro
         void CommitMaterial(AssetId asset, const MaterialDocument& document);
         // 모델의 하위 에셋을 골랐을 때의 옵션 자리다. 내장 그림만 제 텍스처 옵션과 `같은 그림` 줄이 있다(model-import-plan 5 단계).
         void DrawSubAssetOptions(const AssetMetaFile& meta, const AssetRecord& record);
+        // 모델의 뼈대·메시 하위 에셋의 소켓 목록이다(D-460). 뼈 이름을 보이려고 그 뼈대를 실어 들고 있는다.
+        void DrawSubAssetSockets(const AssetMetaFile& meta, const AssetRecord& record, std::size_t subIndex);
+        // 들고 있던 소켓 뼈대(나 메시)를 놓는다.
+        void ReleaseSocketAsset();
 
         // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
         static constexpr const char* TypeName = "Inspector";
@@ -96,7 +100,8 @@ namespace JBro
             // 블록이 늘 때마다 불 값과 그 판정 사슬이 함께 늘었다(D-391 의 모델 블록을 더하며 바꿨다).
             // `SubTexture` 는 모델 내장 그림 하나의 옵션이다 - 모델 메타의 하위 목록 `subIndex` 번째 항목에 적는다(model-import-plan 5 단계).
             // `Material` 은 `.jmat` 본문의 값이다(material-plan 4 단계) - 메타가 아니라 그 파일을 고친다.
-            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model, SubTexture, Material };
+            // `SubSockets` 는 모델의 뼈대·메시 하위 항목의 소켓 목록이다(D-460) - `subIndex` 번째 항목의 `sockets` 에 적는다.
+            enum class Block : std::uint8_t { Texture, Sprite, Audio, Font, FontFamily, StringTable, Model, SubTexture, Material, SubSockets };
             Block block = Block::Texture;
             std::size_t subIndex = 0;
             // `Material` 블록의 편집본이다. 원본은 `EditorApplication::GetSelectedMaterial` 이다.
@@ -105,6 +110,8 @@ namespace JBro
             PostProcessProfileDocument* profile = nullptr;
             UInt32 profileEntry = 0;
             UInt32 profileField = 0;
+            // `SubSockets` 의 `bone` 칸이 고를 뼈 이름이다. 뼈대가 아직 실리지 않았으면 null 이고 칸은 글자 칸이다.
+            const Array<String>* boneNames = nullptr;
         };
 
         struct Context
@@ -189,6 +196,18 @@ namespace JBro
         void DrawTextBody(const TypeDescriptor& type, void* address, Bool editable, Bool multiline, Context& context);
         // `textKey` 고르기의 이름 뷰다. 매 프레임 채우되 용량은 남긴다.
         Array<const char*> m_keyNames;
+        // 뼈에 붙이기의 소켓 칸(D-460). 그 애니메이터의 소켓·뼈 이름에서 고른다. 고를 이름이 없으면(애니메이터가 없거나 자세 전) 글자 칸이다.
+        void DrawSocketNameField(const TypeDescriptor& type, void* address, Bool editable, Context& context);
+        // 모델 메타 소켓의 `bone` 칸. 그 뼈대의 뼈 이름에서 고른다.
+        void DrawSocketBoneField(void* address, Context& context);
+        Array<String> m_socketNames;
+        Array<const char*> m_socketNameViews;
+        // 소켓 목록을 그리는 하위 에셋과 뼈 이름을 얻으려고 실어 둔 그 에셋(뼈대나 메시)이다.
+        AssetId m_socketAssetId;
+        AssetHandle m_socketAsset;
+        Array<String> m_boneNames;
+        // 지난 프레임에 소켓 목록을 그렸는가. 그리지 않았으면(다른 것을 골랐다) 실어 둔 에셋을 놓는다.
+        Bool m_socketDrawn = false;
         // 오디오 에셋의 형식·길이·파형·미리 듣기(D-197, 기존 `EditorAudioPreview`).
         void DrawAudioPreview(const AssetMetaFile& meta);
         // `AssetId` 필드. 레지스트리의 같은 타입 에셋을 고르는 드롭다운이다(D-116).

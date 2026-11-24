@@ -43,6 +43,7 @@
 #include <JBro/Framework3D/ComponentTypes3D.h>
 #include <JBro/Framework3D/Handle/Animator3D.h>
 #include <JBro/Framework3D/Handle/AudioListener3D.h>
+#include <JBro/Framework3D/Handle/BoneAttachment3D.h>
 #include <JBro/Framework3D/Handle/Camera3D.h>
 #include <JBro/Framework3D/Handle/CharacterController3D.h>
 #include <JBro/Framework3D/Handle/Collider3D.h>

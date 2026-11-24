@@ -46,6 +46,25 @@ namespace JBro::System
         }
     }
 
+    void Transform3DSystem::PropagateChildren(Canvas& canvas, Object::GameObject& object, const Component::Transform3D& transform)
+    {
+        for (const SafePtr<Object::GameObject>& childReference : object.GetChildren())
+        {
+            Object::GameObject* child = childReference.TryGet();
+            if (child == nullptr)
+            {
+                continue;
+            }
+            Component::Transform3D* childTransform = canvas.FindComponentRaw<Component::Transform3D>(child);
+            if (childTransform == nullptr || false == childTransform->IsActiveComponent())
+            {
+                continue;
+            }
+            PropagateWorldTransform(canvas, *child, *childTransform,
+                transform.worldPosition, transform.worldRotation, transform.worldScale);
+        }
+    }
+
     Int32 Transform3DSystem::GetExecutionOrder() const
     {
         return 100;

@@ -3,6 +3,7 @@
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework3D/Component/Animator3D.h>
+#include <JBro/Framework3D/Component/BoneAttachment3D.h>
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
@@ -44,6 +45,8 @@ namespace JBro::Component
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             // 한 오브젝트에 애니메이터는 하나다 - 자세가 둘이면 스킨 메시가 어느 것을 따를지 정할 수 없다(D-457).
             all = RegisterComponentType<Animator3D>(ComponentCategory::Animation, ComponentMultiplicity::Single) && all;
+            // 한 오브젝트는 한 소켓에 붙는다 - 둘이면 어느 자리에 설지 정할 수 없다(D-460).
+            all = RegisterComponentType<BoneAttachment3D>(ComponentCategory::Animation, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
             all = RegisterComponentType<AudioListener3D>(
                       ComponentCategory::Audio, ComponentMultiplicity::Single) && all;

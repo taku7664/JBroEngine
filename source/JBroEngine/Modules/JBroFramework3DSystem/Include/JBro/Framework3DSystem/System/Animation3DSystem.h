@@ -2,19 +2,23 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Framework3D/System/IAnimation3DSystem.h>
 #include <JBro/Framework3DSystem/Animation/AnimationPose.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Types/Matrix4x4.h>
+#include <JBro/Types/String.h>
 #include <JBro/Types/Table.h>
 #include <JBro/Types/UInt.h>
 
 namespace JBro
 {
     class AssetSystem;
+    class Canvas;
     namespace Component
     {
         class Animator3D;
@@ -38,10 +42,30 @@ namespace JBro::System
     //
     // 재생 상태와 자세는 애니메이터마다 이 시스템이 든다(컴포넌트는 저장되는 설정뿐). 배열은 애니메이터를 처음 만나거나 뼈대·클립이 바뀔 때만 잡는다.
     // 뼈대는 애니메이터의 `skeleton` 이거나, 비면 이 오브젝트·자식의 스킨 메시가 잡은 뼈대다(`MeshData::skeletonAsset`) - 프레임 경로에서 싣지 않는다.
-    class Animation3DSystem final : public GameSystem
+    //
+    // **소켓**(D-460): 이름을 뼈 번호와 오프셋으로 푸는 것(`ResolveSocket`)과 그 월드 자리(`ComputeSocketWorld`)도 여기다 - 붙이기 시스템과 스크립트 서비스가 같이 쓴다.
+    class Animation3DSystem final : public GameSystem, public IAnimation3DSystem
     {
     public:
         static constexpr Int32 ExecutionOrder = 350;
+
+        // 이름을 푼 소켓이다. 뼈 번호와 그 뼈에서의 오프셋(뼈 이름이면 오프셋 없음).
+        struct ResolvedSocket
+        {
+            Int32 bone = -1;
+            Vector3 position;
+            Quaternion rotation;
+            Vector3 scale{1.0f, 1.0f, 1.0f};
+        };
+
+        // 스크립트가 `FindSocket` 으로 받은 번호 하나다. 소켓 출처가 바뀌면(판이 다르면) 같은 이름으로 다시 푼다.
+        struct ScriptSocket
+        {
+            String name;
+            ResolvedSocket socket;
+            UInt32 revision = 0;
+            Bool found = false;
+        };
 
         struct Layer
         {
@@ -87,6 +111,8 @@ namespace JBro::System
             Array<BonePose> blend;
             Array<Matrix4x4> model;
             Array<Matrix4x4> skin;
+            // 스크립트가 찾은 소켓(D-460). `FindSocket` 이 더한다 - 프레임 경로가 아니다.
+            Array<ScriptSocket> scriptSockets;
         };
 
         Int32 GetExecutionOrder() const override;
@@ -106,6 +132,24 @@ namespace JBro::System
         // 뿌리 뼈(이름)와 그 가지를 섞는 마스크다. 이름이 비면 마스크를 지운다(모든 뼈). 이름은 여기서 한 번 번호로 푼다.
         Bool SetLayerMask(InstanceId animator, UInt32 layer, std::string_view rootBone, UInt32 blendDepth);
 
+        // **소켓 출처의 판**(D-460)이다. 뼈대(핸들과 세대)와 이 애니메이터를 따르는 메시들(핸들과 세대·수)에서 짓고, 소켓·뼈대가 다시 읽히거나
+        // 메시가 바뀌면 달라진다. 이름을 견주지 않으므로 붙이기가 프레임마다 이것으로 다시 풀지를 정한다. 자세가 서지 않았으면 0 이다.
+        UInt32 GetSocketSourceRevision(Canvas& canvas, const Component::Animator3D& animator) const;
+        // 이름을 그 애니메이터의 소켓으로 푼다: 뼈대 소켓 → 이 애니메이터를 따르는 메시(이 오브젝트와 자식, 다른 애니메이터 아래는 빼고)의 소켓 →
+        // 뼈 이름(오프셋 없음). 소켓이 가리키는 뼈가 뼈대에 없으면 그 소켓은 없는 것이다. 이름을 견주므로 프레임마다 부르지 않는다. 빈 이름은 거짓이다.
+        Bool ResolveSocket(Canvas& canvas, const Component::Animator3D& animator, std::string_view name, ResolvedSocket& socket) const;
+        // 푼 소켓의 월드 자리다: 애니메이터 오브젝트의 월드 x 뼈의 모델 행렬(마지막으로 셈한 자세) x 소켓 오프셋. 자세가 서지 않았으면 거짓이다.
+        Bool ComputeSocketWorld(Canvas& canvas, const Component::Animator3D& animator, const ResolvedSocket& socket,
+            Vector3& position, Quaternion& rotation, Vector3& scale) const;
+
+        // 붙이기가 고를 수 있는 이름들이다(에디터의 소켓 칸, D-460): 뼈대 소켓, 따르는 메시의 소켓, 뼈 이름 차례. 빈 이름은 빼고 겹치는 이름은 한 번이다.
+        // 할당한다 - 프레임 경로가 아니다. 자세가 서지 않았으면 비운다.
+        void CollectSocketNames(Canvas& canvas, const Component::Animator3D& animator, Array<String>& names) const;
+
+        // IAnimation3DSystem(스크립트 서비스). 캔버스는 마지막으로 갱신한 것이다.
+        Int32 FindSocket(const Component::Animator3D& animator, const char* name) override;
+        Bool GetSocketTransform(const Component::Animator3D& animator, Int32 socket, Vector3& position, Quaternion& rotation, Vector3& scale) override;
+
     protected:
         void OnUpdate(Canvas& canvas, Float deltaTime) override;
         void OnShutdown(Canvas& canvas) override;
@@ -121,6 +165,8 @@ namespace JBro::System
         void Evaluate(State& state, const Component::Animator3D& animator, Float deltaTime);
 
         AssetSystem* m_assets = nullptr;
+        // 스크립트 서비스가 부를 때 쓰는 캔버스다. 갱신마다 적는다.
+        Canvas* m_canvas = nullptr;
         Array<State> m_states;
         Table<InstanceId, UInt32> m_stateOf;
         UInt32 m_stamp = 0;

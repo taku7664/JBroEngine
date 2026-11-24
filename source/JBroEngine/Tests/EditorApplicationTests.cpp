@@ -78,6 +78,8 @@
 #include <JBro/ScreenUi/System/Text2DSystem.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Framework3D/Component/Animator3D.h>
+#include <JBro/Framework3D/Component/BoneAttachment3D.h>
+#include <JBro/Framework3DSystem/System/Animation3DSystem.h>
 #include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -15536,6 +15538,198 @@ namespace
         editor.Shutdown();
     }
 
+    // **에디터의 소켓**(D-460). 뼈대 하위 에셋을 고르면 인스펙터가 소켓 목록을 보이고, 목록의 `항목 추가` 가 모델 메타에 소켓 하나를 쓰는 커맨드 하나다(되돌리면 돌아온다).
+    // `BoneAttachment3D` 의 소켓 칸은 조상 애니메이터의 소켓·뼈 이름에서 고르고, 에디터에서도(재생 전) 붙인 오브젝트가 소켓 자리에 선다.
+    // `JBRO_EDITOR_SHOT` 이 있으면 두 인스펙터를 찍는다.
+    void TestTheEditorEditsSocketsAndAttaches()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; sockets in the editor not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroSocketEditorProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        {
+            std::ofstream model(root / "Assets" / "rig.gltf", std::ios::binary);
+            model << TestModels::SkinnedGltf();
+        }
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath("rig.gltf");
+        Check(model != nullptr, "the skinned model is registered");
+        JBro::AssetId skeletonId;
+        JBro::AssetId meshId;
+        if (model != nullptr)
+        {
+            JBro::Array<JBro::AssetId> parts;
+            editor.GetAssetRegistry().CollectOwned(model->id, parts);
+            for (const JBro::AssetId& id : parts)
+            {
+                skeletonId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::Skeleton ? id : skeletonId;
+                meshId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
+            }
+        }
+        Check(false == skeletonId.IsNull() && false == meshId.IsNull(), "and owns a skeleton and a mesh");
+        // 모델 디코드는 워커다(D-455). 뼈대가 실릴 때까지 기다린다 - 인스펙터도 같은 뼈대를 잡아 뼈 이름을 보인다.
+        JBro::AssetSystem* assets = editor.GetAssetSystem();
+        const JBro::AssetHandle held = assets->Load(skeletonId);
+        editor.SetSelectedAsset(skeletonId);
+        for (JBro::Int32 frame = 0; frame < 600 && assets->GetSkeleton(held) == nullptr; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the model decodes");
+        }
+        Check(assets->GetSkeleton(held) != nullptr, "the skeleton loads");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the skeleton's sockets");
+        }
+
+        const std::filesystem::path metaPath = root / "Assets" / "rig.gltf.jmeta";
+        const auto readMeta = [&]() {
+            std::ifstream in(metaPath, std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const std::string before = readMeta();
+        Check(before.find("Sockets:") == std::string::npos, "the model meta has no sockets yet");
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the inspector draws the socket list");
+        const JBro::Int32 middle = body != nullptr ? static_cast<JBro::Int32>(body->Pos.x + body->Size.x * 0.5f) : JBro::Int32(0);
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        Spot spot;
+        Check(body != nullptr && FindListItem(editor, hwnd, LabelId(body->ID, JBro::Loc::TextOr(JBro::LocKeys::ListAddElement, "Add element")), middle, spot),
+            "the socket list offers to add a socket");
+        ClickAt(editor, hwnd, spot);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after adding");
+        }
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "adding a socket is one command");
+        Check(readMeta().find("Sockets:") != std::string::npos, "and writes the socket into the model meta");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(readMeta() == before, "undo puts the meta text back");
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after undo");
+        }
+        Check(editor.GetSelectedAssetMeta() != nullptr && editor.GetSelectedAssetMeta()->subAssets.Size() > 0,
+            "the inspector's meta is read again after undo");
+        for (const JBro::AssetSubEntry& entry : editor.GetSelectedAssetMeta()->subAssets)
+        {
+            Check(entry.sockets.IsEmpty(), "and has no socket left after undo");
+        }
+
+        // 이름과 뼈가 있는 소켓을 메타 커맨드로 적는다(뼈 칸의 고르기는 사진으로 본다).
+        JBro::AssetFileTarget target;
+        const JBro::AssetMetaFile* shown = editor.GetSelectedAssetMeta();
+        Check(shown != nullptr && editor.DescribeSelectedAssetMeta(target), "the selected meta can be rewritten");
+        if (shown != nullptr)
+        {
+            JBro::AssetMetaFile edited = *shown;
+            for (std::size_t index = 0; index < edited.subAssets.Size(); ++index)
+            {
+                if (edited.subAssets[index].id == skeletonId)
+                {
+                    JBro::ModelSocket tip;
+                    tip.name = "Tip";
+                    tip.bone = "Spine";
+                    tip.position = {0.0f, 0.5f, 0.0f};
+                    edited.subAssets[index].sockets.Add(tip);
+                }
+            }
+            editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetAssetFileCommand>(target, JBro::FormatAssetMetaFile(*shown), JBro::FormatAssetMetaFile(edited)));
+        }
+        // 제자리 재로드도 워커 디코드다(D-455) - 다시 읽힐 때까지 기다린다.
+        for (JBro::Int32 frame = 0; frame < 600; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the named socket");
+            const JBro::SkeletonData* reread = assets->GetSkeleton(held);
+            if (frame >= 4 && reread != nullptr && reread->sockets.Size() == 1)
+            {
+                break;
+            }
+        }
+        Check(assets->GetSkeleton(held) != nullptr && assets->GetSkeleton(held)->sockets.Size() == 1, "the loaded skeleton is reread with the new socket");
+        // 첫 소켓의 마디를 펼친다 - 접기 마디의 이름은 타입 이름에서 접두어를 뗀 것이다(`JBro.ModelSocket` 이 그대로 보였다).
+        Check(std::strcmp(JBro::EditorNames::DisplayTypeName("JBro.ModelSocket"), "ModelSocket") == 0, "a reflected struct shows without the JBro. prefix");
+        body = FindListBody();
+        Check(body != nullptr, "the socket list is still drawn");
+        if (body != nullptr)
+        {
+            body->StateStorage.SetInt(LabelId(PushedId(body->ID, 0), "ModelSocket"), 1);
+        }
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the opened socket");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "skeleton_sockets");
+
+        // ── 붙이기 ──
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* character = canvas->CreateObject("Character");
+        JBro::Object::GameObject* bodyObject = canvas->CreateObject("Body");
+        JBro::Object::GameObject* sword = canvas->CreateObject("Sword");
+        canvas->AttachComponent<JBro::Component::Transform3D>(character);
+        canvas->AttachComponent<JBro::Component::Transform3D>(bodyObject);
+        canvas->AttachComponent<JBro::Component::Transform3D>(sword);
+        bodyObject->SetParent(character);
+        sword->SetParent(character);
+        canvas->AttachComponent<JBro::Component::Animator3D>(character)->playOnStart = false;
+        canvas->AttachComponent<JBro::Component::MeshRenderer3D>(bodyObject)->meshId = meshId;
+        auto* attachment = canvas->AttachComponent<JBro::Component::BoneAttachment3D>(sword);
+        Check(attachment != nullptr, "a bone attachment attaches");
+        Check(editor.RescanAssets(), "the mesh id resolves");
+        JBro::Object::GameObject* chosen[] = {sword};
+        editor.SelectObjects({chosen, 1});
+        for (JBro::Int32 frame = 0; frame < 600; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the animator binds");
+            auto* animation = canvas->GetSystems().FindSystem<JBro::System::Animation3DSystem>();
+            const auto* animator = canvas->FindComponentRaw<JBro::Component::Animator3D>(character);
+            const auto* state = animation != nullptr && animator != nullptr ? animation->FindState(animator->GetInstanceId()) : nullptr;
+            if (state != nullptr && state->boneCount > 0)
+            {
+                break;
+            }
+        }
+        auto* animation = canvas->GetSystems().FindSystem<JBro::System::Animation3DSystem>();
+        JBro::Array<JBro::String> names;
+        if (animation != nullptr)
+        {
+            animation->CollectSocketNames(*canvas, *canvas->FindComponentRaw<JBro::Component::Animator3D>(character), names);
+        }
+        Check(names.Size() == 3 && names[0] == "Tip" && names[1] == "Hip" && names[2] == "Spine",
+            "the socket field offers the skeleton's socket, then the bones");
+        JBro::TextStore::Get().Assign(attachment->socket, "Tip", 3);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must place the sword");
+        }
+        const JBro::Vector3 placed = canvas->FindComponentRaw<JBro::Component::Transform3D>(sword)->worldPosition;
+        Check(std::fabs(placed.x.Get()) < 1.0e-4f && std::fabs(placed.y.Get() - 1.5f) < 1.0e-4f && std::fabs(placed.z.Get() - 5.0f) < 1.0e-4f,
+            "in the editor too the sword stands at the socket - Spine at (0, 1, 5) plus 0.5 up");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "bone_attachment_inspector");
+        assets->Release(held);
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
     // **애니메이터의 인스펙터**(D-459). 스킨 모델을 둔 3D 프로젝트에서 `Animator3D` 를 붙인 오브젝트를 고르면 인스펙터가 클립 목록 `animationClipIds` 를 보이고,
     // 그 원소는 `animationClipId` 로 읽혀 AnimationClip 만 고른다(소리의 별명 `clip` 이 아니다). 해석된 핸들 칸은 숨는다. `JBRO_EDITOR_SHOT` 이 있으면 찍는다.
     void TestTheAnimatorInspectorListsClips()
@@ -21903,6 +22097,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheEditorMakesFontFamilies());
     JBRO_CASE(TestTheEditorMakesAndEditsMaterials());
     JBRO_CASE(TestTheAnimatorInspectorListsClips());
+    JBRO_CASE(TestTheEditorEditsSocketsAndAttaches());
     JBRO_CASE(TestTheEditorPreviewsGameLanguages());
     JBRO_CASE(TestScreenLayersInTheEditor());
     JBRO_CASE(TestTheEditorSaysWhatIsChosen());

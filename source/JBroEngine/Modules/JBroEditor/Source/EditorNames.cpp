@@ -19,6 +19,12 @@ namespace JBro::EditorNames
         {
             return lastColon + 1;
         }
+        // 리플렉션 표로 지은 구조체(`JBro.ModelSocket`)도 접두어는 코드의 것이다(D-460). 목록 원소의 마디 이름에 그대로 보였다.
+        constexpr const char Prefix[] = "JBro.";
+        if (std::strncmp(typeName, Prefix, sizeof(Prefix) - 1) == 0 && typeName[sizeof(Prefix) - 1] != '\0')
+        {
+            return typeName + sizeof(Prefix) - 1;
+        }
         return typeName;
     }
 

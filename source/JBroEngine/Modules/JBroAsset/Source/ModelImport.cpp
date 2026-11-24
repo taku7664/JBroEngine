@@ -363,6 +363,11 @@ namespace JBro
                 entry.hasTextureOptions = true;
                 entry.textureOptions = previous != nullptr && previous->hasTextureOptions ? previous->textureOptions : ModelTextureDefaults();
             }
+            // 소켓은 사용자가 적은 것이다(D-460). 같은 키의 뼈대·메시면 그대로 옮긴다 - 뼈 이름으로 적혀 있어 뼈 차례가 바뀌어도 산다.
+            if (previous != nullptr && (listed[index].type == AssetType::Skeleton || listed[index].type == AssetType::Mesh))
+            {
+                entry.sockets = previous->sockets;
+            }
             merged.Add(std::move(entry));
         }
 
@@ -371,7 +376,8 @@ namespace JBro
         {
             const AssetSubEntry& now = merged[index];
             const AssetSubEntry& old = meta.subAssets[index];
-            same = now.key == old.key && now.id == old.id && now.contentHash == old.contentHash && now.hasTextureOptions == old.hasTextureOptions;
+            same = now.key == old.key && now.id == old.id && now.contentHash == old.contentHash && now.hasTextureOptions == old.hasTextureOptions
+                && now.sockets.Size() == old.sockets.Size();
         }
         changed = false == same;
         meta.subAssets = std::move(merged);

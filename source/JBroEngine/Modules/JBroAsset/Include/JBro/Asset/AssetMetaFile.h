@@ -45,6 +45,15 @@ namespace JBro
     //     Hash: 0123456789abcdef
     //     ImportOptions:
     //       mipmaps: true
+    //
+    // 뼈대·메시 항목(`Skeleton/`·`Mesh/`)만 소켓 목록 `Sockets` 를 든다(D-460). 다른 종류에 있으면 파일 전체의 실패다. 빈 목록은 적지 않는다.
+    //
+    //   - Key: Skeleton/Armature
+    //     Id: ...
+    //     Sockets:
+    //       - name: RightHand
+    //         bone: Hand_R
+    //         position: [0, 0.1, 0]
     struct AssetSubEntry
     {
         String key;
@@ -53,6 +62,8 @@ namespace JBro
         UInt64 contentHash = 0;
         Bool hasTextureOptions = false;
         TextureImportOptions textureOptions;
+        // 뼈대·메시만(D-460). 사용자가 고친 것이라 모델을 다시 읽어도 같은 키면 지킨다.
+        Array<ModelSocket> sockets;
     };
 
     // 하위 키를 종류와 이름으로 나눈다. 모르는 종류이거나 이름이 비면 false 다.

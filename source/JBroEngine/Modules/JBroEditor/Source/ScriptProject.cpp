@@ -208,6 +208,8 @@ namespace JBro::ScriptProject
             return "CharacterController3D";
         case FieldType::Animator3D:
             return "Animator3D";
+        case FieldType::BoneAttachment3D:
+            return "BoneAttachment3D";
         case FieldType::Text3D:
             return "Text3D";
         case FieldType::AudioListener3D:
@@ -310,6 +312,7 @@ namespace JBro::ScriptProject
         case FieldType::AudioListener3D:
         case FieldType::Light3D:
         case FieldType::Animator3D:
+        case FieldType::BoneAttachment3D:
             return framework == FrameworkKind::Framework3D;
         case FieldType::Count:
             return false;
