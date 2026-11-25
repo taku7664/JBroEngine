@@ -1823,11 +1823,21 @@ namespace JBro
 
     Bool EditorApplication::DescribeSelectedAssetMeta(AssetFileTarget& target) const
     {
-        if (m_selectedAsset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
+        if (m_selectedAsset.IsNull() || false == DescribeAssetMeta(m_selectedAsset, target))
         {
             return false;
         }
-        const AssetRecord* record = m_engine->GetAssetRegistry().Find(m_selectedAsset);
+        target.spriteId = m_selectedAssetMetaLoaded ? m_selectedAssetMeta->spriteId : AssetId{};
+        return true;
+    }
+
+    Bool EditorApplication::DescribeAssetMeta(AssetId asset, AssetFileTarget& target) const
+    {
+        if (asset.IsNull() || m_engine.Get() == nullptr || m_platform.Get() == nullptr)
+        {
+            return false;
+        }
+        const AssetRecord* record = m_engine->GetAssetRegistry().Find(asset);
         AssetSystem* assets = m_engine->GetAssetSystem();
         if (record == nullptr || assets == nullptr)
         {
@@ -1837,7 +1847,7 @@ namespace JBro
         target.assets = assets;
         target.path = assets->GetMetaPath(*record);
         target.id = record->id;
-        target.spriteId = m_selectedAssetMetaLoaded ? m_selectedAssetMeta->spriteId : AssetId{};
+        target.spriteId = AssetId{};
         // 모델 메타를 쓰면 레지스트리를 다시 훑는다 - 하위 목록이 바뀌었거나(모델 옵션), 내장 그림의 옵션이 묶음 열쇠를 바꿨다(하위 그림 옵션).
         const AssetRecord* owner = record->owner.IsNull() ? nullptr : m_engine->GetAssetRegistry().Find(record->owner);
         if (record->type == AssetType::Model || (owner != nullptr && owner->type == AssetType::Model))

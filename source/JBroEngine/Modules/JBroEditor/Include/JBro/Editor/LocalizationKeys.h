@@ -639,6 +639,24 @@ namespace JBro::LocKeys
     inline constexpr const char* ModelEditorLoop = "model_editor.loop";
     inline constexpr const char* ModelEditorSpeed = "model_editor.speed";
     inline constexpr const char* ModelEditorTime = "model_editor.time";
+    // 클립 설정(D-462).
+    inline constexpr const char* ModelEditorNothingToUndo = "model_editor.nothing_to_undo";
+    inline constexpr const char* ModelEditorSplit = "model_editor.split";
+    inline constexpr const char* ModelEditorSplitTooltip = "model_editor.split_tooltip";
+    inline constexpr const char* ModelEditorDeleteClip = "model_editor.delete_clip";
+    inline constexpr const char* ModelEditorClipName = "model_editor.clip_name";
+    inline constexpr const char* ModelEditorClipSource = "model_editor.clip_source";
+    inline constexpr const char* ModelEditorImportedClip = "model_editor.imported_clip";
+    inline constexpr const char* ModelEditorClipStart = "model_editor.clip_start";
+    inline constexpr const char* ModelEditorClipEnd = "model_editor.clip_end";
+    inline constexpr const char* ModelEditorEvents = "model_editor.events";
+    inline constexpr const char* ModelEditorAddEvent = "model_editor.add_event";
+    inline constexpr const char* ModelEditorNoEvents = "model_editor.no_events";
+    inline constexpr const char* ModelEditorRemoveEvent = "model_editor.remove_event";
+    inline constexpr const char* ModelEditorStripTooltip = "model_editor.strip_tooltip";
+    inline constexpr const char* ModelEditorUnnamedEvent = "model_editor.unnamed_event";
+    inline constexpr const char* InspectorClipHint = "inspector.clip_hint";
+    inline constexpr const char* InspectorOpenModelEditor = "inspector.open_model_editor";
     inline constexpr const char* AssetsImport = "assets.import";
     inline constexpr const char* MenuImportSprite = "menu.import_sprite";
     inline constexpr const char* DialogImportTitle = "dialog.import_title";

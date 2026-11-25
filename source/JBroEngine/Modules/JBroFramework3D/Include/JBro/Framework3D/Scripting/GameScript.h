@@ -50,6 +50,9 @@ namespace JBro
         virtual void OnTriggerExit(const Collision3D& hit);
         // **이 오브젝트의 조인트가 끊겼다**(D-437, 2D 와 같은 이름·같은 때). 조인트 컴포넌트는 이미 꺼져 있다. 끊긴 조인트마다 한 번이다.
         virtual void OnJointBreak(Float force, Float torque);
+        // **이 오브젝트의 애니메이터가 클립의 이벤트를 지났다**(D-462). 자세를 셈한 뒤(스크립트의 `OnUpdate` 뒤, 렌더 앞) 지난 차례대로 불린다.
+        // 덮어쓰는 레이어는 가중치가 0 보다 클 때만이고, 크로스페이드로 빠져나가는 클립의 이벤트는 불리지 않는다. 시간을 끌어 옮기면(에디터) 불리지 않는다.
+        virtual void OnAnimationEvent(const AnimationEvent3D& event);
     };
 
     // 3D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다(cpp-script-plan §3.2). `GameScriptBase` 에서 바로 파생한 타입은 여기서

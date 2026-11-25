@@ -210,6 +210,8 @@ namespace JBro
             static const char* const legacyCamera2DKeys[] = {
                 "Type", "IsEnabled", "primary", "viewportOrigin", "viewportSize", "depth", "clearViewport", "renderTextureId" };
             static const char* const legacyCamera3DKeys[] = { "Type", "IsEnabled", "primary" };
+            // **반복은 클립이 정한다**(D-462). 그 전의 애니메이터는 `loop` 칸을 들었다 - 거절하면 애니메이터가 든 옛 캔버스가 열리지 않는다.
+            static const char* const legacyAnimator3DKeys[] = { "Type", "IsEnabled", "loop" };
             const char* const* skip = formatKeys;
             std::size_t skipCount = sizeof(formatKeys) / sizeof(formatKeys[0]);
             if (typeId == MakeStableTypeId("Component::Camera2D"))
@@ -221,6 +223,11 @@ namespace JBro
             {
                 skip = legacyCamera3DKeys;
                 skipCount = sizeof(legacyCamera3DKeys) / sizeof(legacyCamera3DKeys[0]);
+            }
+            else if (typeId == MakeStableTypeId("Component::Animator3D"))
+            {
+                skip = legacyAnimator3DKeys;
+                skipCount = sizeof(legacyAnimator3DKeys) / sizeof(legacyAnimator3DKeys[0]);
             }
             ReflectedYamlError reflected;
             if (false == ReadReflectedFields(document, saved, *table, instance, skip, skipCount, reflected))

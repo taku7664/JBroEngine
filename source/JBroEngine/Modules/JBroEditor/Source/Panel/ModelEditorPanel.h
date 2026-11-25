@@ -1,6 +1,8 @@
 ﻿#pragma once
 
+#include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/RHI/RHI.h>
@@ -19,6 +21,7 @@ namespace JBro
 {
     class Canvas;
     class EditorApplication;
+    struct AnimationClipData;
     class Framework3D;
     struct GizmoCamera;
     namespace Component
@@ -40,12 +43,18 @@ namespace JBro
     //
     // **미리보기는 게임과 같은 길이다**(D-456 4): 3D 프레임워크의 미리보기 캔버스(`Framework3D::CreatePreview`)에 애니메이터 오브젝트 하나와 메시마다 자식 하나를
     // 세우고, 같은 `Animator3D`·스키닝·그림자 경로로 그린다. 열린 캔버스와 섞이지 않는다. 시간은 이 창이 준 만큼만 흐른다(에디터의 재생과 무관하다).
-    // 3a 는 보기만 한다 - 클립 설정·소켓·마스크 편집과 창의 커맨드 스택은 3b~3d 다.
+    // **3b 클립 설정**(D-462): 고른 클립의 구간(원본의 초)·반복·이벤트를 왼쪽 아래에서 고치고, 원본에서 구간을 떼어 새 클립을 만든다(나눈 클립은 이름을 바꾸고 지울 수 있다).
+    // 값은 모델 `.jmeta` 의 그 하위 항목 `Clip` 블록이고 **편집은 이 창의 커맨드다**(창마다 되돌리기 스택, D-456 4) - Ctrl+Z 는 이 창에 포커스가 있으면 이 창의 것을 되돌린다.
+    // 끄는 칸(구간·이벤트 시간)은 창 안 초안을 고치다 손을 뗄 때 메타 커맨드 하나로 남긴다 - 끄는 프레임마다 모델 메타를 쓰면 다시 읽기가 매 프레임 돈다.
+    // 이벤트는 타임라인 아래 줄의 표식이다: 두 번 누르면 그 시간에 더하고, 표식을 끌어 옮긴다. 소켓·마스크 편집은 3c·3d 다.
     class ModelEditorPanel final : public InstancePanel
     {
     public:
         static constexpr const char* TypeName = "ModelEditor";
         static constexpr const char* DockAreaName = "ModelEditor";
+
+        // 이 창의 행동(실행 취소·다시 실행)을 행동 표에 올린다. 포커스가 있을 때 캔버스의 같은 조합을 가린다.
+        static void RegisterActions();
 
         const char* GetTitle() const override;
         // 탭에는 모델의 경로가 보인다.
@@ -74,9 +83,31 @@ namespace JBro
         void SelectClip(Int32 clip);
         Bool IsPlaying() const { return m_playing; }
         void SetPlaying(Bool playing);
-        Bool IsLooping() const { return m_loop; }
-        void SetLooping(Bool loop) { m_loop = loop; }
+        // 고른 클립의 반복이다(클립 설정, D-462).
+        Bool IsLooping() const { return m_draft.loop; }
         void SetSpeed(Float speed) { m_speed = speed; }
+
+        // ── 클립 설정(D-462). 고른 클립에 건다. 하나가 메타 커맨드 하나다. ──
+        EditorCommandManager& GetCommands() { return m_commands; }
+        Bool Undo();
+        Bool Redo();
+        // 원본의 초다. `end` 가 원본 길이 이상이면 끝까지다.
+        Bool SetClipRange(Float start, Float end);
+        Bool SetClipLoop(Bool loop);
+        // 클립 안의 시간에 이벤트를 더한다.
+        Bool AddClipEvent(Float time, const char* name);
+        Bool SetClipEvent(UInt32 index, const char* name, Float time);
+        Bool RemoveClipEvent(UInt32 index);
+        // 고른 클립의 원본과 구간으로 새 클립(새 하위 에셋)을 만든다. 레지스트리를 다시 읽은 뒤 그 클립을 고른다.
+        Bool SplitClip();
+        // 나눈 클립만 이름을 바꾸고 지운다 - 가져온 클립은 모델 파일의 것이다.
+        Bool RenameClip(const char* name);
+        Bool DeleteClip();
+        Bool IsSplitClip() const { return m_draftSplit; }
+        const ModelClipSettings& GetClipDraft() const { return m_draft; }
+        // 이벤트 표식의 화면 자리다(마지막으로 그린 것). 그리지 않았으면 거짓이다.
+        Bool GetEventMarkerPosition(UInt32 index, Float& x, Float& y) const;
+        Bool GetEventStripRow(Float& left, Float& top, Float& width, Float& height) const;
         // 고른 클립 안의 지금 시간이다(감은 값, 초). 자세가 서지 않았으면 0.
         Float GetTime() const;
         // 타임라인을 끈 것과 같다: 멈추고 그 시간으로 간다.
@@ -113,6 +144,17 @@ namespace JBro
         Bool MakeCamera(GizmoCamera& camera) const;
         void DrawBones(Bool pointerHere);
         void DrawTimeline();
+        void DrawClipSettings();
+        void DrawEventStrip(Float left, Float width, Float duration);
+        // 고른 클립의 메타를 읽고 그 항목 번호를 찾는다.
+        Bool ReadClipEntry(AssetMetaFile& meta, std::size_t& entry);
+        // 고른 클립의 메타 항목을 고치는 커맨드 하나다. `structural` 이면(키를 더하거나 바꾸거나 뺀다) 쓴 뒤 레지스트리를 다시 훑는다.
+        template <typename TChange>
+        Bool EditClip(const char* name, Bool structural, TChange&& change);
+        // 초안을 메타의 값으로 다시 읽는다(고른 클립·레지스트리·클립 자료가 바뀌었고 칸을 고치는 중이 아닐 때).
+        void SyncDraft();
+        // 지금 고른 클립의 자료(자른 뒤)다. 아직 실리지 않았으면 null.
+        const AnimationClipData* GetClipData() const;
 
         EditorApplication* m_editor = nullptr;
         AssetId m_model;
@@ -152,8 +194,29 @@ namespace JBro
         Int32 m_revealBone = -1;
 
         Bool m_playing = true;
-        Bool m_loop = true;
         Float m_speed = 1.0f;
+
+        // 이 창의 되돌리기 스택이다(D-456 4).
+        EditorCommandManager m_commands;
+        // 고른 클립의 설정 초안이다. 칸이 이것을 고치고 손을 떼면 커맨드로 남긴다.
+        ModelClipSettings m_draft;
+        Int32 m_draftClip = -1;
+        UInt32 m_draftGeneration = 0;
+        UInt64 m_draftRevision = 0;
+        Bool m_draftSplit = false;
+        Bool m_draftEditing = false;
+        String m_draftName;
+        String m_renameText;
+        Array<String> m_eventNames;
+        // 나눈 뒤 레지스트리가 다시 읽히면 고를 클립이다.
+        AssetId m_pendingClip;
+        Int32 m_selectedEvent = -1;
+        Int32 m_draggingEvent = -1;
+        Array<Float> m_eventScreenX;
+        Float m_stripLeft = 0.0f;
+        Float m_stripTop = 0.0f;
+        Float m_stripWidth = 0.0f;
+        Float m_stripHeight = 0.0f;
         Float m_pendingTime = -1.0f;
 
         // 궤도 카메라(캔버스 뷰와 같은 조작, D-136·D-441).

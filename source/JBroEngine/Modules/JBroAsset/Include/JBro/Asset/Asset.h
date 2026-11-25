@@ -202,7 +202,14 @@ namespace JBro
     // 로드된 애니메이션(모델의 하위 AnimationClip, D-456)이다. 트랙은 뼈 이름으로 가리킨다. `dataGeneration` 은 in-place 재로드마다 오른다.
     struct AnimationClipData
     {
+        // 메타의 클립 설정(D-462)을 건 뒤다 - 자른 구간의 0 초부터이고 이름은 하위 에셋의 이름이다.
         ModelAnimation animation;
+        // 반복은 클립이 정한다(D-462). 설정이 없으면 반복이다.
+        Bool loop = true;
+        // 시간 차례의 이벤트다. 클립 구간 밖의 것은 빠져 있다.
+        Array<ModelClipEvent> events;
+        // 자르기 전 원본 애니메이션의 길이다(모델 에디터가 구간을 고칠 때 본다).
+        Float sourceDuration = 0.0f;
         UInt32 dataGeneration = 1;
     };
 

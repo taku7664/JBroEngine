@@ -86,4 +86,9 @@ namespace JBro
         (void)torque;
     }
 
+    void GameScript3D::OnAnimationEvent(const AnimationEvent3D& event)
+    {
+        (void)event;
+    }
+
 }

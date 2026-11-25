@@ -674,6 +674,23 @@ Entries:
   model_editor.loop: Loop
   model_editor.speed: Speed
   model_editor.time: "%.2f / %.2f s"
+  model_editor.nothing_to_undo: "nothing to undo or redo in this window"
+  model_editor.split: Split
+  model_editor.split_tooltip: make a new clip from the same source animation and range
+  model_editor.delete_clip: Delete Clip
+  model_editor.clip_name: Name
+  model_editor.clip_source: Source
+  model_editor.imported_clip: "imported from the model file"
+  model_editor.clip_start: Start
+  model_editor.clip_end: End
+  model_editor.events: Events
+  model_editor.add_event: Add Event
+  model_editor.no_events: "no events - double-click the strip under the timeline to add one"
+  model_editor.remove_event: Remove Event
+  model_editor.unnamed_event: unnamed event
+  model_editor.strip_tooltip: "double-click to add an event here; drag a marker to move it"
+  inspector.clip_hint: "Edit this clip's range, loop and events in the model editor"
+  inspector.open_model_editor: Open Model Editor
   assets.import: Import...
   menu.import_sprite: Import Sprite
   dialog.import_title: Import

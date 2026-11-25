@@ -112,6 +112,16 @@ namespace JBro
         Vector3 normal;
     };
 
+    // **애니메이션 이벤트 훅이 받는 값이다**(D-462). DLL 경계를 넘으므로 POD 다. `name` 은 클립에 적은 이벤트 이름이고 **훅이 도는 동안만 산다** - 남기려면 베낀다.
+    // `time` 은 클립 안의 초, `layer` 는 애니메이터의 레이어, `clip` 은 애니메이터의 클립 목록 번호다.
+    struct AnimationEvent3D
+    {
+        const char* name = "";
+        Float time = 0.0f;
+        UInt32 layer = 0;
+        Int32 clip = -1;
+    };
+
     // 반직선·밀기 질의의 결과다(D-417, 2D 의 `RaycastHit2D` 와 같은 모양). normal 은 맞은 표면의 바깥(쏜 쪽을 향한다)이고 distance 는
     // 출발점에서 맞은 자리까지다. 출발부터 겹쳐 있으면 distance 0 이다.
     struct RaycastHit3D

@@ -6,9 +6,11 @@
 #include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/ScriptCallGuard.h>
 
 #include <cmath>
 #include <cstring>
@@ -230,6 +232,7 @@ namespace JBro::System
         {
             return;
         }
+        Object::GameObject* owner = Internal::CanvasAccess::GetOwner(animator);
         const Float step = deltaTime * animator.speed;
         CopyPose(state.rest, state.pose);
         for (UInt32 index = 0; index < state.layers.Size(); ++index)
@@ -245,8 +248,20 @@ namespace JBro::System
             {
                 BindLayerClip(state, layer.clip, layer.clipGeneration, layer.tracks);
             }
+            const Float before = layer.time;
             layer.time = layer.time + step * layer.speed;
-            const Float time = WrapClipTime(layer.time, clip->animation.duration, layer.loop);
+            // 이벤트는 시간이 앞으로 흐를 때만이다. 덮어쓰는 레이어는 보일 때(가중치 0 초과)만이고 바탕은 늘이다.
+            if (layer.time > before && false == clip->events.IsEmpty()
+                && (index == 0 || layer.mode == AnimatorLayerMode::Additive || layer.weight > 0.0f))
+            {
+                CollectEvents(owner, index, layer, *clip, before, layer.time);
+            }
+            // 시간이 흐른 뒤에만 "0 초부터" 를 거둔다 - 멈춘 첫 프레임(델타 0)이 지우면 처음 이벤트를 빠뜨린다.
+            if (layer.time > before)
+            {
+                layer.eventsFromStart = false;
+            }
+            const Float time = WrapClipTime(layer.time, clip->animation.duration, clip->loop);
             // 덮어쓰기는 지금 자세에서 시작해 트랙이 닿는 뼈만 바꾼다 - 클립에 없는 뼈는 아래 레이어의 것이 남는다. 더하기는 쉬는 자세 기준의 차다.
             CopyPose(layer.mode == AnimatorLayerMode::Additive ? state.rest : state.pose, state.sample);
             SampleClip(clip->animation, layer.tracks, time, state.sample);
@@ -257,7 +272,7 @@ namespace JBro::System
                 {
                     layer.fromTime = layer.fromTime + step * layer.speed;
                     CopyPose(layer.mode == AnimatorLayerMode::Additive ? state.rest : state.pose, state.blend);
-                    SampleClip(from->animation, layer.fromTracks, WrapClipTime(layer.fromTime, from->animation.duration, layer.fromLoop), state.blend);
+                    SampleClip(from->animation, layer.fromTracks, WrapClipTime(layer.fromTime, from->animation.duration, from->loop), state.blend);
                     // 앞 클립에서 새 클립으로 넘어가는 비율이다.
                     const Float t = layer.fadeElapsed / layer.fade;
                     const Array<Float> none;
@@ -291,6 +306,13 @@ namespace JBro::System
         {
             return;
         }
+        if (m_fired.Capacity() < MaxFiredEvents)
+        {
+            m_fired.Reserve(MaxFiredEvents);
+            m_hookTargets.Reserve(16);
+        }
+        m_fired.Clear();
+        m_firedOverflow = false;
         ++m_stamp;
         canvas.ForEach<Component::Animator3D>([&](Component::Animator3D& animator)
         {
@@ -336,8 +358,8 @@ namespace JBro::System
                     base.clipIndex = start;
                     BindLayerClip(*state, base.clip, base.clipGeneration, base.tracks);
                     base.time = 0.0f;
-                    base.loop = animator.loop;
                     base.playing = true;
+                    base.eventsFromStart = true;
                     base.fade = 0.0f;
                 }
             }
@@ -364,6 +386,93 @@ namespace JBro::System
             }
             m_states.RemoveAt(last);
         }
+        DispatchEvents(canvas);
+    }
+
+    void Animation3DSystem::CollectEvents(Object::GameObject* owner, UInt32 layerIndex, Layer& layer, const AnimationClipData& clip, Float from, Float to)
+    {
+        const Float duration = clip.animation.duration;
+        // `(low, high]` 안의 이벤트를 차례로 넣는다. `low` 가 음수면 0 초의 것도 든다.
+        const auto fire = [&](Float low, Float high) {
+            for (const ModelClipEvent& event : clip.events)
+            {
+                if (event.time > low && event.time <= high)
+                {
+                    if (m_fired.Size() >= MaxFiredEvents)
+                    {
+                        m_firedOverflow = true;
+                        return;
+                    }
+                    m_fired.Add(FiredEvent{owner, &event, layerIndex, layer.clipIndex});
+                }
+            }
+        };
+        // 반복 클립이 앞 프레임에 꼭 끝에 닿았으면(감은 값 0) 이번은 새 바퀴다 - 0 초의 이벤트를 넣는다(앞 프레임이 끝의 이벤트를 이미 넣었다).
+        const Float wrappedFrom = WrapClipTime(from, duration, clip.loop);
+        const Bool freshLap = clip.loop && from > 0.0f && wrappedFrom == 0.0f;
+        const Float low = layer.eventsFromStart || freshLap ? Float(-1.0f) : wrappedFrom;
+        if (false == clip.loop || false == (duration > 0.0f))
+        {
+            // 한 번 재생은 끝까지만이다. 이미 끝을 지났으면 아무것도 없다.
+            if (from < duration || layer.eventsFromStart)
+            {
+                fire(low, to < duration ? to : duration);
+            }
+            return;
+        }
+        // 반복: 이번 걸음이 끝을 넘으면 끝까지 훑고 처음부터 다시 훑는다. 한 프레임이 클립 몇 바퀴를 건너도 한 바퀴만 훑는다(이벤트가 쏟아지지 않게).
+        const Float span = to - from;
+        const Float start = layer.eventsFromStart ? Float(0.0f) : wrappedFrom;
+        if (start + span <= duration)
+        {
+            fire(low, start + span);
+            return;
+        }
+        fire(low, duration);
+        const Float rest = span - (duration - start);
+        fire(-1.0f, rest < duration ? WrapClipTime(to, duration, true) : duration);
+    }
+
+    void Animation3DSystem::DispatchEvents(Canvas& canvas)
+    {
+        if (m_firedOverflow)
+        {
+            Log::Write(LogLevel::Warning, "animation", "more than %u animation events in one update; the rest were dropped",
+                static_cast<unsigned>(MaxFiredEvents));
+        }
+        if (m_fired.IsEmpty())
+        {
+            return;
+        }
+        // 훅이 오브젝트를 지워도 지나간 객체 위에서 다음 훅이 불리지 않게 보내는 내내 파괴를 미룬다(§8, 물리의 훅과 같다).
+        Canvas::IterationGuard guard(canvas);
+        for (const FiredEvent& fired : m_fired)
+        {
+            Object::GameObject* owner = fired.owner;
+            if (owner == nullptr || false == owner->IsActiveInHierarchy())
+            {
+                continue;
+            }
+            m_hookTargets.Clear();
+            for (const ScriptSlot& slot : owner->GetScripts())
+            {
+                GameScriptBase* script = slot.reference.TryGet();
+                if (script != nullptr && script->IsActiveScript())
+                {
+                    m_hookTargets.Add(static_cast<GameScript3D*>(script));
+                }
+            }
+            AnimationEvent3D event;
+            event.name = fired.event->name.c_str();
+            event.time = fired.event->time;
+            event.layer = fired.layer;
+            event.clip = fired.clip;
+            for (GameScript3D* script : m_hookTargets)
+            {
+                ScriptCallGuard::Call("OnAnimationEvent", [script, &event] { script->OnAnimationEvent(event); });
+            }
+        }
+        m_fired.Clear();
     }
 
     void Animation3DSystem::ApplyCommands(State& state, Component::Animator3D& animator)
@@ -395,7 +504,6 @@ namespace JBro::System
                     layer.fromGeneration = layer.clipGeneration;
                     std::swap(layer.fromTracks, layer.tracks);
                     layer.fromTime = layer.time;
-                    layer.fromLoop = layer.loop;
                     layer.fade = command.value;
                     layer.fadeElapsed = 0.0f;
                 }
@@ -408,8 +516,8 @@ namespace JBro::System
                 layer.clipIndex = command.clip;
                 BindLayerClip(state, clip, layer.clipGeneration, layer.tracks);
                 layer.time = 0.0f;
-                layer.loop = command.flag;
                 layer.playing = true;
+                layer.eventsFromStart = true;
                 break;
             }
             case Component::Animator3D::CommandKind::Stop:
@@ -437,9 +545,9 @@ namespace JBro::System
         {
             const Layer& layer = state.layers[at];
             const AnimationClipData* clip = layer.clip.generation != 0 && m_assets != nullptr ? m_assets->GetAnimationClip(layer.clip) : nullptr;
-            animator.m_layerTime[at] = clip != nullptr ? WrapClipTime(layer.time, clip->animation.duration, layer.loop) : Float(0.0f);
+            animator.m_layerTime[at] = clip != nullptr ? WrapClipTime(layer.time, clip->animation.duration, clip->loop) : Float(0.0f);
             // 한 번 재생은 끝을 지나면 서 있다 - 재생 중이 아니다.
-            animator.m_layerPlaying[at] = layer.playing && clip != nullptr && (layer.loop || layer.time < clip->animation.duration);
+            animator.m_layerPlaying[at] = layer.playing && clip != nullptr && (clip->loop || layer.time < clip->animation.duration);
             animator.m_layerClip[at] = layer.playing ? layer.clipIndex : Int32(-1);
         }
     }
@@ -629,7 +737,7 @@ namespace JBro::System
         return ComputeSocketWorld(*m_canvas, animator, entry.socket, position, rotation, scale);
     }
 
-    Bool Animation3DSystem::Play(InstanceId animator, UInt32 layer, AssetHandle clip, Bool loop)
+    Bool Animation3DSystem::Play(InstanceId animator, UInt32 layer, AssetHandle clip)
     {
         State* state = FindState(animator);
         if (state == nullptr || layer >= state->layers.Size() || clip.generation == 0)
@@ -640,8 +748,8 @@ namespace JBro::System
         target.clip = clip;
         BindLayerClip(*state, clip, target.clipGeneration, target.tracks);
         target.time = 0.0f;
-        target.loop = loop;
         target.playing = true;
+        target.eventsFromStart = true;
         target.fade = 0.0f;
         target.fadeElapsed = 0.0f;
         return true;
@@ -656,12 +764,14 @@ namespace JBro::System
         }
         Layer& target = state->layers[layer.Get()];
         target.time = time;
+        // 끌어 옮긴 시간은 지난 것이 아니다 - 그 자리부터 다시 훑는다.
+        target.eventsFromStart = false;
         target.fade = 0.0f;
         target.fadeElapsed = 0.0f;
         return true;
     }
 
-    Bool Animation3DSystem::CrossFade(InstanceId animator, UInt32 layer, AssetHandle clip, Float seconds, Bool loop)
+    Bool Animation3DSystem::CrossFade(InstanceId animator, UInt32 layer, AssetHandle clip, Float seconds)
     {
         State* state = FindState(animator);
         if (state == nullptr || layer >= state->layers.Size() || clip.generation == 0)
@@ -671,18 +781,17 @@ namespace JBro::System
         Layer& target = state->layers[layer.Get()];
         if (false == target.playing || target.clip.generation == 0 || false == (seconds > 0.0f))
         {
-            return Play(animator, layer, clip, loop);
+            return Play(animator, layer, clip);
         }
         // 지금 클립이 앞 클립이 된다. 트랙 배열은 맞바꿔 다시 잡지 않는다.
         target.fromClip = target.clip;
         target.fromGeneration = target.clipGeneration;
         std::swap(target.fromTracks, target.tracks);
         target.fromTime = target.time;
-        target.fromLoop = target.loop;
         target.clip = clip;
         BindLayerClip(*state, clip, target.clipGeneration, target.tracks);
         target.time = 0.0f;
-        target.loop = loop;
+        target.eventsFromStart = true;
         target.fade = seconds;
         target.fadeElapsed = 0.0f;
         return true;

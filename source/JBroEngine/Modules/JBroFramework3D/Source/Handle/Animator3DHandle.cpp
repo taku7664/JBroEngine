@@ -11,16 +11,16 @@ namespace JBro::Handle
         return static_cast<Component::Animator3D*>(ResolveComponent(StaticTypeName(), operation));
     }
 
-    Bool Animator3D::Play(UInt32 layer, Int32 clip, Bool loop)
+    Bool Animator3D::Play(UInt32 layer, Int32 clip)
     {
         Component::Animator3D* component = Resolve("Play");
-        return component != nullptr && component->Play(layer, clip, loop);
+        return component != nullptr && component->Play(layer, clip);
     }
 
-    Bool Animator3D::CrossFade(UInt32 layer, Int32 clip, Float seconds, Bool loop)
+    Bool Animator3D::CrossFade(UInt32 layer, Int32 clip, Float seconds)
     {
         Component::Animator3D* component = Resolve("CrossFade");
-        return component != nullptr && component->CrossFade(layer, clip, seconds, loop);
+        return component != nullptr && component->CrossFade(layer, clip, seconds);
     }
 
     Bool Animator3D::Stop(UInt32 layer)

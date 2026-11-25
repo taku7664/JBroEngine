@@ -1106,15 +1106,29 @@ namespace JBro
         {
             return false;
         }
+        // 메타의 제 항목이 클립 설정을 든다(D-462). 나눈 클립은 원본의 이름이 따로 적혀 있다.
+        AssetMetaFile meta;
+        const AssetSubEntry* entry = nullptr;
+        if (ReadMeta(record, meta))
+        {
+            for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+            {
+                entry = meta.subAssets[index].id == record.id ? &meta.subAssets[index] : entry;
+            }
+        }
+        const String& sourceName = entry != nullptr && entry->hasClip && false == entry->clip.source.empty() ? entry->clip.source : record.name;
         Array<ModelSubAsset> listed;
         ListModelSubAssets(*decoded, listed);
-        const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::AnimationClip, record.name);
+        const ModelSubAsset* sub = FindModelSubAsset(listed, AssetType::AnimationClip, std::string_view(sourceName.data(), sourceName.size()));
         if (sub == nullptr)
         {
-            Log::Write(LogLevel::Warning, "asset", "%s: the model has no animation named %s", model->relativePath.c_str(), record.name.c_str());
+            Log::Write(LogLevel::Warning, "asset", "%s: the model has no animation named %s", model->relativePath.c_str(), sourceName.c_str());
             return false;
         }
-        data.animation = decoded->animations[sub->index.Get()];
+        const ModelAnimation& source = decoded->animations[sub->index.Get()];
+        ApplyModelClipSettings(source, entry, data.animation, data.loop, data.events);
+        data.animation.name = record.name;
+        data.sourceDuration = source.duration;
         return true;
     }
 

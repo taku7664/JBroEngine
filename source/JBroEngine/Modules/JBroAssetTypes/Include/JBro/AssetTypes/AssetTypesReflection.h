@@ -134,6 +134,44 @@ namespace JBro
         }
     };
 
+    // 모델 `.jmeta` 의 `Clip.Events` 원소와 `Clip` 블록이다(D-462). 필드 이름이 파일의 키다.
+    template <>
+    struct TypeDescriptorOf<ModelClipEvent>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&ModelClipEvent::name>(),
+                MakeFieldEntry<&ModelClipEvent::time>(),
+            };
+            static const StaticPropertyTable<2> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<ModelClipEvent>("JBro.ModelClipEvent", fields.Get());
+            return descriptor;
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<ModelClipSettings>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&ModelClipSettings::source>(),
+                MakeFieldEntry<&ModelClipSettings::start>(),
+                MakeFieldEntry<&ModelClipSettings::end>(),
+                MakeFieldEntry<&ModelClipSettings::loop>(),
+                MakeFieldEntry<&ModelClipSettings::events>(),
+            };
+            static const StaticPropertyTable<5> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<ModelClipSettings>("JBro.ModelClipSettings", fields.Get());
+            return descriptor;
+        }
+    };
+
     // 이펙트 편집 창의 종류 고르기와 `.jfx` 의 `Kind:` 가 이 이름을 쓴다(D-306).
     JBRO_DEFINE_ENUM_TYPE(AudioEffectKind, "JBro.AudioEffectKind",
         { AudioEffectKind::Reverb,     "Reverb" },

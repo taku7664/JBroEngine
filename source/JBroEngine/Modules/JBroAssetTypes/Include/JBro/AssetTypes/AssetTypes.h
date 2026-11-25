@@ -147,6 +147,26 @@ namespace JBro
         Calculate
     };
 
+    // **애니메이션 이벤트 하나**(D-462)다. 클립의 그 시간(클립 안의 초, 자른 뒤의 0 부터)을 지나면 애니메이터 오브젝트의 스크립트가 `OnAnimationEvent` 로 받는다.
+    // 이름이 빈 이벤트도 불린다(스크립트가 이름으로 가른다).
+    struct ModelClipEvent
+    {
+        String name;
+        Float time = 0.0f;
+    };
+
+    // **클립 설정**(D-462, skeletal-plan 3b)이다. 모델 `.jmeta` 의 `AnimationClip/…` 하위 항목의 `Clip` 블록이다.
+    // `source` 가 비면 이 항목이 가져온 애니메이션 그대로(키의 이름이 원본)이고, 차 있으면 사용자가 그 원본에서 **나눈** 클립이다 - 다시 가져와도 지킨다.
+    // 구간은 원본의 초이고 `end` 가 음수면 끝까지다. 반복은 클립이 정한다(애니메이터·스크립트는 정하지 않는다).
+    struct ModelClipSettings
+    {
+        String source;
+        Float start = 0.0f;
+        Float end = -1.0f;
+        Bool loop = true;
+        Array<ModelClipEvent> events;
+    };
+
     // **모델의 소켓 하나**(D-460, skeletal-plan §3.2·§3.3)다. 뼈 하나와 그 뼈에서의 오프셋이고, 모델 `.jmeta` 의 하위 항목 `Sockets` 목록에 적힌다 -
     // `Skeleton/…` 항목의 것은 그 뼈대를 쓰는 모든 메시의 소켓이고 `Mesh/…` 항목의 것은 그 메시만의 소켓이다.
     // 뼈는 **이름**으로 적는다. 같은 뼈대를 쓰는 다른 모델과 나누고, 다시 가져와 뼈 차례가 바뀌어도 산다. 번호로 푸는 것은 붙일 때 한 번이다.

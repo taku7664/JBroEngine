@@ -2023,6 +2023,29 @@ namespace
             meshId = registry.Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
             clipId = registry.Find(id)->type == JBro::AssetType::AnimationClip ? id : clipId;
         }
+        // 한 번 재생이다(반복은 클립 설정, D-462) - 메타의 클립 항목에 적는다.
+        {
+            const fs::path metaPath = root / "Art" / "walker.gltf.jmeta";
+            std::string text;
+            {
+                std::ifstream in(metaPath, std::ios::binary);
+                text.assign((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            }
+            JBro::AssetMetaFile meta;
+            JBro::AssetMetaError metaError;
+            Check(JBro::ParseAssetMetaFile(text.c_str(), text.size(), meta, metaError), "the model meta reads");
+            for (JBro::AssetSubEntry& entry : meta.subAssets)
+            {
+                if (entry.id == clipId)
+                {
+                    entry.hasClip = true;
+                    entry.clip.loop = false;
+                }
+            }
+            const JBro::String written = JBro::FormatAssetMetaFile(meta);
+            std::ofstream out(metaPath, std::ios::binary | std::ios::trunc);
+            out.write(written.data(), static_cast<std::streamsize>(written.size()));
+        }
         JBro::AssetSystem assets;
         Check(assets.Initialize(stage.memory), "the asset system initializes");
         assets.Bind(stage.platform, registry, rootPath.c_str());
@@ -2050,7 +2073,6 @@ namespace
         canvas.AttachComponent<JBro::Component::Transform3D>(character);
         auto* animator = canvas.AttachComponent<JBro::Component::Animator3D>(character);
         animator->animationClipIds.Add(clipId);
-        animator->loop = false;
         // 한 프레임(1/60 초)에 1 초가 흐르게 - 시뮬레이션을 켠 첫 프레임이 클립의 끝이다.
         animator->speed = 60.0f;
         JBro::Object::GameObject* body = canvas.CreateObject("body");

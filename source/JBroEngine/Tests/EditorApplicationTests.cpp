@@ -15846,7 +15846,18 @@ namespace
         }
         Check(panel->GetTime() > held + 0.03f, "playing moves time by the frames that passed");
         // 한 번 재생: 끝에 서고 멈춘다. 재생을 다시 누르면 처음부터다.
-        panel->SetLooping(false);
+        // 반복은 클립 설정이다(D-462) - 창의 커맨드로 메타에 적고, 클립이 다시 읽힐 때까지 기다린다.
+        Check(panel->SetClipLoop(false), "the loop box writes the clip's setting");
+        const JBro::AssetHandle waveHandle = editor.GetAssetSystem()->Load(clipId);
+        const auto waveLoops = [&]() {
+            const JBro::AnimationClipData* data = editor.GetAssetSystem()->GetAnimationClip(waveHandle);
+            return data == nullptr || data->loop;
+        };
+        for (JBro::Int32 frame = 0; frame < 600 && waveLoops(); ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the clip reloads");
+        }
+        Check(false == waveLoops(), "the clip reloads as a one-shot");
         panel->SetTime(0.95f);
         panel->SetPlaying(true);
         for (JBro::Int32 frame = 0; frame < 10; ++frame)
@@ -15860,7 +15871,12 @@ namespace
             Check(editor.Tick(Frame), "the editor must tick after replaying");
         }
         Check(panel->IsPlaying() && panel->GetTime() < 0.2f, "pressing play at the end starts over");
-        panel->SetLooping(true);
+        Check(panel->Undo(), "the window undoes the loop setting");
+        for (JBro::Int32 frame = 0; frame < 600 && false == waveLoops(); ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the clip reloads");
+        }
+        Check(waveLoops(), "the clip loops again after undo");
         panel->SetTime(0.5f);
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -15898,6 +15914,161 @@ namespace
             Check(editor.Tick(Frame), "the editor must tick after closing");
         }
         Check(editor.FindPanels("ModelEditor", panels) == 0 && framework->GetPreviewCount() == 0, "closing the window drops its preview");
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
+    // **모델 에디터의 클립 설정**(D-462, 스켈레탈 3b). 실제 에디터에서 구간·반복·이벤트를 고치고(창의 되돌리기 스택에 쌓이고 에디터의 스택은 그대로),
+    // 이벤트 표식을 마우스로 끌어 옮기고 줄을 두 번 눌러 더하며, 구간 나누기로 새 하위 에셋을 만들고 이름을 바꾸고 지운다.
+    void TestTheModelEditorEditsClips()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; clip settings not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroClipEditorProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        {
+            std::ofstream model(root / "Assets" / "rig.gltf", std::ios::binary);
+            model << TestModels::SkinnedGltf();
+        }
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath("rig.gltf");
+        Check(model != nullptr, "the skinned model is registered");
+        JBro::AssetId clipId;
+        if (model != nullptr)
+        {
+            JBro::Array<JBro::AssetId> parts;
+            editor.GetAssetRegistry().CollectOwned(model->id, parts);
+            for (const JBro::AssetId& id : parts)
+            {
+                clipId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::AnimationClip ? id : clipId;
+            }
+        }
+        Check(editor.OpenModelEditor(clipId), "the clip opens the model editor");
+        JBro::Array<JBro::EditorPanel*> panels;
+        Check(editor.FindPanels("ModelEditor", panels) == 1, "the model editor is open");
+        auto* panel = panels.IsEmpty() ? nullptr : static_cast<JBro::ModelEditorPanel*>(panels[0]);
+        if (panel == nullptr)
+        {
+            return;
+        }
+        JBro::AssetSystem* assets = editor.GetAssetSystem();
+        const JBro::AssetHandle clipHandle = assets->Load(clipId);
+        const auto clipLength = [&]() {
+            const JBro::AnimationClipData* data = assets->GetAnimationClip(clipHandle);
+            return data != nullptr ? data->animation.duration : JBro::Float(-1.0f);
+        };
+        // 다시 읽기는 워커 디코드다(D-455) - 조건이 설 때까지 돈다.
+        const auto tickUntil = [&](auto&& done, const char* what) {
+            for (JBro::Int32 frame = 0; frame < 600 && false == done(); ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick");
+            }
+            Check(done(), what);
+        };
+        tickUntil([&]() { return panel->GetBoneCount() == 2 && clipLength() > 0.0f; }, "the model and its clip load");
+        const std::filesystem::path metaPath = root / "Assets" / "rig.gltf.jmeta";
+        const auto readMeta = [&]() {
+            std::ifstream in(metaPath, std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const std::string before = readMeta();
+        Check(before.find("Clip:") == std::string::npos, "the clip has no settings yet");
+        const std::size_t editorUndo = editor.GetCommands().GetUndoCount();
+
+        // 구간: 원본의 0.25..0.75 초. 창의 커맨드 하나이고 에디터의 스택은 그대로다.
+        Check(panel->SetClipRange(0.25f, 0.75f), "the range is set");
+        Check(panel->GetCommands().GetUndoCount() == 1 && editor.GetCommands().GetUndoCount() == editorUndo,
+            "the edit goes on the window's own undo stack");
+        Check(readMeta().find("Clip:") != std::string::npos, "and is written into the model meta");
+        tickUntil([&]() { return std::fabs(clipLength() - 0.5f) < 0.001f; }, "the clip reloads cut to half a second");
+        Check(panel->Undo(), "the window undoes it");
+        Check(readMeta() == before, "undo puts the meta text back");
+        tickUntil([&]() { return std::fabs(clipLength() - 1.0f) < 0.001f; }, "and the clip is whole again");
+        Check(panel->Redo(), "the window redoes it");
+        tickUntil([&]() { return std::fabs(clipLength() - 0.5f) < 0.001f; }, "redo cuts it again");
+
+        // 이벤트: 더하고, 표식을 끌어 옮긴다(손을 뗄 때 커맨드 하나).
+        Check(panel->AddClipEvent(0.1f, "Step"), "an event is added");
+        Check(readMeta().find("Step") != std::string::npos, "and written into the meta");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the event marker");
+        }
+        JBro::Float markerX = 0.0f;
+        JBro::Float markerY = 0.0f;
+        Check(panel->GetEventMarkerPosition(0, markerX, markerY), "the event has a marker under the timeline");
+        const std::size_t beforeDrag = panel->GetCommands().GetUndoCount();
+        const JBro::Int32 fromX = static_cast<JBro::Int32>(markerX);
+        const JBro::Int32 rowY = static_cast<JBro::Int32>(markerY);
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(fromX, rowY));
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(fromX, rowY));
+        Check(editor.Tick(Frame), "the editor must tick");
+        for (JBro::Int32 move = 1; move <= 4; ++move)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(fromX + move * 20, rowY));
+            Check(editor.Tick(Frame), "the editor must tick while dragging");
+        }
+        Check(panel->GetCommands().GetUndoCount() == beforeDrag, "dragging only moves the draft");
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(fromX + 80, rowY));
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(panel->GetCommands().GetUndoCount() == beforeDrag + 1, "letting go leaves one command");
+        Check(panel->GetClipDraft().events.Size() == 1 && panel->GetClipDraft().events[0].time > 0.15f, "the event moved later");
+        // 줄의 빈 자리를 두 번 누르면 그 시간에 이벤트를 더한다.
+        JBro::Float stripLeft = 0.0f;
+        JBro::Float stripTop = 0.0f;
+        JBro::Float stripWidth = 0.0f;
+        JBro::Float stripHeight = 0.0f;
+        Check(panel->GetEventStripRow(stripLeft, stripTop, stripWidth, stripHeight), "the event strip is drawn");
+        Spot stripSpot;
+        stripSpot.x = static_cast<JBro::Int32>(stripLeft + stripWidth * 0.85f);
+        stripSpot.y = static_cast<JBro::Int32>(stripTop + stripHeight * 0.5f);
+        ClickAt(editor, hwnd, stripSpot);
+        ClickAt(editor, hwnd, stripSpot);
+        Check(panel->GetClipDraft().events.Size() == 2, "double-clicking the strip adds an event there");
+
+        // 구간 나누기: 새 하위 에셋이 서고 그것이 골라진다. 이름을 바꾸고 지운 뒤 되돌린다.
+        Check(panel->SplitClip(), "the clip splits");
+        tickUntil([&]() { return panel->GetClipCount() == 2 && panel->GetClip() == 1; }, "the split clip becomes a sub-asset and is selected");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must read the split clip's settings");
+        }
+        Check(panel->IsSplitClip() && panel->GetClipDraft().source == "Wave", "the new clip is a split of Wave");
+        Check(panel->RenameClip("Run"), "a split clip can be renamed");
+        Check(readMeta().find("AnimationClip/Run") != std::string::npos, "the key is renamed in the meta");
+        tickUntil([&]() { return editor.GetAssetRegistry().FindByPath("rig.gltf") != nullptr && panel->GetClipCount() == 2; }, "the registry reads the rename");
+        Check(panel->DeleteClip(), "a split clip can be deleted");
+        tickUntil([&]() { return panel->GetClipCount() == 1; }, "the deleted clip leaves the list");
+        Check(panel->Undo(), "the window undoes the delete");
+        tickUntil([&]() { return panel->GetClipCount() == 2; }, "and the clip comes back");
+        panel->SelectClip(0);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the clip settings");
+        }
+        Check(false == panel->IsSplitClip() && panel->GetClipDraft().events.Size() == 2, "the imported clip shows its settings again");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "model_editor_clip");
+        Check(editor.GetCommands().GetUndoCount() == editorUndo, "nothing landed on the editor's own stack");
         editor.Shutdown();
         std::filesystem::remove_all(root, code);
     }
@@ -22271,6 +22442,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheAnimatorInspectorListsClips());
     JBRO_CASE(TestTheEditorEditsSocketsAndAttaches());
     JBRO_CASE(TestTheModelEditorPreviewsAndPlays());
+    JBRO_CASE(TestTheModelEditorEditsClips());
     JBRO_CASE(TestTheEditorPreviewsGameLanguages());
     JBRO_CASE(TestScreenLayersInTheEditor());
     JBRO_CASE(TestTheEditorSaysWhatIsChosen());

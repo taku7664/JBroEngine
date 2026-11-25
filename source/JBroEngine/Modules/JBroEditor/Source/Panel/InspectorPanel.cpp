@@ -2264,6 +2264,18 @@ namespace JBro
             DrawSubAssetSockets(meta, record, subIndex);
             return;
         }
+        // 클립의 구간·반복·이벤트·나누기는 모델 에디터에서 고친다(D-462) - 타임라인을 보며 고쳐야 한다.
+        if (record.type == AssetType::AnimationClip)
+        {
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::InspectorClipHint, "Edit this clip's range, loop and events in the model editor"));
+            if (Widget::IconButton("##open_model_editor", Icons::OpenExternal)
+                    .Caption(Loc::TextOr(LocKeys::InspectorOpenModelEditor, "Open Model Editor"))
+                    .Draw())
+            {
+                m_editor->OpenModelEditor(record.id);
+            }
+            return;
+        }
         if (record.type != AssetType::Texture || subIndex == meta.subAssets.Size())
         {
             return;

@@ -271,6 +271,32 @@ namespace JBro
                             return Fail(error, document.GetLine(socketsNode), message.c_str());
                         }
                     }
+                    // 클립 설정(D-462). 애니메이션만 든다.
+                    const UInt32 clipNode = document.Find(item, "Clip");
+                    if (clipNode != YamlDocument::InvalidNode)
+                    {
+                        if (subType != AssetType::AnimationClip)
+                        {
+                            return Fail(error, document.GetLine(clipNode), "only an AnimationClip sub-asset has Clip");
+                        }
+                        ReflectedYamlError reflected;
+                        if (false == ReadReflectedValue(document, clipNode, TypeDescriptorOf<ModelClipSettings>::Get(), &entry.clip, reflected))
+                        {
+                            String message = "Clip could not be read";
+                            if (false == reflected.fieldName.empty())
+                            {
+                                message.append(" at ");
+                                message.append(reflected.fieldName);
+                            }
+                            if (false == reflected.message.empty())
+                            {
+                                message.append(": ");
+                                message.append(reflected.message);
+                            }
+                            return Fail(error, document.GetLine(clipNode), message.c_str());
+                        }
+                        entry.hasClip = true;
+                    }
                     for (std::size_t seen = 0; seen < parsed.subAssets.Size(); ++seen)
                     {
                         if (parsed.subAssets[seen].key == entry.key || parsed.subAssets[seen].id == entry.id)
@@ -427,6 +453,17 @@ namespace JBro
                             return false;
                         }
                         if (false == WriteReflectedValue(writer, "Sockets", TypeDescriptorOf<Array<ModelSocket>>::Get(), &entry.sockets, error))
+                        {
+                            return false;
+                        }
+                    }
+                    if (entry.hasClip)
+                    {
+                        if (subType != AssetType::AnimationClip)
+                        {
+                            return false;
+                        }
+                        if (false == WriteReflectedValue(writer, "Clip", TypeDescriptorOf<ModelClipSettings>::Get(), &entry.clip, error))
                         {
                             return false;
                         }

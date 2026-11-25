@@ -29,10 +29,10 @@ namespace JBro::Handle
             return "Component::Animator3D";
         }
 
-        // 레이어에서 그 번호의 클립을 처음부터 재생한다.
-        Bool Play(UInt32 layer, Int32 clip, Bool loop = true);
+        // 레이어에서 그 번호의 클립을 처음부터 재생한다. 반복은 클립이 정한다(모델 에디터의 클립 설정, D-462).
+        Bool Play(UInt32 layer, Int32 clip);
         // 지금 클립에서 그 번호의 클립으로 `seconds` 초에 걸쳐 넘어간다. 레이어가 비어 있으면 곧장 재생한다.
-        Bool CrossFade(UInt32 layer, Int32 clip, Float seconds, Bool loop = true);
+        Bool CrossFade(UInt32 layer, Int32 clip, Float seconds);
         Bool Stop(UInt32 layer);
         // 레이어의 가중치(0..1)다. 레이어 0 은 늘 바탕이라 보지 않는다.
         Bool SetLayerWeight(UInt32 layer, Float weight);

@@ -12,6 +12,7 @@ namespace JBro
     class IPlatform;
     class AssetRegistry;
     struct AssetRecord;
+    struct ModelAnimation;
     struct ModelData;
     struct ModelMesh;
 
@@ -41,6 +42,12 @@ namespace JBro
     // (레지스트리에 없으면 그 칸은 비고 `missingTextures` 가 오른다). 셰이더는 `Standard` 다.
     MaterialDesc MakeModelMaterialDesc(const AssetRegistry& registry, const AssetRecord& model, const ModelData& data,
         const Array<ModelSubAsset>& listed, std::size_t materialIndex, UInt32& missingTextures);
+
+    // **애니메이션을 원본의 [start, end] 초로 자른다**(D-462). 트랙마다 두 끝에서 값을 뽑아 키로 두고 그 사이의 키는 시간을 당겨 옮긴다 - 이음 방식은 트랙의 것을 지킨다
+    // (선형의 회전은 짧은 쪽 nlerp, 계단은 앞 키). `end` 가 음수면 끝까지이고, 구간은 원본 안으로 잘라 넣는다. 결과의 길이는 `end - start` 다.
+    void CropModelAnimation(const ModelAnimation& source, Float start, Float end, ModelAnimation& result);
+    // 그 메타 항목의 클립 설정을 원본 애니메이션에 건다: 자르기, 반복, 이벤트(클립 구간 밖은 버리고 시간 차례로). 설정이 없으면 원본 그대로·반복이다.
+    void ApplyModelClipSettings(const ModelAnimation& source, const AssetSubEntry* entry, ModelAnimation& clip, Bool& loop, Array<ModelClipEvent>& events);
 
     // **같은 그림인지 가르는 열쇠**다(model-import-plan §2.5). 원본 바이트의 해시와 실제로 적용되는 옵션(필터·색 공간·밉맵)을 섞는다 -
     // 둘 다 같아야 같은 그림으로 묶고, 한쪽 옵션을 바꾸면 열쇠가 달라져 저절로 갈라진다. 해시가 0 이면 0(묶지 않음)이다.

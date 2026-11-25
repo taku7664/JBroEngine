@@ -17,6 +17,7 @@
 #include "Panel/CanvasViewPanel.h"
 #include "Panel/NodeGraphPanel.h"
 #include "Panel/SoundEffectPanel.h"
+#include "Panel/ModelEditorPanel.h"
 #include "Panel/SpriteViewerPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 
@@ -690,6 +691,7 @@ namespace JBro
         CanvasViewPanel::RegisterActions();
         NodeGraphPanel::RegisterActions();
         SoundEffectPanel::RegisterActions();
+        ModelEditorPanel::RegisterActions();
         SpriteViewerPanel::RegisterActions();
         ProjectSettingsPanel::RegisterActions();
         CommandPalette::RegisterAction();

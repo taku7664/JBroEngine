@@ -674,6 +674,23 @@ Entries:
   model_editor.loop: 반복
   model_editor.speed: 속도
   model_editor.time: "%.2f / %.2f초"
+  model_editor.nothing_to_undo: "이 창에서 되돌릴 것이 없습니다"
+  model_editor.split: 구간 나누기
+  model_editor.split_tooltip: 같은 원본과 구간으로 새 클립을 만듭니다
+  model_editor.delete_clip: 클립 삭제
+  model_editor.clip_name: 이름
+  model_editor.clip_source: 원본
+  model_editor.imported_clip: "모델 파일에서 가져온 애니메이션입니다"
+  model_editor.clip_start: 시작
+  model_editor.clip_end: 끝
+  model_editor.events: 이벤트
+  model_editor.add_event: 이벤트 추가
+  model_editor.no_events: "이벤트가 없습니다. 타임라인 아래 줄을 두 번 눌러 추가할 수 있습니다"
+  model_editor.remove_event: 이벤트 삭제
+  model_editor.unnamed_event: 이름 없는 이벤트
+  model_editor.strip_tooltip: "두 번 누르면 이 시간에 이벤트를 추가합니다. 표식을 끌어 옮깁니다"
+  inspector.clip_hint: "클립의 구간·반복·이벤트는 모델 에디터에서 고칩니다"
+  inspector.open_model_editor: 모델 에디터 열기
   assets.import: 가져오기...
   menu.import_sprite: 스프라이트 가져오기
   dialog.import_title: 가져오기

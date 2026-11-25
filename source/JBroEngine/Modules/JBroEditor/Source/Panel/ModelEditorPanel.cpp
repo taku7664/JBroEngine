@@ -3,6 +3,8 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Editor/Command/SetAssetFileCommand.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorTheme.h>
@@ -11,7 +13,11 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/FieldLabel.h>
+#include <JBro/Editor/Widget/FormLayout.h>
+#include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/Tree.h>
@@ -23,13 +29,16 @@
 #include <JBro/Framework3DSystem/System/Animation3DSystem.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Uuid.h>
 #include <JBro/Types/ValueMath.h>
 
 #include <imgui.h>
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
+#include <string>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/Int.h>
@@ -85,6 +94,103 @@ namespace JBro
             }
             return true;
         }
+    }
+
+    namespace
+    {
+        ModelEditorPanel* PanelOf(const EditorActionContext& context)
+        {
+            return static_cast<ModelEditorPanel*>(context.panel);
+        }
+
+        Bool CanUndo(const EditorActionContext& context)
+        {
+            return context.panel != nullptr && PanelOf(context)->GetCommands().CanUndo();
+        }
+
+        Bool CanRedo(const EditorActionContext& context)
+        {
+            return context.panel != nullptr && PanelOf(context)->GetCommands().CanRedo();
+        }
+
+        const char* WhyNothing(const EditorActionContext&)
+        {
+            return Loc::TextOr(LocKeys::ModelEditorNothingToUndo, "nothing to undo or redo in this window");
+        }
+
+        // 하위 키의 이름 쪽이다(`AnimationClip/Run` → `Run`).
+        String KeyName(const String& key)
+        {
+            AssetType type = AssetType::Unknown;
+            std::string_view name;
+            return SplitSubAssetKey(key, type, name) ? String(name) : key;
+        }
+
+        Bool KeyTaken(const AssetMetaFile& meta, const String& key, std::size_t except)
+        {
+            for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+            {
+                if (index != except && meta.subAssets[index].key == key)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    void ModelEditorPanel::RegisterActions()
+    {
+        EditorActionRegistry& actions = EditorActionRegistry::Get();
+        auto bind = [](ImGuiKey key, Bool control = false, Bool shift = false)
+        {
+            EditorShortcutBinding binding;
+            binding.key = key;
+            binding.control = control;
+            binding.shift = shift;
+            return binding;
+        };
+        {
+            EditorActionInfo info;
+            info.name = "model_editor.undo";
+            info.labelKey = LocKeys::MenuUndo;
+            info.fallbackLabel = "Undo";
+            info.categoryKey = LocKeys::ModelEditorTitle;
+            info.panelType = TypeName;
+            info.primary = bind(ImGuiKey_Z, true);
+            info.CanExecute = &CanUndo;
+            info.WhyBlocked = &WhyNothing;
+            info.Execute = [](EditorActionContext& context) -> Bool { return PanelOf(context)->Undo(); };
+            actions.Register(info);
+        }
+        {
+            EditorActionInfo info;
+            info.name = "model_editor.redo";
+            info.labelKey = LocKeys::MenuRedo;
+            info.fallbackLabel = "Redo";
+            info.categoryKey = LocKeys::ModelEditorTitle;
+            info.panelType = TypeName;
+            info.primary = bind(ImGuiKey_Y, true);
+            info.secondary = bind(ImGuiKey_Z, true, true);
+            info.CanExecute = &CanRedo;
+            info.WhyBlocked = &WhyNothing;
+            info.Execute = [](EditorActionContext& context) -> Bool { return PanelOf(context)->Redo(); };
+            actions.Register(info);
+        }
+    }
+
+    Bool ModelEditorPanel::Undo()
+    {
+        const Bool undone = m_commands.Undo();
+        m_draftClip = -1;
+        return undone;
+    }
+
+    Bool ModelEditorPanel::Redo()
+    {
+        const Bool redone = m_commands.Redo();
+        m_draftClip = -1;
+        return redone;
     }
 
     const char* ModelEditorPanel::GetTitle() const
@@ -229,6 +335,16 @@ namespace JBro
         {
             m_clip = m_clipIds.IsEmpty() ? Int32(-1) : Int32(0);
         }
+        // 막 나눈 클립이 목록에 섰으면 그것을 고른다.
+        for (std::size_t index = 0; false == m_pendingClip.IsNull() && index < m_clipIds.Size(); ++index)
+        {
+            if (m_clipIds[index] == m_pendingClip)
+            {
+                m_clip = static_cast<Int32>(index);
+                m_pendingClip = AssetId{};
+            }
+        }
+        m_draftClip = -1;
         DestroyPreview();
     }
 
@@ -267,7 +383,6 @@ namespace JBro
         }
         animator->startClip = m_clip >= 0 ? m_clip : Int32(0);
         animator->playOnStart = m_clip >= 0;
-        animator->loop = m_loop;
         for (std::size_t index = 0; index < m_meshIds.Size(); ++index)
         {
             Object::GameObject* part = canvas->CreateObject(m_meshNames[index].c_str());
@@ -326,21 +441,24 @@ namespace JBro
     {
         m_playing = playing;
         // 한 번 재생이 끝에 서 있으면 처음부터 다시 튼다.
-        if (playing && false == m_loop)
+        const AnimationClipData* data = GetClipData();
+        if (playing && data != nullptr && false == data->loop && GetTime() >= data->animation.duration)
         {
-            Framework3D* framework = m_editor->GetFramework3D();
-            Canvas* canvas = framework != nullptr ? framework->GetPreviewCanvas(m_preview) : nullptr;
-            const Component::Animator3D* animator = canvas != nullptr ? FindAnimator(*canvas) : nullptr;
-            const AssetSystem* assets = m_editor->GetAssetSystem();
-            if (animator != nullptr && assets != nullptr && m_clip >= 0 && m_clip < static_cast<Int32>(animator->animationClips.Size()))
-            {
-                const AnimationClipData* data = assets->GetAnimationClip(animator->animationClips[static_cast<std::size_t>(m_clip.Get())]);
-                if (data != nullptr && GetTime() >= data->animation.duration)
-                {
-                    m_pendingTime = 0.0f;
-                }
-            }
+            m_pendingTime = 0.0f;
         }
+    }
+
+    const AnimationClipData* ModelEditorPanel::GetClipData() const
+    {
+        Framework3D* framework = m_editor != nullptr ? m_editor->GetFramework3D() : nullptr;
+        Canvas* canvas = framework != nullptr ? framework->GetPreviewCanvas(m_preview) : nullptr;
+        const Component::Animator3D* animator = canvas != nullptr ? FindAnimator(*canvas) : nullptr;
+        const AssetSystem* assets = m_editor != nullptr ? m_editor->GetAssetSystem() : nullptr;
+        if (animator == nullptr || assets == nullptr || m_clip < 0 || m_clip >= static_cast<Int32>(animator->animationClips.Size()))
+        {
+            return nullptr;
+        }
+        return assets->GetAnimationClip(animator->animationClips[static_cast<std::size_t>(m_clip.Get())]);
     }
 
     Float ModelEditorPanel::GetTime() const
@@ -361,7 +479,7 @@ namespace JBro
         {
             return 0.0f;
         }
-        return WrapClipTime(layer.time, data->animation.duration, layer.loop);
+        return WrapClipTime(layer.time, data->animation.duration, data->loop);
     }
 
     void ModelEditorPanel::SetTime(Float seconds)
@@ -389,12 +507,11 @@ namespace JBro
         }
         const InstanceId id = animator->GetInstanceId();
         const AssetHandle clip = animator->animationClips[static_cast<std::size_t>(m_clip.Get())];
-        if (m_appliedClip != m_clip && animation->Play(id, 0, clip, m_loop))
+        if (m_appliedClip != m_clip && animation->Play(id, 0, clip))
         {
             m_appliedClip = m_clip;
         }
-        System::Animation3DSystem::Layer& layer = state->layers[0];
-        layer.loop = m_loop;
+        const System::Animation3DSystem::Layer& layer = state->layers[0];
         if (m_pendingTime >= 0.0f && animation->SetLayerTime(id, 0, m_pendingTime))
         {
             m_pendingTime = -1.0f;
@@ -404,9 +521,9 @@ namespace JBro
         {
             return;
         }
-        if (false == m_loop && layer.time >= data->animation.duration)
+        // 반복은 클립이 정한다(D-462). 한 번 재생은 끝에 선다 - 재생 단추가 다시 처음부터 튼다.
+        if (false == data->loop && layer.time >= data->animation.duration)
         {
-            // 한 번 재생은 끝에 선다. 재생 단추가 다시 처음부터 튼다.
             m_playing = false;
             return;
         }
@@ -676,7 +793,8 @@ namespace JBro
 
         DrawToolBar();
         const ImVec2 available = ImGui::GetContentRegionAvail();
-        const Float timelineHeight = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
+        // 타임라인 한 줄과 그 아래 이벤트 줄(12 픽셀)이다.
+        const Float timelineHeight = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y + 14.0f;
         const Float bodyHeight = (std::max)(Float(60.0f), Float(available.y - timelineHeight));
         const Float sideWidth = JBro::Clamp(m_sideWidth, 140.0f, (std::max)(140.0f, available.x - 200.0f));
         // **본문은 높이가 정해진 칸 하나다** - 세로 분할 손잡이는 남은 높이를 다 잡으므로, 감싸지 않으면 아래 타임라인을 창 밖으로 밀어낸다(실제 화면에서 그랬다).
@@ -690,9 +808,10 @@ namespace JBro
         if (ImGui::BeginChild("##model_side", ImVec2(sideWidth, 0.0f), ImGuiChildFlags_Borders))
         {
             const Float sideHeight = ImGui::GetContentRegionAvail().y;
+            // 처음에는 클립 설정이 다 보이게 뼈대 트리를 작게 둔다. 사람이 끌어 바꾼다.
             if (m_treeHeight <= 0.0f)
             {
-                m_treeHeight = sideHeight * 0.6f;
+                m_treeHeight = sideHeight * 0.35f;
             }
             const Float treeLimit = (std::max)(Float(60.0f), Float(sideHeight - 60.0f));
             const Float treeHeight = JBro::Clamp(m_treeHeight, Float(60.0f), treeLimit);
@@ -835,6 +954,420 @@ namespace JBro
                 SelectClip(static_cast<Int32>(index));
             }
         }
+        ImGui::Separator();
+        DrawClipSettings();
+    }
+
+    Bool ModelEditorPanel::ReadClipEntry(AssetMetaFile& meta, std::size_t& entry)
+    {
+        AssetSystem* assets = m_editor->GetAssetSystem();
+        const AssetRecord* model = m_editor->GetAssetRegistry().Find(m_model);
+        if (assets == nullptr || model == nullptr || m_clip < 0 || m_clip >= static_cast<Int32>(m_clipIds.Size()))
+        {
+            return false;
+        }
+        // 디스크의 메타를 읽는다 - 커맨드가 되살릴 글자가 파일과 같아야 한다.
+        AssetMetaError error;
+        if (false == LoadAssetMetaFile(m_editor->GetPlatform(), assets->GetMetaPath(*model).c_str(), meta, error))
+        {
+            return false;
+        }
+        const AssetId clip = m_clipIds[static_cast<std::size_t>(m_clip.Get())];
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            if (meta.subAssets[index].id == clip)
+            {
+                entry = index;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template <typename TChange>
+    Bool ModelEditorPanel::EditClip(const char* name, Bool structural, TChange&& change)
+    {
+        AssetMetaFile before;
+        std::size_t at = 0;
+        if (false == ReadClipEntry(before, at))
+        {
+            return false;
+        }
+        AssetMetaFile after = before;
+        if (false == after.subAssets[at].hasClip)
+        {
+            after.subAssets[at].hasClip = true;
+            after.subAssets[at].clip = ModelClipSettings{};
+        }
+        if (false == change(after, at))
+        {
+            return false;
+        }
+        AssetFileTarget target;
+        if (false == m_editor->DescribeAssetMeta(m_clipIds[static_cast<std::size_t>(m_clip.Get())], target))
+        {
+            return false;
+        }
+        // 값만 바꾸면 하위 목록은 그대로다 - 레지스트리를 다시 훑지 않는다(모델을 다시 읽는다). 키를 바꾸면 훑는다.
+        if (false == structural)
+        {
+            target.afterWrite = nullptr;
+            target.afterWriteUser = nullptr;
+        }
+        target.name = name;
+        if (false == m_commands.Execute(MakeOwnerPtr<SetAssetFileCommand>(target, FormatAssetMetaFile(before), FormatAssetMetaFile(after))))
+        {
+            return false;
+        }
+        // 다시 읽힌 클립이 서기 전에도 칸이 새 값을 보인다. 다시 읽히면 초안을 메타에서 다시 뜬다.
+        if (at < after.subAssets.Size() && after.subAssets[at].id == m_clipIds[static_cast<std::size_t>(m_clip.Get())])
+        {
+            m_draft = after.subAssets[at].clip;
+        }
+        return true;
+    }
+
+    void ModelEditorPanel::SyncDraft()
+    {
+        if (m_draftEditing)
+        {
+            return;
+        }
+        const AnimationClipData* data = GetClipData();
+        const UInt32 generation = data != nullptr ? data->dataGeneration : UInt32(0);
+        const UInt64 revision = m_editor->GetAssetRegistry().GetRevision();
+        if (m_draftClip == m_clip && m_draftGeneration == generation && m_draftRevision == revision)
+        {
+            return;
+        }
+        m_draftClip = m_clip;
+        m_draftGeneration = generation;
+        m_draftRevision = revision;
+        m_draft = ModelClipSettings{};
+        m_draftSplit = false;
+        m_draftName.clear();
+        AssetMetaFile meta;
+        std::size_t at = 0;
+        if (ReadClipEntry(meta, at))
+        {
+            const AssetSubEntry& entry = meta.subAssets[at];
+            m_draft = entry.hasClip ? entry.clip : ModelClipSettings{};
+            m_draftSplit = entry.hasClip && false == entry.clip.source.empty();
+            m_draftName = KeyName(entry.key);
+        }
+        m_renameText = m_draftName;
+        m_eventNames.Clear();
+        for (const ModelClipEvent& event : m_draft.events)
+        {
+            m_eventNames.Add(event.name);
+        }
+        if (m_selectedEvent >= static_cast<Int32>(m_draft.events.Size()))
+        {
+            m_selectedEvent = -1;
+        }
+    }
+
+    Bool ModelEditorPanel::SetClipRange(Float start, Float end)
+    {
+        const AnimationClipData* data = GetClipData();
+        const Float source = data != nullptr ? data->sourceDuration : Float(0.0f);
+        if (false == std::isfinite(start) || false == std::isfinite(end))
+        {
+            return false;
+        }
+        return EditClip("Set Clip Range", false, [&](AssetMetaFile& meta, std::size_t at) {
+            ModelClipSettings& clip = meta.subAssets[at].clip;
+            clip.start = (std::max)(Float(0.0f), source > 0.0f ? (std::min)(start, source) : start);
+            // 원본 길이에 닿으면 "끝까지" 다 - 원본이 길어져도 따라간다.
+            clip.end = source > 0.0f && end >= source ? Float(-1.0f) : (std::max)(clip.start, end);
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::SetClipLoop(Bool loop)
+    {
+        return EditClip("Set Clip Loop", false, [&](AssetMetaFile& meta, std::size_t at) {
+            meta.subAssets[at].clip.loop = loop;
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::AddClipEvent(Float time, const char* name)
+    {
+        if (false == std::isfinite(time))
+        {
+            return false;
+        }
+        return EditClip("Add Animation Event", false, [&](AssetMetaFile& meta, std::size_t at) {
+            ModelClipEvent event;
+            event.name = name != nullptr ? name : "";
+            event.time = (std::max)(Float(0.0f), time);
+            meta.subAssets[at].clip.events.Add(event);
+            m_selectedEvent = static_cast<Int32>(meta.subAssets[at].clip.events.Size() - 1);
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::SetClipEvent(UInt32 index, const char* name, Float time)
+    {
+        if (false == std::isfinite(time))
+        {
+            return false;
+        }
+        return EditClip("Edit Animation Event", false, [&](AssetMetaFile& meta, std::size_t at) {
+            Array<ModelClipEvent>& events = meta.subAssets[at].clip.events;
+            if (index.Get() >= events.Size())
+            {
+                return false;
+            }
+            events[index.Get()].name = name != nullptr ? name : "";
+            events[index.Get()].time = (std::max)(Float(0.0f), time);
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::RemoveClipEvent(UInt32 index)
+    {
+        return EditClip("Remove Animation Event", false, [&](AssetMetaFile& meta, std::size_t at) {
+            Array<ModelClipEvent>& events = meta.subAssets[at].clip.events;
+            if (index.Get() >= events.Size())
+            {
+                return false;
+            }
+            events.RemoveAt(index.Get());
+            m_selectedEvent = -1;
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::SplitClip()
+    {
+        return EditClip("Split Animation Clip", true, [&](AssetMetaFile& meta, std::size_t at) {
+            // 배열에 더하기 전에 값을 떠 둔다 - 더하면 자리가 옮겨질 수 있다.
+            const AssetSubEntry from = meta.subAssets[at];
+            const String source = from.clip.source.empty() ? KeyName(from.key) : from.clip.source;
+            AssetSubEntry made;
+            made.id = Uuid::Generate();
+            made.hasClip = true;
+            made.clip.source = source;
+            made.clip.start = from.clip.start;
+            made.clip.end = from.clip.end;
+            made.clip.loop = from.clip.loop;
+            for (UInt32 suffix = 2; suffix < 1000; ++suffix)
+            {
+                String key = "AnimationClip/";
+                key += source;
+                key += " ";
+                key += String(std::to_string(suffix.Get()).c_str());
+                if (false == KeyTaken(meta, key, meta.subAssets.Size()))
+                {
+                    made.key = key;
+                    break;
+                }
+            }
+            if (made.key.empty())
+            {
+                return false;
+            }
+            m_pendingClip = made.id;
+            meta.subAssets.Add(std::move(made));
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::RenameClip(const char* name)
+    {
+        String wanted = name != nullptr ? String(name) : String();
+        while (false == wanted.empty() && (wanted.back() == ' ' || wanted.back() == '\t'))
+        {
+            wanted.pop_back();
+        }
+        while (false == wanted.empty() && (wanted.front() == ' ' || wanted.front() == '\t'))
+        {
+            wanted.erase(0, 1);
+        }
+        if (false == m_draftSplit || wanted.empty() || wanted == m_draftName || wanted.find('/') != String::npos)
+        {
+            return false;
+        }
+        return EditClip("Rename Animation Clip", true, [&](AssetMetaFile& meta, std::size_t at) {
+            String key = "AnimationClip/";
+            key += wanted;
+            if (KeyTaken(meta, key, at))
+            {
+                return false;
+            }
+            meta.subAssets[at].key = key;
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::DeleteClip()
+    {
+        if (false == m_draftSplit)
+        {
+            return false;
+        }
+        return EditClip("Delete Animation Clip", true, [&](AssetMetaFile& meta, std::size_t at) {
+            meta.subAssets.RemoveAt(at);
+            return true;
+        });
+    }
+
+    void ModelEditorPanel::DrawClipSettings()
+    {
+        if (m_clip < 0)
+        {
+            return;
+        }
+        SyncDraft();
+        const AnimationClipData* data = GetClipData();
+        const Float source = data != nullptr ? data->sourceDuration : Float(0.0f);
+        Bool editing = false;
+        if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorSplit, "Split")))
+        {
+            SplitClip();
+        }
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorSplitTooltip, "make a new clip from the same source animation and range"));
+        if (m_draftSplit)
+        {
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorDeleteClip, "Delete Clip")))
+            {
+                DeleteClip();
+                return;
+            }
+        }
+        // 안내는 폼 밖에 둔다 - 폼의 한 칸에 두면 그 칸의 폭으로 접혀 낱말마다 줄이 바뀐다.
+        if (false == m_draftSplit)
+        {
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorImportedClip, "imported from the model file"));
+        }
+        Widget::FormLayout layout("##model_clip_settings");
+        if (m_draftSplit)
+        {
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipName, "Name")), [&]() {
+                if (Widget::TextField("##clip_name", m_renameText).CommitOnFinish()())
+                {
+                    if (false == RenameClip(m_renameText.c_str()))
+                    {
+                        m_renameText = m_draftName;
+                    }
+                }
+                editing = editing || ImGui::IsItemActive();
+            });
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipSource, "Source")), [&]() {
+                Widget::Text(m_draft.source.c_str());
+            });
+        }
+        // 구간은 원본의 초다. 끄는 동안은 초안만 바꾸고 손을 떼면 커맨드 하나다.
+        Float start = m_draft.start;
+        Float end = m_draft.end < 0.0f ? source : m_draft.end;
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipStart, "Start")), [&]() {
+            if (Widget::DragField("##clip_start", start).Range(0.0f, (std::max)(source, Float(0.0f))).Speed(0.01f).Format("%.2f").StepButtons(false)())
+            {
+                m_draft.start = start;
+            }
+            editing = editing || ImGui::IsItemActive();
+            if (ImGui::IsItemDeactivatedAfterEdit())
+            {
+                SetClipRange(m_draft.start, end);
+            }
+        });
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipEnd, "End")), [&]() {
+            if (Widget::DragField("##clip_end", end).Range(0.0f, (std::max)(source, Float(0.0f))).Speed(0.01f).Format("%.2f").StepButtons(false)())
+            {
+                m_draft.end = end;
+            }
+            editing = editing || ImGui::IsItemActive();
+            if (ImGui::IsItemDeactivatedAfterEdit())
+            {
+                SetClipRange(start, end);
+            }
+        });
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorLoop, "Loop")), [&]() {
+            Bool loop = m_draft.loop;
+            if (Widget::Checkbox("##clip_loop", loop))
+            {
+                SetClipLoop(loop);
+            }
+        });
+        layout.Break([&]() {
+            Widget::HintText(Loc::TextOr(LocKeys::ModelEditorEvents, "Events"));
+            ImGui::SameLine(0.0f, 8.0f);
+            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorAddEvent, "Add Event")))
+            {
+                AddClipEvent(GetTime(), "");
+            }
+        });
+        if (m_draft.events.IsEmpty())
+        {
+            layout.Break([&]() {
+                Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoEvents, "no events - double-click the strip under the timeline to add one"));
+            });
+        }
+        while (m_eventNames.Size() < m_draft.events.Size())
+        {
+            m_eventNames.Add(String());
+        }
+        // **커맨드는 줄을 다 그린 뒤에 실행한다.** 실행하면 초안을 메타의 값으로 새로 대입해 배열이 다시 잡힌다 - 도는 중에 하면 다음 줄이 지나간 원소를 읽는다.
+        enum class EventEdit : std::uint8_t
+        {
+            None,
+            Set,
+            Remove
+        };
+        EventEdit pendingEdit = EventEdit::None;
+        std::size_t pendingIndex = 0;
+        for (std::size_t index = 0; index < m_draft.events.Size(); ++index)
+        {
+            // Id 는 칸 안에서 쌓는다 - `Break` 가 표를 닫을 때 바깥에 쌓인 Id 가 있으면 어긋난다.
+            layout.Break([&]() {
+                const Widget::IdScope scope(static_cast<Int32>(index));
+                const Float rowWidth = ImGui::GetContentRegionAvail().x;
+                if (Widget::TextField("##event_name", m_eventNames[index]).Hint(Loc::TextOr(LocKeys::ModelEditorUnnamedEvent, "unnamed event")).Width((std::max)(Float(40.0f), Float(rowWidth - 110.0f))).CommitOnFinish()())
+                {
+                    m_draft.events[index].name = m_eventNames[index];
+                    pendingEdit = EventEdit::Set;
+                    pendingIndex = index;
+                }
+                editing = editing || ImGui::IsItemActive();
+                if (ImGui::IsItemActivated())
+                {
+                    m_selectedEvent = static_cast<Int32>(index);
+                }
+                ImGui::SameLine(0.0f, 4.0f);
+                Float time = m_draft.events[index].time;
+                if (Widget::DragField("##event_time", time).Range(0.0f, data != nullptr ? data->animation.duration : Float(1000.0f))
+                        .Speed(0.01f).Format("%.2f").StepButtons(false).Width(70.0f)())
+                {
+                    m_draft.events[index].time = time;
+                }
+                editing = editing || ImGui::IsItemActive();
+                if (ImGui::IsItemDeactivatedAfterEdit())
+                {
+                    pendingEdit = EventEdit::Set;
+                    pendingIndex = index;
+                }
+                ImGui::SameLine(0.0f, 4.0f);
+                if (Widget::TextButton(Icons::Delete))
+                {
+                    pendingEdit = EventEdit::Remove;
+                    pendingIndex = index;
+                }
+                Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorRemoveEvent, "Remove Event"));
+            });
+        }
+        if (pendingEdit == EventEdit::Set && pendingIndex < m_draft.events.Size())
+        {
+            const ModelClipEvent edited = m_draft.events[pendingIndex];
+            SetClipEvent(static_cast<UInt32>(pendingIndex), edited.name.c_str(), edited.time);
+        }
+        else if (pendingEdit == EventEdit::Remove)
+        {
+            RemoveClipEvent(static_cast<UInt32>(pendingIndex));
+        }
+        m_draftEditing = editing || m_draggingEvent >= 0;
     }
 
     Bool ModelEditorPanel::MakeCamera(GizmoCamera& camera) const
@@ -1062,15 +1595,7 @@ namespace JBro
 
     void ModelEditorPanel::DrawTimeline()
     {
-        Framework3D* framework = m_editor->GetFramework3D();
-        Canvas* canvas = framework != nullptr ? framework->GetPreviewCanvas(m_preview) : nullptr;
-        const Component::Animator3D* animator = canvas != nullptr ? FindAnimator(*canvas) : nullptr;
-        const AssetSystem* assets = m_editor->GetAssetSystem();
-        const AnimationClipData* data = nullptr;
-        if (animator != nullptr && assets != nullptr && m_clip >= 0 && m_clip < static_cast<Int32>(animator->animationClips.Size()))
-        {
-            data = assets->GetAnimationClip(animator->animationClips[static_cast<std::size_t>(m_clip.Get())]);
-        }
+        const AnimationClipData* data = GetClipData();
         const Float duration = data != nullptr ? data->animation.duration : Float(0.0f);
         const Widget::DisableScope disabled(data == nullptr || false == (duration > 0.0f));
         if (Widget::IconButton("##model_play", m_playing ? Icons::Pause : Icons::Play)
@@ -1080,7 +1605,12 @@ namespace JBro
             SetPlaying(false == m_playing);
         }
         ImGui::SameLine(0.0f, 12.0f);
-        Widget::Checkbox("##model_loop", m_loop);
+        // 반복은 클립 설정이다(D-462) - 누르면 메타 커맨드다.
+        Bool loop = m_draft.loop;
+        if (Widget::Checkbox("##model_loop", loop))
+        {
+            SetClipLoop(loop);
+        }
         ImGui::SameLine(0.0f, 4.0f);
         Widget::Text(Loc::TextOr(LocKeys::ModelEditorLoop, "Loop"));
         ImGui::SameLine(0.0f, 12.0f);
@@ -1097,7 +1627,111 @@ namespace JBro
         {
             SetTime(time);
         }
+        const ImVec2 sliderMin = ImGui::GetItemRectMin();
+        const ImVec2 sliderMax = ImGui::GetItemRectMax();
         ImGui::SameLine(0.0f, 8.0f);
         Widget::HintText(label);
+        // 이벤트 줄은 시간 막대 바로 아래, 같은 폭이다 - 표식이 막대의 그 시간 아래에 선다.
+        if (data != nullptr && duration > 0.0f)
+        {
+            ImGui::SetCursorScreenPos(ImVec2(sliderMin.x, sliderMax.y + 2.0f));
+            DrawEventStrip(sliderMin.x, sliderMax.x - sliderMin.x, duration);
+        }
     }
+
+    Bool ModelEditorPanel::GetEventMarkerPosition(UInt32 index, Float& x, Float& y) const
+    {
+        if (index.Get() >= m_eventScreenX.Size() || m_stripHeight <= 0.0f)
+        {
+            return false;
+        }
+        x = m_eventScreenX[index.Get()];
+        y = m_stripTop + m_stripHeight * 0.5f;
+        return true;
+    }
+
+    Bool ModelEditorPanel::GetEventStripRow(Float& left, Float& top, Float& width, Float& height) const
+    {
+        left = m_stripLeft;
+        top = m_stripTop;
+        width = m_stripWidth;
+        height = m_stripHeight;
+        return m_stripHeight > 0.0f;
+    }
+
+    void ModelEditorPanel::DrawEventStrip(Float left, Float width, Float duration)
+    {
+        // 막대의 손잡이가 움직이는 폭과 맞춘다(ImGui 슬라이더: 양쪽 2 픽셀 + 손잡이 절반).
+        const Float grab = ImGui::GetStyle().GrabMinSize;
+        const Float usableLeft = left + 2.0f + grab * 0.5f;
+        const Float usableWidth = (std::max)(Float(1.0f), Float(width - 4.0f - grab));
+        const Float height = 12.0f;
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        m_stripLeft = left;
+        m_stripTop = origin.y;
+        m_stripWidth = width;
+        m_stripHeight = height;
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        draw->AddRectFilled(origin, ImVec2(origin.x + width, origin.y + height), IM_COL32(255, 255, 255, 14), 2.0f);
+        const auto timeAt = [&](Float x) {
+            const Float t = (x - usableLeft) / usableWidth * duration;
+            return JBro::Clamp(t, Float(0.0f), duration);
+        };
+        // 빈 자리를 두 번 누르면 그 시간에 이벤트를 더한다. 표식이 위에 서도록 겹침을 허락한다.
+        ImGui::SetNextItemAllowOverlap();
+        Widget::HitArea("##event_strip", ImVec2(width, height));
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+            AddClipEvent(timeAt(ImGui::GetIO().MousePos.x), "");
+        }
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorStripTooltip, "double-click to add an event here; drag a marker to move it"));
+        m_eventScreenX.Clear();
+        Bool dragging = false;
+        // 놓은 표식의 커맨드는 반복 뒤에 실행한다(실행이 초안 배열을 다시 잡는다).
+        Int32 released = -1;
+        for (std::size_t index = 0; index < m_draft.events.Size(); ++index)
+        {
+            ModelClipEvent& event = m_draft.events[index];
+            const Float x = usableLeft + JBro::Clamp(event.time / duration, Float(0.0f), Float(1.0f)) * usableWidth;
+            m_eventScreenX.Add(x);
+            const Widget::IdScope scope(static_cast<Int32>(index));
+            ImGui::SetCursorScreenPos(ImVec2(x - 5.0f, origin.y));
+            Widget::HitArea("##event_marker", ImVec2(10.0f, height));
+            if (ImGui::IsItemActivated())
+            {
+                m_selectedEvent = static_cast<Int32>(index);
+            }
+            if (ImGui::IsItemActive())
+            {
+                // 끄는 동안은 초안만 옮긴다. 손을 떼면 커맨드 하나다.
+                event.time = timeAt(ImGui::GetIO().MousePos.x);
+                m_draggingEvent = static_cast<Int32>(index);
+                dragging = true;
+            }
+            if (ImGui::IsItemDeactivated() && m_draggingEvent == static_cast<Int32>(index))
+            {
+                m_draggingEvent = -1;
+                released = static_cast<Int32>(index);
+            }
+            if (ImGui::IsItemHovered())
+            {
+                Widget::ShowTooltip(event.name.empty() ? Loc::TextOr(LocKeys::ModelEditorUnnamedEvent, "unnamed event") : event.name.c_str());
+            }
+            const Bool selected = m_selectedEvent == static_cast<Int32>(index);
+            const ImU32 color = selected ? IM_COL32(255, 210, 80, 255) : IM_COL32(150, 200, 255, 220);
+            draw->AddTriangleFilled(ImVec2(x - 4.0f, origin.y + 1.0f), ImVec2(x + 4.0f, origin.y + 1.0f), ImVec2(x, origin.y + height - 1.0f), color);
+        }
+        if (false == dragging && m_draggingEvent >= 0 && false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            m_draggingEvent = -1;
+        }
+        if (released >= 0 && static_cast<std::size_t>(released.Get()) < m_draft.events.Size())
+        {
+            const ModelClipEvent moved = m_draft.events[static_cast<std::size_t>(released.Get())];
+            SetClipEvent(static_cast<UInt32>(released), moved.name.c_str(), moved.time);
+        }
+        ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + height));
+        ImGui::Dummy(ImVec2(0.0f, 0.0f));
+    }
+
 }

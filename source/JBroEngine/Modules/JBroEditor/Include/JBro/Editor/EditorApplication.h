@@ -407,6 +407,9 @@ namespace JBro
         const AssetMetaFile* GetSelectedAssetMeta() const;
         // 고른 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다. 고른 것이 없으면 거짓이다.
         Bool DescribeSelectedAssetMeta(AssetFileTarget& target) const;
+        // 그 에셋의 메타를 고쳐 쓰는 커맨드가 가리킬 대상이다(모델 에디터의 클립 설정, D-462). 하위 에셋이면 모델의 메타이고 다시 읽는 것은 그 하위 에셋이며,
+        // 모델 메타면 쓴 뒤 레지스트리를 다시 훑는다. 그림의 짝 스프라이트는 채우지 않는다. 모르는 에셋이면 거짓이다.
+        Bool DescribeAssetMeta(AssetId asset, AssetFileTarget& target) const;
         // **고른 재질**(material-plan 4 단계). 고른 에셋이 재질이면 그 값이다 - `.jmat` 은 파일을 읽은 것이고, 모델의 하위 Material 은
         // 모델의 재질을 옮긴 것이라 읽기 전용이다(D-399 (2)). 재질이 아니거나 읽히지 않으면 nullptr. 커맨드가 돈 뒤 디스크에서 다시 읽는다.
         const MaterialDesc* GetSelectedMaterial() const;

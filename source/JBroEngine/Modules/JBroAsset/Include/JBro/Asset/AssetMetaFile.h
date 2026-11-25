@@ -64,6 +64,9 @@ namespace JBro
         TextureImportOptions textureOptions;
         // 뼈대·메시만(D-460). 사용자가 고친 것이라 모델을 다시 읽어도 같은 키면 지킨다.
         Array<ModelSocket> sockets;
+        // 애니메이션만(D-462). 없으면 가져온 그대로(전 구간·반복·이벤트 없음)다. `clip.source` 가 차 있으면 나눈 클립이라 다시 가져와도 남는다.
+        Bool hasClip = false;
+        ModelClipSettings clip;
     };
 
     // 하위 키를 종류와 이름으로 나눈다. 모르는 종류이거나 이름이 비면 false 다.

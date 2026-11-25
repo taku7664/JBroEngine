@@ -31,6 +31,7 @@ namespace JBro::Component
     // 스크립트가 남긴 명령(다음 프레임에 시스템이 처리한다)과, 시스템이 돌려 적은 레이어 상태뿐이다(캐릭터 컨트롤러의 `Move` 와 같은 꼴).
     //
     // 클립은 `animationClipIds` 의 목록이고 스크립트는 그 **번호**로 고른다 - 프레임 경로에서 이름을 견주지 않는다. 레이어 1 이상(상하체 분리)과 마스크는 스크립트가 건다.
+    // **반복은 클립이 정한다**(D-462) - 모델 메타의 클립 설정이고, 애니메이터와 스크립트는 정하지 않는다. 옛 캔버스의 `loop` 칸은 읽을 때 건너뛴다.
     class Animator3D final : public ComponentBase
     {
     public:
@@ -55,7 +56,6 @@ namespace JBro::Component
         // 레이어 0(전신 바탕)이 시작할 때 재생하는 클립의 번호다. -1 이면 아무것도 재생하지 않는다.
         JBRO_FIELD(Int32,              startClip) = 0;
         JBRO_FIELD(Bool,               playOnStart) = true;
-        JBRO_FIELD(Bool,               loop) = true;
         // 모든 레이어의 재생 속도에 곱한다. 0 이면 멈춘다.
         JBRO_FIELD(Float,              speed) = 1.0f;
 
@@ -83,31 +83,30 @@ namespace JBro::Component
             Int32 clip = -1;
             // `CrossFade` 의 초, `SetWeight` 의 가중치, `SetMask` 의 섞는 깊이다.
             Float value = 0.0f;
+            // `SetAdditive` 의 더하기 여부다.
             Bool flag = false;
             // `SetMask` 의 뿌리 뼈 이름이다(비면 마스크를 지운다). DLL 경계를 넘으므로 고정 크기 글자다.
             char bone[BoneNameCapacity] = {};
         };
 
-        // 레이어에서 그 번호의 클립을 처음부터 재생한다.
-        Bool Play(UInt32 layer, Int32 clip, Bool loopClip)
+        // 레이어에서 그 번호의 클립을 처음부터 재생한다. 반복은 클립의 것이다.
+        Bool Play(UInt32 layer, Int32 clip)
         {
             Command command;
             command.kind = CommandKind::Play;
             command.layer = layer;
             command.clip = clip;
-            command.flag = loopClip;
             return Push(command);
         }
 
         // 지금 클립에서 그 번호의 클립으로 `seconds` 초에 걸쳐 넘어간다.
-        Bool CrossFade(UInt32 layer, Int32 clip, Float seconds, Bool loopClip)
+        Bool CrossFade(UInt32 layer, Int32 clip, Float seconds)
         {
             Command command;
             command.kind = CommandKind::CrossFade;
             command.layer = layer;
             command.clip = clip;
             command.value = seconds;
-            command.flag = loopClip;
             return Push(command);
         }
 

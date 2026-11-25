@@ -19,9 +19,16 @@ namespace JBro
 {
     class AssetSystem;
     class Canvas;
+    class GameScript3D;
+    struct AnimationClipData;
+    struct ModelClipEvent;
     namespace Component
     {
         class Animator3D;
+    }
+    namespace Object
+    {
+        class GameObject;
     }
 }
 
@@ -77,8 +84,9 @@ namespace JBro::System
             Float time = 0.0f;
             Float weight = 1.0f;
             Float speed = 1.0f;
-            Bool loop = true;
             Bool playing = false;
+            // 다음 이벤트 훑기가 0 초의 이벤트를 넣는가다(D-462). 재생을 시작하면 참이고, 한 번 훑거나 시간을 놓으면 거짓이다.
+            Bool eventsFromStart = true;
             AnimatorLayerMode mode = AnimatorLayerMode::Override;
             // 뼈마다 0..1 이다. 비면 모든 뼈가 1 이다.
             Array<Float> mask;
@@ -90,7 +98,6 @@ namespace JBro::System
             UInt32 fromGeneration = 0;
             Array<Int32> fromTracks;
             Float fromTime = 0.0f;
-            Bool fromLoop = true;
             Float fade = 0.0f;
             Float fadeElapsed = 0.0f;
         };
@@ -125,8 +132,9 @@ namespace JBro::System
         const Array<Matrix4x4>* FindSkinMatrices(InstanceId animator) const;
 
         // **스크립트가 부르는 조작**(1 단계의 스크립트 핸들이 이것을 부른다). 레이어 번호가 넘치거나 클립이 비면 거짓이다.
-        Bool Play(InstanceId animator, UInt32 layer, AssetHandle clip, Bool loop);
-        Bool CrossFade(InstanceId animator, UInt32 layer, AssetHandle clip, Float seconds, Bool loop);
+        // 반복은 클립이 정한다(D-462).
+        Bool Play(InstanceId animator, UInt32 layer, AssetHandle clip);
+        Bool CrossFade(InstanceId animator, UInt32 layer, AssetHandle clip, Float seconds);
         Bool SetLayerWeight(InstanceId animator, UInt32 layer, Float weight);
         Bool SetLayerMode(InstanceId animator, UInt32 layer, AnimatorLayerMode mode);
         // 뿌리 뼈(이름)와 그 가지를 섞는 마스크다. 이름이 비면 마스크를 지운다(모든 뼈). 이름은 여기서 한 번 번호로 푼다.
@@ -163,6 +171,10 @@ namespace JBro::System
         void ApplyCommands(State& state, Component::Animator3D& animator);
         // 셈한 레이어 상태를 컴포넌트에 적는다(스크립트가 읽는다).
         void WriteBack(const State& state, Component::Animator3D& animator) const;
+        // 레이어가 이번에 지난 이벤트를 모은다(D-462). `from`·`to` 는 감기 전 시간이다.
+        void CollectEvents(Object::GameObject* owner, UInt32 layerIndex, Layer& layer, const AnimationClipData& clip, Float from, Float to);
+        // 모은 이벤트를 애니메이터 오브젝트의 스크립트에 부른다. 갱신 끝에 한 번이다.
+        void DispatchEvents(Canvas& canvas);
         Bool Prepare(State& state, AssetHandle skeleton);
         Bool BindLayerClip(const State& state, AssetHandle clip, UInt32& generation, Array<Int32>& tracks);
         void Evaluate(State& state, const Component::Animator3D& animator, Float deltaTime);
@@ -173,5 +185,17 @@ namespace JBro::System
         Array<State> m_states;
         Table<InstanceId, UInt32> m_stateOf;
         UInt32 m_stamp = 0;
+        // 이번 갱신에 지난 이벤트다(D-462). 처음에 `MaxFiredEvents` 만큼 잡고 넘치면 버린다 - 프레임 경로라 늘리지 않는다.
+        struct FiredEvent
+        {
+            Object::GameObject* owner = nullptr;
+            const ModelClipEvent* event = nullptr;
+            UInt32 layer = 0;
+            Int32 clip = -1;
+        };
+        static constexpr std::size_t MaxFiredEvents = 256;
+        Array<FiredEvent> m_fired;
+        Bool m_firedOverflow = false;
+        Array<GameScript3D*> m_hookTargets;
     };
 }

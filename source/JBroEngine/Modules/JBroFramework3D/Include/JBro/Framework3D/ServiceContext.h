@@ -16,7 +16,8 @@ namespace JBro
     // 4: `Physics3DService` 를 더했고 `GameScript3D` 가 충돌·트리거 훅 여섯을 얻었다(D-417).
     // 5: `GameScript3D` 가 `OnJointBreak` 를 얻었다(D-437).
     // 6: `Animation3DService` 를 더했다(D-460).
-    inline constexpr UInt32 Framework3DServiceContextAbiVersion = 6;
+    // 7: `GameScript3D` 가 `OnAnimationEvent` 를 얻었고 애니메이터 핸들의 `Play`·`CrossFade` 가 반복 인자를 잃었다(D-462).
+    inline constexpr UInt32 Framework3DServiceContextAbiVersion = 7;
 
     // Non-owning value services. Kept outside Runtime's dimension-independent context.
     struct Framework3DServiceContext
