@@ -92,6 +92,14 @@ namespace JBro::Icons
     inline constexpr const char* Redo = "\xF3\xB0\x91\x8E"; // F044E redo - 코드 편집 다시 실행
     inline constexpr const char* Cut = "\xF3\xB0\x86\x90"; // F0190 content-cut - 코드 잘라내기
     inline constexpr const char* Paste = "\xF3\xB0\x86\x92"; // F0192 content-paste - 코드 붙여넣기
+    inline constexpr const char* Bone = "\xF3\xB0\x82\xB9"; // F00B9 bone - 모델 에디터의 뼈(D-465)
+    inline constexpr const char* Socket = "\xF3\xB0\x9C\x8C"; // F070C rhombus-outline - 소켓(미리보기의 마름모와 같은 모양)
+    inline constexpr const char* BoneMask = "\xF3\xB0\xB4\x82"; // F0D02 drama-masks - 뼈 마스크
+    inline constexpr const char* AnimationClip = "\xF3\xB0\xAA\x90"; // F0A90 animation-play-outline - 애니메이션 클립
+    inline constexpr const char* Event = "\xF3\xB0\x88\xBD"; // F023D flag-outline - 애니메이션 이벤트
+    inline constexpr const char* Branch = "\xF3\xB0\x98\xAC"; // F062C source-branch - 가지 채우기
+    inline constexpr const char* Eraser = "\xF3\xB0\x87\xBE"; // F01FE eraser - 가중치 지우기
+    inline constexpr const char* Speed = "\xF3\xB0\x93\x85"; // F04C5 speedometer - 재생 속도
     inline constexpr const char* SelectAll = "\xF3\xB0\x92\x86"; // F0486 select-all - 코드 전체 선택
 
     // 위의 글리프 전부다. 시험이 이것을 돌며 모두 글꼴 안에 있는지 본다 - 글리프를 더하면 여기에도 더한다.
@@ -102,7 +110,8 @@ namespace JBro::Icons
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,
         Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, ChevronRight, ChevronLeft, FileModel, FileMesh, FileMaterial, SameImage,
         Copy, Cut, Paste, SelectAll, Undo, Redo, Play, Stop, Pause, StepFrame,
-        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker, ScriptFunction, ScriptVariable
+        ClearLog, AutoScroll, Debug, NoCamera, Save, Question, Solo, LightMarker, CameraMarker, ScriptFunction, ScriptVariable,
+        Bone, Socket, BoneMask, AnimationClip, Event, Branch, Eraser, Speed
     };
 
     // 아이콘 글꼴이 덮는 유니코드 범위다. 글꼴을 합칠 때 이 범위만 아이콘 글꼴에서 가져온다.

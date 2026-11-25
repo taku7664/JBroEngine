@@ -680,18 +680,16 @@ Entries:
   model_editor.delete_clip: 클립 삭제
   model_editor.clip_name: 이름
   model_editor.clip_source: 원본
-  model_editor.imported_clip: "모델 파일에서 가져온 애니메이션입니다"
+  model_editor.imported_clip: "모델 파일의 클립"
   model_editor.clip_start: 시작
   model_editor.clip_end: 끝
   model_editor.events: 이벤트
   model_editor.add_event: 이벤트 추가
-  model_editor.no_events: "이벤트가 없습니다. 타임라인 아래 줄을 두 번 눌러 추가할 수 있습니다"
+  model_editor.no_events: "이벤트가 없습니다"
   model_editor.remove_event: 이벤트 삭제
   model_editor.unnamed_event: 이름 없는 이벤트
-  model_editor.sockets: 소켓
   model_editor.add_socket: 소켓 추가
   model_editor.add_socket_tooltip: 고른 뼈에 뼈대 소켓을 추가합니다
-  model_editor.no_sockets: "소켓이 없습니다"
   model_editor.unnamed_socket: 이름 없는 소켓
   model_editor.socket_bone: 뼈
   model_editor.socket_position: 위치
@@ -710,6 +708,8 @@ Entries:
   model_editor.overlay_clip: 겹칠 클립
   model_editor.overlay_clip_tooltip: 미리보기에서 이 클립을 이 마스크로 바탕 클립 위에 겹쳐 재생합니다
   model_editor.remove_mask: 마스크 삭제
+  model_editor.parent: 부모
+  model_editor.no_selection: "선택한 항목이 없습니다"
   model_editor.strip_tooltip: "두 번 누르면 이 시간에 이벤트를 추가합니다. 표식을 끌어 옮깁니다"
   inspector.clip_hint: "클립의 구간·반복·이벤트는 모델 에디터에서 고칩니다"
   inspector.open_model_editor: 모델 에디터 열기

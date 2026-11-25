@@ -680,18 +680,16 @@ Entries:
   model_editor.delete_clip: Delete Clip
   model_editor.clip_name: Name
   model_editor.clip_source: Source
-  model_editor.imported_clip: "imported from the model file"
+  model_editor.imported_clip: "From the model file"
   model_editor.clip_start: Start
   model_editor.clip_end: End
   model_editor.events: Events
   model_editor.add_event: Add Event
-  model_editor.no_events: "no events - double-click the strip under the timeline to add one"
+  model_editor.no_events: "No events"
   model_editor.remove_event: Remove Event
   model_editor.unnamed_event: unnamed event
-  model_editor.sockets: Sockets
   model_editor.add_socket: Add Socket
   model_editor.add_socket_tooltip: add a skeleton socket on the selected bone
-  model_editor.no_sockets: "no sockets"
   model_editor.unnamed_socket: unnamed socket
   model_editor.socket_bone: Bone
   model_editor.socket_position: Position
@@ -711,6 +709,8 @@ Entries:
   model_editor.overlay_clip: Overlay Clip
   model_editor.overlay_clip_tooltip: In the preview, play this clip over the base clip through this mask
   model_editor.remove_mask: Remove Mask
+  model_editor.parent: Parent
+  model_editor.no_selection: "Nothing selected"
   inspector.clip_hint: "Edit this clip's range, loop and events in the model editor"
   inspector.open_model_editor: Open Model Editor
   assets.import: Import...

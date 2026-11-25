@@ -22,6 +22,8 @@
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/Scalar.h>
+#include <JBro/Editor/Widget/Pane.h>
+#include <JBro/Editor/Widget/Timeline.h>
 #include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
@@ -275,6 +277,7 @@ namespace JBro
             if (m_clipIds[index] == asset)
             {
                 SelectClip(static_cast<Int32>(index));
+                m_focus = DetailFocus::Clip;
                 m_pendingTime = 0.0f;
                 m_playing = true;
             }
@@ -833,12 +836,26 @@ namespace JBro
             FrameModel();
         }
 
+        // 목록과 초안은 그리기 전에 맞춘다 - 계층·디테일·미리보기가 같은 프레임의 것을 본다.
+        SyncSockets();
+        SyncMasks();
+        SyncDraft();
+        RebuildRowLabels();
+
         DrawToolBar();
         const ImVec2 available = ImGui::GetContentRegionAvail();
-        // 타임라인 한 줄과 그 아래 이벤트 줄(12 픽셀)이다.
-        const Float timelineHeight = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y + 14.0f;
+        // 아래는 재생 줄 하나와 시간 축(눈금 줄·이벤트 트랙)이다.
+        const Float timelineHeight = ImGui::GetFrameHeightWithSpacing() + Widget::Timeline::Height(1) + ImGui::GetStyle().ItemSpacing.y;
         const Float bodyHeight = (std::max)(Float(60.0f), Float(available.y - timelineHeight));
-        const Float sideWidth = JBro::Clamp(m_sideWidth, 140.0f, (std::max)(140.0f, available.x - 200.0f));
+        constexpr Float Handle = 4.0f;
+        constexpr Float MinSide = 150.0f;
+        constexpr Float MinDetail = 200.0f;
+        constexpr Float MinView = 200.0f;
+        // 왼쪽 계층과 오른쪽 디테일은 사람이 끌어 바꾼다. 미리보기가 적어도 `MinView` 는 남게 자른다.
+        const Float sideLimit = (std::max)(MinSide, Float(available.x - MinDetail - MinView - Handle * 2.0f));
+        const Float sideWidth = JBro::Clamp(m_sideWidth, MinSide, sideLimit);
+        const Float detailLimit = (std::max)(MinDetail, Float(available.x - sideWidth - MinView - Handle * 2.0f));
+        const Float detailWidth = JBro::Clamp(m_detailWidth, MinDetail, detailLimit);
         // **본문은 높이가 정해진 칸 하나다** - 세로 분할 손잡이는 남은 높이를 다 잡으므로, 감싸지 않으면 아래 타임라인을 창 밖으로 밀어낸다(실제 화면에서 그랬다).
         if (false == ImGui::BeginChild("##model_body", ImVec2(0.0f, bodyHeight), ImGuiChildFlags_None,
                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
@@ -847,37 +864,31 @@ namespace JBro
             DrawTimeline();
             return;
         }
-        if (ImGui::BeginChild("##model_side", ImVec2(sideWidth, 0.0f), ImGuiChildFlags_Borders))
+        if (ImGui::BeginChild("##model_outline", ImVec2(sideWidth, 0.0f), ImGuiChildFlags_Borders))
         {
-            const Float sideHeight = ImGui::GetContentRegionAvail().y;
-            // 처음에는 클립 설정이 다 보이게 뼈대 트리를 작게 둔다. 사람이 끌어 바꾼다.
-            if (m_treeHeight <= 0.0f)
-            {
-                m_treeHeight = sideHeight * 0.5f;
-            }
-            const Float treeLimit = (std::max)(Float(60.0f), Float(sideHeight - 60.0f));
-            const Float treeHeight = JBro::Clamp(m_treeHeight, Float(60.0f), treeLimit);
-            if (ImGui::BeginChild("##model_bones", ImVec2(0.0f, treeHeight)))
-            {
-                DrawSkeleton();
-            }
-            ImGui::EndChild();
-            Widget::Splitter("##model_side_split", false, 4.0f, &m_treeHeight, 60.0f, treeLimit);
-            if (ImGui::BeginChild("##model_clips", ImVec2(0.0f, 0.0f)))
-            {
-                DrawClips();
-            }
-            ImGui::EndChild();
+            DrawOutline();
         }
         ImGui::EndChild();
         ImGui::SameLine(0.0f, 0.0f);
-        Widget::Splitter("##model_split", true, 4.0f, &m_sideWidth, 140.0f, (std::max)(160.0f, available.x - 200.0f));
+        Widget::Splitter("##model_split", true, Handle, &m_sideWidth, MinSide, sideLimit);
         ImGui::SameLine(0.0f, 0.0f);
+        Float viewWidth = (std::max)(Float(1.0f), Float(ImGui::GetContentRegionAvail().x - detailWidth - Handle));
         // 미리보기 칸은 스크롤하지 않는다 - 휠은 줌이다.
-        if (ImGui::BeginChild("##model_view", ImVec2(0.0f, 0.0f), ImGuiChildFlags_None,
+        if (ImGui::BeginChild("##model_view", ImVec2(viewWidth, 0.0f), ImGuiChildFlags_None,
                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
         {
             DrawViewport(ImGui::GetContentRegionAvail().y);
+        }
+        ImGui::EndChild();
+        ImGui::SameLine(0.0f, 0.0f);
+        // 디테일은 오른쪽 칸이라 손잡이는 미리보기 폭을 끈다. 미리보기가 넓어진 만큼 디테일이 준다.
+        const Float viewBefore = viewWidth;
+        Widget::Splitter("##model_detail_split", true, Handle, &viewWidth, MinView, (std::max)(MinView, Float(viewBefore + detailWidth - MinDetail)));
+        m_detailWidth = detailWidth + (viewBefore - viewWidth);
+        ImGui::SameLine(0.0f, 0.0f);
+        if (ImGui::BeginChild("##model_details", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))
+        {
+            DrawDetails();
         }
         ImGui::EndChild();
         ImGui::EndChild();
@@ -914,31 +925,249 @@ namespace JBro
             Loc::TextOr(LocKeys::GizmoScale, "Scale"));
     }
 
-    void ModelEditorPanel::DrawSkeleton()
+    void ModelEditorPanel::DrawOutline()
     {
-        Widget::HintText(Loc::TextOr(LocKeys::ModelEditorSkeleton, "Skeleton"));
-        if (m_skeleton < 0)
+        // ── 뼈대: 뼈 트리이고, 소켓은 제 뼈 아래 줄이다 ──
+        const Bool skeletonOpen = Widget::CollapsingSection(Loc::TextOr(LocKeys::ModelEditorSkeleton, "Skeleton"), true, true);
         {
-            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoSkeleton, "this model has no skeleton"));
-            return;
-        }
-        if (m_boneNames.IsEmpty())
-        {
-            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorLoading, "reading the model"));
-            return;
-        }
-        for (std::size_t index = 0; index < m_boneNames.Size(); ++index)
-        {
-            if (m_boneParents[index] < 0)
+            Widget::TrailingButtons buttons;
+            if (buttons.Icon("##add_socket", Icons::Plus, Loc::TextOr(LocKeys::ModelEditorAddSocketTooltip, "add a skeleton socket on the selected bone"),
+                    m_skeleton < 0 || m_boneNames.IsEmpty()))
             {
-                DrawBoneRow(static_cast<UInt32>(index));
+                AddSocket();
             }
         }
-        m_revealBone = -1;
-        ImGui::Separator();
-        DrawSockets();
-        ImGui::Separator();
-        DrawMasks();
+        if (skeletonOpen)
+        {
+            if (m_skeleton < 0)
+            {
+                Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoSkeleton, "this model has no skeleton"));
+            }
+            else if (m_boneNames.IsEmpty())
+            {
+                Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorLoading, "reading the model"));
+            }
+            else
+            {
+                for (std::size_t index = 0; index < m_boneNames.Size(); ++index)
+                {
+                    if (m_boneParents[index] < 0)
+                    {
+                        DrawBoneRow(static_cast<UInt32>(index));
+                    }
+                }
+                // 뼈대에 없는 뼈를 가리키는 소켓은 트리 끝에 둔다 - 고쳐 다른 뼈로 옮길 수 있어야 한다.
+                for (std::size_t index = 0; index < m_socketBones.Size(); ++index)
+                {
+                    if (m_socketBones[index] < 0)
+                    {
+                        DrawSocketRow(static_cast<UInt32>(index));
+                    }
+                }
+            }
+            m_revealBone = -1;
+        }
+
+        // ── 뼈 마스크 ──
+        const Bool masksOpen = Widget::CollapsingSection(Loc::TextOr(LocKeys::ModelEditorMasks, "Bone Masks"), true, true);
+        {
+            Widget::TrailingButtons buttons;
+            if (buttons.Icon("##add_mask", Icons::Plus, Loc::TextOr(LocKeys::ModelEditorAddMaskTooltip, "create a mask that covers the selected bone and the bones below it"),
+                    m_skeleton < 0 || m_boneNames.IsEmpty()))
+            {
+                AddMask();
+            }
+        }
+        if (masksOpen)
+        {
+            if (m_maskDraft.IsEmpty())
+            {
+                Widget::HintText(Loc::TextOr(LocKeys::ModelEditorNoMasks, "no masks"));
+            }
+            for (std::size_t index = 0; index < m_maskLabels.Size() && index < m_maskDraft.Size(); ++index)
+            {
+                const Widget::IdScope scope(static_cast<Int32>(index));
+                const Bool chosen = m_selectedMask == static_cast<Int32>(index);
+                if (Widget::SelectableRow(m_maskLabels[index].c_str(), chosen))
+                {
+                    // 고른 마스크를 다시 누르면 놓는다 - 트리 줄 끝의 가중치와 관절 색이 걷힌다.
+                    SelectMask(chosen ? Int32(-1) : static_cast<Int32>(index));
+                    m_focus = chosen ? (m_selectedBone >= 0 ? DetailFocus::Bone : DetailFocus::None) : DetailFocus::Mask;
+                }
+            }
+        }
+
+        // ── 애니메이션 ──
+        const Bool clipsOpen = Widget::CollapsingSection(Loc::TextOr(LocKeys::ModelEditorClips, "Animations"), true, true);
+        {
+            Widget::TrailingButtons buttons;
+            if (buttons.Icon("##split_clip", Icons::Cut, Loc::TextOr(LocKeys::ModelEditorSplitTooltip, "make a new clip from the same source animation and range"), m_clip < 0))
+            {
+                SplitClip();
+                m_focus = DetailFocus::Clip;
+            }
+        }
+        if (clipsOpen)
+        {
+            if (m_clipIds.IsEmpty())
+            {
+                Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoClips, "this model has no animations"));
+            }
+            for (std::size_t index = 0; index < m_clipLabels.Size() && index < m_clipIds.Size(); ++index)
+            {
+                const Widget::IdScope scope(static_cast<Int32>(index));
+                if (Widget::SelectableRow(m_clipLabels[index].c_str(), m_clip == static_cast<Int32>(index)))
+                {
+                    SelectClip(static_cast<Int32>(index));
+                    m_focus = DetailFocus::Clip;
+                }
+            }
+        }
+    }
+
+    void ModelEditorPanel::RebuildRowLabels()
+    {
+        // 줄의 글자(아이콘과 이름)는 목록이 바뀔 때만 짓는다 - 줄은 적기만 한다(§11.1).
+        if (m_labelsBonesGeneration == m_bonesGeneration && m_labelsBoneCount == m_boneNames.Size() && m_labelsSocketsVersion == m_socketsVersion
+            && m_labelsMasksVersion == m_masksVersion && m_labelsRegistryRevision == m_registryRevision && m_labelsClipCount == m_clipNames.Size())
+        {
+            return;
+        }
+        m_labelsBonesGeneration = m_bonesGeneration;
+        m_labelsBoneCount = m_boneNames.Size();
+        m_labelsSocketsVersion = m_socketsVersion;
+        m_labelsMasksVersion = m_masksVersion;
+        m_labelsRegistryRevision = m_registryRevision;
+        m_labelsClipCount = m_clipNames.Size();
+        const auto make = [](const char* icon, const char* name) {
+            String label = icon;
+            label += "  ";
+            label += name;
+            return label;
+        };
+        m_boneLabels.Clear();
+        m_boneHasSockets.Clear();
+        for (const String& name : m_boneNames)
+        {
+            m_boneLabels.Add(make(Icons::Bone, name.c_str()));
+            m_boneHasSockets.Add(false);
+        }
+        m_socketLabels.Clear();
+        m_socketBones.Clear();
+        for (std::size_t index = 0; index < m_socketDraft.Size() && index < m_socketRows.Size(); ++index)
+        {
+            const ModelSocket& socket = m_socketDraft[index];
+            String label = make(Icons::Socket, socket.name.empty() ? Loc::TextOr(LocKeys::ModelEditorUnnamedSocket, "unnamed socket") : socket.name.c_str());
+            // 메시 소켓은 그 메시 이름을 붙인다 - 같은 이름이면 뼈대 소켓이 먼저 잡힌다.
+            if (false == m_socketRows[index].skeleton)
+            {
+                label += "  [";
+                label += m_socketRows[index].ownerName;
+                label += "]";
+            }
+            m_socketLabels.Add(label);
+            const Int32 bone = FindBone(socket.bone);
+            m_socketBones.Add(bone);
+            if (bone >= 0)
+            {
+                m_boneHasSockets[static_cast<std::size_t>(bone.Get())] = true;
+            }
+        }
+        m_maskLabels.Clear();
+        for (const ModelBoneMask& mask : m_maskDraft)
+        {
+            m_maskLabels.Add(make(Icons::BoneMask, mask.name.c_str()));
+        }
+        m_clipLabels.Clear();
+        for (const String& name : m_clipNames)
+        {
+            m_clipLabels.Add(make(Icons::AnimationClip, name.c_str()));
+        }
+    }
+
+    void ModelEditorPanel::PickBone(Int32 bone)
+    {
+        SelectBone(bone);
+        // 마스크를 고친다면 뼈를 골라도 마스크 칸에 남는다 - 그 칸이 고른 뼈의 가중치를 고친다.
+        if (m_focus != DetailFocus::Mask || m_selectedMask < 0)
+        {
+            m_focus = m_selectedBone >= 0 ? DetailFocus::Bone : DetailFocus::None;
+        }
+    }
+
+    void ModelEditorPanel::DrawSocketRow(UInt32 index)
+    {
+        if (index.Get() >= m_socketLabels.Size())
+        {
+            return;
+        }
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+        if (m_selectedSocket == static_cast<Int32>(index) && m_focus == DetailFocus::Socket)
+        {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+        const Widget::IdScope kind("socket");
+        const Widget::IdScope scope(static_cast<Int32>(index));
+        Widget::Tree(m_socketLabels[index.Get()].c_str(), flags);
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+        {
+            SelectSocket(static_cast<Int32>(index));
+            m_focus = DetailFocus::Socket;
+        }
+    }
+
+    void ModelEditorPanel::DrawDetails()
+    {
+        // 칸에 그리지 않는 것은 고치는 중일 수 없다 - 다음 맞추기가 막히지 않게 둔다.
+        m_socketEditing = false;
+        m_maskEditing = m_maskWeightDirty;
+        m_draftEditing = m_draggingEvent >= 0;
+        DetailFocus focus = m_focus;
+        // 처음에는 고른 클립을 보인다.
+        if (focus == DetailFocus::None && m_clip >= 0)
+        {
+            focus = DetailFocus::Clip;
+        }
+        if (focus == DetailFocus::Bone && m_selectedBone >= 0 && m_selectedBone < static_cast<Int32>(m_boneNames.Size()))
+        {
+            DrawBoneDetails();
+        }
+        else if (focus == DetailFocus::Socket && m_selectedSocket >= 0)
+        {
+            DrawSocketDetails();
+        }
+        else if (focus == DetailFocus::Mask && m_selectedMask >= 0)
+        {
+            DrawMaskDetails();
+        }
+        else if (focus == DetailFocus::Clip && m_clip >= 0)
+        {
+            DrawClipDetails();
+        }
+        else
+        {
+            Widget::EmptyState(Icons::FileModel, Loc::TextOr(LocKeys::ModelEditorNoSelection, "Nothing selected"));
+        }
+    }
+
+    void ModelEditorPanel::DrawBoneDetails()
+    {
+        const std::size_t at = static_cast<std::size_t>(m_selectedBone.Get());
+        Widget::DetailHeading(Icons::Bone, m_boneNames[at].c_str());
+        const Int32 parent = m_boneParents[at];
+        Widget::FormLayout layout("##model_bone");
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorParent, "Parent")), [&]() {
+            Widget::Text(parent >= 0 ? m_boneNames[static_cast<std::size_t>(parent.Get())].c_str() : Loc::TextOr(LocKeys::InspectorNoSocket, "(none)"));
+        });
+        layout.Break([&]() {
+            if (Widget::IconButton("##bone_add_socket", Icons::Plus)
+                    .Caption(Loc::TextOr(LocKeys::ModelEditorAddSocket, "Add Socket"))
+                    .Tooltip(Loc::TextOr(LocKeys::ModelEditorAddSocketTooltip, "add a skeleton socket on the selected bone"))
+                    .Draw())
+            {
+                AddSocket();
+            }
+        });
     }
 
     Int32 ModelEditorPanel::FindBone(const String& name) const
@@ -981,6 +1210,7 @@ namespace JBro
         m_socketsGeneration = generation;
         m_socketRows.Clear();
         m_socketDraft.Clear();
+        ++m_socketsVersion;
         AssetSystem* writable = m_editor->GetAssetSystem();
         const AssetRecord* model = m_editor->GetAssetRegistry().Find(m_model);
         AssetMetaFile meta;
@@ -1027,6 +1257,7 @@ namespace JBro
                 {
                     keep = static_cast<Int32>(index);
                     m_hasPendingSocket = false;
+                    m_focus = DetailFocus::Socket;
                 }
             }
         }
@@ -1149,44 +1380,9 @@ namespace JBro
         return removed;
     }
 
-    void ModelEditorPanel::DrawSockets()
+    void ModelEditorPanel::DrawSocketDetails()
     {
-        SyncSockets();
-        Widget::HintText(Loc::TextOr(LocKeys::ModelEditorSockets, "Sockets"));
-        ImGui::SameLine(0.0f, 8.0f);
-        {
-            const Widget::DisableScope disabled(m_skeleton < 0 || m_boneNames.IsEmpty());
-            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorAddSocket, "Add Socket")))
-            {
-                AddSocket();
-            }
-        }
-        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorAddSocketTooltip, "add a skeleton socket on the selected bone"));
-        if (m_socketDraft.IsEmpty())
-        {
-            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoSockets, "no sockets"));
-            return;
-        }
-        for (std::size_t index = 0; index < m_socketDraft.Size(); ++index)
-        {
-            const Widget::IdScope scope(static_cast<Int32>(index));
-            const ModelSocket& socket = m_socketDraft[index];
-            // 메시 소켓은 그 메시 이름을 붙인다 - 같은 이름이면 뼈대 소켓이 먼저 잡힌다.
-            String label = socket.name.empty() ? String(Loc::TextOr(LocKeys::ModelEditorUnnamedSocket, "unnamed socket")) : socket.name;
-            label += "  -  ";
-            label += socket.bone;
-            if (false == m_socketRows[index].skeleton)
-            {
-                label += "  [";
-                label += m_socketRows[index].ownerName;
-                label += "]";
-            }
-            if (Widget::SelectableRow(label.c_str(), m_selectedSocket == static_cast<Int32>(index)))
-            {
-                SelectSocket(static_cast<Int32>(index));
-            }
-        }
-        if (m_selectedSocket < 0)
+        if (m_selectedSocket >= static_cast<Int32>(m_socketDraft.Size()))
         {
             return;
         }
@@ -1194,6 +1390,14 @@ namespace JBro
         ModelSocket& draft = m_socketDraft[at];
         Bool editing = false;
         Bool commit = false;
+        const SocketRow& row = m_socketRows[at];
+        Widget::DetailHeading(Icons::Socket, draft.name.empty() ? Loc::TextOr(LocKeys::ModelEditorUnnamedSocket, "unnamed socket") : draft.name.c_str(),
+            row.skeleton ? nullptr : row.ownerName.c_str());
+        Bool remove = false;
+        {
+            Widget::TrailingButtons buttons;
+            remove = buttons.Icon("##remove_socket", Icons::Delete, Loc::TextOr(LocKeys::ModelEditorRemoveSocket, "Remove Socket"));
+        }
         Widget::FormLayout layout("##model_socket");
         layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipName, "Name")), [&]() {
             if (Widget::TextField("##socket_name", m_socketNameText).CommitOnFinish()())
@@ -1238,13 +1442,6 @@ namespace JBro
             commit = true;
         }
         m_socketEditing = editing || m_socketFieldDirty;
-        Bool remove = false;
-        layout.Break([&]() {
-            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorRemoveSocket, "Remove Socket")))
-            {
-                remove = true;
-            }
-        });
         // 커맨드는 칸을 다 그린 뒤다 - 실행하면 목록이 다시 떠진다.
         if (remove)
         {
@@ -1394,6 +1591,7 @@ namespace JBro
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
             {
                 SelectSocket(hovered);
+                m_focus = DetailFocus::Socket;
             }
             grabbed = true;
         }
@@ -1525,6 +1723,7 @@ namespace JBro
         m_masksRevision = revision;
         m_masksGeneration = generation;
         m_maskDraft.Clear();
+        ++m_masksVersion;
         AssetSystem* assets = m_editor->GetAssetSystem();
         const AssetRecord* model = m_editor->GetAssetRegistry().Find(m_model);
         AssetMetaFile meta;
@@ -1549,6 +1748,7 @@ namespace JBro
                 {
                     keep = static_cast<Int32>(index);
                     m_pendingMask.clear();
+                    m_focus = DetailFocus::Mask;
                 }
             }
         }
@@ -1735,33 +1935,9 @@ namespace JBro
         m_overlayClip = clip >= 0 && clip < static_cast<Int32>(m_clipIds.Size()) ? clip : Int32(-1);
     }
 
-    void ModelEditorPanel::DrawMasks()
+    void ModelEditorPanel::DrawMaskDetails()
     {
-        SyncMasks();
-        Widget::HintText(Loc::TextOr(LocKeys::ModelEditorMasks, "Bone Masks"));
-        ImGui::SameLine(0.0f, 8.0f);
-        {
-            const Widget::DisableScope disabled(m_skeleton < 0 || m_boneNames.IsEmpty());
-            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorAddMask, "Add Mask")))
-            {
-                AddMask();
-            }
-        }
-        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorAddMaskTooltip, "create a mask that covers the selected bone and the bones below it"));
-        if (m_maskDraft.IsEmpty())
-        {
-            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoMasks, "no masks"));
-            return;
-        }
-        for (std::size_t index = 0; index < m_maskDraft.Size(); ++index)
-        {
-            const Widget::IdScope scope(static_cast<Int32>(index));
-            if (Widget::SelectableRow(m_maskDraft[index].name.c_str(), m_selectedMask == static_cast<Int32>(index)))
-            {
-                SelectMask(m_selectedMask == static_cast<Int32>(index) ? Int32(-1) : static_cast<Int32>(index));
-            }
-        }
-        if (m_selectedMask < 0)
+        if (m_selectedMask >= static_cast<Int32>(m_maskDraft.Size()))
         {
             return;
         }
@@ -1772,7 +1948,12 @@ namespace JBro
         Bool commitWeight = false;
         Bool fill = false;
         Bool clear = false;
+        Widget::DetailHeading(Icons::BoneMask, m_maskDraft[at].name.c_str());
         Bool remove = false;
+        {
+            Widget::TrailingButtons buttons;
+            remove = buttons.Icon("##remove_mask", Icons::Delete, Loc::TextOr(LocKeys::ModelEditorRemoveMask, "Remove Mask"));
+        }
         Widget::FormLayout layout("##model_mask");
         layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipName, "Name")), [&]() {
             if (Widget::TextField("##mask_name", m_maskNameText).CommitOnFinish()())
@@ -1780,6 +1961,23 @@ namespace JBro
                 rename = true;
             }
             editing = editing || ImGui::IsItemActive();
+        });
+        // 겹칠 클립은 미리보기에만 쓴다 - 메타에 적지 않는다.
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorOverlayClip, "Overlay Clip")), [&]() {
+            m_clipNamePointers.Clear();
+            m_clipNamePointers.Add(Loc::TextOr(LocKeys::InspectorNoSocket, "(none)"));
+            for (const String& name : m_clipNames)
+            {
+                m_clipNamePointers.Add(name.c_str());
+            }
+            Int32 current = m_overlayClip + 1;
+            if (Widget::FilterCombo("##mask_overlay", ArrayView<const char* const>(m_clipNamePointers.Data(), m_clipNamePointers.Size()), current)
+                    .ShowFilter(false)
+                    .Draw())
+            {
+                SetOverlayClip(current - 1);
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorOverlayClipTooltip, "in the preview, play this clip over the base clip through this mask"));
         });
         if (hasBone)
         {
@@ -1814,41 +2012,18 @@ namespace JBro
             Widget::DragField<Int32>("##mask_depth", m_maskDepth).Range(0, 32)();
         });
         layout.Break([&]() {
-            {
-                const Widget::DisableScope disabled(false == hasBone);
-                if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorFillBranch, "Fill Branch")))
-                {
-                    fill = true;
-                }
-            }
-            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorFillBranchTooltip, "set the weights of the selected bone and the bones below it"));
-            ImGui::SameLine(0.0f, 6.0f);
-            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorClearMask, "Clear Weights")))
-            {
-                clear = true;
-            }
-        });
-        // 겹칠 클립은 미리보기에만 쓴다 - 메타에 적지 않는다.
-        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorOverlayClip, "Overlay Clip")), [&]() {
-            m_clipNamePointers.Clear();
-            m_clipNamePointers.Add(Loc::TextOr(LocKeys::InspectorNoSocket, "(none)"));
-            for (const String& name : m_clipNames)
-            {
-                m_clipNamePointers.Add(name.c_str());
-            }
-            Int32 current = m_overlayClip + 1;
-            if (Widget::FilterCombo("##mask_overlay", ArrayView<const char* const>(m_clipNamePointers.Data(), m_clipNamePointers.Size()), current)
-                    .ShowFilter(false)
+            if (Widget::IconButton("##mask_fill", Icons::Branch)
+                    .Caption(Loc::TextOr(LocKeys::ModelEditorFillBranch, "Fill Branch"))
+                    .Tooltip(Loc::TextOr(LocKeys::ModelEditorFillBranchTooltip, "set the weights of the selected bone and the bones below it"))
+                    .Disabled(false == hasBone)
                     .Draw())
             {
-                SetOverlayClip(current - 1);
+                fill = true;
             }
-            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorOverlayClipTooltip, "in the preview, play this clip over the base clip through this mask"));
-        });
-        layout.Break([&]() {
-            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorRemoveMask, "Remove Mask")))
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::IconButton("##mask_clear", Icons::Eraser).Caption(Loc::TextOr(LocKeys::ModelEditorClearMask, "Clear Weights")).Draw())
             {
-                remove = true;
+                clear = true;
             }
         });
         m_maskEditing = editing || m_maskWeightDirty;
@@ -1886,14 +2061,16 @@ namespace JBro
     void ModelEditorPanel::DrawBoneRow(UInt32 bone)
     {
         const std::size_t at = bone.Get();
-        const Bool hasChildren = m_firstChild[at] >= 0;
+        const Bool hasSockets = at < m_boneHasSockets.Size() && m_boneHasSockets[at];
+        const Bool hasChildren = m_firstChild[at] >= 0 || hasSockets;
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick
             | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
         if (false == hasChildren)
         {
             flags |= ImGuiTreeNodeFlags_Leaf;
         }
-        if (m_selectedBone == static_cast<Int32>(bone))
+        // 고른 줄은 디테일 칸이 보이는 것 하나다 - 마스크를 고치는 동안에는 가중치를 고칠 뼈다.
+        if (m_selectedBone == static_cast<Int32>(bone) && (m_focus == DetailFocus::Bone || m_focus == DetailFocus::Mask))
         {
             flags |= ImGuiTreeNodeFlags_Selected;
         }
@@ -1910,23 +2087,17 @@ namespace JBro
             }
         }
         const Widget::IdScope scope(static_cast<Int32>(bone));
-        const Bool open = Widget::Tree(m_boneNames[at].c_str(), flags);
+        const Bool open = Widget::Tree(at < m_boneLabels.Size() ? m_boneLabels[at].c_str() : m_boneNames[at].c_str(), flags);
         if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && false == ImGui::IsItemToggledOpen())
         {
-            SelectBone(static_cast<Int32>(bone));
+            PickBone(static_cast<Int32>(bone));
         }
         // 마스크를 골랐으면 줄 끝에 그 뼈의 가중치를 쓴다(D-464). 0 은 흐리다.
         if (m_selectedMask >= 0 && at < m_maskWeights.Size())
         {
             char text[16];
             std::snprintf(text, sizeof(text), "%.2f", static_cast<double>(m_maskWeights[at].Get()));
-            // 트리 항목의 칸은 글자 폭까지라 줄 끝은 창 내용의 오른쪽이다(항목 끝에 붙이면 이름과 겹친다 - 화면에서 그랬다).
-            const ImVec2 min = ImGui::GetItemRectMin();
-            const ImVec2 max = ImGui::GetItemRectMax();
-            const ImVec2 size = ImGui::CalcTextSize(text);
-            const Float right = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
-            ImGui::GetWindowDrawList()->AddText(ImVec2(Float(right - size.x - 4.0f).Get(), min.y + (max.y - min.y - size.y) * 0.5f),
-                ImGui::GetColorU32(m_maskWeights[at] > 0.0f ? ImGuiCol_Text : ImGuiCol_TextDisabled), text);
+            Widget::RowTrailingText(text, false == (m_maskWeights[at] > 0.0f));
         }
         if (m_revealBone == static_cast<Int32>(bone))
         {
@@ -1940,27 +2111,15 @@ namespace JBro
         {
             DrawBoneRow(static_cast<UInt32>(child));
         }
-        Widget::TreePop();
-    }
-
-    void ModelEditorPanel::DrawClips()
-    {
-        Widget::HintText(Loc::TextOr(LocKeys::ModelEditorClips, "Animations"));
-        if (m_clipIds.IsEmpty())
+        // 이 뼈에 단 소켓은 자식 뼈 뒤의 잎 줄이다.
+        for (std::size_t index = 0; hasSockets && index < m_socketBones.Size(); ++index)
         {
-            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoClips, "this model has no animations"));
-            return;
-        }
-        for (std::size_t index = 0; index < m_clipIds.Size(); ++index)
-        {
-            const Widget::IdScope scope(static_cast<Int32>(index));
-            if (Widget::SelectableRow(m_clipNames[index].c_str(), m_clip == static_cast<Int32>(index)))
+            if (m_socketBones[index] == static_cast<Int32>(bone))
             {
-                SelectClip(static_cast<Int32>(index));
+                DrawSocketRow(static_cast<UInt32>(index));
             }
         }
-        ImGui::Separator();
-        DrawClipSettings();
+        Widget::TreePop();
     }
 
     Bool ModelEditorPanel::ReadClipEntry(AssetMetaFile& meta, std::size_t& entry)
@@ -2061,6 +2220,16 @@ namespace JBro
             m_draftName = KeyName(entry.key);
         }
         m_renameText = m_draftName;
+        if (m_draftSplit)
+        {
+            m_clipCaption = Loc::TextOr(LocKeys::ModelEditorClipSource, "Source");
+            m_clipCaption += " ";
+            m_clipCaption += m_draft.source;
+        }
+        else
+        {
+            m_clipCaption = Loc::TextOr(LocKeys::ModelEditorImportedClip, "imported from the model file");
+        }
         m_eventNames.Clear();
         for (const ModelClipEvent& event : m_draft.events)
         {
@@ -2219,98 +2388,99 @@ namespace JBro
         });
     }
 
-    void ModelEditorPanel::DrawClipSettings()
+    void ModelEditorPanel::DrawClipDetails()
     {
         if (m_clip < 0)
         {
             return;
         }
-        SyncDraft();
         const AnimationClipData* data = GetClipData();
         const Float source = data != nullptr ? data->sourceDuration : Float(0.0f);
         Bool editing = false;
-        if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorSplit, "Split")))
+        // 제목 줄: 가져온 클립은 모델 파일의 것이라 이름을 바꾸거나 지울 수 없다. 나눈 클립은 원본을 적는다.
+        Widget::DetailHeading(Icons::AnimationClip, m_clip < static_cast<Int32>(m_clipNames.Size()) ? m_clipNames[static_cast<std::size_t>(m_clip.Get())].c_str() : "",
+            m_clipCaption.c_str());
         {
-            SplitClip();
-        }
-        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorSplitTooltip, "make a new clip from the same source animation and range"));
-        if (m_draftSplit)
-        {
-            ImGui::SameLine(0.0f, 6.0f);
-            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorDeleteClip, "Delete Clip")))
+            Widget::TrailingButtons buttons;
+            if (m_draftSplit && buttons.Icon("##delete_clip", Icons::Delete, Loc::TextOr(LocKeys::ModelEditorDeleteClip, "Delete Clip")))
             {
                 DeleteClip();
                 return;
             }
+            if (buttons.Icon("##split_clip", Icons::Cut, Loc::TextOr(LocKeys::ModelEditorSplitTooltip, "make a new clip from the same source animation and range")))
+            {
+                SplitClip();
+            }
         }
-        // 안내는 폼 밖에 둔다 - 폼의 한 칸에 두면 그 칸의 폭으로 접혀 낱말마다 줄이 바뀐다.
-        if (false == m_draftSplit)
+        // 폼 표는 이벤트 머리 전에 닫는다 - 열린 채로 머리를 그리면 머리가 표의 값 칸에 들어가 들여 써진다(화면에서 그랬다).
         {
-            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorImportedClip, "imported from the model file"));
-        }
-        Widget::FormLayout layout("##model_clip_settings");
-        if (m_draftSplit)
-        {
-            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipName, "Name")), [&]() {
-                if (Widget::TextField("##clip_name", m_renameText).CommitOnFinish()())
-                {
-                    if (false == RenameClip(m_renameText.c_str()))
+            Widget::FormLayout layout("##model_clip_settings");
+            if (m_draftSplit)
+            {
+                layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipName, "Name")), [&]() {
+                    if (Widget::TextField("##clip_name", m_renameText).CommitOnFinish()())
                     {
-                        m_renameText = m_draftName;
+                        if (false == RenameClip(m_renameText.c_str()))
+                        {
+                            m_renameText = m_draftName;
+                        }
                     }
+                    editing = editing || ImGui::IsItemActive();
+                });
+            }
+            // 구간은 원본의 초다. 끄는 동안은 초안만 바꾸고 손을 떼면 커맨드 하나다.
+            Float start = m_draft.start;
+            Float end = m_draft.end < 0.0f ? source : m_draft.end;
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipStart, "Start")), [&]() {
+                if (Widget::DragField("##clip_start", start).Range(0.0f, (std::max)(source, Float(0.0f))).Speed(0.01f).Format("%.2f").StepButtons(false)())
+                {
+                    m_draft.start = start;
                 }
                 editing = editing || ImGui::IsItemActive();
+                if (ImGui::IsItemDeactivatedAfterEdit())
+                {
+                    SetClipRange(m_draft.start, end);
+                }
             });
-            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipSource, "Source")), [&]() {
-                Widget::Text(m_draft.source.c_str());
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipEnd, "End")), [&]() {
+                if (Widget::DragField("##clip_end", end).Range(0.0f, (std::max)(source, Float(0.0f))).Speed(0.01f).Format("%.2f").StepButtons(false)())
+                {
+                    m_draft.end = end;
+                }
+                editing = editing || ImGui::IsItemActive();
+                if (ImGui::IsItemDeactivatedAfterEdit())
+                {
+                    SetClipRange(start, end);
+                }
+            });
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorLoop, "Loop")), [&]() {
+                Bool loop = m_draft.loop;
+                if (Widget::Checkbox("##clip_loop", loop))
+                {
+                    SetClipLoop(loop);
+                }
             });
         }
-        // 구간은 원본의 초다. 끄는 동안은 초안만 바꾸고 손을 떼면 커맨드 하나다.
-        Float start = m_draft.start;
-        Float end = m_draft.end < 0.0f ? source : m_draft.end;
-        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipStart, "Start")), [&]() {
-            if (Widget::DragField("##clip_start", start).Range(0.0f, (std::max)(source, Float(0.0f))).Speed(0.01f).Format("%.2f").StepButtons(false)())
-            {
-                m_draft.start = start;
-            }
-            editing = editing || ImGui::IsItemActive();
-            if (ImGui::IsItemDeactivatedAfterEdit())
-            {
-                SetClipRange(m_draft.start, end);
-            }
-        });
-        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipEnd, "End")), [&]() {
-            if (Widget::DragField("##clip_end", end).Range(0.0f, (std::max)(source, Float(0.0f))).Speed(0.01f).Format("%.2f").StepButtons(false)())
-            {
-                m_draft.end = end;
-            }
-            editing = editing || ImGui::IsItemActive();
-            if (ImGui::IsItemDeactivatedAfterEdit())
-            {
-                SetClipRange(start, end);
-            }
-        });
-        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorLoop, "Loop")), [&]() {
-            Bool loop = m_draft.loop;
-            if (Widget::Checkbox("##clip_loop", loop))
-            {
-                SetClipLoop(loop);
-            }
-        });
-        layout.Break([&]() {
-            Widget::HintText(Loc::TextOr(LocKeys::ModelEditorEvents, "Events"));
-            ImGui::SameLine(0.0f, 8.0f);
-            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorAddEvent, "Add Event")))
+        // 이벤트는 접는 머리 아래 목록이다. 머리 끝의 + 는 지금 시간에 더한다(타임라인의 이벤트 줄을 두 번 눌러도 된다).
+        ImGui::Spacing();
+        const Bool eventsOpen = Widget::CollapsingSection(Loc::TextOr(LocKeys::ModelEditorEvents, "Events"), true, true);
+        {
+            Widget::TrailingButtons buttons;
+            if (buttons.Icon("##add_event", Icons::Plus, Loc::TextOr(LocKeys::ModelEditorAddEvent, "Add Event")))
             {
                 AddClipEvent(GetTime(), "");
             }
-        });
+        }
+        if (false == eventsOpen)
+        {
+            m_draftEditing = m_draggingEvent >= 0;
+            return;
+        }
         if (m_draft.events.IsEmpty())
         {
-            layout.Break([&]() {
-                Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoEvents, "no events - double-click the strip under the timeline to add one"));
-            });
+            Widget::HintText(Loc::TextOr(LocKeys::ModelEditorNoEvents, "no events"));
         }
+        Widget::FormLayout eventLayout("##model_clip_events");
         while (m_eventNames.Size() < m_draft.events.Size())
         {
             m_eventNames.Add(String());
@@ -2327,7 +2497,7 @@ namespace JBro
         for (std::size_t index = 0; index < m_draft.events.Size(); ++index)
         {
             // Id 는 칸 안에서 쌓는다 - `Break` 가 표를 닫을 때 바깥에 쌓인 Id 가 있으면 어긋난다.
-            layout.Break([&]() {
+            eventLayout.Break([&]() {
                 const Widget::IdScope scope(static_cast<Int32>(index));
                 const Float rowWidth = ImGui::GetContentRegionAvail().x;
                 if (Widget::TextField("##event_name", m_eventNames[index]).Hint(Loc::TextOr(LocKeys::ModelEditorUnnamedEvent, "unnamed event")).Width((std::max)(Float(40.0f), Float(rowWidth - 110.0f))).CommitOnFinish()())
@@ -2599,7 +2769,7 @@ namespace JBro
             Widget::ShowTooltip(m_boneNames[static_cast<std::size_t>(m_hoveredBone.Get())].c_str());
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
             {
-                SelectBone(m_hoveredBone);
+                PickBone(m_hoveredBone);
                 m_revealBone = m_hoveredBone;
             }
         }
@@ -2609,45 +2779,91 @@ namespace JBro
     {
         const AnimationClipData* data = GetClipData();
         const Float duration = data != nullptr ? data->animation.duration : Float(0.0f);
-        const Widget::DisableScope disabled(data == nullptr || false == (duration > 0.0f));
+        const Bool ready = data != nullptr && duration > 0.0f;
+        const Widget::DisableScope disabled(false == ready);
+        // 재생 줄: 재생·멈춤, 지금 시간, 오른쪽 끝의 속도. 반복은 클립 설정이라 디테일 칸에 있다.
         if (Widget::IconButton("##model_play", m_playing ? Icons::Pause : Icons::Play)
                 .Tooltip(m_playing ? Loc::TextOr(LocKeys::ModelEditorPause, "Pause") : Loc::TextOr(LocKeys::ModelEditorPlay, "Play"))
                 .Draw())
         {
             SetPlaying(false == m_playing);
         }
-        ImGui::SameLine(0.0f, 12.0f);
-        // 반복은 클립 설정이다(D-462) - 누르면 메타 커맨드다.
-        Bool loop = m_draft.loop;
-        if (Widget::Checkbox("##model_loop", loop))
+        ImGui::SameLine(0.0f, 10.0f);
+        Float time = ready ? GetTime() : Float(0.0f);
+        Widget::TextF(Loc::TextOr(LocKeys::ModelEditorTime, "%.2f / %.2f s"), static_cast<double>(time.Get()), static_cast<double>(duration.Get()));
+        constexpr Float SpeedWidth = 64.0f;
+        ImGui::SameLine(0.0f, 0.0f);
+        const Float speedLeft = ImGui::GetContentRegionAvail().x - SpeedWidth - ImGui::GetTextLineHeight() - ImGui::GetStyle().ItemSpacing.x;
+        if (speedLeft > 0.0f)
         {
-            SetClipLoop(loop);
+            ImGui::SameLine(0.0f, speedLeft.Get());
         }
-        ImGui::SameLine(0.0f, 4.0f);
-        Widget::Text(Loc::TextOr(LocKeys::ModelEditorLoop, "Loop"));
-        ImGui::SameLine(0.0f, 12.0f);
-        Widget::Text(Loc::TextOr(LocKeys::ModelEditorSpeed, "Speed"));
-        ImGui::SameLine(0.0f, 4.0f);
-        Widget::SliderField("##model_speed", m_speed, 0.1f, 3.0f).Format("%.2f").Width(90.0f)();
-        ImGui::SameLine(0.0f, 12.0f);
-        Float time = GetTime();
-        char label[64] = {};
-        std::snprintf(label, sizeof(label), Loc::TextOr(LocKeys::ModelEditorTime, "%.2f / %.2f s"), static_cast<double>(time.Get()), static_cast<double>(duration.Get()));
-        const Float labelWidth = ImGui::CalcTextSize(label).x;
-        const Float sliderWidth = (std::max)(Float(80.0f), Float(ImGui::GetContentRegionAvail().x - labelWidth - 12.0f));
-        if (Widget::SliderField("##model_time", time, 0.0f, (std::max)(duration, Float(0.001f))).Format("%.2f").Width(sliderWidth)())
+        Widget::InlineIcon(Icons::Speed);
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorSpeed, "Speed"));
+        Widget::DragField("##model_speed", m_speed).Range(0.1f, 3.0f).Speed(0.01f).Format("x%.2f").StepButtons(false).Width(SpeedWidth)();
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorSpeed, "Speed"));
+
+        // 시간 축: 눈금 줄을 누르거나 끌면 그 시간으로 가고, 이벤트 줄의 표식은 끌어 옮긴다(손을 뗄 때 커맨드 하나).
+        Widget::Timeline timeline("##model_timeline", ready ? duration : Float(1.0f));
+        if (timeline.Ruler(time) && ready)
         {
             SetTime(time);
         }
-        const ImVec2 sliderMin = ImGui::GetItemRectMin();
-        const ImVec2 sliderMax = ImGui::GetItemRectMax();
-        ImGui::SameLine(0.0f, 8.0f);
-        Widget::HintText(label);
-        // 이벤트 줄은 시간 막대 바로 아래, 같은 폭이다 - 표식이 막대의 그 시간 아래에 선다.
-        if (data != nullptr && duration > 0.0f)
+        m_rulerTop = timeline.GetLastRowTop();
+        m_rulerHeight = timeline.GetLastRowHeight();
+        m_eventTimes.Clear();
+        m_eventNamePointers.Clear();
+        for (const ModelClipEvent& event : m_draft.events)
         {
-            ImGui::SetCursorScreenPos(ImVec2(sliderMin.x, sliderMax.y + 2.0f));
-            DrawEventStrip(sliderMin.x, sliderMax.x - sliderMin.x, duration);
+            m_eventTimes.Add(ready ? event.time : Float(0.0f));
+            m_eventNamePointers.Add(event.name.empty() ? Loc::TextOr(LocKeys::ModelEditorUnnamedEvent, "unnamed event") : event.name.c_str());
+        }
+        if (false == ready)
+        {
+            m_eventTimes.Clear();
+        }
+        const Widget::TimelineMarkerEdit edit = timeline.MarkerTrack("##model_events", Icons::Event, Loc::TextOr(LocKeys::ModelEditorEvents, "Events"),
+            ArrayView<const Float>(m_eventTimes.Data(), m_eventTimes.Size()), ArrayView<const char* const>(m_eventNamePointers.Data(), m_eventTimes.Size()),
+            m_selectedEvent, Loc::TextOr(LocKeys::ModelEditorStripTooltip, "double-click to add an event here; drag a marker to move it"));
+        m_stripLeft = timeline.GetTrackLeft();
+        m_stripTop = timeline.GetLastRowTop();
+        m_stripWidth = timeline.GetTrackWidth();
+        m_stripHeight = timeline.GetLastRowHeight();
+        m_eventScreenX.Clear();
+        for (const Float& each : m_eventTimes)
+        {
+            m_eventScreenX.Add(timeline.XAt(each));
+        }
+        timeline.End(ready ? GetTime() : Float(0.0f));
+        if (false == ready)
+        {
+            return;
+        }
+        const std::size_t count = m_draft.events.Size();
+        if (edit.pressed >= 0 && static_cast<std::size_t>(edit.pressed.Get()) < count)
+        {
+            m_selectedEvent = edit.pressed;
+            m_focus = DetailFocus::Clip;
+        }
+        if (edit.dragging >= 0 && static_cast<std::size_t>(edit.dragging.Get()) < count)
+        {
+            // 끄는 동안은 초안만 옮긴다.
+            m_draft.events[static_cast<std::size_t>(edit.dragging.Get())].time = edit.dragTime;
+            m_draggingEvent = edit.dragging;
+        }
+        if (edit.released >= 0)
+        {
+            m_draggingEvent = -1;
+            // 누르기만 하고 옮기지 않았으면 값이 같아 커맨드가 서지 않는다(`SetAssetFileCommand` 가 같은 글을 거절한다).
+            if (static_cast<std::size_t>(edit.released.Get()) < count)
+            {
+                const ModelClipEvent moved = m_draft.events[static_cast<std::size_t>(edit.released.Get())];
+                SetClipEvent(static_cast<UInt32>(edit.released), moved.name.c_str(), moved.time);
+            }
+        }
+        else if (edit.add)
+        {
+            AddClipEvent(edit.addTime, "");
         }
     }
 
@@ -2662,6 +2878,15 @@ namespace JBro
         return true;
     }
 
+    Bool ModelEditorPanel::GetRulerRow(Float& left, Float& top, Float& width, Float& height) const
+    {
+        left = m_stripLeft;
+        top = m_rulerTop;
+        width = m_stripWidth;
+        height = m_rulerHeight;
+        return m_rulerHeight > 0.0f;
+    }
+
     Bool ModelEditorPanel::GetEventStripRow(Float& left, Float& top, Float& width, Float& height) const
     {
         left = m_stripLeft;
@@ -2669,81 +2894,6 @@ namespace JBro
         width = m_stripWidth;
         height = m_stripHeight;
         return m_stripHeight > 0.0f;
-    }
-
-    void ModelEditorPanel::DrawEventStrip(Float left, Float width, Float duration)
-    {
-        // 막대의 손잡이가 움직이는 폭과 맞춘다(ImGui 슬라이더: 양쪽 2 픽셀 + 손잡이 절반).
-        const Float grab = ImGui::GetStyle().GrabMinSize;
-        const Float usableLeft = left + 2.0f + grab * 0.5f;
-        const Float usableWidth = (std::max)(Float(1.0f), Float(width - 4.0f - grab));
-        const Float height = 12.0f;
-        const ImVec2 origin = ImGui::GetCursorScreenPos();
-        m_stripLeft = left;
-        m_stripTop = origin.y;
-        m_stripWidth = width;
-        m_stripHeight = height;
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        draw->AddRectFilled(origin, ImVec2(origin.x + width, origin.y + height), IM_COL32(255, 255, 255, 14), 2.0f);
-        const auto timeAt = [&](Float x) {
-            const Float t = (x - usableLeft) / usableWidth * duration;
-            return JBro::Clamp(t, Float(0.0f), duration);
-        };
-        // 빈 자리를 두 번 누르면 그 시간에 이벤트를 더한다. 표식이 위에 서도록 겹침을 허락한다.
-        ImGui::SetNextItemAllowOverlap();
-        Widget::HitArea("##event_strip", ImVec2(width, height));
-        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-        {
-            AddClipEvent(timeAt(ImGui::GetIO().MousePos.x), "");
-        }
-        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorStripTooltip, "double-click to add an event here; drag a marker to move it"));
-        m_eventScreenX.Clear();
-        Bool dragging = false;
-        // 놓은 표식의 커맨드는 반복 뒤에 실행한다(실행이 초안 배열을 다시 잡는다).
-        Int32 released = -1;
-        for (std::size_t index = 0; index < m_draft.events.Size(); ++index)
-        {
-            ModelClipEvent& event = m_draft.events[index];
-            const Float x = usableLeft + JBro::Clamp(event.time / duration, Float(0.0f), Float(1.0f)) * usableWidth;
-            m_eventScreenX.Add(x);
-            const Widget::IdScope scope(static_cast<Int32>(index));
-            ImGui::SetCursorScreenPos(ImVec2(x - 5.0f, origin.y));
-            Widget::HitArea("##event_marker", ImVec2(10.0f, height));
-            if (ImGui::IsItemActivated())
-            {
-                m_selectedEvent = static_cast<Int32>(index);
-            }
-            if (ImGui::IsItemActive())
-            {
-                // 끄는 동안은 초안만 옮긴다. 손을 떼면 커맨드 하나다.
-                event.time = timeAt(ImGui::GetIO().MousePos.x);
-                m_draggingEvent = static_cast<Int32>(index);
-                dragging = true;
-            }
-            if (ImGui::IsItemDeactivated() && m_draggingEvent == static_cast<Int32>(index))
-            {
-                m_draggingEvent = -1;
-                released = static_cast<Int32>(index);
-            }
-            if (ImGui::IsItemHovered())
-            {
-                Widget::ShowTooltip(event.name.empty() ? Loc::TextOr(LocKeys::ModelEditorUnnamedEvent, "unnamed event") : event.name.c_str());
-            }
-            const Bool selected = m_selectedEvent == static_cast<Int32>(index);
-            const ImU32 color = selected ? IM_COL32(255, 210, 80, 255) : IM_COL32(150, 200, 255, 220);
-            draw->AddTriangleFilled(ImVec2(x - 4.0f, origin.y + 1.0f), ImVec2(x + 4.0f, origin.y + 1.0f), ImVec2(x, origin.y + height - 1.0f), color);
-        }
-        if (false == dragging && m_draggingEvent >= 0 && false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
-        {
-            m_draggingEvent = -1;
-        }
-        if (released >= 0 && static_cast<std::size_t>(released.Get()) < m_draft.events.Size())
-        {
-            const ModelClipEvent moved = m_draft.events[static_cast<std::size_t>(released.Get())];
-            SetClipEvent(static_cast<UInt32>(released), moved.name.c_str(), moved.time);
-        }
-        ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + height));
-        ImGui::Dummy(ImVec2(0.0f, 0.0f));
     }
 
 }

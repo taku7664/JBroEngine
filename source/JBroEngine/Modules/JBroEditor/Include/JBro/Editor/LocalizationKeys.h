@@ -656,10 +656,8 @@ namespace JBro::LocKeys
     inline constexpr const char* ModelEditorStripTooltip = "model_editor.strip_tooltip";
     inline constexpr const char* ModelEditorUnnamedEvent = "model_editor.unnamed_event";
     // 소켓(D-463).
-    inline constexpr const char* ModelEditorSockets = "model_editor.sockets";
     inline constexpr const char* ModelEditorAddSocket = "model_editor.add_socket";
     inline constexpr const char* ModelEditorAddSocketTooltip = "model_editor.add_socket_tooltip";
-    inline constexpr const char* ModelEditorNoSockets = "model_editor.no_sockets";
     inline constexpr const char* ModelEditorUnnamedSocket = "model_editor.unnamed_socket";
     inline constexpr const char* ModelEditorSocketBone = "model_editor.socket_bone";
     inline constexpr const char* ModelEditorSocketPosition = "model_editor.socket_position";
@@ -679,6 +677,9 @@ namespace JBro::LocKeys
     inline constexpr const char* ModelEditorOverlayClip = "model_editor.overlay_clip";
     inline constexpr const char* ModelEditorOverlayClipTooltip = "model_editor.overlay_clip_tooltip";
     inline constexpr const char* ModelEditorRemoveMask = "model_editor.remove_mask";
+    // 다시 짠 배치(D-465): 디테일 칸.
+    inline constexpr const char* ModelEditorParent = "model_editor.parent";
+    inline constexpr const char* ModelEditorNoSelection = "model_editor.no_selection";
     inline constexpr const char* InspectorClipHint = "inspector.clip_hint";
     inline constexpr const char* InspectorOpenModelEditor = "inspector.open_model_editor";
     inline constexpr const char* AssetsImport = "assets.import";

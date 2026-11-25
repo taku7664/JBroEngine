@@ -16033,7 +16033,24 @@ namespace
         PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(fromX + 80, rowY));
         Check(editor.Tick(Frame), "the editor must tick");
         Check(panel->GetCommands().GetUndoCount() == beforeDrag + 1, "letting go leaves one command");
-        Check(panel->GetClipDraft().events.Size() == 1 && panel->GetClipDraft().events[0].time > 0.15f, "the event moved later");
+        // 80 픽셀은 시간 칸 폭에 대한 비율만큼의 시간이다(클립은 0.5 초).
+        JBro::Float trackLeft = 0.0f;
+        JBro::Float trackTop = 0.0f;
+        JBro::Float trackWidth = 0.0f;
+        JBro::Float trackHeight = 0.0f;
+        Check(panel->GetEventStripRow(trackLeft, trackTop, trackWidth, trackHeight) && trackWidth > 0.0f, "the event track is drawn");
+        const JBro::Float expectedTime = 0.1f + 80.0f / trackWidth * 0.5f;
+        Check(panel->GetClipDraft().events.Size() == 1 && std::fabs((panel->GetClipDraft().events[0].time - expectedTime).Get()) < 0.01f,
+            "the event moved later by the dragged distance");
+        // 표식을 누르기만 하고 놓으면 고르기만 한다 - 커맨드를 남기지 않는다.
+        Check(editor.Tick(Frame), "the editor must draw the moved marker");
+        Check(panel->GetEventMarkerPosition(0, markerX, markerY), "the moved marker is drawn");
+        const std::size_t beforeClick = panel->GetCommands().GetUndoCount();
+        Spot markerSpot;
+        markerSpot.x = static_cast<JBro::Int32>(markerX);
+        markerSpot.y = static_cast<JBro::Int32>(markerY);
+        ClickAt(editor, hwnd, markerSpot);
+        Check(panel->GetCommands().GetUndoCount() == beforeClick, "clicking a marker without moving it leaves no command");
         // 줄의 빈 자리를 두 번 누르면 그 시간에 이벤트를 더한다.
         JBro::Float stripLeft = 0.0f;
         JBro::Float stripTop = 0.0f;
@@ -16046,6 +16063,21 @@ namespace
         ClickAt(editor, hwnd, stripSpot);
         ClickAt(editor, hwnd, stripSpot);
         Check(panel->GetClipDraft().events.Size() == 2, "double-clicking the strip adds an event there");
+        // 눈금 줄을 누르면 그 시간으로 가고 멈춘다(클립은 0.5 초, 칸의 40% 자리).
+        JBro::Float rulerLeft = 0.0f;
+        JBro::Float rulerTop = 0.0f;
+        JBro::Float rulerWidth = 0.0f;
+        JBro::Float rulerHeight = 0.0f;
+        Check(panel->GetRulerRow(rulerLeft, rulerTop, rulerWidth, rulerHeight), "the ruler is drawn");
+        Spot rulerSpot;
+        rulerSpot.x = static_cast<JBro::Int32>(rulerLeft + rulerWidth * 0.4f);
+        rulerSpot.y = static_cast<JBro::Int32>(rulerTop + rulerHeight * 0.5f);
+        ClickAt(editor, hwnd, rulerSpot);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must pose the scrubbed time");
+        }
+        Check(false == panel->IsPlaying() && std::fabs((panel->GetTime() - 0.2f).Get()) < 0.01f, "clicking the ruler pauses at that time");
 
         // 구간 나누기: 새 하위 에셋이 서고 그것이 골라진다. 이름을 바꾸고 지운 뒤 되돌린다.
         Check(panel->SplitClip(), "the clip splits");
