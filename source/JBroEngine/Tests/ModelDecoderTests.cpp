@@ -1,6 +1,7 @@
 ﻿#include "TestCases.h"
 #include "TestModels.h"
 #include <JBro/Asset/ModelDecoder.h>
+#include <JBro/Framework3DSystem/Animation/AnimationPose.h>
 
 #include <cmath>
 #include <cstring>
@@ -397,6 +398,182 @@ namespace
         }
         Check(Near(rawLargest, 50.0f), "convertUnits off keeps the file's numbers");
     }
+    // **FBX 의 스킨·뼈대·애니메이션**(D-467). Z 위·센티미터로 적은 파일이다: `Hip`(원점) > `Spine`(z 100), 메시 노드 `Body` 는 x 50 에 서고(클러스터의 바인드 자리도 같다),
+    // 사각형의 아래 두 점은 Hip(가중치 2 - 정규화하지 않은 파일), 위 두 점(z 200)은 Spine 에 온전히 걸리며, 스택 `Walk` 가 1 초 동안 Hip 을 x 0 → 100 으로 옮긴다.
+    // 클러스터의 `Transform` 은 메시를 그 뼈의 공간으로 옮기는 행렬(`TransformLink` 의 역 x 메시 자리)이고 `TransformLink` 가 뼈의 바인드 자리다(내보내기 프로그램이 적는 대로). 엔진(Y 위·미터)으로 바뀐 값을 **런타임의 자세 셈**(`ComputeBoneMatrices`·`ComputeSkinMatrices`)으로
+    // 본다 - 축·단위·배율·역바인드·정점의 바인드 자리가 하나라도 어긋나면 쉬는 자세의 스킨이 정점을 제자리에 두지 못한다.
+    const char* const SkinnedZUpFbx =
+        "; FBX 7.4.0 project file\n"
+        "FBXHeaderExtension:  {\n\tFBXHeaderVersion: 1003\n\tFBXVersion: 7400\n}\n"
+        "GlobalSettings:  {\n\tVersion: 1000\n\tProperties70:  {\n"
+        "\t\tP: \"UpAxis\", \"int\", \"Integer\", \"\",2\n"
+        "\t\tP: \"UpAxisSign\", \"int\", \"Integer\", \"\",1\n"
+        "\t\tP: \"FrontAxis\", \"int\", \"Integer\", \"\",1\n"
+        "\t\tP: \"FrontAxisSign\", \"int\", \"Integer\", \"\",-1\n"
+        "\t\tP: \"CoordAxis\", \"int\", \"Integer\", \"\",0\n"
+        "\t\tP: \"CoordAxisSign\", \"int\", \"Integer\", \"\",1\n"
+        "\t\tP: \"UnitScaleFactor\", \"double\", \"Number\", \"\",1\n"
+        "\t\tP: \"TimeMode\", \"enum\", \"\", \"\",6\n"
+        "\t}\n}\n"
+        "Objects:  {\n"
+        "\tGeometry: 1000, \"Geometry::Body\", \"Mesh\" {\n"
+        "\t\tVertices: *12 {\n\t\t\ta: 0,0,0,100,0,0,100,0,200,0,0,200\n\t\t}\n"
+        "\t\tPolygonVertexIndex: *4 {\n\t\t\ta: 0,1,2,-4\n\t\t}\n"
+        "\t\tGeometryVersion: 124\n"
+        "\t}\n"
+        "\tModel: 2000, \"Model::Body\", \"Mesh\" {\n\t\tVersion: 232\n\t\tProperties70:  {\n"
+        "\t\t\tP: \"Lcl Translation\", \"Lcl Translation\", \"\", \"A\",50,0,0\n\t\t}\n\t}\n"
+        "\tNodeAttribute: 3001, \"NodeAttribute::Hip\", \"LimbNode\" {\n\t\tTypeFlags: \"Skeleton\"\n\t}\n"
+        "\tModel: 3000, \"Model::Hip\", \"LimbNode\" {\n\t\tVersion: 232\n\t}\n"
+        "\tNodeAttribute: 4001, \"NodeAttribute::Spine\", \"LimbNode\" {\n\t\tTypeFlags: \"Skeleton\"\n\t}\n"
+        "\tModel: 4000, \"Model::Spine\", \"LimbNode\" {\n\t\tVersion: 232\n\t\tProperties70:  {\n"
+        "\t\t\tP: \"Lcl Translation\", \"Lcl Translation\", \"\", \"A\",0,0,100\n\t\t}\n\t}\n"
+        "\tDeformer: 5000, \"Deformer::Skin\", \"Skin\" {\n\t\tVersion: 101\n\t\tLink_DeformAcuracy: 50\n\t}\n"
+        "\tDeformer: 5100, \"SubDeformer::Hip\", \"Cluster\" {\n\t\tVersion: 100\n"
+        "\t\tIndexes: *2 {\n\t\t\ta: 0,1\n\t\t}\n\t\tWeights: *2 {\n\t\t\ta: 2,2\n\t\t}\n"
+        "\t\tTransform: *16 {\n\t\t\ta: 1,0,0,0,0,1,0,0,0,0,1,0,50,0,0,1\n\t\t}\n"
+        "\t\tTransformLink: *16 {\n\t\t\ta: 1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1\n\t\t}\n\t}\n"
+        "\tDeformer: 5200, \"SubDeformer::Spine\", \"Cluster\" {\n\t\tVersion: 100\n"
+        "\t\tIndexes: *2 {\n\t\t\ta: 2,3\n\t\t}\n\t\tWeights: *2 {\n\t\t\ta: 1,1\n\t\t}\n"
+        "\t\tTransform: *16 {\n\t\t\ta: 1,0,0,0,0,1,0,0,0,0,1,0,50,0,-100,1\n\t\t}\n"
+        "\t\tTransformLink: *16 {\n\t\t\ta: 1,0,0,0,0,1,0,0,0,0,1,0,0,0,100,1\n\t\t}\n\t}\n"
+        "\tAnimationStack: 6000, \"AnimStack::Walk\", \"\" {\n\t\tProperties70:  {\n"
+        "\t\t\tP: \"LocalStart\", \"KTime\", \"Time\", \"\",0\n"
+        "\t\t\tP: \"LocalStop\", \"KTime\", \"Time\", \"\",46186158000\n\t\t}\n\t}\n"
+        "\tAnimationLayer: 6100, \"AnimLayer::Base\", \"\" {\n\t}\n"
+        "\tAnimationCurveNode: 6200, \"AnimCurveNode::T\", \"\" {\n\t\tProperties70:  {\n"
+        "\t\t\tP: \"d|X\", \"Number\", \"\", \"A\",0\n"
+        "\t\t\tP: \"d|Y\", \"Number\", \"\", \"A\",0\n"
+        "\t\t\tP: \"d|Z\", \"Number\", \"\", \"A\",0\n\t\t}\n\t}\n"
+        "\tAnimationCurve: 6300, \"AnimCurve::\", \"\" {\n\t\tDefault: 0\n\t\tKeyVer: 4009\n"
+        "\t\tKeyTime: *2 {\n\t\t\ta: 0,46186158000\n\t\t}\n"
+        "\t\tKeyValueFloat: *2 {\n\t\t\ta: 0,100\n\t\t}\n"
+        "\t\tKeyAttrFlags: *1 {\n\t\t\ta: 4\n\t\t}\n"
+        "\t\tKeyAttrDataFloat: *4 {\n\t\t\ta: 0,0,0,0\n\t\t}\n"
+        "\t\tKeyAttrRefCount: *1 {\n\t\t\ta: 2\n\t\t}\n\t}\n"
+        "}\n"
+        "Connections:  {\n"
+        "\tC: \"OO\",2000,0\n"
+        "\tC: \"OO\",1000,2000\n"
+        "\tC: \"OO\",3000,0\n"
+        "\tC: \"OO\",3001,3000\n"
+        "\tC: \"OO\",4000,3000\n"
+        "\tC: \"OO\",4001,4000\n"
+        "\tC: \"OO\",5000,1000\n"
+        "\tC: \"OO\",5100,5000\n"
+        "\tC: \"OO\",5200,5000\n"
+        "\tC: \"OO\",3000,5100\n"
+        "\tC: \"OO\",4000,5200\n"
+        "\tC: \"OO\",6100,6000\n"
+        "\tC: \"OO\",6200,6100\n"
+        "\tC: \"OP\",6200,3000, \"Lcl Translation\"\n"
+        "\tC: \"OP\",6300,6200, \"d|X\"\n"
+        "}\n";
+
+    // 스킨 행렬 넷을 가중치로 섞어 정점 하나를 옮긴다(셰이더의 `VSSkinnedMain` 과 같은 셈).
+    JBro::Vector3 SkinPoint(const JBro::Array<JBro::Matrix4x4>& skin, const JBro::ModelSkinWeights& weights, const JBro::ModelVertex& vertex)
+    {
+        JBro::Vector3 result;
+        for (JBro::UInt32 slot = 0; slot < 4; ++slot)
+        {
+            const JBro::Float weight = weights.weights[slot.Get()];
+            if (weight <= 0.0f)
+            {
+                continue;
+            }
+            const JBro::Float* m = skin[weights.bones[slot.Get()].Get()].values;
+            const JBro::Float x = vertex.position[0];
+            const JBro::Float y = vertex.position[1];
+            const JBro::Float z = vertex.position[2];
+            result.x += weight * (m[0] * x + m[1] * y + m[2] * z + m[3]);
+            result.y += weight * (m[4] * x + m[5] * y + m[6] * z + m[7]);
+            result.z += weight * (m[8] * x + m[9] * y + m[10] * z + m[11]);
+        }
+        return result;
+    }
+
+    void TestAnFbxSkinDecodesIntoSkeletonAndClip()
+    {
+        JBro::ModelImportOptions options;
+        options.scale = 2.0f;
+        JBro::ModelData model;
+        JBro::String error;
+        if (false == JBro::DecodeModel(View(SkinnedZUpFbx), JBro::ModelFormat::Fbx, options, {}, model, error))
+        {
+            std::cout << "  fbx error: " << error.c_str() << std::endl;
+            Check(false, "the skinned FBX decodes");
+        }
+        Check(model.skeletons.Size() == 1 && model.skeletons[0].bones.Size() == 2, "the two limb nodes are one skeleton of two bones");
+        const JBro::ModelSkeleton& skeleton = model.skeletons[0];
+        Check(skeleton.bones[0].name == "Hip" && skeleton.bones[0].parent == -1 && skeleton.bones[1].name == "Spine" && skeleton.bones[1].parent == 0,
+            "Hip is the root and Spine hangs under it");
+        Check(model.meshes.Size() == 1 && model.meshes[0].skeleton == 0 && model.meshes[0].skin.Size() == model.meshes[0].vertices.Size(),
+            "the mesh under the skin deformer is skinned, one weight set per vertex");
+        const JBro::ModelMesh& mesh = model.meshes[0];
+        CheckEngineWinding(mesh, "skinned FBX triangles are turned to the engine's clockwise front too");
+
+        // 쉬는 자세: 뼈의 월드 자리가 Y 위·미터·배율 2 로 바뀌었고, 스킨이 정점을 제자리에 둔다.
+        JBro::Array<JBro::BonePose> pose;
+        pose.Resize(skeleton.bones.Size());
+        JBro::MakeRestPose(skeleton, pose);
+        JBro::Array<JBro::Matrix4x4> bones;
+        bones.Resize(skeleton.bones.Size());
+        JBro::ComputeBoneMatrices(skeleton, pose, bones);
+        Check(Near(bones[1].values[3], 0.0f, 0.001f) && Near(bones[1].values[7], 2.0f, 0.001f) && Near(bones[1].values[11], 0.0f, 0.001f),
+            "Spine stands 100 cm up the file's Z, which is 2 m up the engine's Y at scale 2");
+        JBro::Array<JBro::Matrix4x4> skin;
+        skin.Resize(skeleton.bones.Size());
+        JBro::ComputeSkinMatrices(skeleton, bones, skin);
+        JBro::Bool sawTop = false;
+        JBro::Bool sawBottom = false;
+        for (std::size_t at = 0; at < mesh.vertices.Size(); ++at)
+        {
+            const JBro::ModelVertex& vertex = mesh.vertices[at];
+            const JBro::Vector3 moved = SkinPoint(skin, mesh.skin[at], vertex);
+            Check(Near(moved.x, vertex.position[0], 0.001f) && Near(moved.y, vertex.position[1], 0.001f) && Near(moved.z, vertex.position[2], 0.001f),
+                "at rest the skin leaves every vertex where it is");
+            if (Near(vertex.position[1], 4.0f, 0.001f))
+            {
+                sawTop = mesh.skin[at].bones[0] == 1 && Near(mesh.skin[at].weights[0], 1.0f);
+            }
+            if (Near(vertex.position[1], 0.0f, 0.001f))
+            {
+                sawBottom = mesh.skin[at].bones[0] == 0 && Near(mesh.skin[at].weights[0], 1.0f);
+            }
+        }
+        Check(sawTop && sawBottom, "the top corners (200 cm, 4 m at scale 2) hang on Spine and the bottom ones on Hip, its weights of 2 normalized to 1");
+        JBro::Float left = 100.0f;
+        for (std::size_t at = 0; at < mesh.vertices.Size(); ++at)
+        {
+            left = mesh.vertices[at].position[0] < left ? mesh.vertices[at].position[0] : left;
+        }
+        Check(Near(left, 1.0f, 0.001f), "the vertices sit where the mesh node stood at bind time - x 50 cm, 1 m at scale 2");
+
+        // 애니메이션: 1 초에 Hip 이 x 100 cm(배율 2 로 2 m)에 서고, 스킨이 정점을 그만큼 옮긴다.
+        Check(model.animations.Size() == 1 && model.animations[0].name == "Walk" && Near(model.animations[0].duration, 1.0f, 0.001f),
+            "the stack is one clip named after it, a second long");
+        const JBro::ModelAnimation& walk = model.animations[0];
+        JBro::Bool hipMoves = false;
+        for (const JBro::ModelAnimationTrack& track : walk.tracks)
+        {
+            hipMoves = hipMoves || (track.bone == "Hip" && track.path == JBro::ModelTrackPath::Position);
+            Check(track.bone != "Spine" || track.path != JBro::ModelTrackPath::Position, "Spine's unmoving position is not a track");
+        }
+        Check(hipMoves, "Hip's moving position is a track");
+        JBro::Array<JBro::Int32> trackBones;
+        JBro::BindClipTracks(skeleton, walk, trackBones);
+        JBro::SampleClip(walk, trackBones, 1.0f, pose);
+        JBro::ComputeBoneMatrices(skeleton, pose, bones);
+        JBro::ComputeSkinMatrices(skeleton, bones, skin);
+        Check(Near(bones[0].values[3], 2.0f, 0.01f) && Near(bones[0].values[7], 0.0f, 0.01f), "at one second Hip has moved 2 m along x");
+        for (std::size_t at = 0; at < mesh.vertices.Size(); ++at)
+        {
+            const JBro::Vector3 moved = SkinPoint(skin, mesh.skin[at], mesh.vertices[at]);
+            Check(Near(moved.x, mesh.vertices[at].position[0] + 2.0f, 0.01f) && Near(moved.y, mesh.vertices[at].position[1], 0.01f),
+                "and the whole skin follows it");
+        }
+    }
+
     // **glTF 의 스킨·뼈대·애니메이션**(D-456). 배율 2 로 읽는다 - 위치·역바인드·뿌리 부모·위치 트랙이 함께 늘어야 한다.
     void TestAGltfSkinDecodesIntoSkeletonAndClip()
     {
@@ -464,6 +641,7 @@ JBro::Int32 RunModelDecoderTests()
     JBRO_CASE(TestCalculatedNormalsFollowTheSmoothingAngle());
     JBRO_CASE(TestAnFbxDecodesWithItsUnits());
     JBRO_CASE(TestAGltfSkinDecodesIntoSkeletonAndClip());
+    JBRO_CASE(TestAnFbxSkinDecodesIntoSkeletonAndClip());
     std::cout << "Model decoder tests passed.\n";
     return 0;
 }

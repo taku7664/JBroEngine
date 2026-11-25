@@ -1019,6 +1019,417 @@ namespace JBro
             return ufbx_open_memory(stream, bytes.Data(), bytes.Size(), &memoryOptions, nullptr);
         }
 
+        // ufbx 의 3x4 열 행렬을 엔진의 `values[row * 4 + column]` 로 옮긴다. 위치는 임포트 배율로 늘린다(`FromGltfMatrix` 와 같다).
+        Matrix4x4 FromUfbxMatrix(const ufbx_matrix& source, Float scale)
+        {
+            Matrix4x4 result;
+            for (UInt32 row = 0; row < 3; ++row)
+            {
+                for (UInt32 column = 0; column < 4; ++column)
+                {
+                    result.values[row.Get() * 4 + column.Get()] = static_cast<float>(source.cols[column.Get()].v[row.Get()]);
+                }
+                result.values[row.Get() * 4 + 3] = result.values[row.Get() * 4 + 3] * scale;
+            }
+            result.values[12] = 0.0f;
+            result.values[13] = 0.0f;
+            result.values[14] = 0.0f;
+            result.values[15] = 1.0f;
+            return result;
+        }
+
+        // 스킨 메시가 놓인 자리다 - 첫 인스턴스 노드의 `geometry_to_world`(변환된 공간)이고, 노드가 없으면 단위 행렬이다.
+        ufbx_matrix FbxMeshPlace(const ufbx_mesh* mesh)
+        {
+            return mesh != nullptr && mesh->instances.count > 0 ? mesh->instances.data[0]->geometry_to_world : ufbx_identity_matrix;
+        }
+
+        Vector3 FromUfbxVector(const ufbx_vec3& value)
+        {
+            return Vector3{static_cast<float>(value.x), static_cast<float>(value.y), static_cast<float>(value.z)};
+        }
+
+        // **FBX 의 뼈대**(D-467)다. 뼈는 스킨 클러스터가 가리키는 노드와, 그 위로 이어지는 뼈 노드(ufbx 의 `bone` 이 있는 LimbNode 따위)다 -
+        // 가중치가 없는 중간 뼈도 자세가 이어지게 넣는다. 뿌리 뼈가 같은 뼈대가 하나이고, 한 스킨이 두 뿌리를 가리키면 두 뼈대를 합친다(메시 하나 = 뼈대 하나).
+        struct FbxSkeletons
+        {
+            // 노드(typed_id)마다다. 뼈가 아니면 -1 이다.
+            Array<Int32> skeletonOfNode;
+            Array<Int32> boneOfNode;
+            // 뼈의 쉬는 자세가 굽힌 애니메이션의 로컬 값과 같은 기준인가다 - 부모 뼈가 바로 위 노드일 때(뿌리는 뼈대의 뿌리 부모가 바로 위 노드일 때)다.
+            // 사이에 뼈가 아닌 노드가 끼어 접은 뼈는 그 노드의 움직임을 모르므로 트랙을 받지 않는다.
+            Array<Bool> animatable;
+            // 스킨(typed_id)마다의 뼈대다.
+            Array<Int32> skeletonOfSkin;
+        };
+
+        Bool IsFbxBone(const Array<Bool>& isBone, const ufbx_node* node)
+        {
+            return node != nullptr && false == node->is_root && node->typed_id < isBone.Size() && isBone[node->typed_id];
+        }
+
+        const ufbx_node* FbxBoneParent(const Array<Bool>& isBone, const ufbx_node* node)
+        {
+            const ufbx_node* above = node->parent;
+            while (above != nullptr && false == above->is_root && false == IsFbxBone(isBone, above))
+            {
+                above = above->parent;
+            }
+            return IsFbxBone(isBone, above) ? above : nullptr;
+        }
+
+        UInt32 FbxDepth(const ufbx_node* node)
+        {
+            UInt32 depth = 0;
+            for (const ufbx_node* above = node->parent; above != nullptr; above = above->parent)
+            {
+                ++depth;
+            }
+            return depth;
+        }
+
+        void ReadFbxSkeletons(const ufbx_scene* scene, Float scale, ModelData& model, FbxSkeletons& out)
+        {
+            const std::size_t nodeCount = scene->nodes.count;
+            Array<Bool> isBone;
+            isBone.Resize(nodeCount);
+            out.skeletonOfNode.Resize(nodeCount);
+            out.boneOfNode.Resize(nodeCount);
+            out.animatable.Resize(nodeCount);
+            for (std::size_t index = 0; index < nodeCount; ++index)
+            {
+                isBone[index] = false;
+                out.skeletonOfNode[index] = -1;
+                out.boneOfNode[index] = -1;
+                out.animatable[index] = false;
+            }
+            out.skeletonOfSkin.Resize(scene->skin_deformers.count);
+            for (std::size_t index = 0; index < out.skeletonOfSkin.Size(); ++index)
+            {
+                out.skeletonOfSkin[index] = -1;
+            }
+            for (std::size_t skinIndex = 0; skinIndex < scene->skin_deformers.count; ++skinIndex)
+            {
+                const ufbx_skin_deformer* skin = scene->skin_deformers.data[skinIndex];
+                for (std::size_t at = 0; at < skin->clusters.count; ++at)
+                {
+                    const ufbx_node* node = skin->clusters.data[at]->bone_node;
+                    if (node == nullptr || node->is_root || node->typed_id >= nodeCount)
+                    {
+                        continue;
+                    }
+                    isBone[node->typed_id] = true;
+                    for (const ufbx_node* above = node->parent; above != nullptr && false == above->is_root && above->bone != nullptr
+                         && false == isBone[above->typed_id]; above = above->parent)
+                    {
+                        isBone[above->typed_id] = true;
+                    }
+                }
+            }
+
+            // 뿌리 뼈마다 무리 하나로 시작해, 같은 스킨이 가리키는 뿌리끼리 합친다.
+            Array<Int32> group;
+            group.Resize(nodeCount);
+            for (std::size_t index = 0; index < nodeCount; ++index)
+            {
+                group[index] = static_cast<Int32>(index);
+            }
+            const auto find = [&](Int32 at) {
+                while (group[static_cast<std::size_t>(at.Get())] != at)
+                {
+                    at = group[static_cast<std::size_t>(at.Get())];
+                }
+                return at;
+            };
+            const auto topOf = [&](const ufbx_node* node) {
+                const ufbx_node* top = node;
+                for (const ufbx_node* above = FbxBoneParent(isBone, top); above != nullptr; above = FbxBoneParent(isBone, top))
+                {
+                    top = above;
+                }
+                return static_cast<Int32>(top->typed_id);
+            };
+            for (std::size_t skinIndex = 0; skinIndex < scene->skin_deformers.count; ++skinIndex)
+            {
+                const ufbx_skin_deformer* skin = scene->skin_deformers.data[skinIndex];
+                Int32 first = -1;
+                for (std::size_t at = 0; at < skin->clusters.count; ++at)
+                {
+                    const ufbx_node* node = skin->clusters.data[at]->bone_node;
+                    if (false == IsFbxBone(isBone, node))
+                    {
+                        continue;
+                    }
+                    const Int32 root = find(topOf(node));
+                    if (first < 0)
+                    {
+                        first = root;
+                    }
+                    else if (root != first)
+                    {
+                        group[static_cast<std::size_t>(root.Get())] = first;
+                    }
+                }
+            }
+
+            // 무리마다 뼈대 하나다. 뼈는 깊이 차례라 부모가 늘 앞에 온다(같은 깊이는 파일의 차례).
+            Array<Int32> skeletonOfGroup;
+            skeletonOfGroup.Resize(nodeCount);
+            for (std::size_t index = 0; index < nodeCount; ++index)
+            {
+                skeletonOfGroup[index] = -1;
+            }
+            Array<UInt32> bones;
+            for (std::size_t index = 0; index < nodeCount; ++index)
+            {
+                if (isBone[index])
+                {
+                    bones.Add(static_cast<UInt32>(index));
+                }
+            }
+            Array<UInt32> depth;
+            depth.Resize(nodeCount);
+            for (const UInt32 index : bones)
+            {
+                depth[index.Get()] = FbxDepth(scene->nodes.data[index.Get()]);
+            }
+            std::stable_sort(bones.Data(), bones.Data() + bones.Size(), [&](UInt32 left, UInt32 right) { return depth[left.Get()] < depth[right.Get()]; });
+            Array<ufbx_matrix> rootParentOf;
+            Array<const ufbx_node*> rootParentNodeOf;
+            Array<Array<String>> taken;
+            for (const UInt32 index : bones)
+            {
+                const ufbx_node* node = scene->nodes.data[index.Get()];
+                const Int32 owner = find(topOf(node));
+                Int32& skeletonIndex = skeletonOfGroup[static_cast<std::size_t>(owner.Get())];
+                if (skeletonIndex < 0)
+                {
+                    // 첫 뿌리의 바로 위 노드(뼈가 아닌 `Armature` 따위)가 뿌리 부모다. 파일의 뿌리 노드 밑이면 단위 행렬이다.
+                    skeletonIndex = static_cast<Int32>(model.skeletons.Size());
+                    ModelSkeleton skeleton;
+                    skeleton.name = "Skeleton";
+                    const ufbx_node* parent = node->parent != nullptr && false == node->parent->is_root ? node->parent : nullptr;
+                    const ufbx_matrix rootParent = parent != nullptr ? parent->node_to_world : ufbx_identity_matrix;
+                    skeleton.rootParent = FromUfbxMatrix(rootParent, scale);
+                    model.skeletons.Add(std::move(skeleton));
+                    rootParentOf.Add(rootParent);
+                    rootParentNodeOf.Add(parent);
+                    taken.Add(Array<String>{});
+                }
+                ModelSkeleton& skeleton = model.skeletons[static_cast<std::size_t>(skeletonIndex.Get())];
+                ModelBone bone;
+                const String wanted = node->name.length > 0 ? String(std::string_view(node->name.data, node->name.length)) : String("Bone");
+                String name = wanted;
+                Array<String>& names = taken[static_cast<std::size_t>(skeletonIndex.Get())];
+                for (Int32 suffix = 2; names.Contains(name); ++suffix)
+                {
+                    name = wanted + " (" + String(std::to_string(suffix.Get()).c_str()) + ")";
+                }
+                names.Add(name);
+                bone.name = name;
+                const ufbx_node* parentBone = FbxBoneParent(isBone, node);
+                const ufbx_node* direct = node->parent != nullptr && false == node->parent->is_root ? node->parent : nullptr;
+                ufbx_transform local = node->local_transform;
+                Bool animatable = true;
+                if (parentBone != nullptr)
+                {
+                    bone.parent = out.boneOfNode[parentBone->typed_id];
+                    if (parentBone != direct)
+                    {
+                        const ufbx_matrix inverse = ufbx_matrix_invert(&parentBone->node_to_world);
+                        const ufbx_matrix relative = ufbx_matrix_mul(&inverse, &node->node_to_world);
+                        local = ufbx_matrix_to_transform(&relative);
+                        animatable = false;
+                    }
+                }
+                else if (direct != rootParentNodeOf[static_cast<std::size_t>(skeletonIndex.Get())])
+                {
+                    // 합친 뼈대의 다른 뿌리다. 첫 뿌리의 부모를 기준으로 쉬는 자세를 둔다.
+                    const ufbx_matrix inverse = ufbx_matrix_invert(&rootParentOf[static_cast<std::size_t>(skeletonIndex.Get())]);
+                    const ufbx_matrix relative = ufbx_matrix_mul(&inverse, &node->node_to_world);
+                    local = ufbx_matrix_to_transform(&relative);
+                    animatable = false;
+                }
+                bone.position = Scale(FromUfbxVector(local.translation), scale);
+                bone.rotation = Quaternion{static_cast<float>(local.rotation.x), static_cast<float>(local.rotation.y), static_cast<float>(local.rotation.z),
+                    static_cast<float>(local.rotation.w)};
+                bone.scale = FromUfbxVector(local.scale);
+                // 역바인드는 클러스터의 `geometry_to_bone` 에 그 메시 자리의 역을 곱한 것이다 - 정점을 메시 자리로 옮겨 두므로(아래 메시 읽기) 스킨 행렬은
+                // ufbx 의 `geometry_to_world` 와 같은 `뼈 자세 x geometry_to_bone` 이 되고, 같은 뼈대를 쓰는 메시들이 역바인드 하나를 함께 쓴다.
+                // 클러스터의 `bind_to_world` 는 쓰지 않는다 - 단위를 바꾸면 ufbx 가 거기에는 변환을 걸지 않는다(cm 파일에서 0.01 배가 남는 것을 실제 파일로 봤다).
+                // 클러스터가 없는 중간 뼈는 쉬는 자세의 역이다.
+                ufbx_matrix inverseBind = ufbx_matrix_invert(&node->node_to_world);
+                Bool found = false;
+                for (std::size_t meshIndex = 0; meshIndex < scene->meshes.count && false == found; ++meshIndex)
+                {
+                    const ufbx_mesh* mesh = scene->meshes.data[meshIndex];
+                    const ufbx_skin_deformer* skin = mesh->skin_deformers.count > 0 ? mesh->skin_deformers.data[0] : nullptr;
+                    for (std::size_t at = 0; skin != nullptr && at < skin->clusters.count && false == found; ++at)
+                    {
+                        if (skin->clusters.data[at]->bone_node == node)
+                        {
+                            const ufbx_matrix place = FbxMeshPlace(mesh);
+                            const ufbx_matrix placeInverse = ufbx_matrix_invert(&place);
+                            inverseBind = ufbx_matrix_mul(&skin->clusters.data[at]->geometry_to_bone, &placeInverse);
+                            found = true;
+                        }
+                    }
+                }
+                bone.inverseBind = FromUfbxMatrix(inverseBind, scale);
+                out.skeletonOfNode[index.Get()] = skeletonIndex;
+                out.boneOfNode[index.Get()] = static_cast<Int32>(skeleton.bones.Size());
+                out.animatable[index.Get()] = animatable;
+                skeleton.bones.Add(std::move(bone));
+            }
+            for (std::size_t skinIndex = 0; skinIndex < scene->skin_deformers.count; ++skinIndex)
+            {
+                const ufbx_skin_deformer* skin = scene->skin_deformers.data[skinIndex];
+                for (std::size_t at = 0; at < skin->clusters.count; ++at)
+                {
+                    const ufbx_node* node = skin->clusters.data[at]->bone_node;
+                    if (IsFbxBone(isBone, node))
+                    {
+                        out.skeletonOfSkin[skinIndex] = out.skeletonOfNode[node->typed_id];
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 정점 하나의 가중치다. ufbx 는 큰 것부터 늘어놓으므로 앞의 넷을 받고, glTF 와 같이 합이 1 이 되게 다시 나눈다(쓰지 않는 칸은 뼈 0).
+        // 가중치가 없는 정점은 뼈 0 에 온전히 걸린다.
+        ModelSkinWeights FbxSkinWeights(const ufbx_skin_deformer& skin, uint32_t vertex, const FbxSkeletons& skeletons)
+        {
+            ModelSkinWeights result;
+            Float sum = 0.0f;
+            if (vertex < skin.vertices.count)
+            {
+                const ufbx_skin_vertex& source = skin.vertices.data[vertex];
+                UInt32 slot = 0;
+                for (uint32_t at = 0; at < source.num_weights && slot < 4; ++at)
+                {
+                    const ufbx_skin_weight& weight = skin.weights.data[source.weight_begin + at];
+                    const ufbx_node* node = weight.cluster_index < skin.clusters.count ? skin.clusters.data[weight.cluster_index]->bone_node : nullptr;
+                    const Int32 bone = node != nullptr && node->typed_id < skeletons.boneOfNode.Size() ? skeletons.boneOfNode[node->typed_id] : Int32(-1);
+                    if (bone < 0 || false == (weight.weight > 0.0))
+                    {
+                        continue;
+                    }
+                    result.bones[slot.Get()] = static_cast<UInt32>(bone.Get());
+                    result.weights[slot.Get()] = static_cast<float>(weight.weight);
+                    sum += result.weights[slot.Get()];
+                    ++slot;
+                }
+            }
+            for (UInt32 slot = 0; slot < 4; ++slot)
+            {
+                result.weights[slot.Get()] = sum > 0.0f ? Float(result.weights[slot.Get()] / sum) : Float(slot == 0 ? 1.0f : 0.0f);
+                if (result.weights[slot.Get()] == 0.0f && slot > 0)
+                {
+                    result.bones[slot.Get()] = 0;
+                }
+            }
+            return result;
+        }
+
+        // **FBX 의 애니메이션**(D-467)이다. 스택마다 `ufbx_bake_anim` 으로 굽어 선형 키로 받고, 뼈 노드의 위치·회전·크기를 트랙으로 둔다.
+        // 시간은 스택의 시작이 0 이다. 바뀌지 않는 채널은 쉬는 자세와 다를 때만 둔다(내보내기가 모든 칸에 상수 키를 넣곤 한다).
+        void ReadFbxAnimations(const ufbx_scene* scene, Float scale, const FbxSkeletons& skeletons, ModelData& model)
+        {
+            Array<String> taken;
+            for (std::size_t stackIndex = 0; stackIndex < scene->anim_stacks.count; ++stackIndex)
+            {
+                const ufbx_anim_stack* stack = scene->anim_stacks.data[stackIndex];
+                ufbx_bake_opts bakeOptions = {};
+                bakeOptions.trim_start_time = true;
+                ufbx_error bakeError = {};
+                ufbx_baked_anim* baked = ufbx_bake_anim(scene, stack->anim, &bakeOptions, &bakeError);
+                if (baked == nullptr)
+                {
+                    continue;
+                }
+                ModelAnimation animation;
+                const String wanted = stack->name.length > 0 ? String(std::string_view(stack->name.data, stack->name.length)) : String("Animation");
+                String name = wanted;
+                for (Int32 suffix = 2; taken.Contains(name); ++suffix)
+                {
+                    name = wanted + " (" + String(std::to_string(suffix.Get()).c_str()) + ")";
+                }
+                animation.name = name;
+                Float last = 0.0f;
+                for (std::size_t at = 0; at < baked->nodes.count; ++at)
+                {
+                    const ufbx_baked_node& source = baked->nodes.data[at];
+                    if (source.typed_id >= skeletons.boneOfNode.Size() || skeletons.boneOfNode[source.typed_id] < 0 || false == skeletons.animatable[source.typed_id])
+                    {
+                        continue;
+                    }
+                    const ModelBone& bone = model.skeletons[static_cast<std::size_t>(skeletons.skeletonOfNode[source.typed_id].Get())]
+                                                .bones[static_cast<std::size_t>(skeletons.boneOfNode[source.typed_id].Get())];
+                    const auto addVectors = [&](const ufbx_baked_vec3_list& keys, Bool constant, ModelTrackPath path, Vector3 rest, Float factor) {
+                        if (keys.count == 0)
+                        {
+                            return;
+                        }
+                        const Vector3 first = Scale(FromUfbxVector(keys.data[0].value), factor);
+                        const Bool same = std::fabs((first.x - rest.x).Get()) < 1.0e-5f && std::fabs((first.y - rest.y).Get()) < 1.0e-5f
+                            && std::fabs((first.z - rest.z).Get()) < 1.0e-5f;
+                        if (constant && same)
+                        {
+                            return;
+                        }
+                        ModelAnimationTrack track;
+                        track.bone = bone.name;
+                        track.path = path;
+                        for (std::size_t key = 0; key < keys.count; ++key)
+                        {
+                            const Vector3 value = Scale(FromUfbxVector(keys.data[key].value), factor);
+                            track.times.Add(static_cast<float>(keys.data[key].time));
+                            track.values.Add(value.x);
+                            track.values.Add(value.y);
+                            track.values.Add(value.z);
+                            last = std::max(last.Get(), static_cast<float>(keys.data[key].time));
+                        }
+                        animation.tracks.Add(std::move(track));
+                    };
+                    addVectors(source.translation_keys, source.constant_translation, ModelTrackPath::Position, bone.position, scale);
+                    if (source.rotation_keys.count > 0)
+                    {
+                        const ufbx_quat first = source.rotation_keys.data[0].value;
+                        const Float dot = static_cast<float>(first.x) * bone.rotation.x + static_cast<float>(first.y) * bone.rotation.y
+                            + static_cast<float>(first.z) * bone.rotation.z + static_cast<float>(first.w) * bone.rotation.w;
+                        if (false == source.constant_rotation || std::fabs(dot.Get()) < 1.0f - 1.0e-6f)
+                        {
+                            ModelAnimationTrack track;
+                            track.bone = bone.name;
+                            track.path = ModelTrackPath::Rotation;
+                            for (std::size_t key = 0; key < source.rotation_keys.count; ++key)
+                            {
+                                const ufbx_quat value = source.rotation_keys.data[key].value;
+                                track.times.Add(static_cast<float>(source.rotation_keys.data[key].time));
+                                track.values.Add(static_cast<float>(value.x));
+                                track.values.Add(static_cast<float>(value.y));
+                                track.values.Add(static_cast<float>(value.z));
+                                track.values.Add(static_cast<float>(value.w));
+                                last = std::max(last.Get(), static_cast<float>(source.rotation_keys.data[key].time));
+                            }
+                            animation.tracks.Add(std::move(track));
+                        }
+                    }
+                    addVectors(source.scale_keys, source.constant_scale, ModelTrackPath::Scale, bone.scale, 1.0f);
+                }
+                animation.duration = baked->playback_duration > 0.0 ? Float(static_cast<float>(baked->playback_duration)) : last;
+                ufbx_free_baked_anim(baked);
+                // 뼈를 움직이지 않는 스택(카메라·조명만)은 클립이 아니다.
+                if (animation.tracks.IsEmpty())
+                {
+                    continue;
+                }
+                taken.Add(animation.name);
+                model.animations.Add(std::move(animation));
+            }
+        }
+
         Int32 TextureImage(const ufbx_texture* texture, const Array<Int32>& imageOfTexture)
         {
             if (texture == nullptr || texture->typed_id >= imageOfTexture.Size())
@@ -1140,6 +1551,11 @@ namespace JBro
                 }
             }
 
+            // 뼈대가 먼저다 - 스킨 메시가 뼈 번호를 본다(D-467).
+            const Float importScale = std::isfinite(options.scale.Get()) && options.scale > 0.0f ? options.scale : Float(1.0f);
+            FbxSkeletons skeletons;
+            ReadFbxSkeletons(scene, importScale, model, skeletons);
+
             // 메시마다 재질 부분 하나가 `ModelMesh` 하나다. 노드가 가리킬 수 있게 메시 → 결과 번호들을 남긴다.
             Array<RawMesh> raws;
             Array<Array<UInt32>> meshOutputs;
@@ -1149,6 +1565,12 @@ namespace JBro
             {
                 const ufbx_mesh* mesh = scene->meshes.data[meshIndex];
                 triangle.Resize(mesh->max_face_triangles * 3);
+                // 스킨 메시(D-467)는 첫 스킨만 본다. 정점을 메시가 놓인 자리(`FbxMeshPlace`)로 옮긴다 - 역바인드가 뼈마다 하나라 같은 뼈대를 쓰는 메시들이 함께 쓴다.
+                // glTF 의 스킨 메시가 노드 자리를 보지 않는 것과 같은 뜻이다.
+                const ufbx_skin_deformer* skin = mesh->skin_deformers.count > 0 ? mesh->skin_deformers.data[0] : nullptr;
+                const Int32 skinSkeleton = skin != nullptr && skin->typed_id < skeletons.skeletonOfSkin.Size() ? skeletons.skeletonOfSkin[skin->typed_id] : Int32(-1);
+                const ufbx_matrix bindPlace = skinSkeleton >= 0 ? FbxMeshPlace(mesh) : ufbx_identity_matrix;
+                const ufbx_matrix bindNormals = ufbx_matrix_for_normals(&bindPlace);
                 String baseName(std::string_view(mesh->name.data, mesh->name.length));
                 if (baseName.empty() && mesh->instances.count > 0)
                 {
@@ -1182,6 +1604,10 @@ namespace JBro
                             ? String(std::string_view(material->name.data, material->name.length)) : String(std::to_string(part).c_str());
                     }
                     raw.name = UniqueName(raws, name);
+                    if (skinSkeleton >= 0)
+                    {
+                        raw.skeleton = skinSkeleton;
+                    }
                     for (std::size_t faceAt = 0; faceAt < faceCount; ++faceAt)
                     {
                         const uint32_t faceIndex = source != nullptr ? source->face_indices.data[faceAt] : static_cast<uint32_t>(faceAt);
@@ -1190,13 +1616,21 @@ namespace JBro
                         {
                             const uint32_t index = triangle[corner];
                             ModelVertex out;
-                            const ufbx_vec3 position = ufbx_get_vertex_vec3(&mesh->vertex_position, index);
+                            ufbx_vec3 position = ufbx_get_vertex_vec3(&mesh->vertex_position, index);
+                            if (skinSkeleton >= 0)
+                            {
+                                position = ufbx_transform_position(&bindPlace, position);
+                            }
                             out.position[0] = static_cast<float>(position.x);
                             out.position[1] = static_cast<float>(position.y);
                             out.position[2] = static_cast<float>(position.z);
                             if (mesh->vertex_normal.exists)
                             {
-                                const ufbx_vec3 normal = ufbx_get_vertex_vec3(&mesh->vertex_normal, index);
+                                ufbx_vec3 normal = ufbx_get_vertex_vec3(&mesh->vertex_normal, index);
+                                if (skinSkeleton >= 0)
+                                {
+                                    normal = ufbx_vec3_normalize(ufbx_transform_direction(&bindNormals, normal));
+                                }
                                 out.normal[0] = static_cast<float>(normal.x);
                                 out.normal[1] = static_cast<float>(normal.y);
                                 out.normal[2] = static_cast<float>(normal.z);
@@ -1210,8 +1644,13 @@ namespace JBro
                             }
                             if (raw.hasTangents)
                             {
-                                const ufbx_vec3 t = ufbx_get_vertex_vec3(&mesh->vertex_tangent, index);
-                                const ufbx_vec3 b = ufbx_get_vertex_vec3(&mesh->vertex_bitangent, index);
+                                ufbx_vec3 t = ufbx_get_vertex_vec3(&mesh->vertex_tangent, index);
+                                ufbx_vec3 b = ufbx_get_vertex_vec3(&mesh->vertex_bitangent, index);
+                                if (skinSkeleton >= 0)
+                                {
+                                    t = ufbx_vec3_normalize(ufbx_transform_direction(&bindPlace, t));
+                                    b = ufbx_vec3_normalize(ufbx_transform_direction(&bindPlace, b));
+                                }
                                 const Vector3 tangent{static_cast<float>(t.x), static_cast<float>(t.y), static_cast<float>(t.z)};
                                 const Vector3 bitangent{static_cast<float>(b.x), static_cast<float>(b.y), static_cast<float>(b.z)};
                                 const Vector3 normal{out.normal[0], out.normal[1], out.normal[2]};
@@ -1221,6 +1660,10 @@ namespace JBro
                                 out.tangent[3] = Dot(Cross(normal, tangent), bitangent) < 0.0f ? -1.0f : 1.0f;
                             }
                             raw.corners.Add(out);
+                            if (skinSkeleton >= 0)
+                            {
+                                raw.skinCorners.Add(FbxSkinWeights(*skin, mesh->vertex_indices.data[index], skeletons));
+                            }
                         }
                     }
                     meshOutputs[meshIndex].Add(static_cast<UInt32>(raws.Size()));
@@ -1239,7 +1682,7 @@ namespace JBro
             {
                 nodeOf[index] = -1;
             }
-            const Float scale = std::isfinite(options.scale.Get()) && options.scale > 0.0f ? options.scale : Float(1.0f);
+            const Float scale = importScale;
             for (std::size_t index = 0; index < scene->nodes.count; ++index)
             {
                 const ufbx_node* source = scene->nodes.data[index];
@@ -1266,6 +1709,7 @@ namespace JBro
                 nodeOf[index] = static_cast<Int32>(model.nodes.Size());
                 model.nodes.Add(std::move(node));
             }
+            ReadFbxAnimations(scene, importScale, skeletons, model);
             return true;
         }
 
