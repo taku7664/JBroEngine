@@ -26,6 +26,8 @@ namespace JBro
         CompiledShader = 5, // 빌드가 구운 머티리얼 셰이더 묶음(`WriteCompiledShaderSet`, D-347) - 게임은 굽지 않는다
         CookedMesh = 6,     // 빌드가 모델에서 꺼내 둔 메시(model-import-plan 6 단계) - 있으면 모델을 읽지 않는다
         CookedMaterial = 7, // 빌드가 모델의 재질을 옮겨 둔 `.jmat` 글자(material-plan 2 단계) - 그림 칸의 아이디까지 풀려 있다
+        CookedSkeleton = 8, // 빌드가 모델에서 꺼내 둔 뼈대(`WriteCookedSkeleton`, D-466) - 있으면 모델을 읽지 않는다
+        CookedAnimationClip = 9, // 빌드가 모델에서 꺼내 둔 클립의 원본 애니메이션(`WriteCookedAnimation`, D-466) - 클립 설정은 메타가 든다
     };
 
     // `CookedTexture` 블롭의 모양이다: 16 바이트 머리(`JTEX`·폭·높이·0) 뒤에 `폭 * 높이 * 4` 바이트의 RGBA8(왼쪽 위 원점).
@@ -41,15 +43,41 @@ namespace JBro
     // 머리와 크기가 맞으면 참이다. 픽셀은 `bytes` 의 `CookedTextureHeaderSize` 뒤에 있다.
     Bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info);
 
-    // `CookedMesh` 블롭의 모양이다(model-import-plan 6 단계): 32 바이트 머리(`JMSH`·정점 수·인덱스 수·깃발 - 1 번 비트가 UV, 2 번 비트가 탄젠트 있음·제 재질의 아이디 16 바이트,
-    // material-plan 2 단계) 뒤에 정점(`ModelVertex` 그대로, 정점마다 48 바이트)과 32 비트 인덱스. 엔진이 읽는 모양 그대로라 게임은 모델 디코더를 돌리지 않는다.
+    // `CookedMesh` 블롭의 모양이다(model-import-plan 6 단계): 32 바이트 머리(`JMSH`·정점 수·인덱스 수·깃발 - 1 번 비트가 UV, 2 번 비트가 탄젠트, 4 번 비트가 스킨 있음·
+    // 제 재질의 아이디 16 바이트, material-plan 2 단계) 뒤에 정점(`ModelVertex` 그대로, 정점마다 48 바이트)과 32 비트 인덱스. 스킨 메시면 그 뒤에 뼈대의 아이디 16 바이트와
+    // 정점마다 뼈·가중치(`ModelSkinWeights` 그대로, 32 바이트)가 온다(D-466). 엔진이 읽는 모양 그대로라 게임은 모델 디코더를 돌리지 않는다.
     inline constexpr std::size_t CookedMeshHeaderSize = 32;
     static_assert(sizeof(ModelVertex) == 48, "the cooked mesh stores ModelVertex as twelve floats");
+    static_assert(sizeof(ModelSkinWeights) == 32, "the cooked mesh stores ModelSkinWeights as four bones and four weights");
     static_assert(sizeof(AssetId) == 16, "the cooked mesh stores the material id as sixteen bytes");
 
-    void WriteCookedMesh(const Array<ModelVertex>& vertices, const Array<UInt32>& indices, Bool hasUvs, Bool hasTangents, AssetId material, Array<std::byte>& out);
+    // 쿡된 메시 하나다. 쓸 때는 부르는 쪽의 것을 가리키고, 읽을 때는 채운다.
+    struct CookedMesh
+    {
+        Array<ModelVertex> vertices;
+        Array<UInt32> indices;
+        Bool hasUvs = false;
+        Bool hasTangents = false;
+        AssetId material;
+        // 비면 스킨이 없다. 있으면 `vertices` 와 같은 수이고 `skeleton` 이 그 뼈대의 아이디다.
+        Array<ModelSkinWeights> skin;
+        AssetId skeleton;
+    };
+
+    void WriteCookedMesh(const CookedMesh& mesh, Array<std::byte>& out);
     // 머리·크기가 맞고 인덱스가 삼각형 목록이며 모두 정점 안을 가리키면 참이다. 거짓이면 결과를 손대지 않는다.
-    Bool ReadCookedMesh(const Array<std::byte>& bytes, Array<ModelVertex>& vertices, Array<UInt32>& indices, Bool& hasUvs, Bool& hasTangents, AssetId& material);
+    Bool ReadCookedMesh(const Array<std::byte>& bytes, CookedMesh& mesh);
+
+    // `CookedSkeleton` 블롭이다(D-466): `JSKL`·뼈 수 뒤에 이름(길이 + 바이트), 뿌리 부모 행렬, 뼈마다 이름·부모·위치·회전·크기·역바인드.
+    void WriteCookedSkeleton(const ModelSkeleton& skeleton, Array<std::byte>& out);
+    // 모양이 맞고 부모가 늘 앞의 뼈를 가리키면 참이다. 거짓이면 결과를 손대지 않는다.
+    Bool ReadCookedSkeleton(const Array<std::byte>& bytes, ModelSkeleton& skeleton);
+
+    // `CookedAnimationClip` 블롭이다(D-466): `JANM` 뒤에 이름·길이(초)·트랙 수, 트랙마다 뼈 이름·경로·보간·키 수·시간·값.
+    // 담는 것은 클립 설정을 걸기 **전의** 원본 애니메이션이다 - 구간·반복·이벤트는 게임도 메타에서 읽어 건다(느슨한 파일과 같은 길).
+    void WriteCookedAnimation(const ModelAnimation& animation, Array<std::byte>& out);
+    // 모양이 맞고 트랙마다 값 수가 키 수 x 성분 수(회전 넷, 나머지 셋)면 참이다. 거짓이면 결과를 손대지 않는다.
+    Bool ReadCookedAnimation(const Array<std::byte>& bytes, ModelAnimation& animation);
 
     // 에셋 시스템이 바이트를 받는 곳이다(D-232). 에셋 폴더의 파일(`LooseAssetSource`)이든 패키지(`Package::PackageAssetSource`)든 같은 모양이라
     // 에셋 시스템은 어느 쪽인지 모른다. `Read`·`Has`·`MakeStreamPath` 는 메인 스레드이고, `OpenStream` 은 어느 스레드에서 불러도 된다

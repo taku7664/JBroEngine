@@ -52,6 +52,8 @@ namespace JBro::Package
             Bool ok = false;
             ModelData model;
             Array<ModelSubAsset> listed;
+            // 모델의 메타다. 나눈 클립이 원본 애니메이션의 이름을 여기서 찾는다(D-462).
+            AssetMetaFile meta;
         };
 
         const ModelData* DecodeOwner(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRecord& owner,
@@ -72,6 +74,7 @@ namespace JBro::Package
                 }
                 cache.ok = DecodeModelFile(platform, assetRoot, owner.relativePath,
                     meta.hasModelOptions ? meta.modelOptions : ModelImportOptions{}, cache.model, error);
+                cache.meta = std::move(meta);
                 if (cache.ok)
                 {
                     ListModelSubAssets(cache.model, cache.listed);
@@ -84,7 +87,20 @@ namespace JBro::Package
             return cache.ok ? &cache.model : nullptr;
         }
 
-        // 모델의 하위 메시·내장 그림 하나를 굽는다. 실패는 보고에 적는다.
+        // 나눈 클립(D-462)은 메타의 제 항목에 원본 애니메이션의 이름이 있다. 아니면 레코드의 이름이 원본이다.
+        std::string_view ClipSourceName(const ModelCache& cache, const AssetRecord& record)
+        {
+            for (const AssetSubEntry& entry : cache.meta.subAssets)
+            {
+                if (entry.id == record.id && entry.hasClip && false == entry.clip.source.empty())
+                {
+                    return std::string_view(entry.clip.source.data(), entry.clip.source.size());
+                }
+            }
+            return std::string_view(record.name.data(), record.name.size());
+        }
+
+        // 모델의 하위 메시·뼈대·클립·재질·내장 그림 하나를 굽는다. 실패는 보고에 적는다.
         void CookModelPart(IPlatform& platform, const LooseAssetSource& loose, const char* assetRoot, const AssetRegistry& registry,
             const AssetRecord& owner, const AssetRecord& record, ModelCache& cache, Array<UInt64>& cookedImages, PackageWriter& writer,
             CookReport& report)
@@ -115,7 +131,9 @@ namespace JBro::Package
                 Fail(report, record, error.c_str());
                 return;
             }
-            const ModelSubAsset* sub = FindModelSubAsset(cache.listed, record.type, record.name);
+            const std::string_view subName = record.type == AssetType::AnimationClip ? ClipSourceName(cache, record)
+                                                                                     : std::string_view(record.name.data(), record.name.size());
+            const ModelSubAsset* sub = FindModelSubAsset(cache.listed, record.type, subName);
             if (sub == nullptr)
             {
                 Fail(report, record, "the model no longer has this sub-asset - reopen the project in the editor to refresh its list");
@@ -144,10 +162,43 @@ namespace JBro::Package
             if (record.type == AssetType::Mesh)
             {
                 const ModelMesh& mesh = model->meshes[sub->index.Get()];
-                WriteCookedMesh(mesh.vertices, mesh.indices, mesh.hasUvs, mesh.hasTangents, FindModelMeshMaterialId(registry, owner, cache.listed, mesh), cooked);
+                CookedMesh out;
+                out.vertices = mesh.vertices;
+                out.indices = mesh.indices;
+                out.hasUvs = mesh.hasUvs;
+                out.hasTangents = mesh.hasTangents;
+                out.material = FindModelMeshMaterialId(registry, owner, cache.listed, mesh);
+                // 스킨 메시는 뼈·가중치와 같은 모델의 하위 Skeleton 아이디를 함께 굽는다(D-466).
+                if (mesh.skeleton >= 0)
+                {
+                    out.skin = mesh.skin;
+                    out.skeleton = FindModelSubAssetId(registry, owner, cache.listed, AssetType::Skeleton, static_cast<std::size_t>(mesh.skeleton.Get()));
+                }
+                WriteCookedMesh(out, cooked);
                 if (AddBlob(writer, report, record, BlobKind::CookedMesh, cooked))
                 {
                     ++report.cookedMeshes;
+                }
+                return;
+            }
+            if (record.type == AssetType::Skeleton)
+            {
+                WriteCookedSkeleton(model->skeletons[sub->index.Get()], cooked);
+                if (AddBlob(writer, report, record, BlobKind::CookedSkeleton, cooked))
+                {
+                    ++report.cookedSkeletons;
+                }
+                return;
+            }
+            if (record.type == AssetType::AnimationClip)
+            {
+                // 이름은 클립 레코드의 것으로 둔다(나눈 클립도 제 이름이다). 나머지는 원본 그대로다.
+                ModelAnimation animation = model->animations[sub->index.Get()];
+                animation.name = record.name;
+                WriteCookedAnimation(animation, cooked);
+                if (AddBlob(writer, report, record, BlobKind::CookedAnimationClip, cooked))
+                {
+                    ++report.cookedClips;
                 }
                 return;
             }
@@ -193,10 +244,11 @@ namespace JBro::Package
                 continue;
             }
             ++report.assets;
-            // 모델의 하위 메시·내장 그림은 모델에서 꺼내 굽는다(6 단계). 재질은 아직 레코드만이다.
+            // 모델의 하위 메시·뼈대·클립·재질·내장 그림은 모델에서 꺼내 굽는다(6 단계, D-466).
             const AssetRecord* owner = record->owner.IsNull() ? nullptr : registry.Find(record->owner);
             if (owner != nullptr && owner->type == AssetType::Model
-                && (record->type == AssetType::Mesh || record->type == AssetType::Texture || record->type == AssetType::Material))
+                && (record->type == AssetType::Mesh || record->type == AssetType::Texture || record->type == AssetType::Material
+                    || record->type == AssetType::Skeleton || record->type == AssetType::AnimationClip))
             {
                 CookModelPart(platform, loose, assetRoot, registry, *owner, *record, models, cookedImages, writer, report);
                 continue;

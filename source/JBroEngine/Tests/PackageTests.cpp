@@ -435,28 +435,266 @@ namespace
         package.Close();
 
         // 깨진 메시 블롭은 읽지 않는다.
-        Array<ModelVertex> vertices;
-        vertices.Resize(3);
-        Array<JBro::UInt32> indices;
-        indices.Add(0);
-        indices.Add(1);
-        indices.Add(2);
+        CookedMesh written;
+        written.vertices.Resize(3);
+        written.indices.Add(0);
+        written.indices.Add(1);
+        written.indices.Add(2);
+        written.hasUvs = true;
+        written.hasTangents = true;
         Array<std::byte> blob;
-        WriteCookedMesh(vertices, indices, true, true, AssetId{}, blob);
-        Array<ModelVertex> readVertices;
-        Array<JBro::UInt32> readIndices;
-        JBro::Bool readUvs = false;
-        AssetId readMaterial;
-        JBro::Bool readTangents = false;
-        Check(ReadCookedMesh(blob, readVertices, readIndices, readUvs, readTangents, readMaterial) && readVertices.Size() == 3 && readIndices.Size() == 3
-                && readUvs && readTangents,
+        WriteCookedMesh(written, blob);
+        CookedMesh read;
+        Check(ReadCookedMesh(blob, read) && read.vertices.Size() == 3 && read.indices.Size() == 3 && read.hasUvs && read.hasTangents && read.skin.IsEmpty(),
             "a cooked mesh round-trips");
         Array<std::byte> shortBlob = blob;
         shortBlob.Resize(blob.Size() - 1);
-        Check(false == ReadCookedMesh(shortBlob, readVertices, readIndices, readUvs, readTangents, readMaterial), "a short blob is refused");
-        indices[2] = 3;
-        WriteCookedMesh(vertices, indices, true, true, AssetId{}, blob);
-        Check(false == ReadCookedMesh(blob, readVertices, readIndices, readUvs, readTangents, readMaterial), "an index past the vertices is refused");
+        Check(false == ReadCookedMesh(shortBlob, read), "a short blob is refused");
+        written.indices[2] = 3;
+        WriteCookedMesh(written, blob);
+        Check(false == ReadCookedMesh(blob, read), "an index past the vertices is refused");
+        fs::remove_all(root);
+        platform.Shutdown();
+    }
+
+    // **스킨 모델은 뼈대·클립과 함께 구워진다**(D-466). 게임 빌드가 스킨 메시의 뼈·가중치를 버리고 뼈대·클립을 레코드만 두면 패키지로 연 게임의 캐릭터는
+    // 쉬는 자세로 굳는다. 모델 메타의 소켓(뼈대·메시)·뼈 마스크·클립 설정(구간·반복·이벤트)·나눈 클립까지 적은 뒤 굽고, 원본 폴더를 지운 게임이
+    // 느슨한 파일로 읽은 것과 같은 메시·스킨·뼈대·트랙·설정을 받는지 본다.
+    void TestASkinnedModelShipsWithItsSkeletonAndClips()
+    {
+        WindowsPlatform platform;
+        JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes");
+        const fs::path root = ProcessTempFolder(L"JBroPackageSkins·스킨");
+        fs::remove_all(root);
+        const fs::path assetsFolder = root / "Assets";
+        const std::string gltf = TestModels::SkinnedGltf();
+        WriteRaw(assetsFolder / "Chars" / "walker.gltf", gltf.data(), gltf.size());
+
+        AssetRegistry loose;
+        AssetScanOptions options;
+        options.createMissingMeta = true;
+        AssetScanReport report;
+        const String assetRoot = Utf8(assetsFolder);
+        Check(loose.Scan(platform, assetRoot.c_str(), options, report), "the loose folder scans");
+        const AssetRecord* model = loose.FindByPath("Chars/walker.gltf");
+        Check(model != nullptr && model->type == AssetType::Model, "the skinned glTF is a model");
+        const AssetId modelId = model->id;
+        Array<AssetId> owned;
+        loose.CollectOwned(modelId, owned);
+        AssetId meshId;
+        AssetId skeletonId;
+        AssetId clipId;
+        for (const AssetId& id : owned)
+        {
+            const AssetType type = loose.Find(id)->type;
+            meshId = type == AssetType::Mesh ? id : meshId;
+            skeletonId = type == AssetType::Skeleton ? id : skeletonId;
+            clipId = type == AssetType::AnimationClip ? id : clipId;
+        }
+        Check(false == meshId.IsNull() && false == skeletonId.IsNull() && false == clipId.IsNull(), "the model has a mesh, a skeleton and a clip");
+
+        // 메타에 소켓·마스크·클립 설정·나눈 클립을 적는다.
+        const String metaPath = Utf8(assetsFolder / "Chars" / "walker.gltf.jmeta");
+        AssetMetaFile meta;
+        AssetMetaError metaError;
+        Check(LoadAssetMetaFile(platform, metaPath.c_str(), meta, metaError), "the model meta reads");
+        AssetSubEntry split;
+        split.key = "AnimationClip/Wave 2";
+        split.id = Uuid::Generate();
+        split.hasClip = true;
+        split.clip.source = "Wave";
+        split.clip.start = 0.5f;
+        for (AssetSubEntry& entry : meta.subAssets)
+        {
+            if (entry.id == skeletonId)
+            {
+                ModelSocket tip;
+                tip.name = "Tip";
+                tip.bone = "Spine";
+                tip.position = {0.0f, 0.5f, 0.0f};
+                entry.sockets.Add(tip);
+                ModelBoneMask upper;
+                upper.name = "Upper";
+                ModelMaskBone spine;
+                spine.bone = "Spine";
+                spine.weight = 0.5f;
+                upper.bones.Add(spine);
+                entry.masks.Add(upper);
+            }
+            if (entry.id == meshId)
+            {
+                ModelSocket grip;
+                grip.name = "Grip";
+                grip.bone = "Hip";
+                grip.position = {1.0f, 0.0f, 0.0f};
+                entry.sockets.Add(grip);
+            }
+            if (entry.id == clipId)
+            {
+                entry.hasClip = true;
+                entry.clip.end = 0.75f;
+                entry.clip.loop = false;
+                ModelClipEvent step;
+                step.name = "Step";
+                step.time = 0.25f;
+                entry.clip.events.Add(step);
+            }
+        }
+        meta.subAssets.Add(split);
+        Check(SaveAssetMetaFile(platform, metaPath.c_str(), meta), "the meta with sockets, a mask and clip settings is written");
+        Check(loose.Scan(platform, assetRoot.c_str(), options, report) && loose.Find(split.id) != nullptr, "the split clip is a sub-asset after a scan");
+
+        // 느슨한 파일로 읽은 것이 기준이다.
+        AssetSystem looseAssets;
+        Check(looseAssets.Initialize(memory), "the loose asset system initializes");
+        looseAssets.Bind(platform, loose, assetRoot.c_str());
+        const MeshData looseMesh = *looseAssets.GetMesh(looseAssets.Load(meshId));
+        const SkeletonData looseSkeleton = *looseAssets.GetSkeleton(looseAssets.Load(skeletonId));
+        const AnimationClipData looseClip = *looseAssets.GetAnimationClip(looseAssets.Load(clipId));
+        const AnimationClipData looseSplit = *looseAssets.GetAnimationClip(looseAssets.Load(split.id));
+        looseAssets.Shutdown();
+        Check(looseMesh.skin.Size() == looseMesh.vertices.Size() && looseMesh.skeleton == skeletonId && looseMesh.sockets.Size() == 1
+                && looseSkeleton.sockets.Size() == 1 && looseSkeleton.masks.Size() == 1 && false == looseClip.loop && looseClip.events.Size() == 1
+                && looseSplit.animation.name == "Wave 2",
+            "loose, the mesh is skinned and the meta's sockets, mask and clip settings are read");
+
+        // 캔버스가 메시 하나만 가리켜도 모델과 뼈대·두 클립이 따라간다.
+        Array<AssetId> seeds;
+        seeds.Add(meshId);
+        Array<AssetId> ids;
+        CollectReport collectReport;
+        CollectAssets(platform, loose, assetRoot.c_str(), ArrayView<const AssetId>(seeds.Data(), seeds.Size()), ids, collectReport);
+        Check(ids.Size() == 5 && collectReport.warnings.IsEmpty(), "a mesh takes its model, its skeleton and both clips along");
+        PackageWriter writer(0x5C1A5C1A5C1A5C1Aull);
+        CookReport cooked;
+        Check(CookAssets(platform, loose, assetRoot.c_str(), ArrayView<const AssetId>(ids.Data(), ids.Size()), writer, cooked), "the skinned model cooks");
+        Check(cooked.cookedMeshes == 1 && cooked.cookedSkeletons == 1 && cooked.cookedClips == 2 && cooked.failures.IsEmpty(),
+            "one mesh, one skeleton and two clips - the split clip cooks its source");
+        const String packagePath = Utf8(root / "game.jpak");
+        String error;
+        Check(writer.Save(platform, packagePath.c_str(), error), "the package is written");
+        fs::remove_all(assetsFolder);
+
+        PackageReader package;
+        Check(package.Open(platform, packagePath.c_str(), error), "the package opens");
+        Check(package.Find(modelId, BlobKind::Source) == nullptr && package.Find(skeletonId, BlobKind::CookedSkeleton) != nullptr
+                && package.Find(clipId, BlobKind::CookedAnimationClip) != nullptr && package.Find(split.id, BlobKind::CookedAnimationClip) != nullptr,
+            "the skeleton and both clips ship cooked, without the model file");
+        AssetRegistry packed;
+        Check(FillRegistry(package, packed) == 5, "the registry is filled from the index");
+        PackageAssetSource source(package);
+        AssetSystem assets;
+        Check(assets.Initialize(memory), "the packaged asset system initializes");
+        assets.Bind(platform, packed, source);
+
+        const MeshData* mesh = assets.GetMesh(assets.Load(meshId));
+        Check(mesh != nullptr && mesh->vertices.Size() == looseMesh.vertices.Size() && mesh->skin.Size() == looseMesh.skin.Size()
+                && std::memcmp(mesh->skin.Data(), looseMesh.skin.Data(), mesh->skin.Size() * sizeof(ModelSkinWeights)) == 0,
+            "the cooked mesh keeps its bones and weights, vertex for vertex");
+        Check(mesh->skeleton == skeletonId && assets.GetSkeleton(mesh->skeletonAsset) != nullptr, "and the id of its skeleton, which it loads along");
+        Check(mesh->sockets.Size() == 1 && mesh->sockets[0].name == "Grip" && mesh->sockets[0].bone == "Hip", "and its own socket from the meta");
+
+        const SkeletonData* skeleton = assets.GetSkeleton(assets.Load(skeletonId));
+        Check(skeleton != nullptr && skeleton->skeleton.bones.Size() == looseSkeleton.skeleton.bones.Size(), "the cooked skeleton has the loose bones");
+        for (std::size_t index = 0; index < skeleton->skeleton.bones.Size(); ++index)
+        {
+            const ModelBone& bone = skeleton->skeleton.bones[index];
+            const ModelBone& expected = looseSkeleton.skeleton.bones[index];
+            Check(bone.name == expected.name && bone.parent == expected.parent && bone.position.y == expected.position.y
+                    && bone.rotation.w == expected.rotation.w && bone.scale.x == expected.scale.x
+                    && std::memcmp(&bone.inverseBind, &expected.inverseBind, sizeof(Matrix4x4)) == 0,
+                "each bone keeps its name, parent, rest pose and inverse bind");
+        }
+        Check(std::memcmp(&skeleton->skeleton.rootParent, &looseSkeleton.skeleton.rootParent, sizeof(Matrix4x4)) == 0,
+            "and the root's parent matrix (the armature) too");
+        Check(skeleton->sockets.Size() == 1 && skeleton->sockets[0].name == "Tip" && skeleton->masks.Size() == 1 && skeleton->masks[0].name == "Upper"
+                && skeleton->masks[0].bones.Size() == 1 && skeleton->masks[0].bones[0].weight == 0.5f,
+            "the skeleton's sockets and masks come from the shipped meta");
+
+        const auto sameTracks = [](const ModelAnimation& left, const ModelAnimation& right) {
+            if (left.tracks.Size() != right.tracks.Size() || left.duration != right.duration)
+            {
+                return false;
+            }
+            for (std::size_t index = 0; index < left.tracks.Size(); ++index)
+            {
+                const ModelAnimationTrack& a = left.tracks[index];
+                const ModelAnimationTrack& b = right.tracks[index];
+                if (a.bone != b.bone || a.path != b.path || a.interpolation != b.interpolation || a.times.Size() != b.times.Size()
+                    || a.values.Size() != b.values.Size()
+                    || std::memcmp(a.times.Data(), b.times.Data(), a.times.Size() * sizeof(Float)) != 0
+                    || std::memcmp(a.values.Data(), b.values.Data(), a.values.Size() * sizeof(Float)) != 0)
+                {
+                    return false;
+                }
+            }
+            return true;
+        };
+        const AnimationClipData* clip = assets.GetAnimationClip(assets.Load(clipId));
+        Check(clip != nullptr && sameTracks(clip->animation, looseClip.animation) && clip->animation.name == "Wave",
+            "the cooked clip has the loose tracks after its range is cut, and its name");
+        Check(false == clip->loop && clip->events.Size() == 1 && clip->events[0].name == "Step" && clip->events[0].time == looseClip.events[0].time
+                && clip->sourceDuration == looseClip.sourceDuration,
+            "and the clip settings from the meta - no loop, the event, the source length");
+        const AnimationClipData* splitClip = assets.GetAnimationClip(assets.Load(split.id));
+        Check(splitClip != nullptr && sameTracks(splitClip->animation, looseSplit.animation) && splitClip->animation.name == "Wave 2",
+            "the split clip reads the second half of its source and keeps its own name");
+        assets.Shutdown();
+        package.Close();
+
+        // 깨진 블롭은 읽지 않는다.
+        ModelSkeleton bones;
+        bones.name = "Rig";
+        bones.bones.Resize(2);
+        bones.bones[0].name = "Root";
+        bones.bones[1].name = "Arm";
+        bones.bones[1].parent = 0;
+        Array<std::byte> blob;
+        WriteCookedSkeleton(bones, blob);
+        ModelSkeleton readBones;
+        Check(ReadCookedSkeleton(blob, readBones) && readBones.bones.Size() == 2 && readBones.bones[1].name == "Arm" && readBones.name == "Rig",
+            "a cooked skeleton round-trips");
+        Array<std::byte> broken = blob;
+        broken.Resize(blob.Size() - 1);
+        Check(false == ReadCookedSkeleton(broken, readBones), "a short skeleton is refused");
+        bones.bones[1].parent = 1;
+        WriteCookedSkeleton(bones, blob);
+        Check(false == ReadCookedSkeleton(blob, readBones), "a bone that is its own parent is refused");
+        ModelAnimation wave;
+        wave.name = "Wave";
+        wave.duration = 1.0f;
+        ModelAnimationTrack turn;
+        turn.bone = "Arm";
+        turn.path = ModelTrackPath::Rotation;
+        turn.times.Add(0.0f);
+        turn.values.Add(0.0f);
+        turn.values.Add(0.0f);
+        turn.values.Add(0.0f);
+        turn.values.Add(1.0f);
+        wave.tracks.Add(turn);
+        WriteCookedAnimation(wave, blob);
+        ModelAnimation readWave;
+        Check(ReadCookedAnimation(blob, readWave) && readWave.tracks.Size() == 1 && readWave.tracks[0].values.Size() == 4, "a cooked animation round-trips");
+        wave.tracks[0].values.Pop();
+        WriteCookedAnimation(wave, blob);
+        Check(false == ReadCookedAnimation(blob, readWave), "a rotation key without four values is refused");
+        CookedMesh skinned;
+        skinned.vertices.Resize(3);
+        skinned.indices.Add(0);
+        skinned.indices.Add(1);
+        skinned.indices.Add(2);
+        skinned.skin.Resize(3);
+        skinned.skin[2].bones[0] = 1;
+        skinned.skin[2].weights[0] = 1.0f;
+        skinned.skeleton = skeletonId;
+        WriteCookedMesh(skinned, blob);
+        CookedMesh readSkinned;
+        Check(ReadCookedMesh(blob, readSkinned) && readSkinned.skin.Size() == 3 && readSkinned.skin[2].bones[0] == 1 && readSkinned.skeleton == skeletonId,
+            "a cooked skinned mesh round-trips");
+        broken = blob;
+        broken.Resize(blob.Size() - 1);
+        Check(false == ReadCookedMesh(broken, readSkinned), "a skinned mesh short of its weights is refused");
         fs::remove_all(root);
         platform.Shutdown();
     }
@@ -868,6 +1106,7 @@ JBro::Int32 RunPackageTests()
         JBRO_CASE(TestAPackageRoundTrips());
         JBRO_CASE(TestAssetsLoadTheSameFromAPackage());
         JBRO_CASE(TestAModelShipsAsCookedMeshesAndImages());
+        JBRO_CASE(TestASkinnedModelShipsWithItsSkeletonAndClips());
         JBRO_CASE(TestIdsAreFoundInText());
         JBRO_CASE(TestAGameBuildRunsWithoutTheSourceProject());
     }

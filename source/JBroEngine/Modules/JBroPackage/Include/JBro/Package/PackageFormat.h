@@ -38,9 +38,11 @@ namespace JBro::Package
         CompiledShader = 5, // 구운 머티리얼 셰이더 묶음(D-347). 셰이더는 원본을 싣지 않는다
         CookedMesh = 6,     // 모델에서 꺼낸 메시(`JBro::WriteCookedMesh` 의 모양, model-import-plan 6 단계)
         CookedMaterial = 7, // 모델의 재질을 옮긴 `.jmat` 글자(material-plan 2 단계)
+        CookedSkeleton = 8, // 모델에서 꺼낸 뼈대(`JBro::WriteCookedSkeleton` 의 모양, D-466)
+        CookedAnimationClip = 9, // 모델에서 꺼낸 클립의 원본 애니메이션(`JBro::WriteCookedAnimation` 의 모양, D-466)
     };
 
-    inline constexpr std::uint8_t BlobKindCount = 8;
+    inline constexpr std::uint8_t BlobKindCount = 10;
 
     // 색인의 한 줄이다. 메모리의 모양이고, 파일에는 `RecordFixedSize` 바이트 + 경로로 적는다.
     struct Entry

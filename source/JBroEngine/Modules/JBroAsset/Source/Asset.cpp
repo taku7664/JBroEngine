@@ -1061,6 +1061,18 @@ namespace JBro
 
     Bool AssetSystem::ReadSkeleton(const AssetRecord& record, SkeletonData& data)
     {
+        // 빌드가 꺼내 둔 뼈대가 있으면 그것이다(D-466) - 게임은 모델을 읽지 않는다. 소켓·마스크는 패키지에도 실린 메타가 든다.
+        if (m_source != nullptr && m_source->Has(record, AssetBlob::CookedSkeleton))
+        {
+            Array<std::byte> cooked;
+            if (false == m_source->Read(record, AssetBlob::CookedSkeleton, cooked) || false == ReadCookedSkeleton(cooked, data.skeleton))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the cooked skeleton is damaged", record.relativePath.c_str());
+                return false;
+            }
+            ReadSubAssetSockets(record, data.sockets, &data.masks);
+            return true;
+        }
         const AssetRecord* model = OwnerModelOf(record);
         const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
         if (decoded == nullptr)
@@ -1108,12 +1120,6 @@ namespace JBro
 
     Bool AssetSystem::ReadAnimationClip(const AssetRecord& record, AnimationClipData& data)
     {
-        const AssetRecord* model = OwnerModelOf(record);
-        const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
-        if (decoded == nullptr)
-        {
-            return false;
-        }
         // 메타의 제 항목이 클립 설정을 든다(D-462). 나눈 클립은 원본의 이름이 따로 적혀 있다.
         AssetMetaFile meta;
         const AssetSubEntry* entry = nullptr;
@@ -1123,6 +1129,27 @@ namespace JBro
             {
                 entry = meta.subAssets[index].id == record.id ? &meta.subAssets[index] : entry;
             }
+        }
+        // 빌드가 꺼내 둔 원본 애니메이션이 있으면 그것이다(D-466). 설정은 느슨한 파일과 같은 길로 건다. 이름은 레코드의 것이고, 비었으면 쿡이 적어 둔 클립 이름이다.
+        if (m_source != nullptr && m_source->Has(record, AssetBlob::CookedAnimationClip))
+        {
+            Array<std::byte> cooked;
+            ModelAnimation source;
+            if (false == m_source->Read(record, AssetBlob::CookedAnimationClip, cooked) || false == ReadCookedAnimation(cooked, source))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the cooked animation is damaged", record.relativePath.c_str());
+                return false;
+            }
+            ApplyModelClipSettings(source, entry, data.animation, data.loop, data.events);
+            data.animation.name = record.name.empty() ? source.name : record.name;
+            data.sourceDuration = source.duration;
+            return true;
+        }
+        const AssetRecord* model = OwnerModelOf(record);
+        const ModelData* decoded = model != nullptr ? DecodeOwnerModel(*model) : nullptr;
+        if (decoded == nullptr)
+        {
+            return false;
         }
         const String& sourceName = entry != nullptr && entry->hasClip && false == entry->clip.source.empty() ? entry->clip.source : record.name;
         Array<ModelSubAsset> listed;
@@ -1219,12 +1246,22 @@ namespace JBro
         if (m_source != nullptr && m_source->Has(record, AssetBlob::CookedMesh))
         {
             Array<std::byte> cooked;
-            if (false == m_source->Read(record, AssetBlob::CookedMesh, cooked)
-                || false == ReadCookedMesh(cooked, data.vertices, data.indices, data.hasUvs, data.hasTangents, data.material))
+            CookedMesh mesh;
+            if (false == m_source->Read(record, AssetBlob::CookedMesh, cooked) || false == ReadCookedMesh(cooked, mesh))
             {
                 Log::Write(LogLevel::Warning, "asset", "%s: the cooked mesh is damaged", record.relativePath.c_str());
                 return false;
             }
+            data.vertices = std::move(mesh.vertices);
+            data.indices = std::move(mesh.indices);
+            data.hasUvs = mesh.hasUvs;
+            data.hasTangents = mesh.hasTangents;
+            data.material = mesh.material;
+            // 스킨과 뼈대, 메시 소켓도 느슨한 파일과 같다(D-466) - 뼈대를 함께 잡고, 소켓은 패키지에 실린 메타에서 읽는다.
+            data.skin = std::move(mesh.skin);
+            data.skeleton = mesh.skeleton;
+            data.skeletonAsset = data.skeleton.IsNull() ? AssetHandle{} : Load(data.skeleton);
+            ReadSubAssetSockets(record, data.sockets);
             return true;
         }
         // 하위 메시는 모델 파일 안의 이름이 그 메시다(`AssetRecord::name`). 모델 레코드의 메타가 옵션을 든다.
@@ -1665,8 +1702,9 @@ namespace JBro
         case AssetType::Skeleton:
         case AssetType::AnimationClip:
         {
-            // 모델의 하위다(D-456). 디코드해 둔 모델이면 옮길 뿐이다.
-            if (model == nullptr || m_decodedModelId == model->id)
+            // 모델의 하위다(D-456). 디코드해 둔 모델이면 옮길 뿐이고, 빌드가 꺼내 둔 블롭이면 그것을 읽을 뿐이다(D-466).
+            if (model == nullptr || m_decodedModelId == model->id || m_source->Has(record, AssetBlob::CookedSkeleton)
+                || m_source->Has(record, AssetBlob::CookedAnimationClip))
             {
                 return false;
             }

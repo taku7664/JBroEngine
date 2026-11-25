@@ -25,6 +25,9 @@ namespace JBro::Package
         UInt32 cookedMeshes = 0;
         // 모델의 하위 재질마다 하나(material-plan 2 단계)다.
         UInt32 cookedMaterials = 0;
+        // 모델의 하위 뼈대·클립마다 하나(D-466)다. 나눈 클립도 제 원본 애니메이션을 하나씩 든다.
+        UInt32 cookedSkeletons = 0;
+        UInt32 cookedClips = 0;
         // 미리 뜨기가 켜진 폰트마다 하나(D-232 4 단계)다.
         UInt32 bakedAtlases = 0;
         // 구운 머티리얼 셰이더마다 하나(D-347)다.
@@ -44,6 +47,8 @@ namespace JBro::Package
     // **모델**은 메타만 두고 원본은 넣지 않는다(model-import-plan 6 단계). 모델을 한 번 읽어 하위 Mesh 마다 엔진이 바로 읽는 메시(`CookedMesh`)를,
     // 내장 그림마다 디코드한 RGBA8(`CookedTexture`)을 그 하위 아이디로 둔다 - 게임은 모델 디코더를 돌리지 않고 곁 파일(`.bin`·`.mtl`)도 찾지 않는다.
     // 재질은 그림 칸의 아이디까지 풀어 `.jmat` 글자(`CookedMaterial`)로 둔다(material-plan 2 단계).
+    // 스킨 메시는 뼈·가중치와 뼈대 아이디를 함께 굽고, 뼈대는 `CookedSkeleton`, 클립은 설정 전의 원본 애니메이션(`CookedAnimationClip`)이다 -
+    // 소켓·뼈 마스크·클립 설정은 모델의 메타에 있고 메타는 패키지에 실리므로 게임이 느슨한 파일과 같은 길로 건다(D-466).
     // 같은 그림 열쇠(`AssetRecord::sharedImageKey`)의 내장 그림은 처음 것만 픽셀을 굽고 나머지는 레코드만이다(material-plan 5 단계).
     Bool CookAssets(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot, ArrayView<const AssetId> ids,
         PackageWriter& writer, CookReport& report, IShaderCompiler* compiler = nullptr);
