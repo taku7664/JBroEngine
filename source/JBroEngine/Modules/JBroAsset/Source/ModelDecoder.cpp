@@ -1256,7 +1256,7 @@ namespace JBro
                 bone.scale = FromUfbxVector(local.scale);
                 // 역바인드는 클러스터의 `geometry_to_bone` 에 그 메시 자리의 역을 곱한 것이다 - 정점을 메시 자리로 옮겨 두므로(아래 메시 읽기) 스킨 행렬은
                 // ufbx 의 `geometry_to_world` 와 같은 `뼈 자세 x geometry_to_bone` 이 되고, 같은 뼈대를 쓰는 메시들이 역바인드 하나를 함께 쓴다.
-                // 클러스터의 `bind_to_world` 는 쓰지 않는다 - 단위를 바꾸면 ufbx 가 거기에는 변환을 걸지 않는다(cm 파일에서 0.01 배가 남는 것을 실제 파일로 봤다).
+                // 클러스터의 `bind_to_world` 는 쓰지 않는다 - ufbx 문서가 스킨에는 `geometry_to_bone` 을 권하고, 그러면 ufbx 자신의 스킨 셈과 같은 값이 나온다.
                 // 클러스터가 없는 중간 뼈는 쉬는 자세의 역이다.
                 ufbx_matrix inverseBind = ufbx_matrix_invert(&node->node_to_world);
                 Bool found = false;
