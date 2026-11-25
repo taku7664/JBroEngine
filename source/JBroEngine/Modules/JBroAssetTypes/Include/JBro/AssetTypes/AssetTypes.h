@@ -180,6 +180,22 @@ namespace JBro
         Vector3 scale{1.0f, 1.0f, 1.0f};
     };
 
+    // **뼈 마스크의 뼈 하나**(D-464)다. 뼈는 이름이고 가중치는 0..1 이다.
+    struct ModelMaskBone
+    {
+        String bone;
+        Float weight = 1.0f;
+    };
+
+    // **뼈 마스크**(D-464, skeletal-plan §3.3)다. 모델 `.jmeta` 의 `Skeleton/…` 항목 `Masks` 목록에 적힌다 - 그 뼈대를 쓰는 모든 애니메이터의 레이어가 이름으로 고른다.
+    // 뼈마다 0..1 이고 **적지 않은 뼈는 0 이다**(그 레이어가 닿지 않는다). 뼈를 이름으로 적어 같은 뼈대를 쓰는 다른 모델과 나누고, 다시 가져와 뼈 차례가 바뀌어도 산다.
+    // 뿌리 뼈와 섞는 깊이(Unreal 의 Branch Filter·Blend Depth)는 모델 에디터가 값을 한 번에 채우는 도구이고 파일에는 결과만 적는다.
+    struct ModelBoneMask
+    {
+        String name;
+        Array<ModelMaskBone> bones;
+    };
+
     // `.jmeta` 의 `Model.ImportOptions` 블록이다(D-391·D-392, model-import-plan §2.7). 모델 파일 하나(`.fbx .gltf .glb .obj`)의 옵션이고
     // 하위 메시·재질은 따로 옵션이 없다.
     struct ModelImportOptions

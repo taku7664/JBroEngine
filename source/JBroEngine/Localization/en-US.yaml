@@ -699,6 +699,18 @@ Entries:
   model_editor.socket_scale: Scale
   model_editor.remove_socket: Remove Socket
   model_editor.strip_tooltip: "double-click to add an event here; drag a marker to move it"
+  model_editor.masks: Bone Masks
+  model_editor.add_mask: Add Mask
+  model_editor.add_mask_tooltip: Create a mask that covers the selected bone and the bones below it
+  model_editor.no_masks: "No masks"
+  model_editor.mask_pick_bone: "Select a bone to edit its weight"
+  model_editor.mask_depth: Blend Depth
+  model_editor.fill_branch: Fill Branch
+  model_editor.fill_branch_tooltip: Set the weights of the selected bone and the bones below it, ramping over the blend depth
+  model_editor.clear_mask: Clear Weights
+  model_editor.overlay_clip: Overlay Clip
+  model_editor.overlay_clip_tooltip: In the preview, play this clip over the base clip through this mask
+  model_editor.remove_mask: Remove Mask
   inspector.clip_hint: "Edit this clip's range, loop and events in the model editor"
   inspector.open_model_editor: Open Model Editor
   assets.import: Import...

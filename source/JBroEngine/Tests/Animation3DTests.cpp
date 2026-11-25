@@ -328,6 +328,227 @@ namespace
         platform.Shutdown();
         fs::remove_all(root);
     }
+    // **위 레이어 칸과 뼈대의 이름 마스크**(D-464). 모델 메타의 뼈대 항목에 `Upper`(Spine 1)와 `Half`(Spine 0.5, Hip 0.25, 뼈대에 없는 Tail)를 적는다.
+    // 바탕(레이어 0)은 아무것도 틀지 않아 쉬는 자세이고, 레이어 1 이 칸으로 `Wave` 를 `Upper` 로 튼다 - 0.5 초에 Spine 은 45 도, Hip 은 마스크 밖이라 그대로다(클립은 Hip 을 y 2 로 올린다).
+    // 칸을 바꾸면 다시 걸리고, 스크립트가 바꾼 것은 칸이 다시 바뀔 때까지 산다. 없는 이름은 어떤 뼈에도 닿지 않는다. 메타를 고쳐 뼈대를 다시 읽으면 이름으로 다시 짓는다.
+    void TestUpperLayerSettingsAndNamedMasks()
+    {
+        const fs::path root = fs::temp_directory_path() / L"JBroMaskProbe·마스크";
+        fs::remove_all(root);
+        fs::create_directories(root / "Art");
+        {
+            const std::string gltf = TestModels::SkinnedGltf();
+            std::ofstream out(root / "Art" / "walker.gltf", std::ios::binary);
+            out.write(gltf.data(), static_cast<std::streamsize>(gltf.size()));
+        }
+        JBro::JMemoryContext memory;
+        JBro::WindowsPlatform platform;
+        Check(platform.Initialize(memory), "the platform initializes");
+        const std::u8string rootText = root.generic_u8string();
+        const JBro::String rootPath(reinterpret_cast<const char*>(rootText.data()), rootText.size());
+        JBro::AssetRegistry registry;
+        JBro::AssetScanOptions options;
+        options.createMissingMeta = true;
+        JBro::AssetScanReport report;
+        Check(registry.Scan(platform, rootPath.c_str(), options, report), "the folder scans");
+        const JBro::AssetRecord* model = registry.FindByPath("Art/walker.gltf");
+        Check(model != nullptr, "the model is registered");
+        JBro::Array<JBro::AssetId> owned;
+        registry.CollectOwned(model->id, owned);
+        JBro::AssetId meshId;
+        JBro::AssetId skeletonId;
+        JBro::AssetId clipId;
+        for (const JBro::AssetId& id : owned)
+        {
+            meshId = registry.Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
+            skeletonId = registry.Find(id)->type == JBro::AssetType::Skeleton ? id : skeletonId;
+            clipId = registry.Find(id)->type == JBro::AssetType::AnimationClip ? id : clipId;
+        }
+
+        // ── 메타의 마스크 ──
+        const fs::path metaPath = root / "Art" / "walker.gltf.jmeta";
+        const std::u8string metaText = metaPath.generic_u8string();
+        const JBro::String metaUtf8(reinterpret_cast<const char*>(metaText.data()), metaText.size());
+        JBro::AssetMetaFile meta;
+        JBro::AssetMetaError metaError;
+        Check(JBro::LoadAssetMetaFile(platform, metaUtf8.c_str(), meta, metaError), "the model meta reads");
+        const auto bone = [](const char* name, JBro::Float weight) {
+            JBro::ModelMaskBone made;
+            made.bone = name;
+            made.weight = weight;
+            return made;
+        };
+        JBro::AssetSubEntry* skeletonEntry = nullptr;
+        for (std::size_t index = 0; index < meta.subAssets.Size(); ++index)
+        {
+            skeletonEntry = meta.subAssets[index].id == skeletonId ? &meta.subAssets[index] : skeletonEntry;
+        }
+        Check(skeletonEntry != nullptr, "the meta lists the skeleton");
+        JBro::ModelBoneMask upper;
+        upper.name = "Upper";
+        upper.bones.Add(bone("Spine", 1.0f));
+        JBro::ModelBoneMask half;
+        half.name = "Half";
+        half.bones.Add(bone("Spine", 0.5f));
+        half.bones.Add(bone("Hip", 0.25f));
+        half.bones.Add(bone("Tail", 1.0f));
+        skeletonEntry->masks.Add(upper);
+        skeletonEntry->masks.Add(half);
+        const JBro::String written = JBro::FormatAssetMetaFile(meta);
+        Check(written.find("Masks:") != JBro::String::npos && written.find("name: Upper") != JBro::String::npos, "the masks are written under the skeleton");
+        {
+            JBro::AssetMetaFile reread;
+            Check(JBro::ParseAssetMetaFile(written.c_str(), written.size(), reread, metaError), "and read back");
+            const JBro::AssetSubEntry* entry = nullptr;
+            for (std::size_t index = 0; index < reread.subAssets.Size(); ++index)
+            {
+                entry = reread.subAssets[index].id == skeletonId ? &reread.subAssets[index] : entry;
+            }
+            Check(entry != nullptr && entry->masks.Size() == 2 && entry->masks[1].name == "Half" && entry->masks[1].bones.Size() == 3
+                    && entry->masks[1].bones[1].bone == "Hip" && Near(entry->masks[1].bones[1].weight, 0.25f),
+                "with their names and bone weights");
+            JBro::Bool changed = true;
+            JBro::String refreshError;
+            Check(JBro::RefreshModelSubAssets(platform, rootPath.c_str(), "Art/walker.gltf", reread, changed, refreshError), "the sub-asset list refreshes");
+            // 다시 가져오기는 항목 배열을 새로 옮겨 넣는다 - 앞의 포인터를 쓰지 않고 다시 찾는다.
+            entry = nullptr;
+            for (std::size_t index = 0; index < reread.subAssets.Size(); ++index)
+            {
+                entry = reread.subAssets[index].id == skeletonId ? &reread.subAssets[index] : entry;
+            }
+            Check(false == changed && entry != nullptr && entry->masks.Size() == 2 && entry->masks[0].name == "Upper",
+                "refreshing the sub-asset list keeps the masks");
+            JBro::AssetMetaFile wrong = reread;
+            for (JBro::AssetSubEntry& each : wrong.subAssets)
+            {
+                if (each.id == meshId)
+                {
+                    each.masks.Add(upper);
+                }
+            }
+            JBro::String ignored;
+            Check(false == JBro::FormatAssetMetaFile(wrong, ignored), "only a skeleton entry carries masks - the writer refuses a mesh's");
+            JBro::String meshMasks = written;
+            const std::size_t meshKey = meshMasks.find("Key: Mesh/");
+            const std::size_t meshLineEnd = meshKey != JBro::String::npos ? meshMasks.find('\n', meshMasks.find("Id:", meshKey)) : JBro::String::npos;
+            Check(meshLineEnd != JBro::String::npos, "the test finds the mesh entry in the text");
+            meshMasks.insert(meshLineEnd + 1, "    Masks:\n      - name: Nope\n");
+            Check(false == JBro::ParseAssetMetaFile(meshMasks.c_str(), meshMasks.size(), reread, metaError), "a meta with masks on a mesh entry fails to read");
+        }
+        Check(JBro::SaveAssetMetaFile(platform, metaUtf8.c_str(), meta), "the meta with masks saves");
+
+        JBro::AssetSystem assets;
+        Check(assets.Initialize(memory), "the asset system initializes");
+        assets.Bind(platform, registry, rootPath.c_str());
+        const JBro::AssetHandle skeletonHandle = assets.Load(skeletonId);
+        const JBro::SkeletonData* skeleton = assets.GetSkeleton(skeletonHandle);
+        Check(skeleton != nullptr && skeleton->masks.Size() == 2, "the loaded skeleton carries its masks");
+        JBro::Array<JBro::Float> weights;
+        JBro::BuildNamedMaskWeights(skeleton->skeleton, skeleton->masks[1], weights);
+        Check(weights.Size() == 2 && Near(weights[0], 0.25f) && Near(weights[1], 0.5f), "a named mask puts each written bone's weight on its number and skips a bone the skeleton lacks");
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::Object::GameObject* character = canvas.CreateObject("character");
+        JBro::Object::GameObject* body = canvas.CreateObject("body");
+        canvas.AttachComponent<JBro::Component::Transform3D>(character);
+        canvas.AttachComponent<JBro::Component::Transform3D>(body);
+        body->SetParent(character);
+        auto* animator = canvas.AttachComponent<JBro::Component::Animator3D>(character);
+        auto* renderer = canvas.AttachComponent<JBro::Component::MeshRenderer3D>(body);
+        renderer->mesh = assets.Load(meshId);
+        animator->animationClips.Add(assets.Load(clipId));
+        animator->startClip = -1;
+        animator->layer1Clip = 0;
+        JBro::TextStore::Get().Assign(animator->layer1Mask, "Upper", 5);
+
+        JBro::System::Animation3DSystem system;
+        system.SetAssets(&assets);
+        system.Initialize(canvas);
+        system.Update(canvas, 0.5f);
+        const JBro::InstanceId instance = animator->GetInstanceId();
+        const JBro::System::Animation3DSystem::State* state = system.FindState(instance);
+        Check(state != nullptr && state->boneCount == 2, "the animator stands");
+        Check(animator->IsPlaying(1) && animator->GetLayerClip(1) == 0 && false == animator->IsPlaying(0), "the layer 1 field plays its clip at the start");
+        Check(state->layers[1].mask.Size() == 2 && Near(state->layers[1].mask[0], 0.0f) && Near(state->layers[1].mask[1], 1.0f),
+            "through the Upper mask: Spine and not Hip");
+        Check(Near(state->pose[1].rotation.z, 0.38268f) && Near(state->pose[0].position.y, 0.0f),
+            "half a second in Spine turns 45 degrees and Hip stays at rest although the clip lifts it");
+
+        // 칸을 바꾸면 다음 갱신이 다시 건다.
+        JBro::TextStore::Get().Assign(animator->layer1Mask, "Half", 4);
+        system.Update(canvas, 0.0f);
+        Check(Near(state->layers[1].mask[0], 0.25f) && Near(state->layers[1].mask[1], 0.5f), "a changed mask field is applied again");
+        Check(Near(state->pose[0].position.y, 0.5f), "and Hip rises by a quarter of the clip's lift");
+
+        // 스크립트가 바꾼 것은 칸이 다시 바뀔 때까지 산다.
+        Check(animator->UseLayerMask(1, "Upper"), "a script picks a mask by name");
+        system.Update(canvas, 0.0f);
+        system.Update(canvas, 0.0f);
+        Check(Near(state->layers[1].mask[0], 0.0f) && Near(state->layers[1].mask[1], 1.0f), "and it holds while the field stays the same");
+        JBro::Handle::Animator3D handle = character->GetScriptHandle().GetComponent<JBro::Handle::Animator3D>();
+        Check(handle.UseLayerMask(1, "Nope"), "the handle queues a mask the skeleton does not have");
+        system.Update(canvas, 0.0f);
+        Check(Near(state->layers[1].mask[0], 0.0f) && Near(state->layers[1].mask[1], 0.0f) && Near(state->pose[1].rotation.z, 0.0f),
+            "an unknown mask touches no bone");
+        Check(false == animator->UseLayerMask(1, std::string(80, 'x')), "a mask name too long for the command is refused");
+        Check(handle.UseLayerMask(1, nullptr), "a null name clears the mask");
+        system.Update(canvas, 0.0f);
+        Check(state->layers[1].mask.IsEmpty() && Near(state->pose[0].position.y, 2.0f), "and the layer covers every bone again");
+
+        // 가중치·더하기·클립 칸.
+        animator->layer1Weight = 0.5f;
+        animator->layer1Additive = true;
+        system.Update(canvas, 0.0f);
+        Check(Near(state->layers[1].weight, 0.5f) && state->layers[1].mode == JBro::System::AnimatorLayerMode::Additive, "the weight and additive fields are applied");
+        animator->layer1Additive = false;
+        animator->layer1Weight = 1.0f;
+        animator->layer1Clip = -1;
+        system.Update(canvas, 0.0f);
+        Check(false == animator->IsPlaying(1), "emptying the clip field stops the layer");
+        animator->layer1Clip = 0;
+        system.Update(canvas, 0.25f);
+        Check(animator->IsPlaying(1) && Near(animator->GetLayerTime(1), 0.25f), "setting it again plays the clip from the start");
+
+        // 메타를 고쳐 뼈대를 다시 읽으면 레이어가 이름으로 다시 짓는다.
+        JBro::TextStore::Get().Assign(animator->layer1Mask, "Upper", 5);
+        system.Update(canvas, 0.0f);
+        skeletonEntry->masks[0].bones[0].weight = 0.5f;
+        skeletonEntry->masks[0].bones.Add(bone("Hip", 1.0f));
+        Check(JBro::SaveAssetMetaFile(platform, metaUtf8.c_str(), meta), "the edited meta saves");
+        Check(assets.ReloadInPlace(skeletonId), "the skeleton reloads in place");
+        system.Update(canvas, 0.0f);
+        Check(Near(state->layers[1].mask[0], 1.0f) && Near(state->layers[1].mask[1], 0.5f), "a reloaded skeleton rebuilds the layer's mask by name");
+
+        // 캔버스 파일에 칸이 저장되고 다시 읽힌다.
+        {
+            JBro::Component::RegisterBuiltinComponentProperties3D();
+            JBro::Component::RegisterBuiltinComponentTypes3D();
+            JBro::Canvas saved(JBro::CreateDefaultAllocator());
+            JBro::Object::GameObject* rig = saved.CreateObject("rig");
+            auto* stored = saved.AttachComponent<JBro::Component::Animator3D>(rig);
+            stored->layer2Clip = 1;
+            stored->layer2Weight = 0.75f;
+            stored->layer2Additive = true;
+            JBro::TextStore::Get().Assign(stored->layer2Mask, "Upper", 5);
+            JBro::String text;
+            JBro::CanvasFileError error;
+            Check(JBro::WriteCanvasText(saved, text, error), "a canvas with layer fields writes");
+            Check(text.find("layer2Mask: Upper") != JBro::String::npos, "the mask name is written as text");
+            JBro::Canvas loaded(JBro::CreateDefaultAllocator());
+            Check(JBro::ReadCanvasText(loaded, text.c_str(), text.size(), error), "and reads back");
+            const JBro::Component::Animator3D* back = nullptr;
+            loaded.ForEach<JBro::Component::Animator3D>([&](JBro::Component::Animator3D& each) { back = &each; });
+            Check(back != nullptr && back->layer2Clip == 1 && Near(back->layer2Weight, 0.75f) && back->layer2Additive
+                    && JBro::String(JBro::TextStore::Get().GetText(back->layer2Mask).Data(), JBro::TextStore::Get().GetText(back->layer2Mask).Size()) == "Upper",
+                "with the clip, weight, additive and mask of layer 2");
+        }
+
+        system.Shutdown(canvas);
+        assets.Release(skeletonHandle);
+        assets.Shutdown();
+        platform.Shutdown();
+        fs::remove_all(root);
+    }
     // **뼈에 붙이기와 소켓**(D-460). 시험 모델(`TestModels::SkinnedGltf`): `Armature`(z 5) > `Hip` > `Spine`(y 1). 모델 메타의 뼈대 항목에 소켓 `Tip`(Spine 에서 y 0.5)과
     // 없는 뼈를 가리키는 `Broken`, 메시 항목에 `Grip`(Hip 에서 x 1)을 적는다. 캐릭터는 x 10 에 서고 애니메이터를 든다.
     void TestABoneAttachmentFollowsItsSocket()
@@ -850,6 +1071,7 @@ JBro::Int32 RunAnimation3DTests()
     JBRO_CASE(TestThePoseSamplesTheClipAndSkins());
     JBRO_CASE(TestMasksBlendAndAddLayers());
     JBRO_CASE(TestTheSystemAnimatesAnAnimator());
+    JBRO_CASE(TestUpperLayerSettingsAndNamedMasks());
     JBRO_CASE(TestABoneAttachmentFollowsItsSocket());
     JBRO_CASE(TestClipSettingsCropLoopAndEvents());
     std::cout << "Animation 3D tests passed.\n";

@@ -48,6 +48,13 @@ namespace JBro::Handle
         return component != nullptr && component->SetLayerMask(layer, name, blendDepth);
     }
 
+    Bool Animator3D::UseLayerMask(UInt32 layer, const char* mask)
+    {
+        Component::Animator3D* component = Resolve("UseLayerMask");
+        const std::string_view name = mask != nullptr ? std::string_view(mask, std::strlen(mask)) : std::string_view();
+        return component != nullptr && component->UseLayerMask(layer, name);
+    }
+
     Float Animator3D::GetLayerTime(UInt32 layer) const
     {
         const Component::Animator3D* component = Resolve("GetLayerTime");

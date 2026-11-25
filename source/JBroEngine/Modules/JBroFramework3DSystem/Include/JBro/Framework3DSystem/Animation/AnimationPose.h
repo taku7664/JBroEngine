@@ -42,6 +42,8 @@ namespace JBro
     // **뼈 마스크**(Unreal 의 Branch Filter). `rootBone` 과 그 자식 모두가 1 이고 나머지는 0 이다. `blendDepth` 가 n 이면 뿌리부터 n 뼈에 걸쳐 1/(n+1) 씩 올라
     // 그 아래는 1 이다(0 이면 뿌리부터 1). 뿌리가 없으면(-1) 모두 1 이다. 묶을 때 한 번 부른다.
     void BuildMaskWeights(const ModelSkeleton& skeleton, Int32 rootBone, UInt32 blendDepth, Array<Float>& weights);
+    // **이름이 적힌 뼈 마스크**(뼈대 메타의 `Masks`, D-464)를 뼈 번호의 가중치로 푼다. 적힌 뼈는 그 값(0..1 로 자른다), 적지 않은 뼈와 뼈대에 없는 뼈 이름은 0 이다. 묶을 때 한 번 부른다.
+    void BuildNamedMaskWeights(const ModelSkeleton& skeleton, const ModelBoneMask& mask, Array<Float>& weights);
 
     // 뼈마다 월드(모델 뿌리 기준) 행렬이다. 뿌리 뼈 앞에 뼈대의 `rootParent` 를 곱한다. 부모가 늘 앞에 있다고 본다(디코더가 그렇게 늘어놓는다).
     void ComputeBoneMatrices(const ModelSkeleton& skeleton, const Array<BonePose>& pose, Array<Matrix4x4>& model);

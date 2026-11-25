@@ -17,7 +17,8 @@ namespace JBro
     // 5: `GameScript3D` 가 `OnJointBreak` 를 얻었다(D-437).
     // 6: `Animation3DService` 를 더했다(D-460).
     // 7: `GameScript3D` 가 `OnAnimationEvent` 를 얻었고 애니메이터 핸들의 `Play`·`CrossFade` 가 반복 인자를 잃었다(D-462).
-    inline constexpr UInt32 Framework3DServiceContextAbiVersion = 7;
+    // 8: 애니메이터 핸들이 `UseLayerMask` 를 얻었고 컴포넌트가 위 레이어 칸을 얻었다(D-464).
+    inline constexpr UInt32 Framework3DServiceContextAbiVersion = 8;
 
     // Non-owning value services. Kept outside Runtime's dimension-independent context.
     struct Framework3DServiceContext

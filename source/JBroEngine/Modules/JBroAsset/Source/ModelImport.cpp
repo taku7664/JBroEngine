@@ -523,6 +523,11 @@ namespace JBro
             {
                 entry.sockets = previous->sockets;
             }
+            // 뼈 마스크도 사용자가 적은 것이다(D-464). 같은 키의 뼈대면 옮긴다.
+            if (previous != nullptr && listed[index].type == AssetType::Skeleton)
+            {
+                entry.masks = previous->masks;
+            }
             // 클립 설정도 사용자가 적은 것이다(D-462). 같은 키의 애니메이션이면 옮긴다.
             if (previous != nullptr && listed[index].type == AssetType::AnimationClip && previous->hasClip)
             {
@@ -559,7 +564,7 @@ namespace JBro
             const AssetSubEntry& now = merged[index];
             const AssetSubEntry& old = meta.subAssets[index];
             same = now.key == old.key && now.id == old.id && now.contentHash == old.contentHash && now.hasTextureOptions == old.hasTextureOptions
-                && now.sockets.Size() == old.sockets.Size() && now.hasClip == old.hasClip;
+                && now.sockets.Size() == old.sockets.Size() && now.masks.Size() == old.masks.Size() && now.hasClip == old.hasClip;
         }
         changed = false == same;
         meta.subAssets = std::move(merged);

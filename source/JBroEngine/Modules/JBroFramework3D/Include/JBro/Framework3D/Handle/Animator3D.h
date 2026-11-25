@@ -40,6 +40,8 @@ namespace JBro::Handle
         Bool SetLayerAdditive(UInt32 layer, Bool additive);
         // 그 뼈와 그 가지만 섞는다(`blendDepth` 뼈에 걸쳐 서서히). 빈 글자나 null 이면 마스크를 지운다. 없는 뼈면 다음 프레임에 무시된다.
         Bool SetLayerMask(UInt32 layer, const char* rootBone, UInt32 blendDepth = 0);
+        // 뼈대의 마스크(모델 에디터에서 만든 것)를 이름으로 건다. 빈 글자나 null 이면 마스크를 지운다. 없는 이름이면 그 레이어는 어떤 뼈에도 닿지 않는다.
+        Bool UseLayerMask(UInt32 layer, const char* mask);
 
         // 마지막으로 셈한 프레임의 레이어 상태다.
         Float GetLayerTime(UInt32 layer) const;

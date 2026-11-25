@@ -5,6 +5,7 @@
 #include <JBro/Framework3D/System/IAnimation3DSystem.h>
 #include <JBro/Framework3DSystem/Animation/AnimationPose.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
@@ -19,6 +20,7 @@ namespace JBro
 {
     class AssetSystem;
     class Canvas;
+    struct SkeletonData;
     class GameScript3D;
     struct AnimationClipData;
     struct ModelClipEvent;
@@ -90,9 +92,10 @@ namespace JBro::System
             AnimatorLayerMode mode = AnimatorLayerMode::Override;
             // 뼈마다 0..1 이다. 비면 모든 뼈가 1 이다.
             Array<Float> mask;
-            // 마스크를 다시 지을 때 쓰는 값이다(뼈대가 바뀌면 다시 짓는다).
+            // 마스크를 다시 지을 때 쓰는 값이다(뼈대가 바뀌면 다시 짓는다). `maskName` 이 차 있으면 뼈대 메타의 그 이름의 마스크(D-464)이고, 아니면 뿌리와 깊이다.
             Int32 maskRoot = -1;
             UInt32 maskDepth = 0;
+            String maskName;
             // 크로스페이드: 앞 클립에서 `fade` 초에 걸쳐 넘어간다.
             AssetHandle fromClip;
             UInt32 fromGeneration = 0;
@@ -120,6 +123,20 @@ namespace JBro::System
             Array<Matrix4x4> skin;
             // 스크립트가 찾은 소켓(D-460). `FindSocket` 이 더한다 - 프레임 경로가 아니다.
             Array<ScriptSocket> scriptSockets;
+            // 마지막으로 건 위 레이어(1..3) 칸이다(D-464). 칸이 이것과 달라질 때만 다시 건다 - 그 사이 스크립트가 바꾼 것은 산다.
+            struct AppliedSettings
+            {
+                Bool valid = false;
+                // 클립 칸은 따로 본다 - 칸의 클립이 아직 실리지 않았으면 실릴 때까지 다음 프레임에 다시 본다.
+                Bool clipValid = false;
+                Int32 clip = -1;
+                Float weight = 1.0f;
+                Bool additive = false;
+                TextId mask;
+                UInt32 maskRevision = 0;
+            };
+            // 레이어 1..3 이다(`MaxAnimatorLayers` - 1, 배열의 크기라 상수다 - cpp 가 맞는지 본다).
+            AppliedSettings applied[3];
         };
 
         Int32 GetExecutionOrder() const override;
@@ -139,6 +156,9 @@ namespace JBro::System
         Bool SetLayerMode(InstanceId animator, UInt32 layer, AnimatorLayerMode mode);
         // 뿌리 뼈(이름)와 그 가지를 섞는 마스크다. 이름이 비면 마스크를 지운다(모든 뼈). 이름은 여기서 한 번 번호로 푼다.
         Bool SetLayerMask(InstanceId animator, UInt32 layer, std::string_view rootBone, UInt32 blendDepth);
+        // 뼈대 메타의 그 이름의 마스크(D-464)를 건다. 이름이 비면 마스크를 지운다. 뼈대에 그 마스크가 없으면 어떤 뼈에도 닿지 않게 두고(경고) 거짓이다 -
+        // 이름은 들고 있어 마스크가 생기면(뼈대가 다시 읽히면) 그때 선다.
+        Bool UseLayerMask(InstanceId animator, UInt32 layer, std::string_view mask);
         // 그 레이어의 시간을 놓는다(모델 에디터의 타임라인 끌기, D-461). 크로스페이드는 끝낸다. 다음 셈이 그 자리의 자세를 짓는다.
         // 레이어가 넘치거나 시간이 수가 아니면 거짓이다.
         Bool SetLayerTime(InstanceId animator, UInt32 layer, Float time);
@@ -170,6 +190,10 @@ namespace JBro::System
         AssetHandle FindSkeleton(Canvas& canvas, const Component::Animator3D& animator) const;
         // 컴포넌트에 쌓인 스크립트의 명령을 처리하고 비운다(D-459).
         void ApplyCommands(State& state, Component::Animator3D& animator);
+        // 위 레이어 칸이 바뀌었으면(처음이면 모두) 그 레이어에 건다(D-464). 스크립트 명령 앞이다 - 같은 프레임의 명령이 이긴다.
+        void ApplyLayerSettings(State& state, const Component::Animator3D& animator);
+        // 레이어의 마스크를 그 뼈대로 다시 짓는다(이름이면 그 마스크, 뿌리면 뿌리와 깊이, 둘 다 없으면 비운다).
+        void RebuildLayerMask(const SkeletonData& skeleton, Layer& layer) const;
         // 셈한 레이어 상태를 컴포넌트에 적는다(스크립트가 읽는다).
         void WriteBack(const State& state, Component::Animator3D& animator) const;
         // 레이어가 이번에 지난 이벤트를 모은다(D-462). `from`·`to` 는 감기 전 시간이다.

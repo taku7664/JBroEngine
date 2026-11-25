@@ -16265,6 +16265,183 @@ namespace
         std::filesystem::remove_all(root, code);
     }
 
+    // **모델 에디터의 뼈 마스크**(D-464). 실제 에디터에서 고른 뼈(Spine)로 마스크를 만들고(창의 스택, 뼈대 메타의 `Masks`), 뼈의 가중치를 고치고, 가지를 섞는 깊이로 채우며,
+    // 겹칠 클립을 고르면 미리보기의 레이어 1 이 그 마스크로 튼다. 이름을 바꾸면 미리보기의 레이어가 새 이름으로 다시 건다. 지우고 되돌린다.
+    // 캔버스의 애니메이터를 고르면 인스펙터의 위 레이어 칸이 그 뼈대의 마스크 이름에서 고른다. `JBRO_EDITOR_SHOT` 이 있으면 찍는다.
+    void TestTheModelEditorEditsMasks()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; model editor masks not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroMaskModelProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        {
+            std::ofstream model(root / "Assets" / "rig.gltf", std::ios::binary);
+            model << TestModels::SkinnedGltf();
+        }
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath("rig.gltf");
+        Check(model != nullptr, "the skinned model is registered");
+        JBro::AssetId skeletonId;
+        JBro::AssetId meshId;
+        JBro::AssetId clipId;
+        if (model != nullptr)
+        {
+            JBro::Array<JBro::AssetId> parts;
+            editor.GetAssetRegistry().CollectOwned(model->id, parts);
+            for (const JBro::AssetId& id : parts)
+            {
+                skeletonId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::Skeleton ? id : skeletonId;
+                meshId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::Mesh ? id : meshId;
+                clipId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::AnimationClip ? id : clipId;
+            }
+        }
+        Check(editor.OpenModelEditor(skeletonId), "the skeleton opens the model editor");
+        JBro::Array<JBro::EditorPanel*> panels;
+        editor.FindPanels("ModelEditor", panels);
+        auto* panel = panels.IsEmpty() ? nullptr : static_cast<JBro::ModelEditorPanel*>(panels[0]);
+        Check(panel != nullptr, "the model editor is open");
+        if (panel == nullptr)
+        {
+            return;
+        }
+        const auto tickUntil = [&](auto&& done, const char* what) {
+            for (JBro::Int32 frame = 0; frame < 600 && false == done(); ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick");
+            }
+            Check(done(), what);
+        };
+        const auto nearly = [](JBro::Float a, JBro::Float b) { return std::fabs((a - b).Get()) < 1.0e-4f; };
+        tickUntil([&]() { return panel->GetBoneCount() == 2; }, "the skeleton loads");
+        JBro::AssetSystem* assets = editor.GetAssetSystem();
+        const JBro::AssetHandle held = assets->Load(skeletonId);
+        const std::filesystem::path metaPath = root / "Assets" / "rig.gltf.jmeta";
+        const auto readMeta = [&]() {
+            std::ifstream in(metaPath, std::ios::binary);
+            return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        };
+        const std::size_t editorUndo = editor.GetCommands().GetUndoCount();
+
+        // 고른 뼈(Spine)로 마스크를 만든다 - Spine 은 1, Hip 은 0 이다.
+        panel->SelectBone(1);
+        Check(panel->AddMask(), "a mask is added");
+        Check(panel->GetCommands().GetUndoCount() == 1 && editor.GetCommands().GetUndoCount() == editorUndo, "on the window's own stack");
+        Check(readMeta().find("Masks:") != std::string::npos, "and written into the skeleton's meta entry");
+        tickUntil([&]() {
+            const JBro::SkeletonData* skeleton = assets->GetSkeleton(held);
+            return panel->GetMaskCount() == 1 && panel->GetSelectedMask() == 0 && skeleton != nullptr && skeleton->masks.Size() == 1;
+        }, "the skeleton reloads with the mask and the new mask is selected");
+        Check(panel->GetMask(0).name == "Mask" && nearly(panel->GetMaskWeight(1), 1.0f) && nearly(panel->GetMaskWeight(0), 0.0f),
+            "the mask is named and covers the selected bone, not its parent");
+
+        // 뼈 하나의 가중치를 고친다.
+        Check(panel->SetMaskWeight(0, 0.5f), "Hip's weight is set");
+        Check(nearly(panel->GetMaskWeight(0), 0.5f), "the window shows it at once");
+        tickUntil([&]() {
+            const JBro::SkeletonData* skeleton = assets->GetSkeleton(held);
+            return skeleton != nullptr && skeleton->masks.Size() == 1 && skeleton->masks[0].bones.Size() == 2;
+        }, "the skeleton reloads with both bones");
+
+        // 지우고 Hip 의 가지를 깊이 1 로 채운다 - Hip 0.5, Spine 1.
+        Check(panel->ClearMask(), "the weights are cleared");
+        tickUntil([&]() {
+            const JBro::SkeletonData* skeleton = assets->GetSkeleton(held);
+            return skeleton != nullptr && skeleton->masks.Size() == 1 && skeleton->masks[0].bones.IsEmpty() && nearly(panel->GetMaskWeight(1), 0.0f);
+        }, "the cleared mask has no bone");
+        Check(panel->FillMaskBranch(0, 1), "Hip's branch is filled with a blend depth of 1");
+        Check(nearly(panel->GetMaskWeight(0), 0.5f) && nearly(panel->GetMaskWeight(1), 1.0f), "the root starts at half and the bone below is full");
+
+        // 겹칠 클립: 미리보기의 레이어 1 이 Wave 를 그 마스크로 튼다.
+        JBro::Framework3D* framework = editor.GetFramework3D();
+        const auto previewLayer = [&]() -> const JBro::System::Animation3DSystem::Layer* {
+            JBro::Canvas* canvas = framework != nullptr ? framework->GetPreviewCanvas(panel->GetPreview()) : nullptr;
+            const JBro::System::Animation3DSystem* animation = framework != nullptr ? framework->GetPreviewAnimation(panel->GetPreview()) : nullptr;
+            const JBro::Component::Animator3D* animator = nullptr;
+            if (canvas != nullptr)
+            {
+                canvas->ForEach<JBro::Component::Animator3D>([&](JBro::Component::Animator3D& each) { animator = animator == nullptr ? &each : animator; });
+            }
+            const JBro::System::Animation3DSystem::State* state = animator != nullptr && animation != nullptr ? animation->FindState(animator->GetInstanceId()) : nullptr;
+            return state != nullptr && state->layers.Size() > 1 ? &state->layers[1] : nullptr;
+        };
+        panel->SetOverlayClip(0);
+        tickUntil([&]() {
+            const JBro::System::Animation3DSystem::Layer* layer = previewLayer();
+            return layer != nullptr && layer->playing && layer->maskName == "Mask" && layer->mask.Size() == 2 && nearly(layer->mask[0], 0.5f) && nearly(layer->mask[1], 1.0f);
+        }, "the preview plays the overlay clip on layer 1 through the mask");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the masked bones");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "model_editor_mask");
+
+        // 이름을 바꾸면 미리보기의 레이어도 새 이름으로 건다. 빈 이름은 거절한다.
+        Check(false == panel->RenameMask(0, ""), "an empty mask name is refused");
+        Check(panel->RenameMask(0, "Upper"), "the mask is renamed");
+        tickUntil([&]() {
+            const JBro::System::Animation3DSystem::Layer* layer = previewLayer();
+            const JBro::SkeletonData* skeleton = assets->GetSkeleton(held);
+            return layer != nullptr && layer->maskName == "Upper" && layer->mask.Size() == 2 && nearly(layer->mask[0], 0.5f) && skeleton != nullptr
+                && skeleton->masks.Size() == 1 && skeleton->masks[0].name == "Upper";
+        }, "the preview layer follows the new name once the skeleton reloads");
+        panel->SetOverlayClip(-1);
+        tickUntil([&]() {
+            const JBro::System::Animation3DSystem::Layer* layer = previewLayer();
+            return layer != nullptr && false == layer->playing;
+        }, "no overlay clip stops layer 1");
+
+        // 지우고 되돌린다.
+        Check(panel->RemoveMask(0), "the mask is removed");
+        tickUntil([&]() { return panel->GetMaskCount() == 0; }, "the list empties");
+        Check(panel->Undo(), "the window undoes the removal");
+        tickUntil([&]() { return panel->GetMaskCount() == 1 && panel->GetMask(0).name == "Upper"; }, "and the mask comes back");
+
+        // ── 인스펙터: 캔버스의 애니메이터 위 레이어 칸 ──
+        editor.ClosePanel(*panel);
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Object::GameObject* character = canvas->CreateObject("Character");
+        JBro::Object::GameObject* bodyObject = canvas->CreateObject("Body");
+        canvas->AttachComponent<JBro::Component::Transform3D>(character);
+        canvas->AttachComponent<JBro::Component::Transform3D>(bodyObject);
+        bodyObject->SetParent(character);
+        auto* animator = canvas->AttachComponent<JBro::Component::Animator3D>(character);
+        animator->animationClipIds.Add(clipId);
+        animator->startClip = -1;
+        animator->layer1Clip = 0;
+        JBro::TextStore::Get().Assign(animator->layer1Mask, "Upper", 5);
+        canvas->AttachComponent<JBro::Component::MeshRenderer3D>(bodyObject)->meshId = meshId;
+        Check(editor.RescanAssets(), "the mesh and clip ids resolve");
+        JBro::Object::GameObject* chosen[] = {character};
+        editor.SelectObjects({chosen, 1});
+        const auto* animation = canvas->GetSystems().FindSystem<JBro::System::Animation3DSystem>();
+        tickUntil([&]() {
+            const JBro::System::Animation3DSystem::State* state = animation != nullptr ? animation->FindState(animator->GetInstanceId()) : nullptr;
+            return state != nullptr && state->layers[1].maskName == "Upper" && state->layers[1].mask.Size() == 2 && nearly(state->layers[1].mask[1], 1.0f);
+        }, "the canvas animator's layer 1 picks the skeleton's mask by name");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "animator_layer_inspector");
+        Check(editor.GetCommands().GetUndoCount() == editorUndo, "the model editor left the editor's own stack alone");
+        assets->Release(held);
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
     // **애니메이터의 인스펙터**(D-459). 스킨 모델을 둔 3D 프로젝트에서 `Animator3D` 를 붙인 오브젝트를 고르면 인스펙터가 클립 목록 `animationClipIds` 를 보이고,
     // 그 원소는 `animationClipId` 로 읽혀 AnimationClip 만 고른다(소리의 별명 `clip` 이 아니다). 해석된 핸들 칸은 숨는다. `JBRO_EDITOR_SHOT` 이 있으면 찍는다.
     void TestTheAnimatorInspectorListsClips()
@@ -22636,6 +22813,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheModelEditorPreviewsAndPlays());
     JBRO_CASE(TestTheModelEditorEditsClips());
     JBRO_CASE(TestTheModelEditorEditsSockets());
+    JBRO_CASE(TestTheModelEditorEditsMasks());
     JBRO_CASE(TestTheEditorPreviewsGameLanguages());
     JBRO_CASE(TestScreenLayersInTheEditor());
     JBRO_CASE(TestTheEditorSaysWhatIsChosen());

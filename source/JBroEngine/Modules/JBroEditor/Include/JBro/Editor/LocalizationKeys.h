@@ -666,6 +666,19 @@ namespace JBro::LocKeys
     inline constexpr const char* ModelEditorSocketRotation = "model_editor.socket_rotation";
     inline constexpr const char* ModelEditorSocketScale = "model_editor.socket_scale";
     inline constexpr const char* ModelEditorRemoveSocket = "model_editor.remove_socket";
+    // 뼈 마스크(D-464).
+    inline constexpr const char* ModelEditorMasks = "model_editor.masks";
+    inline constexpr const char* ModelEditorAddMask = "model_editor.add_mask";
+    inline constexpr const char* ModelEditorAddMaskTooltip = "model_editor.add_mask_tooltip";
+    inline constexpr const char* ModelEditorNoMasks = "model_editor.no_masks";
+    inline constexpr const char* ModelEditorMaskPickBone = "model_editor.mask_pick_bone";
+    inline constexpr const char* ModelEditorMaskDepth = "model_editor.mask_depth";
+    inline constexpr const char* ModelEditorFillBranch = "model_editor.fill_branch";
+    inline constexpr const char* ModelEditorFillBranchTooltip = "model_editor.fill_branch_tooltip";
+    inline constexpr const char* ModelEditorClearMask = "model_editor.clear_mask";
+    inline constexpr const char* ModelEditorOverlayClip = "model_editor.overlay_clip";
+    inline constexpr const char* ModelEditorOverlayClipTooltip = "model_editor.overlay_clip_tooltip";
+    inline constexpr const char* ModelEditorRemoveMask = "model_editor.remove_mask";
     inline constexpr const char* InspectorClipHint = "inspector.clip_hint";
     inline constexpr const char* InspectorOpenModelEditor = "inspector.open_model_editor";
     inline constexpr const char* AssetsImport = "assets.import";

@@ -196,6 +196,8 @@ namespace JBro
         ModelSkeleton skeleton;
         // 이 뼈대를 쓰는 모든 메시의 소켓이다(모델 메타의 제 항목, D-460). 메타를 고치면 제자리 재로드로 바뀌고 `dataGeneration` 이 오른다.
         Array<ModelSocket> sockets;
+        // 이 뼈대의 뼈 마스크다(모델 메타의 제 항목, D-464). 애니메이터의 레이어가 이름으로 고른다. 소켓과 같이 제자리 재로드로 바뀐다.
+        Array<ModelBoneMask> masks;
         UInt32 dataGeneration = 1;
     };
 
@@ -459,8 +461,8 @@ namespace JBro
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
         // 새 옵션으로 시작한다.
         Bool ReadMeta(const AssetRecord& record, AssetMetaFile& meta);
-        // 모델 메타에서 그 하위 에셋 항목의 소켓을 읽는다(D-460). 메타가 읽히지 않거나 항목이 없으면 비운다.
-        void ReadSubAssetSockets(const AssetRecord& record, Array<ModelSocket>& sockets);
+        // 모델 메타에서 그 하위 에셋 항목의 소켓(D-460)과, `masks` 가 있으면 뼈 마스크(D-464)를 읽는다. 메타가 읽히지 않거나 항목이 없으면 비운다.
+        void ReadSubAssetSockets(const AssetRecord& record, Array<ModelSocket>& sockets, Array<ModelBoneMask>* masks = nullptr);
         void ForgetMeta(AssetId id);
         Table<AssetId, AssetMetaFile> m_metaCache;
         Bool BuildSprite(const AssetRecord& record, SpriteData& data);

@@ -2478,6 +2478,64 @@ namespace JBro
         }
     }
 
+    void InspectorPanel::DrawLayerMaskField(const TypeDescriptor& type, void* address, Bool editable, Context& context)
+    {
+        TextId& id = *static_cast<TextId*>(address);
+        const ArrayView<const char> stored = TextStore::Get().GetText(id);
+        String draft(stored.Data() != nullptr ? stored.Data() : "", stored.Size());
+        // 이 애니메이터가 쓰는 뼈대(시스템이 푼 것 - 비어 있으면 자식 스킨 메시의 것)의 마스크다.
+        m_socketNames.Clear();
+        Canvas* canvas = m_editor->GetCanvas();
+        const Component::Animator3D* animator = canvas != nullptr && context.owner != nullptr ? canvas->FindComponentRaw<Component::Animator3D>(context.owner) : nullptr;
+        const auto* animation = canvas != nullptr && animator != nullptr ? canvas->GetSystems().FindSystem<System::Animation3DSystem>() : nullptr;
+        const System::Animation3DSystem::State* state = animation != nullptr ? animation->FindState(animator->GetInstanceId()) : nullptr;
+        const AssetSystem* assets = m_editor->GetAssetSystem();
+        const SkeletonData* skeleton = state != nullptr && assets != nullptr ? assets->GetSkeleton(state->skeleton) : nullptr;
+        if (skeleton != nullptr)
+        {
+            for (const ModelBoneMask& mask : skeleton->masks)
+            {
+                m_socketNames.Add(mask.name);
+            }
+        }
+        if (m_socketNames.IsEmpty())
+        {
+            const Bool finished = Widget::TextField("##value", draft).CommitOnFinish().Draw();
+            String before;
+            if (finished && editable && SetPropertyCommand::ReadValue(context.attached.GetInstance(), context.typeId, context.path, before))
+            {
+                TextStore::Get().Assign(id, draft.c_str(), draft.size());
+                CommitEdit(type, address, before, context);
+            }
+            return;
+        }
+        // 첫 항목은 마스크 없음(모든 뼈)이다.
+        m_socketNameViews.Clear();
+        m_socketNameViews.Add(Loc::TextOr(LocKeys::InspectorNoSocket, "(none)"));
+        Int32 current = draft.empty() ? Int32(0) : Int32(-1);
+        for (std::size_t index = 0; index < m_socketNames.Size(); ++index)
+        {
+            m_socketNameViews.Add(m_socketNames[index].c_str());
+            if (m_socketNames[index] == draft)
+            {
+                current = static_cast<Int32>(index + 1);
+            }
+        }
+        const Bool picked = Widget::FilterCombo("##value", ArrayView<const char* const>(m_socketNameViews.Data(), m_socketNameViews.Size()), current)
+                                .EmptyText(draft.c_str())
+                                .Draw();
+        if (picked && editable && current >= 0)
+        {
+            String before;
+            if (SetPropertyCommand::ReadValue(context.attached.GetInstance(), context.typeId, context.path, before))
+            {
+                const String chosen = current == 0 ? String() : m_socketNames[static_cast<std::size_t>(current.Get() - 1)];
+                TextStore::Get().Assign(id, chosen.c_str(), chosen.size());
+                CommitEdit(type, address, before, context);
+            }
+        }
+    }
+
     void InspectorPanel::DrawAssetOptions(const AssetMetaFile& meta)
     {
         // 편집본은 프레임마다 원본에서 새로 뜬다. 위젯이 고친 값은 커맨드가 파일에 쓰고, 다음 프레임의 원본이 그것을
@@ -3926,6 +3984,14 @@ namespace JBro
             && std::strcmp(label, "socket") == 0 && context.typeId == MakeStableTypeId(Component::BoneAttachment3D::StaticTypeName()))
         {
             DrawSocketNameField(type, address, editable, context);
+            return;
+        }
+        // 애니메이터의 위 레이어 마스크 칸은 그 뼈대의 마스크 이름에서 고른다(D-464).
+        if (context.element == nullptr && context.attached.IsValid() && SameName(type.typeName, "JBro.TextId") && label != nullptr
+            && (std::strcmp(label, "layer1Mask") == 0 || std::strcmp(label, "layer2Mask") == 0 || std::strcmp(label, "layer3Mask") == 0)
+            && context.typeId == MakeStableTypeId(Component::Animator3D::StaticTypeName()))
+        {
+            DrawLayerMaskField(type, address, editable, context);
             return;
         }
         // 모델 메타 소켓의 뼈는 그 뼈대의 뼈 이름에서 고른다(D-460).

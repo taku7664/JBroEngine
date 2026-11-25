@@ -271,6 +271,31 @@ namespace JBro
                             return Fail(error, document.GetLine(socketsNode), message.c_str());
                         }
                     }
+                    // 뼈 마스크(D-464). 뼈대만 든다.
+                    const UInt32 masksNode = document.Find(item, "Masks");
+                    if (masksNode != YamlDocument::InvalidNode)
+                    {
+                        if (subType != AssetType::Skeleton)
+                        {
+                            return Fail(error, document.GetLine(masksNode), "only a Skeleton sub-asset has Masks");
+                        }
+                        ReflectedYamlError reflected;
+                        if (false == ReadReflectedValue(document, masksNode, TypeDescriptorOf<Array<ModelBoneMask>>::Get(), &entry.masks, reflected))
+                        {
+                            String message = "Masks could not be read";
+                            if (false == reflected.fieldName.empty())
+                            {
+                                message.append(" at ");
+                                message.append(reflected.fieldName);
+                            }
+                            if (false == reflected.message.empty())
+                            {
+                                message.append(": ");
+                                message.append(reflected.message);
+                            }
+                            return Fail(error, document.GetLine(masksNode), message.c_str());
+                        }
+                    }
                     // 클립 설정(D-462). 애니메이션만 든다.
                     const UInt32 clipNode = document.Find(item, "Clip");
                     if (clipNode != YamlDocument::InvalidNode)
@@ -453,6 +478,17 @@ namespace JBro
                             return false;
                         }
                         if (false == WriteReflectedValue(writer, "Sockets", TypeDescriptorOf<Array<ModelSocket>>::Get(), &entry.sockets, error))
+                        {
+                            return false;
+                        }
+                    }
+                    if (false == entry.masks.IsEmpty())
+                    {
+                        if (subType != AssetType::Skeleton)
+                        {
+                            return false;
+                        }
+                        if (false == WriteReflectedValue(writer, "Masks", TypeDescriptorOf<Array<ModelBoneMask>>::Get(), &entry.masks, error))
                         {
                             return false;
                         }

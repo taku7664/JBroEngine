@@ -23,6 +23,7 @@ namespace JBro
     class Canvas;
     class EditorApplication;
     struct AnimationClipData;
+    struct SkeletonData;
     class Framework3D;
     struct GizmoCamera;
     namespace Component
@@ -49,7 +50,9 @@ namespace JBro
     // 끄는 칸(구간·이벤트 시간)은 창 안 초안을 고치다 손을 뗄 때 메타 커맨드 하나로 남긴다 - 끄는 프레임마다 모델 메타를 쓰면 다시 읽기가 매 프레임 돈다.
     // 이벤트는 타임라인 아래 줄의 표식이다: 두 번 누르면 그 시간에 더하고, 표식을 끌어 옮긴다.
     // **3c 소켓**(D-463): 뼈대 트리 아래가 소켓 목록이다(고른 뼈대의 소켓과 메시마다의 소켓). 고른 소켓은 이름·뼈·위치·회전·크기를 고치고, 미리보기에서 마름모로 보이며
-    // 고른 소켓에 기즈모가 서서 끌어 옮긴다(손을 뗄 때 메타 커맨드 하나, 창의 스택). 소켓 추가는 고른 뼈에 뼈대 소켓을 단다. 마스크 편집은 3d 다.
+    // 고른 소켓에 기즈모가 서서 끌어 옮긴다(손을 뗄 때 메타 커맨드 하나, 창의 스택). 소켓 추가는 고른 뼈에 뼈대 소켓을 단다.
+    // **3d 뼈 마스크**(D-464): 소켓 아래가 고른 뼈대의 마스크 목록이다(뼈대 메타의 `Masks`). 마스크를 고르면 뼈대 트리 줄 끝과 미리보기의 관절이 뼈마다의 가중치를 보이고,
+    // 고른 뼈의 가중치를 고치거나 고른 뼈의 가지를 섞는 깊이로 채운다. 겹칠 클립을 고르면 미리보기의 레이어 1 에 그 클립을 그 마스크로 겹쳐 튼다(바탕 클립은 레이어 0).
     class ModelEditorPanel final : public InstancePanel
     {
     public:
@@ -122,6 +125,29 @@ namespace JBro
         Bool ComputeSocketWorld(UInt32 index, Vector3& position, Quaternion& rotation, Vector3& scale) const;
         Bool GetSocketScreenPosition(UInt32 index, Float& x, Float& y) const;
         void SetGizmoMode(GizmoMode mode) { m_gizmoMode = mode; }
+        // ── 뼈 마스크(D-464). 고른 뼈대 메타의 `Masks` 다. 하나가 메타 커맨드 하나다. ──
+        UInt32 GetMaskCount() const { return static_cast<UInt32>(m_maskDraft.Size()); }
+        const ModelBoneMask& GetMask(UInt32 index) const { return m_maskDraft[index.Get()]; }
+        Int32 GetSelectedMask() const { return m_selectedMask; }
+        void SelectMask(Int32 index);
+        // 고른 뼈(없으면 첫 뼈)와 그 아래를 담은(섞는 깊이만큼 서서히) 마스크를 겹치지 않는 이름으로 만든다. 다시 읽힌 뒤 그것을 고른다.
+        Bool AddMask();
+        // 빈 이름이나 다른 마스크와 같은 이름은 거짓이다.
+        Bool RenameMask(UInt32 index, const char* name);
+        Bool RemoveMask(UInt32 index);
+        // 고른 마스크에서 그 뼈의 가중치다(적지 않은 뼈는 0). 고른 마스크가 없으면 0.
+        Float GetMaskWeight(UInt32 bone) const;
+        // 고른 마스크의 그 뼈 가중치를 0..1 로 놓는다. 0 이면 목록에서 뺀다(적지 않은 뼈는 0 이다).
+        Bool SetMaskWeight(UInt32 bone, Float weight);
+        // 고른 마스크에서 그 뼈와 그 아래 뼈를 섞는 깊이에 맞춰 채운다(가지 밖은 그대로).
+        Bool FillMaskBranch(UInt32 bone, UInt32 depth);
+        // 고른 마스크의 가중치를 모두 지운다(모두 0).
+        Bool ClearMask();
+        Int32 GetMaskDepth() const { return m_maskDepth; }
+        void SetMaskDepth(Int32 depth) { m_maskDepth = depth < 0 ? Int32(0) : depth; }
+        // 미리보기에서 고른 마스크로 레이어 1 에 겹쳐 트는 클립이다(-1 이면 겹치지 않는다). 마스크를 고르지 않으면 겹치지 않는다.
+        Int32 GetOverlayClip() const { return m_overlayClip; }
+        void SetOverlayClip(Int32 clip);
 
         // 이벤트 표식의 화면 자리다(마지막으로 그린 것). 그리지 않았으면 거짓이다.
         Bool GetEventMarkerPosition(UInt32 index, Float& x, Float& y) const;
@@ -181,9 +207,19 @@ namespace JBro
         // 그 뼈의 미리보기 월드 자리(오프셋 없음)다.
         Bool ComputeBoneWorld(Int32 bone, Vector3& position, Quaternion& rotation, Vector3& scale) const;
         Int32 FindBone(const String& name) const;
-        // 그 소켓 주인(뼈대·메시) 항목을 고치는 메타 커맨드 하나다.
+        // 그 하위 항목(뼈대·메시)을 고치는 메타 커맨드 하나다(소켓·마스크). 하위 목록은 바꾸지 않는다.
         template <typename TChange>
-        Bool EditSockets(const char* name, AssetId owner, TChange&& change);
+        Bool EditSubEntry(const char* name, AssetId owner, TChange&& change);
+        // 마스크 목록을 메타에서 다시 뜬다(커맨드·되돌리기·레지스트리·뼈대가 바뀌었고 고치는 중이 아닐 때).
+        void SyncMasks();
+        // 미리보기 애니메이터의 뼈대 자료다. 아직 실리지 않았으면 null.
+        const SkeletonData* GetSkeletonData() const;
+        void DrawMasks();
+        // 고른 마스크의 뼈마다 가중치(뼈 번호)를 초안에서 다시 짓는다.
+        void RebuildMaskWeights();
+        // 고른 마스크를 고치는 메타 커맨드 하나다. `change` 는 그 마스크를 고친다.
+        template <typename TChange>
+        Bool EditSelectedMask(const char* name, TChange&& change);
 
         EditorApplication* m_editor = nullptr;
         AssetId m_model;
@@ -266,6 +302,26 @@ namespace JBro
         Array<Float> m_socketScreenX;
         Array<Float> m_socketScreenY;
         Array<Bool> m_socketOnScreen;
+        // 고른 뼈대의 마스크 초안과, 고른 마스크의 뼈마다 가중치(뼈 번호, 다시 지을 때만 짓는다)다.
+        Array<ModelBoneMask> m_maskDraft;
+        Array<Float> m_maskWeights;
+        Bool m_masksStale = true;
+        UInt64 m_masksRevision = 0;
+        UInt32 m_masksGeneration = 0;
+        Int32 m_selectedMask = -1;
+        // 막 더한 마스크의 이름이다. 다시 읽힌 뒤 그것을 고른다.
+        String m_pendingMask;
+        Bool m_maskEditing = false;
+        Bool m_maskWeightDirty = false;
+        // 고른 뼈의 가중치 칸을 끄는 동안의 값이다(손을 떼면 커맨드 하나).
+        Float m_maskWeightDraft = 0.0f;
+        String m_maskNameText;
+        Int32 m_maskDepth = 0;
+        Int32 m_overlayClip = -1;
+        Int32 m_appliedOverlayClip = -1;
+        String m_appliedOverlayMask;
+        Bool m_overlayMaskApplied = false;
+        Array<const char*> m_clipNamePointers;
         Widget::GizmoState m_gizmo;
         GizmoMode m_gizmoMode = GizmoMode::Translate;
         Float m_stripLeft = 0.0f;

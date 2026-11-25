@@ -198,6 +198,8 @@ namespace JBro
         Array<const char*> m_keyNames;
         // 뼈에 붙이기의 소켓 칸(D-460). 그 애니메이터의 소켓·뼈 이름에서 고른다. 고를 이름이 없으면(애니메이터가 없거나 자세 전) 글자 칸이다.
         void DrawSocketNameField(const TypeDescriptor& type, void* address, Bool editable, Context& context);
+        // 애니메이터의 위 레이어 마스크 칸(D-464). 그 뼈대의 마스크 이름에서 고른다.
+        void DrawLayerMaskField(const TypeDescriptor& type, void* address, Bool editable, Context& context);
         // 모델 메타 소켓의 `bone` 칸. 그 뼈대의 뼈 이름에서 고른다.
         void DrawSocketBoneField(void* address, Context& context);
         Array<String> m_socketNames;

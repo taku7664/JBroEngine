@@ -187,6 +187,7 @@ namespace JBro
         const Bool undone = m_commands.Undo();
         m_draftClip = -1;
         m_socketsStale = true;
+        m_masksStale = true;
         return undone;
     }
 
@@ -195,6 +196,7 @@ namespace JBro
         const Bool redone = m_commands.Redo();
         m_draftClip = -1;
         m_socketsStale = true;
+        m_masksStale = true;
         return redone;
     }
 
@@ -402,6 +404,7 @@ namespace JBro
         m_bonesGeneration = 0;
         m_boneNames.Clear();
         m_socketsStale = true;
+        m_masksStale = true;
         return true;
     }
 
@@ -417,6 +420,9 @@ namespace JBro
         m_preview = 0;
         m_previewSkeleton = -1;
         m_appliedClip = -1;
+        m_appliedOverlayClip = -1;
+        m_overlayMaskApplied = false;
+        m_appliedOverlayMask.clear();
     }
 
     Component::Animator3D* ModelEditorPanel::FindAnimator(Canvas& canvas) const
@@ -517,9 +523,39 @@ namespace JBro
         {
             m_appliedClip = m_clip;
         }
+        // **마스크 미리보기**(D-464): 고른 마스크로 레이어 1 에 겹칠 클립을 튼다. 마스크는 이름으로 건다 - 마스크를 고쳐 뼈대가 다시 읽히면 시스템이 이름으로 다시 짓는다.
+        const Bool overlay = m_selectedMask >= 0 && m_selectedMask < static_cast<Int32>(m_maskDraft.Size()) && m_overlayClip >= 0
+            && m_overlayClip < static_cast<Int32>(animator->animationClips.Size());
+        if (overlay)
+        {
+            const String& mask = m_maskDraft[static_cast<std::size_t>(m_selectedMask.Get())].name;
+            if (m_appliedOverlayClip != m_overlayClip && animation->Play(id, 1, animator->animationClips[static_cast<std::size_t>(m_overlayClip.Get())]))
+            {
+                m_appliedOverlayClip = m_overlayClip;
+                // 바탕과 같은 시간에서 시작한다 - 타임라인 하나로 둘을 같이 본다.
+                animation->SetLayerTime(id, 1, state->layers[0].time);
+            }
+            if (false == m_overlayMaskApplied || false == (m_appliedOverlayMask == mask))
+            {
+                animation->UseLayerMask(id, 1, std::string_view(mask.c_str(), mask.size()));
+                m_appliedOverlayMask = mask;
+                m_overlayMaskApplied = true;
+            }
+        }
+        else if (m_appliedOverlayClip >= 0)
+        {
+            animator->Stop(1);
+            m_appliedOverlayClip = -1;
+            m_overlayMaskApplied = false;
+            m_appliedOverlayMask.clear();
+        }
         const System::Animation3DSystem::Layer& layer = state->layers[0];
         if (m_pendingTime >= 0.0f && animation->SetLayerTime(id, 0, m_pendingTime))
         {
+            if (m_appliedOverlayClip >= 0)
+            {
+                animation->SetLayerTime(id, 1, m_pendingTime);
+            }
             m_pendingTime = -1.0f;
         }
         const AnimationClipData* data = assets->GetAnimationClip(clip);
@@ -901,6 +937,8 @@ namespace JBro
         m_revealBone = -1;
         ImGui::Separator();
         DrawSockets();
+        ImGui::Separator();
+        DrawMasks();
     }
 
     Int32 ModelEditorPanel::FindBone(const String& name) const
@@ -996,7 +1034,7 @@ namespace JBro
     }
 
     template <typename TChange>
-    Bool ModelEditorPanel::EditSockets(const char* name, AssetId owner, TChange&& change)
+    Bool ModelEditorPanel::EditSubEntry(const char* name, AssetId owner, TChange&& change)
     {
         AssetSystem* assets = m_editor->GetAssetSystem();
         const AssetRecord* model = m_editor->GetAssetRegistry().Find(m_model);
@@ -1021,7 +1059,7 @@ namespace JBro
         {
             return false;
         }
-        // 소켓은 하위 목록을 바꾸지 않는다 - 레지스트리를 다시 훑지 않고 그 뼈대·메시만 다시 읽는다.
+        // 소켓·마스크는 하위 목록을 바꾸지 않는다 - 레지스트리를 다시 훑지 않고 그 뼈대·메시만 다시 읽는다.
         target.afterWrite = nullptr;
         target.afterWriteUser = nullptr;
         target.name = name;
@@ -1030,6 +1068,7 @@ namespace JBro
             return false;
         }
         m_socketsStale = true;
+        m_masksStale = true;
         return true;
     }
 
@@ -1041,7 +1080,7 @@ namespace JBro
         }
         const AssetId owner = m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())];
         const String bone = m_boneNames[static_cast<std::size_t>(m_selectedBone >= 0 ? m_selectedBone.Get() : 0)];
-        return EditSockets("Add Socket", owner, [&](AssetSubEntry& entry) {
+        return EditSubEntry("Add Socket", owner, [&](AssetSubEntry& entry) {
             ModelSocket socket;
             socket.bone = bone;
             // 이름은 비지 않게, 겹치지 않게 짓는다 - 빈 이름의 소켓은 붙이기가 찾지 못한다.
@@ -1078,7 +1117,7 @@ namespace JBro
         ModelSocket value = socket;
         value.rotation = Normalize(value.rotation);
         m_socketDraft[index.Get()] = value;
-        return EditSockets("Edit Socket", row.owner, [&](AssetSubEntry& entry) {
+        return EditSubEntry("Edit Socket", row.owner, [&](AssetSubEntry& entry) {
             if (row.index.Get() >= entry.sockets.Size())
             {
                 return false;
@@ -1095,7 +1134,7 @@ namespace JBro
             return false;
         }
         const SocketRow row = m_socketRows[index.Get()];
-        const Bool removed = EditSockets("Remove Socket", row.owner, [&](AssetSubEntry& entry) {
+        const Bool removed = EditSubEntry("Remove Socket", row.owner, [&](AssetSubEntry& entry) {
             if (row.index.Get() >= entry.sockets.Size())
             {
                 return false;
@@ -1361,6 +1400,489 @@ namespace JBro
         return grabbed;
     }
 
+    namespace
+    {
+        // 마스크 하나에서 그 뼈 이름의 줄이다. 없으면 null.
+        ModelMaskBone* FindMaskBone(ModelBoneMask& mask, const String& bone)
+        {
+            for (ModelMaskBone& entry : mask.bones)
+            {
+                if (entry.bone == bone)
+                {
+                    return &entry;
+                }
+            }
+            return nullptr;
+        }
+
+        // 그 뼈의 가중치를 적는다. 0 이하면 줄을 뺀다(적지 않은 뼈는 0 이다).
+        void PutMaskWeight(ModelBoneMask& mask, const String& bone, Float weight)
+        {
+            const Float value = weight < 0.0f ? Float(0.0f) : (weight > 1.0f ? Float(1.0f) : weight);
+            for (std::size_t index = 0; index < mask.bones.Size(); ++index)
+            {
+                if (mask.bones[index].bone == bone)
+                {
+                    if (value <= 0.0f)
+                    {
+                        mask.bones.RemoveAt(index);
+                    }
+                    else
+                    {
+                        mask.bones[index].weight = value;
+                    }
+                    return;
+                }
+            }
+            if (value > 0.0f)
+            {
+                ModelMaskBone entry;
+                entry.bone = bone;
+                entry.weight = value;
+                mask.bones.Add(entry);
+            }
+        }
+
+        // 뿌리 뼈와 그 아래를 섞는 깊이로 채운다. 가지 밖의 줄은 그대로다(Unreal 의 Branch Filter 를 여럿 겹치는 것과 같다).
+        void FillBranch(ModelBoneMask& mask, const ModelSkeleton& skeleton, Int32 root, UInt32 depth)
+        {
+            Array<Float> weights;
+            BuildMaskWeights(skeleton, root, depth, weights);
+            for (std::size_t bone = 0; bone < weights.Size() && bone < skeleton.bones.Size(); ++bone)
+            {
+                if (weights[bone] > 0.0f)
+                {
+                    PutMaskWeight(mask, skeleton.bones[bone].name, weights[bone]);
+                }
+            }
+        }
+
+        // 마스크 가중치의 색이다: 0 은 회색, 1 은 초록.
+        ImU32 MaskColor(Float weight)
+        {
+            const Float t = weight < 0.0f ? Float(0.0f) : (weight > 1.0f ? Float(1.0f) : weight);
+            const auto channel = [t](Float from, Float to) { return static_cast<int>(Float(from + (to - from) * t).Get()); };
+            return IM_COL32(channel(110.0f, 80.0f), channel(110.0f, 225.0f), channel(120.0f, 120.0f), 235);
+        }
+    }
+
+    const SkeletonData* ModelEditorPanel::GetSkeletonData() const
+    {
+        Framework3D* framework = m_editor != nullptr ? m_editor->GetFramework3D() : nullptr;
+        Canvas* canvas = framework != nullptr ? framework->GetPreviewCanvas(m_preview) : nullptr;
+        const Component::Animator3D* animator = canvas != nullptr ? FindAnimator(*canvas) : nullptr;
+        const AssetSystem* assets = m_editor != nullptr ? m_editor->GetAssetSystem() : nullptr;
+        return animator != nullptr && assets != nullptr ? assets->GetSkeleton(animator->skeleton) : nullptr;
+    }
+
+    void ModelEditorPanel::SelectMask(Int32 index)
+    {
+        m_selectedMask = index >= 0 && index < static_cast<Int32>(m_maskDraft.Size()) ? index : Int32(-1);
+        m_maskNameText = m_selectedMask >= 0 ? m_maskDraft[static_cast<std::size_t>(m_selectedMask.Get())].name : String();
+        m_maskWeightDirty = false;
+        RebuildMaskWeights();
+    }
+
+    void ModelEditorPanel::RebuildMaskWeights()
+    {
+        m_maskWeights.Resize(m_boneNames.Size());
+        for (std::size_t bone = 0; bone < m_maskWeights.Size(); ++bone)
+        {
+            m_maskWeights[bone] = 0.0f;
+        }
+        if (m_selectedMask < 0 || m_selectedMask >= static_cast<Int32>(m_maskDraft.Size()))
+        {
+            return;
+        }
+        for (const ModelMaskBone& entry : m_maskDraft[static_cast<std::size_t>(m_selectedMask.Get())].bones)
+        {
+            const Int32 bone = FindBone(entry.bone);
+            if (bone >= 0)
+            {
+                m_maskWeights[static_cast<std::size_t>(bone.Get())] = entry.weight;
+            }
+        }
+    }
+
+    void ModelEditorPanel::SyncMasks()
+    {
+        if (m_maskEditing)
+        {
+            return;
+        }
+        const SkeletonData* skeleton = GetSkeletonData();
+        const UInt32 generation = skeleton != nullptr ? skeleton->dataGeneration : UInt32(0);
+        const UInt64 revision = m_editor->GetAssetRegistry().GetRevision();
+        if (false == m_masksStale && m_masksRevision == revision && m_masksGeneration == generation)
+        {
+            if (m_maskWeights.Size() != m_boneNames.Size())
+            {
+                RebuildMaskWeights();
+            }
+            return;
+        }
+        m_masksStale = false;
+        m_masksRevision = revision;
+        m_masksGeneration = generation;
+        m_maskDraft.Clear();
+        AssetSystem* assets = m_editor->GetAssetSystem();
+        const AssetRecord* model = m_editor->GetAssetRegistry().Find(m_model);
+        AssetMetaFile meta;
+        AssetMetaError error;
+        if (m_skeleton >= 0 && assets != nullptr && model != nullptr && LoadAssetMetaFile(m_editor->GetPlatform(), assets->GetMetaPath(*model).c_str(), meta, error))
+        {
+            const AssetId owner = m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())];
+            for (const AssetSubEntry& entry : meta.subAssets)
+            {
+                if (entry.id == owner)
+                {
+                    m_maskDraft = entry.masks;
+                }
+            }
+        }
+        Int32 keep = m_selectedMask < static_cast<Int32>(m_maskDraft.Size()) ? m_selectedMask : Int32(-1);
+        if (false == m_pendingMask.empty())
+        {
+            for (std::size_t index = 0; index < m_maskDraft.Size(); ++index)
+            {
+                if (m_maskDraft[index].name == m_pendingMask)
+                {
+                    keep = static_cast<Int32>(index);
+                    m_pendingMask.clear();
+                }
+            }
+        }
+        SelectMask(keep);
+    }
+
+    template <typename TChange>
+    Bool ModelEditorPanel::EditSelectedMask(const char* name, TChange&& change)
+    {
+        if (m_skeleton < 0 || m_selectedMask < 0 || m_selectedMask >= static_cast<Int32>(m_maskDraft.Size()))
+        {
+            return false;
+        }
+        const std::size_t at = static_cast<std::size_t>(m_selectedMask.Get());
+        const String target = m_maskDraft[at].name;
+        ModelBoneMask edited = m_maskDraft[at];
+        if (false == change(edited))
+        {
+            return false;
+        }
+        const Bool done = EditSubEntry(name, m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())], [&](AssetSubEntry& entry) {
+            if (at >= entry.masks.Size() || false == (entry.masks[at].name == target))
+            {
+                return false;
+            }
+            entry.masks[at] = edited;
+            return true;
+        });
+        if (done)
+        {
+            // 다시 읽히기 전에도 트리와 미리보기가 새 값을 보인다.
+            m_maskDraft[at] = edited;
+            m_maskNameText = edited.name;
+            RebuildMaskWeights();
+        }
+        return done;
+    }
+
+    Bool ModelEditorPanel::AddMask()
+    {
+        const SkeletonData* skeleton = GetSkeletonData();
+        if (m_skeleton < 0 || m_boneNames.IsEmpty() || skeleton == nullptr)
+        {
+            return false;
+        }
+        ModelBoneMask mask;
+        // 이름은 비지 않게, 겹치지 않게 짓는다 - 레이어는 이름으로 고른다.
+        for (UInt32 suffix = 1; suffix < 1000 && mask.name.empty(); ++suffix)
+        {
+            String candidate = "Mask";
+            if (suffix > 1)
+            {
+                candidate += " ";
+                candidate += String(std::to_string(suffix.Get()).c_str());
+            }
+            Bool taken = false;
+            for (const ModelBoneMask& each : m_maskDraft)
+            {
+                taken = taken || each.name == candidate;
+            }
+            mask.name = taken ? String() : candidate;
+        }
+        FillBranch(mask, skeleton->skeleton, m_selectedBone >= 0 ? m_selectedBone : Int32(0), static_cast<UInt32>(m_maskDepth.Get()));
+        const Bool added = EditSubEntry("Add Mask", m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())], [&](AssetSubEntry& entry) {
+            entry.masks.Add(mask);
+            return true;
+        });
+        if (added)
+        {
+            m_pendingMask = mask.name;
+        }
+        return added;
+    }
+
+    Bool ModelEditorPanel::RenameMask(UInt32 index, const char* name)
+    {
+        const String wanted = name != nullptr ? String(name) : String();
+        if (m_skeleton < 0 || index.Get() >= m_maskDraft.Size() || wanted.empty())
+        {
+            return false;
+        }
+        for (std::size_t other = 0; other < m_maskDraft.Size(); ++other)
+        {
+            if (other != index.Get() && m_maskDraft[other].name == wanted)
+            {
+                return false;
+            }
+        }
+        const String target = m_maskDraft[index.Get()].name;
+        if (target == wanted)
+        {
+            return false;
+        }
+        const Bool renamed = EditSubEntry("Rename Mask", m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())], [&](AssetSubEntry& entry) {
+            if (index.Get() >= entry.masks.Size() || false == (entry.masks[index.Get()].name == target))
+            {
+                return false;
+            }
+            entry.masks[index.Get()].name = wanted;
+            return true;
+        });
+        if (renamed)
+        {
+            m_maskDraft[index.Get()].name = wanted;
+            if (m_selectedMask == static_cast<Int32>(index))
+            {
+                m_maskNameText = wanted;
+            }
+        }
+        return renamed;
+    }
+
+    Bool ModelEditorPanel::RemoveMask(UInt32 index)
+    {
+        if (m_skeleton < 0 || index.Get() >= m_maskDraft.Size())
+        {
+            return false;
+        }
+        const String target = m_maskDraft[index.Get()].name;
+        const Bool removed = EditSubEntry("Remove Mask", m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())], [&](AssetSubEntry& entry) {
+            if (index.Get() >= entry.masks.Size() || false == (entry.masks[index.Get()].name == target))
+            {
+                return false;
+            }
+            entry.masks.RemoveAt(index.Get());
+            return true;
+        });
+        if (removed)
+        {
+            m_selectedMask = -1;
+            m_maskWeights.Clear();
+        }
+        return removed;
+    }
+
+    Float ModelEditorPanel::GetMaskWeight(UInt32 bone) const
+    {
+        return bone.Get() < m_maskWeights.Size() && m_selectedMask >= 0 ? m_maskWeights[bone.Get()] : Float(0.0f);
+    }
+
+    Bool ModelEditorPanel::SetMaskWeight(UInt32 bone, Float weight)
+    {
+        if (bone.Get() >= m_boneNames.Size() || false == std::isfinite(weight))
+        {
+            return false;
+        }
+        const String name = m_boneNames[bone.Get()];
+        return EditSelectedMask("Set Mask Weight", [&](ModelBoneMask& mask) {
+            ModelMaskBone* entry = FindMaskBone(mask, name);
+            const Float before = entry != nullptr ? entry->weight : Float(0.0f);
+            PutMaskWeight(mask, name, weight);
+            ModelMaskBone* after = FindMaskBone(mask, name);
+            return false == (before == (after != nullptr ? after->weight : Float(0.0f)));
+        });
+    }
+
+    Bool ModelEditorPanel::FillMaskBranch(UInt32 bone, UInt32 depth)
+    {
+        const SkeletonData* skeleton = GetSkeletonData();
+        if (skeleton == nullptr || bone.Get() >= skeleton->skeleton.bones.Size())
+        {
+            return false;
+        }
+        return EditSelectedMask("Fill Mask Branch", [&](ModelBoneMask& mask) {
+            FillBranch(mask, skeleton->skeleton, static_cast<Int32>(bone), depth);
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::ClearMask()
+    {
+        return EditSelectedMask("Clear Mask", [](ModelBoneMask& mask) {
+            if (mask.bones.IsEmpty())
+            {
+                return false;
+            }
+            mask.bones.Clear();
+            return true;
+        });
+    }
+
+    void ModelEditorPanel::SetOverlayClip(Int32 clip)
+    {
+        m_overlayClip = clip >= 0 && clip < static_cast<Int32>(m_clipIds.Size()) ? clip : Int32(-1);
+    }
+
+    void ModelEditorPanel::DrawMasks()
+    {
+        SyncMasks();
+        Widget::HintText(Loc::TextOr(LocKeys::ModelEditorMasks, "Bone Masks"));
+        ImGui::SameLine(0.0f, 8.0f);
+        {
+            const Widget::DisableScope disabled(m_skeleton < 0 || m_boneNames.IsEmpty());
+            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorAddMask, "Add Mask")))
+            {
+                AddMask();
+            }
+        }
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorAddMaskTooltip, "create a mask that covers the selected bone and the bones below it"));
+        if (m_maskDraft.IsEmpty())
+        {
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoMasks, "no masks"));
+            return;
+        }
+        for (std::size_t index = 0; index < m_maskDraft.Size(); ++index)
+        {
+            const Widget::IdScope scope(static_cast<Int32>(index));
+            if (Widget::SelectableRow(m_maskDraft[index].name.c_str(), m_selectedMask == static_cast<Int32>(index)))
+            {
+                SelectMask(m_selectedMask == static_cast<Int32>(index) ? Int32(-1) : static_cast<Int32>(index));
+            }
+        }
+        if (m_selectedMask < 0)
+        {
+            return;
+        }
+        const std::size_t at = static_cast<std::size_t>(m_selectedMask.Get());
+        const Bool hasBone = m_selectedBone >= 0 && m_selectedBone < static_cast<Int32>(m_boneNames.Size());
+        Bool editing = false;
+        Bool rename = false;
+        Bool commitWeight = false;
+        Bool fill = false;
+        Bool clear = false;
+        Bool remove = false;
+        Widget::FormLayout layout("##model_mask");
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipName, "Name")), [&]() {
+            if (Widget::TextField("##mask_name", m_maskNameText).CommitOnFinish()())
+            {
+                rename = true;
+            }
+            editing = editing || ImGui::IsItemActive();
+        });
+        if (hasBone)
+        {
+            // 줄 이름이 고른 뼈의 이름이다 - 어느 뼈의 값인지가 칸 옆에 보인다. 끄는 동안은 초안만 바꾸고 손을 떼면 커맨드 하나다.
+            const std::size_t bone = static_cast<std::size_t>(m_selectedBone.Get());
+            layout.Row(Widget::FieldLabel(m_boneNames[bone].c_str()), [&]() {
+                if (false == m_maskWeightDirty)
+                {
+                    m_maskWeightDraft = GetMaskWeight(static_cast<UInt32>(bone));
+                }
+                if (Widget::SliderField<Float>("##mask_weight", m_maskWeightDraft, 0.0f, 1.0f).Format("%.2f")())
+                {
+                    m_maskWeightDirty = true;
+                    if (bone < m_maskWeights.Size())
+                    {
+                        m_maskWeights[bone] = m_maskWeightDraft;
+                    }
+                }
+                editing = editing || ImGui::IsItemActive();
+                if (m_maskWeightDirty && false == ImGui::IsItemActive())
+                {
+                    m_maskWeightDirty = false;
+                    commitWeight = true;
+                }
+            });
+        }
+        else
+        {
+            layout.Break([&]() { Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorMaskPickBone, "select a bone to edit its weight")); });
+        }
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorMaskDepth, "Blend Depth")), [&]() {
+            Widget::DragField<Int32>("##mask_depth", m_maskDepth).Range(0, 32)();
+        });
+        layout.Break([&]() {
+            {
+                const Widget::DisableScope disabled(false == hasBone);
+                if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorFillBranch, "Fill Branch")))
+                {
+                    fill = true;
+                }
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorFillBranchTooltip, "set the weights of the selected bone and the bones below it"));
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorClearMask, "Clear Weights")))
+            {
+                clear = true;
+            }
+        });
+        // 겹칠 클립은 미리보기에만 쓴다 - 메타에 적지 않는다.
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorOverlayClip, "Overlay Clip")), [&]() {
+            m_clipNamePointers.Clear();
+            m_clipNamePointers.Add(Loc::TextOr(LocKeys::InspectorNoSocket, "(none)"));
+            for (const String& name : m_clipNames)
+            {
+                m_clipNamePointers.Add(name.c_str());
+            }
+            Int32 current = m_overlayClip + 1;
+            if (Widget::FilterCombo("##mask_overlay", ArrayView<const char* const>(m_clipNamePointers.Data(), m_clipNamePointers.Size()), current)
+                    .ShowFilter(false)
+                    .Draw())
+            {
+                SetOverlayClip(current - 1);
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorOverlayClipTooltip, "in the preview, play this clip over the base clip through this mask"));
+        });
+        layout.Break([&]() {
+            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorRemoveMask, "Remove Mask")))
+            {
+                remove = true;
+            }
+        });
+        m_maskEditing = editing || m_maskWeightDirty;
+        // 커맨드는 칸을 다 그린 뒤다 - 실행하면 목록이 다시 떠진다.
+        if (remove)
+        {
+            RemoveMask(static_cast<UInt32>(at));
+        }
+        else if (rename)
+        {
+            const String wanted = m_maskNameText;
+            if (false == RenameMask(static_cast<UInt32>(at), wanted.c_str()))
+            {
+                m_maskNameText = m_maskDraft[at].name;
+            }
+        }
+        else if (commitWeight && hasBone)
+        {
+            const Float value = m_maskWeightDraft;
+            if (false == SetMaskWeight(static_cast<UInt32>(m_selectedBone), value))
+            {
+                RebuildMaskWeights();
+            }
+        }
+        else if (fill && hasBone)
+        {
+            FillMaskBranch(static_cast<UInt32>(m_selectedBone), static_cast<UInt32>(m_maskDepth.Get()));
+        }
+        else if (clear)
+        {
+            ClearMask();
+        }
+    }
+
     void ModelEditorPanel::DrawBoneRow(UInt32 bone)
     {
         const std::size_t at = bone.Get();
@@ -1392,6 +1914,19 @@ namespace JBro
         if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && false == ImGui::IsItemToggledOpen())
         {
             SelectBone(static_cast<Int32>(bone));
+        }
+        // 마스크를 골랐으면 줄 끝에 그 뼈의 가중치를 쓴다(D-464). 0 은 흐리다.
+        if (m_selectedMask >= 0 && at < m_maskWeights.Size())
+        {
+            char text[16];
+            std::snprintf(text, sizeof(text), "%.2f", static_cast<double>(m_maskWeights[at].Get()));
+            // 트리 항목의 칸은 글자 폭까지라 줄 끝은 창 내용의 오른쪽이다(항목 끝에 붙이면 이름과 겹친다 - 화면에서 그랬다).
+            const ImVec2 min = ImGui::GetItemRectMin();
+            const ImVec2 max = ImGui::GetItemRectMax();
+            const ImVec2 size = ImGui::CalcTextSize(text);
+            const Float right = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+            ImGui::GetWindowDrawList()->AddText(ImVec2(Float(right - size.x - 4.0f).Get(), min.y + (max.y - min.y - size.y) * 0.5f),
+                ImGui::GetColorU32(m_maskWeights[at] > 0.0f ? ImGuiCol_Text : ImGuiCol_TextDisabled), text);
         }
         if (m_revealBone == static_cast<Int32>(bone))
         {
@@ -2032,6 +2567,8 @@ namespace JBro
         const ImU32 boneColor = IM_COL32(150, 200, 255, 200);
         const ImU32 selectedColor = IM_COL32(255, 210, 80, 255);
         const ImU32 hoveredColor = IM_COL32(255, 255, 255, 255);
+        // 마스크를 골랐으면 뼈마다 가중치 색이다(D-464) - 0 은 회색, 1 은 초록.
+        const Bool masked = m_selectedMask >= 0 && m_maskWeights.Size() == m_boneWorld.Size();
         for (std::size_t index = 0; index < m_boneWorld.Size(); ++index)
         {
             const Int32 parent = m_boneParents[index];
@@ -2042,7 +2579,7 @@ namespace JBro
             const std::size_t from = static_cast<std::size_t>(parent.Get());
             const Bool selected = m_selectedBone == static_cast<Int32>(index);
             draw->AddLine(ImVec2(m_boneScreenX[from], m_boneScreenY[from]), ImVec2(m_boneScreenX[index], m_boneScreenY[index]),
-                selected ? selectedColor : boneColor, selected ? 2.5f : 1.5f);
+                selected ? selectedColor : (masked ? MaskColor(m_maskWeights[index]) : boneColor), selected ? 2.5f : 1.5f);
         }
         for (std::size_t index = 0; index < m_boneWorld.Size(); ++index)
         {
@@ -2053,7 +2590,8 @@ namespace JBro
             const Bool selected = m_selectedBone == static_cast<Int32>(index);
             const Bool hovered = m_hoveredBone == static_cast<Int32>(index);
             const ImVec2 at(m_boneScreenX[index], m_boneScreenY[index]);
-            draw->AddCircleFilled(at, selected ? SelectedJointRadius : JointRadius, selected ? selectedColor : (hovered ? hoveredColor : boneColor));
+            draw->AddCircleFilled(at, selected ? SelectedJointRadius : JointRadius,
+                selected ? selectedColor : (hovered ? hoveredColor : (masked ? MaskColor(m_maskWeights[index]) : boneColor)));
             draw->AddCircle(at, selected ? SelectedJointRadius : JointRadius, IM_COL32(0, 0, 0, 160), 0, 1.0f);
         }
         if (m_hoveredBone >= 0)

@@ -134,6 +134,41 @@ namespace JBro
         }
     };
 
+    // 모델 `.jmeta` 의 뼈대 항목 `Masks` 원소와 그 `bones` 원소다(D-464). 필드 이름이 파일의 키다.
+    template <>
+    struct TypeDescriptorOf<ModelMaskBone>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&ModelMaskBone::bone>(),
+                MakeFieldEntry<&ModelMaskBone::weight>(),
+            };
+            static const StaticPropertyTable<2> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<ModelMaskBone>("JBro.ModelMaskBone", fields.Get());
+            return descriptor;
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<ModelBoneMask>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&ModelBoneMask::name>(),
+                MakeFieldEntry<&ModelBoneMask::bones>(),
+            };
+            static const StaticPropertyTable<2> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<ModelBoneMask>("JBro.ModelBoneMask", fields.Get());
+            return descriptor;
+        }
+    };
+
     // 모델 `.jmeta` 의 `Clip.Events` 원소와 `Clip` 블록이다(D-462). 필드 이름이 파일의 키다.
     template <>
     struct TypeDescriptorOf<ModelClipEvent>

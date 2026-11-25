@@ -698,6 +698,18 @@ Entries:
   model_editor.socket_rotation: 회전
   model_editor.socket_scale: 크기
   model_editor.remove_socket: 소켓 삭제
+  model_editor.masks: 뼈 마스크
+  model_editor.add_mask: 마스크 추가
+  model_editor.add_mask_tooltip: 고른 뼈와 그 아래 뼈를 담은 마스크를 만듭니다
+  model_editor.no_masks: "마스크가 없습니다"
+  model_editor.mask_pick_bone: "뼈를 고르면 그 뼈의 가중치를 고칠 수 있습니다"
+  model_editor.mask_depth: 섞는 깊이
+  model_editor.fill_branch: 가지 채우기
+  model_editor.fill_branch_tooltip: 고른 뼈와 그 아래 뼈의 가중치를 섞는 깊이에 맞춰 채웁니다
+  model_editor.clear_mask: 가중치 지우기
+  model_editor.overlay_clip: 겹칠 클립
+  model_editor.overlay_clip_tooltip: 미리보기에서 이 클립을 이 마스크로 바탕 클립 위에 겹쳐 재생합니다
+  model_editor.remove_mask: 마스크 삭제
   model_editor.strip_tooltip: "두 번 누르면 이 시간에 이벤트를 추가합니다. 표식을 끌어 옮깁니다"
   inspector.clip_hint: "클립의 구간·반복·이벤트는 모델 에디터에서 고칩니다"
   inspector.open_model_editor: 모델 에디터 열기

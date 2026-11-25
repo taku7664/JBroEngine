@@ -252,6 +252,25 @@ namespace JBro
         }
     }
 
+    void BuildNamedMaskWeights(const ModelSkeleton& skeleton, const ModelBoneMask& mask, Array<Float>& weights)
+    {
+        const std::size_t count = skeleton.bones.Size();
+        weights.Resize(count);
+        for (std::size_t bone = 0; bone < count; ++bone)
+        {
+            weights[bone] = 0.0f;
+        }
+        for (const ModelMaskBone& entry : mask.bones)
+        {
+            const Int32 bone = FindBone(skeleton, std::string_view(entry.bone.c_str(), entry.bone.size()));
+            if (bone < 0 || false == std::isfinite(entry.weight))
+            {
+                continue;
+            }
+            weights[static_cast<std::size_t>(bone.Get())] = entry.weight < 0.0f ? Float(0.0f) : (entry.weight > 1.0f ? Float(1.0f) : entry.weight);
+        }
+    }
+
     void ComputeBoneMatrices(const ModelSkeleton& skeleton, const Array<BonePose>& pose, Array<Matrix4x4>& model)
     {
         std::size_t count = skeleton.bones.Size() < pose.Size() ? skeleton.bones.Size() : pose.Size();

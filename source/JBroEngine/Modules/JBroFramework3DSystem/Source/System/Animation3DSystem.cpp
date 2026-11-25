@@ -215,10 +215,7 @@ namespace JBro::System
         {
             BindLayerClip(state, layer.clip, layer.clipGeneration, layer.tracks);
             BindLayerClip(state, layer.fromClip, layer.fromGeneration, layer.fromTracks);
-            if (layer.maskRoot >= 0 || false == layer.mask.IsEmpty())
-            {
-                BuildMaskWeights(data->skeleton, layer.maskRoot, layer.maskDepth, layer.mask);
-            }
+            RebuildLayerMask(*data, layer);
         }
         ComputeBoneMatrices(data->skeleton, state.pose, state.model);
         ComputeSkinMatrices(data->skeleton, state.model, state.skin);
@@ -363,6 +360,7 @@ namespace JBro::System
                     base.fade = 0.0f;
                 }
             }
+            ApplyLayerSettings(*state, animator);
             ApplyCommands(*state, animator);
             Evaluate(*state, animator, deltaTime);
             WriteBack(*state, animator);
@@ -535,7 +533,105 @@ namespace JBro::System
                 SetLayerMask(state.instance, command.layer, std::string_view(command.bone, std::strlen(command.bone)),
                     static_cast<UInt32>(static_cast<std::uint32_t>(command.value.Get())));
                 break;
+            case Component::Animator3D::CommandKind::UseMask:
+                UseLayerMask(state.instance, command.layer, std::string_view(command.bone, std::strlen(command.bone)));
+                break;
             }
+        }
+    }
+
+    static_assert(Component::Animator3D::LayerCount == 4, "State::applied holds one slot for every layer above the base");
+
+    void Animation3DSystem::ApplyLayerSettings(State& state, const Component::Animator3D& animator)
+    {
+        const TextStore& store = TextStore::Get();
+        for (UInt32 index = 1; index < state.layers.Size(); ++index)
+        {
+            State::AppliedSettings& applied = state.applied[index.Get() - 1];
+            const Component::Animator3D::LayerSettings settings = animator.GetLayerSettings(index);
+            const UInt32 maskRevision = store.GetRevision(settings.mask);
+            const Bool first = false == applied.valid;
+            applied.valid = true;
+            Layer& layer = state.layers[index.Get()];
+            if (first || applied.weight != settings.weight)
+            {
+                applied.weight = settings.weight;
+                SetLayerWeight(state.instance, index, settings.weight);
+            }
+            if (first || applied.additive != settings.additive)
+            {
+                applied.additive = settings.additive;
+                layer.mode = settings.additive ? AnimatorLayerMode::Additive : AnimatorLayerMode::Override;
+            }
+            // 이름은 글자 칸의 번호와 판번호로 바뀐 것을 안다 - 프레임마다 글자를 견주지 않는다.
+            if (first || applied.mask.index != settings.mask.index || applied.mask.generation != settings.mask.generation || applied.maskRevision != maskRevision)
+            {
+                applied.mask = settings.mask;
+                applied.maskRevision = maskRevision;
+                const ArrayView<const char> text = store.GetText(settings.mask);
+                UseLayerMask(state.instance, index, text.Data() != nullptr ? std::string_view(text.Data(), text.Size()) : std::string_view());
+            }
+            const Bool clipFirst = false == applied.clipValid;
+            if (clipFirst || applied.clip != settings.clip)
+            {
+                const Bool known = settings.clip >= 0 && static_cast<std::size_t>(settings.clip.Get()) < animator.animationClips.Size();
+                const AssetHandle clip = known ? animator.animationClips[static_cast<std::size_t>(settings.clip.Get())] : AssetHandle{};
+                if (settings.clip < 0)
+                {
+                    // 처음의 빈 칸은 레이어를 건드리지 않는다(에디터의 미리보기가 시스템 함수로 건 것도 산다). 칸을 비우면 멈춘다.
+                    if (false == clipFirst)
+                    {
+                        layer.playing = false;
+                        layer.fade = 0.0f;
+                    }
+                    applied.clip = settings.clip;
+                    applied.clipValid = true;
+                }
+                else if (clip.generation != 0)
+                {
+                    // 처음은 `playOnStart` 를 따른다. 그 뒤 칸을 바꾸면 늘 튼다(인스펙터에서 고른 클립이 바로 보인다).
+                    if (false == clipFirst || animator.playOnStart)
+                    {
+                        Play(state.instance, index, clip);
+                        layer.clipIndex = settings.clip;
+                    }
+                    applied.clip = settings.clip;
+                    applied.clipValid = true;
+                }
+                else if (false == known)
+                {
+                    // 목록 밖의 번호다 - 틀 것이 없다.
+                    applied.clip = settings.clip;
+                    applied.clipValid = true;
+                }
+                // 목록 안이지만 아직 실리지 않은 클립이면 그대로 두어 다음 프레임에 다시 본다.
+            }
+        }
+    }
+
+    void Animation3DSystem::RebuildLayerMask(const SkeletonData& skeleton, Layer& layer) const
+    {
+        if (false == layer.maskName.empty())
+        {
+            for (const ModelBoneMask& mask : skeleton.masks)
+            {
+                if (mask.name == layer.maskName)
+                {
+                    BuildNamedMaskWeights(skeleton.skeleton, mask, layer.mask);
+                    return;
+                }
+            }
+            // 없는 이름은 어떤 뼈에도 닿지 않는다 - 모든 뼈 1(전신 덮어쓰기)보다 덜 놀랍다.
+            layer.mask.Resize(skeleton.skeleton.bones.Size());
+            for (std::size_t bone = 0; bone < layer.mask.Size(); ++bone)
+            {
+                layer.mask[bone] = 0.0f;
+            }
+            return;
+        }
+        if (layer.maskRoot >= 0 || false == layer.mask.IsEmpty())
+        {
+            BuildMaskWeights(skeleton.skeleton, layer.maskRoot, layer.maskDepth, layer.mask);
         }
     }
 
@@ -830,6 +926,7 @@ namespace JBro::System
         if (rootBone.empty())
         {
             target.maskRoot = -1;
+            target.maskName.clear();
             target.mask.Clear();
             return true;
         }
@@ -845,7 +942,44 @@ namespace JBro::System
         }
         target.maskRoot = root;
         target.maskDepth = blendDepth;
+        target.maskName.clear();
         BuildMaskWeights(skeleton->skeleton, root, blendDepth, target.mask);
         return true;
+    }
+
+    Bool Animation3DSystem::UseLayerMask(InstanceId animator, UInt32 layer, std::string_view mask)
+    {
+        State* state = FindState(animator);
+        if (state == nullptr || layer >= state->layers.Size())
+        {
+            return false;
+        }
+        Layer& target = state->layers[layer.Get()];
+        target.maskRoot = -1;
+        if (mask.empty())
+        {
+            target.maskName.clear();
+            target.mask.Clear();
+            return true;
+        }
+        const SkeletonData* skeleton = m_assets != nullptr ? m_assets->GetSkeleton(state->skeleton) : nullptr;
+        target.maskName = String(mask);
+        if (skeleton == nullptr)
+        {
+            // 뼈대가 서면(`Prepare`) 이름으로 짓는다.
+            target.mask.Clear();
+            return false;
+        }
+        RebuildLayerMask(*skeleton, target);
+        for (const ModelBoneMask& each : skeleton->masks)
+        {
+            if (SameText(each.name, mask))
+            {
+                return true;
+            }
+        }
+        Log::Write(LogLevel::Warning, "animation", "the skeleton has no bone mask named %.*s; layer %u touches no bone",
+            static_cast<int>(mask.size()), mask.data(), static_cast<unsigned>(layer.Get()));
+        return false;
     }
 }

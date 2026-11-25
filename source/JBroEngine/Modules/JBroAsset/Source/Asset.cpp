@@ -1076,13 +1076,17 @@ namespace JBro
             return false;
         }
         data.skeleton = decoded->skeletons[sub->index.Get()];
-        ReadSubAssetSockets(record, data.sockets);
+        ReadSubAssetSockets(record, data.sockets, &data.masks);
         return true;
     }
 
-    void AssetSystem::ReadSubAssetSockets(const AssetRecord& record, Array<ModelSocket>& sockets)
+    void AssetSystem::ReadSubAssetSockets(const AssetRecord& record, Array<ModelSocket>& sockets, Array<ModelBoneMask>* masks)
     {
         sockets.Clear();
+        if (masks != nullptr)
+        {
+            masks->Clear();
+        }
         AssetMetaFile meta;
         if (false == ReadMeta(record, meta))
         {
@@ -1093,6 +1097,10 @@ namespace JBro
             if (meta.subAssets[index].id == record.id)
             {
                 sockets = meta.subAssets[index].sockets;
+                if (masks != nullptr)
+                {
+                    *masks = meta.subAssets[index].masks;
+                }
                 return;
             }
         }
