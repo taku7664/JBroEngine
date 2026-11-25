@@ -657,6 +657,23 @@ Entries:
   common.open_without_saving: Open without saving
   assets.open_canvas: Open Canvas
   assets.open_in_sprite_viewer: Open in Sprite Viewer
+  assets.open_in_model_editor: Open in Model Editor
+  model_editor.title: Model Editor
+  model_editor.needs_3d: "the model editor works in 3D projects"
+  model_editor.not_model: "only a model and its parts open there"
+  model_editor.missing: "the model is gone"
+  model_editor.skeleton: Skeleton
+  model_editor.no_skeleton: "this model has no skeleton"
+  model_editor.loading: "reading the model"
+  model_editor.clips: Animations
+  model_editor.no_clips: "this model has no animations"
+  model_editor.show_bones: Show Bones
+  model_editor.fit: Frame Model
+  model_editor.play: Play
+  model_editor.pause: Pause
+  model_editor.loop: Loop
+  model_editor.speed: Speed
+  model_editor.time: "%.2f / %.2f s"
   assets.import: Import...
   menu.import_sprite: Import Sprite
   dialog.import_title: Import

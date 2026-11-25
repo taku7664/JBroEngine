@@ -160,6 +160,10 @@ namespace JBro
         // 받는다 - 에디터가 돌아가며 건다. 썸네일이 실패해도 프레임은 실패하지 않는다(게임 화면이 아니다). 프레임 밖에서만 부른다.
         static constexpr std::size_t MaxLayerThumbnails = 4;
         Bool RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail);
+        // **이번 프레임에 모델 에디터의 미리보기를 그린다**(D-461). 편집 화면 뒤·레이어 썸네일 앞이고, 요청은 한 프레임짜리다(열린 창마다 다시 건다).
+        // 한 프레임에 `MaxPreviewViews` 장까지 받는다. 실패해도 프레임은 실패하지 않는다(게임 화면이 아니다). 프레임 밖에서만 부른다.
+        static constexpr std::size_t MaxPreviewViews = 4;
+        Bool RequestPreviewView(const PreviewViewDesc& view);
 
         // **게임을 돌릴 것인가**(D-131). 게임 실행은 늘 참이다. 에디터는 재생을 누르기
         // 전까지 거짓으로 두어 스크립트와 물리가 돌지 않게 한다 - 편집하는 동안 게임이
@@ -379,6 +383,8 @@ namespace JBro
         Bool m_hasEditorView = false;
         LayerThumbnailDesc m_layerThumbnails[MaxLayerThumbnails];
         std::size_t m_layerThumbnailCount = 0;
+        PreviewViewDesc m_previewViews[MaxPreviewViews];
+        std::size_t m_previewViewCount = 0;
         // 글자 입력(D-355). 프레임워크가 글자 칸의 커서 자리를 알린 프레임에만 IME 조합이 인라인이다.
         class TextInputBridge final : public ITextInputHost
         {

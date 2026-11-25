@@ -51,6 +51,7 @@ namespace JBro
     struct MaterialDesc;
     class TaskManager;
     class Canvas;
+    class Framework3D;
     class EditorThumbnails;
     // 단축키 관리자는 ImGui 의 키 값을 든다. 이 헤더를 보는 쪽(에디터 호스트)은 ImGui 를 보지 않으므로 이름만 안다.
     class EditorShortcutManager;
@@ -256,6 +257,14 @@ namespace JBro
         // **노드 그래프 창**에서 연다(D-323). 뿌리의 "노드 그래프" 도크에 `.jgraph` 마다 탭이 하나다. 이미 열려 있으면 그 탭을 앞으로 가져온다.
         // `.jgraph` 가 아니거나, 읽지 못하거나, 그래프의 도메인을 모르면 거짓이다.
         Bool OpenNodeGraphEditor(AssetId asset);
+        // **모델 에디터 창**에서 연다(D-461). 뿌리의 "모델 에디터" 도크에 모델마다 탭이 하나다. 모델이든 그 하위 에셋(뼈대·애니메이션·메시)이든 받아
+        // 그 모델의 창을 열고, 뼈대나 애니메이션이면 그것을 고른다. 이미 열려 있으면 그 탭을 앞으로 가져온다. 3D 프로젝트가 아니거나 모델이 아니면 거짓이다.
+        Bool OpenModelEditor(AssetId asset);
+        // 열린 3D 프레임워크다(모델 에디터의 미리보기, D-461). 프로젝트가 없거나 2D 면 null 이다.
+        Framework3D* GetFramework3D();
+        // **이번 프레임에 모델 에디터의 미리보기를 그린다**(D-461). 창이 그릴 때마다 건다 - 그리지 않는 프레임에는 걸리지 않는다(캔버스 뷰와 같은 규칙, D-63).
+        // 가리키는 선 배열은 창이 다음 그리기까지 든다. 한 프레임에 `EngineInstance::MaxPreviewViews` 장까지이고 넘으면 거짓이다.
+        Bool RequestPreviewView(const PreviewViewDesc& view);
         // 에셋 파일의 본문을 글자로 읽고 쓴다. 쓰면 실린 에셋을 제자리에서 다시 읽는다.
         Bool ReadAssetText(AssetId asset, String& text) const;
         Bool WriteAssetText(AssetId asset, const String& text);
@@ -1183,6 +1192,8 @@ namespace JBro
         EditorViewDesc m_canvasViewRequest;
         Array<DebugLine> m_canvasViewLines;
         Bool m_canvasViewRequested = false;
+        // 이번 프레임에 모델 에디터들이 건 미리보기다(D-461). 요청을 넘기면 비운다.
+        Array<PreviewViewDesc> m_previewViewRequests;
         // 이번 프레임에 요청된 크기의 텍스처를 마련한다. 이미 그 크기면 아무 일도 하지 않는다.
         Bool EnsureCanvasViewTexture(const Extent2D& extent);
         void ReleaseCanvasViewTexture();

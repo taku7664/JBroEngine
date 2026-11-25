@@ -26,6 +26,9 @@ namespace JBro
         // 게임 카메라가 없어도 그린다 - 캔버스 뷰는 카메라가 없는 캔버스도 보여야 한다.
         RenderResult SubmitEditorView3D(
             const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view, const System::DebugDrawSystem* debugDraw);
+        // **모델 에디터의 미리보기**(D-461)를 같은 궤도 편집 카메라로 그 텍스처에 낸다. 캔버스 뷰가 아니므로 렌더러의 편집 카메라 기록(D-140)을 건드리지 않고,
+        // 쓴 카메라를 `drawn` 에 돌려준다 - 에디터가 뼈를 그 카메라로 화면에 투영한다. 하늘은 그리지 않는다(미리보기 캔버스에는 환경이 없다).
+        RenderResult SubmitPreviewView3D(const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view, CameraParams& drawn);
         // 레이어 하나만 게임 카메라로 썸네일 텍스처에 낸다(D-288). 블렌드·불투명도는 무시한다.
         RenderResult SubmitLayerThumbnail3D(const RenderWorld3D& world, Renderer& renderer, const LayerThumbnailDesc& thumbnail, std::uint16_t layerOrder);
     }

@@ -80,6 +80,7 @@
 #include <JBro/Framework3D/Component/Animator3D.h>
 #include <JBro/Framework3D/Component/BoneAttachment3D.h>
 #include <JBro/Framework3DSystem/System/Animation3DSystem.h>
+#include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3D/Component/Light3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -102,6 +103,7 @@
 #include <JBro/Types/Math3D.h>
 #include <JBro/Graphics/Renderer.h>
 #include "../Modules/JBroEditor/Source/Panel/RenderGraphPanel.h"
+#include "../Modules/JBroEditor/Source/Panel/ModelEditorPanel.h"
 #include <JBro/Physics2D/World.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
@@ -15730,6 +15732,176 @@ namespace
         std::filesystem::remove_all(root, code);
     }
 
+    // **모델 에디터**(D-461, 스켈레탈 3a). 실제 에디터에서 뼈대 하위 에셋으로 창을 열고, 미리보기 캔버스가 게임과 같은 애니메이터로 자세를 짓는지,
+    // 뼈 트리·타임라인·뼈 고르기와 미리보기가 캔버스 뷰의 편집 카메라를 건드리지 않는지 본다.
+    void TestTheModelEditorPreviewsAndPlays()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the model editor not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroModelEditorProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        {
+            std::ofstream model(root / "Assets" / "rig.gltf", std::ios::binary);
+            model << TestModels::SkinnedGltf();
+        }
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 3D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the canvas view first");
+        }
+        // 캔버스 뷰가 그린 편집 카메라다. 미리보기는 이것을 바꾸지 않아야 한다 - 바꾸면 캔버스 뷰의 기즈모가 미리보기의 카메라로 선다.
+        JBro::CameraParams canvasCamera;
+        Check(editor.GetRenderer()->GetLastEditorViewCamera(canvasCamera), "the canvas view drew with its edit camera");
+
+        const JBro::AssetRecord* model = editor.GetAssetRegistry().FindByPath("rig.gltf");
+        Check(model != nullptr, "the skinned model is registered");
+        JBro::AssetId skeletonId;
+        JBro::AssetId clipId;
+        if (model != nullptr)
+        {
+            JBro::Array<JBro::AssetId> parts;
+            editor.GetAssetRegistry().CollectOwned(model->id, parts);
+            for (const JBro::AssetId& id : parts)
+            {
+                skeletonId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::Skeleton ? id : skeletonId;
+                clipId = editor.GetAssetRegistry().Find(id)->type == JBro::AssetType::AnimationClip ? id : clipId;
+            }
+        }
+        Check(false == skeletonId.IsNull() && false == clipId.IsNull(), "and owns a skeleton and a clip");
+        const std::size_t canvasObjects = editor.GetCanvas() != nullptr ? editor.GetCanvas()->GetObjectCount() : std::size_t(0);
+        Check(false == editor.OpenModelEditor(JBro::AssetId{}), "an unknown asset does not open the model editor");
+        Check(editor.OpenModelEditor(skeletonId), "the skeleton opens its model in the model editor");
+        Check(editor.OpenModelEditor(model->id), "the model itself opens the same window");
+        JBro::Array<JBro::EditorPanel*> panels;
+        Check(editor.FindPanels("ModelEditor", panels) == 1, "one model has one model editor");
+        auto* panel = panels.IsEmpty() ? nullptr : static_cast<JBro::ModelEditorPanel*>(panels[0]);
+        Check(panel != nullptr && panel->GetModel() == model->id, "the window shows the model");
+        if (panel == nullptr)
+        {
+            return;
+        }
+        // 모델 디코드는 워커다(D-455). 뼈대가 실리고 자세가 설 때까지 기다린다.
+        for (JBro::Int32 frame = 0; frame < 600 && panel->GetBoneCount() == 0; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while the model decodes");
+        }
+        Check(panel->GetBoneCount() == 2 && panel->GetBoneName(0) == "Hip" && panel->GetBoneName(1) == "Spine",
+            "the bone tree lists the skeleton in parent-first order");
+        JBro::Framework3D* framework = editor.GetFramework3D();
+        Check(framework != nullptr && framework->GetPreviewCount() == 1, "the window holds one preview canvas in the 3D framework");
+        JBro::Canvas* preview = framework != nullptr ? framework->GetPreviewCanvas(panel->GetPreview()) : nullptr;
+        Check(preview != nullptr && preview->GetObjectCount() == 2, "the preview has the animator object and one mesh child");
+        Check(editor.GetCanvas() != nullptr && editor.GetCanvas()->GetObjectCount() == canvasObjects, "the open canvas gets no preview object");
+        Check(panel->GetClipCount() == 1 && panel->GetClip() == 0 && panel->IsPlaying(), "the clip is listed and plays on open");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the preview");
+        }
+
+        // 타임라인을 끈 것과 같다: 0.5 초에 서면 Spine 은 45 도다(시험 모델의 `Wave`).
+        panel->SetTime(0.5f);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after scrubbing");
+        }
+        Check(false == panel->IsPlaying() && std::fabs(panel->GetTime() - 0.5f) < 0.001f, "scrubbing pauses at that time");
+        JBro::System::Animation3DSystem* animation = framework != nullptr ? framework->GetPreviewAnimation(panel->GetPreview()) : nullptr;
+        const JBro::System::Animation3DSystem::State* state = nullptr;
+        if (animation != nullptr && preview != nullptr)
+        {
+            preview->ForEach<JBro::Component::Animator3D>([&](JBro::Component::Animator3D& animator) {
+                state = animation->FindState(animator.GetInstanceId());
+            });
+        }
+        Check(state != nullptr && std::fabs(state->pose[1].rotation.z - 0.38268f) < 0.001f, "the preview's animator holds the pose at that time");
+        const JBro::Float held = panel->GetTime();
+        for (JBro::Int32 frame = 0; frame < 5; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while paused");
+        }
+        Check(std::fabs(panel->GetTime() - held) < 0.0001f, "paused, time does not move");
+        panel->SetPlaying(true);
+        for (JBro::Int32 frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        Check(panel->GetTime() > held + 0.03f, "playing moves time by the frames that passed");
+        // 한 번 재생: 끝에 서고 멈춘다. 재생을 다시 누르면 처음부터다.
+        panel->SetLooping(false);
+        panel->SetTime(0.95f);
+        panel->SetPlaying(true);
+        for (JBro::Int32 frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick to the clip's end");
+        }
+        Check(false == panel->IsPlaying() && std::fabs(panel->GetTime() - 1.0f) < 0.001f, "a one-shot preview stops at the end");
+        panel->SetPlaying(true);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after replaying");
+        }
+        Check(panel->IsPlaying() && panel->GetTime() < 0.2f, "pressing play at the end starts over");
+        panel->SetLooping(true);
+        panel->SetTime(0.5f);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick before picking a bone");
+        }
+
+        // 미리보기에서 Spine 의 관절을 누르면 그 뼈를 고른다.
+        JBro::Float x = 0.0f;
+        JBro::Float y = 0.0f;
+        Check(panel->GetBoneScreenPosition(1, x, y), "the Spine joint is drawn on the preview");
+        Spot spot;
+        spot.x = static_cast<JBro::Int32>(x);
+        spot.y = static_cast<JBro::Int32>(y);
+        ClickAt(editor, hwnd, spot);
+        Check(panel->GetSelectedBone() == 1, "clicking a joint picks that bone");
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the picked bone");
+        }
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "model_editor");
+
+        JBro::CameraParams afterPreview;
+        Check(editor.GetRenderer()->GetLastEditorViewCamera(afterPreview)
+                && std::memcmp(&afterPreview.view, &canvasCamera.view, sizeof(canvasCamera.view)) == 0,
+            "drawing the preview leaves the canvas view's edit camera alone");
+        JBro::CameraParams previewCamera;
+        Check(framework->GetPreviewCamera(panel->GetPreview(), previewCamera)
+                && std::memcmp(&previewCamera.view, &canvasCamera.view, sizeof(canvasCamera.view)) != 0,
+            "the preview keeps its own camera");
+
+        // 창을 닫으면 미리보기도 사라진다.
+        editor.ClosePanel(*panel);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after closing");
+        }
+        Check(editor.FindPanels("ModelEditor", panels) == 0 && framework->GetPreviewCount() == 0, "closing the window drops its preview");
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
     // **애니메이터의 인스펙터**(D-459). 스킨 모델을 둔 3D 프로젝트에서 `Animator3D` 를 붙인 오브젝트를 고르면 인스펙터가 클립 목록 `animationClipIds` 를 보이고,
     // 그 원소는 `animationClipId` 로 읽혀 AnimationClip 만 고른다(소리의 별명 `clip` 이 아니다). 해석된 핸들 칸은 숨는다. `JBRO_EDITOR_SHOT` 이 있으면 찍는다.
     void TestTheAnimatorInspectorListsClips()
@@ -22098,6 +22270,7 @@ JBro::Int32 RunEditorApplicationTests()
     JBRO_CASE(TestTheEditorMakesAndEditsMaterials());
     JBRO_CASE(TestTheAnimatorInspectorListsClips());
     JBRO_CASE(TestTheEditorEditsSocketsAndAttaches());
+    JBRO_CASE(TestTheModelEditorPreviewsAndPlays());
     JBRO_CASE(TestTheEditorPreviewsGameLanguages());
     JBRO_CASE(TestScreenLayersInTheEditor());
     JBRO_CASE(TestTheEditorSaysWhatIsChosen());

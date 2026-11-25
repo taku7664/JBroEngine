@@ -94,6 +94,14 @@ namespace JBro
         UInt32 lineCount = 0;
     };
 
+    // **모델 에디터의 미리보기 뷰 하나**(D-461). 프레임워크가 든 미리보기 캔버스(`preview` 번호)를 편집 카메라(`view` 의 궤도 값)로 `view.target` 에 그린다.
+    // 열린 캔버스와 따로 그린다 - 그 캔버스의 오브젝트는 보이지 않는다. `view` 의 2D 전용 값(고르기·막·화면 보기)은 읽지 않는다.
+    struct PreviewViewDesc
+    {
+        UInt32 preview = 0;
+        EditorViewDesc view;
+    };
+
     // **레이어 썸네일 하나**(D-288, 기존 `ImEditor::RenderLayerThumbnails`). 그 레이어만 켠 게임 화면의 축소판이다 - 게임 카메라·패럴랙스는 그대로이고,
     // 블렌드·불투명도는 무시하며(아래 레이어가 없다) 바탕은 `clearColor` 로 불투명하게 지운다(투명하면 ImGui 의 곧은 알파 블렌드에서 어두워진다).
     // 화면 레이어는 그 맞춤 방식의 화면 뷰다. 게임 카메라가 없는 월드 레이어는 바탕만이다.
@@ -206,6 +214,12 @@ namespace JBro
         virtual void Shutdown() = 0;
         // 캔버스의 컴포넌트가 든 에셋 아이디(`xxxId`)를 이번 실행의 핸들(`xxx`)로 푼다(asset-plan §2.6, D-115). 캔버스를
         // 읽은 뒤와 편집 뒤에 호스트·에디터가 부른다. 앞서 잡은 것은 놓고, 참조 수가 0 이 된 에셋은 내린다.
+        // 같은 프레임에 **모델 에디터의 미리보기**를 제출한다(D-461). `Render` 뒤에서만 부른다. 미리보기가 없는 프레임워크(2D)나 없는 번호는 `NothingToSubmit` 이다.
+        virtual RenderResult RenderPreviewView(const PreviewViewDesc& view)
+        {
+            (void)view;
+            return RenderResult::NothingToSubmit;
+        }
         // 캔버스나 에셋 시스템이 없는 프레임워크(테스트의 가짜)는 아무것도 하지 않는다.
         virtual void BindCanvasAssets()
         {

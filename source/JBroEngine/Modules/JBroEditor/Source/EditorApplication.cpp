@@ -82,6 +82,7 @@
 #include "NewProjectPopup.h"
 #include "NewScriptPopup.h"
 #include "Panel/SoundEffectPanel.h"
+#include "Panel/ModelEditorPanel.h"
 #include "Panel/NodeGraphPanel.h"
 #include <JBro/NodeGraph/Domain.h>
 #include <JBro/NodeGraph/GraphYaml.h>
@@ -786,6 +787,61 @@ namespace JBro
             return false;
         }
         editor->RequestFocus();
+        return true;
+    }
+
+    Bool EditorApplication::OpenModelEditor(AssetId asset)
+    {
+        AssetId model;
+        if (false == m_uiEnabled || GetFramework3D() == nullptr || false == ModelEditorPanel::ResolveModel(*this, asset, model))
+        {
+            return false;
+        }
+        Array<EditorPanel*> editors;
+        FindPanels(ModelEditorPanel::TypeName, editors);
+        for (EditorPanel* panel : editors)
+        {
+            auto* existing = static_cast<ModelEditorPanel*>(panel);
+            if (existing->GetModel() == model)
+            {
+                existing->Focus(asset);
+                panel->RequestFocus();
+                return true;
+            }
+        }
+        auto* editor = static_cast<ModelEditorPanel*>(CreatePanel(ModelEditorPanel::TypeName));
+        if (editor == nullptr)
+        {
+            return false;
+        }
+        if (false == editor->Show(model))
+        {
+            ClosePanel(*editor);
+            return false;
+        }
+        editor->Focus(asset);
+        editor->RequestFocus();
+        return true;
+    }
+
+    Framework3D* EditorApplication::GetFramework3D()
+    {
+        // 만든 쪽이 무엇을 만들었는지 안다(`GetCanvas` 와 같다).
+        if (m_framework.Get() == nullptr || m_frameworkKind != FrameworkKind::Framework3D)
+        {
+            return nullptr;
+        }
+        return static_cast<Framework3D*>(m_framework.Get());
+    }
+
+    Bool EditorApplication::RequestPreviewView(const PreviewViewDesc& view)
+    {
+        if (false == m_uiEnabled || view.preview == 0 || false == view.view.target.IsValid()
+            || m_previewViewRequests.Size() >= EngineInstance::MaxPreviewViews)
+        {
+            return false;
+        }
+        m_previewViewRequests.Add(view);
         return true;
     }
 
@@ -6440,6 +6496,7 @@ namespace JBro
         m_canvasView = {};
         m_canvasViewExtent = {};
         m_canvasViewRequested = false;
+        m_previewViewRequests.Clear();
         m_retiredUiTextures.Clear();
         ClearSelection();
         m_commands.Clear();
@@ -8119,6 +8176,15 @@ namespace JBro
             m_engine->RequestEditorView(m_canvasViewRequest);
         }
         m_canvasViewRequested = false;
+        // 모델 에디터의 미리보기도 같다(D-461). 이 프레임에 그려진 창만 건다.
+        if (m_uiEnabled)
+        {
+            for (const PreviewViewDesc& view : m_previewViewRequests)
+            {
+                m_engine->RequestPreviewView(view);
+            }
+        }
+        m_previewViewRequests.Clear();
         // 레이어 썸네일도 같은 규칙이다(D-288) - 이 프레임에 계층 창이 바랐을 때만 그린다.
         FlushLayerThumbnails();
     }

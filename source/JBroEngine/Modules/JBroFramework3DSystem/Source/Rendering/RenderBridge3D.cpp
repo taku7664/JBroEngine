@@ -506,6 +506,31 @@ namespace JBro::Internal
         }
     }
 
+    namespace
+    {
+        // **궤도 편집 카메라**다: 바라보는 점 둘레를 도는 자리에 선다. 각에서 방향을 내고, 그 방향의 반대로 `distance` 만큼 물러난 곳이 카메라 자리다.
+        // 캔버스 뷰와 모델 에디터의 미리보기(D-461)가 같이 쓴다.
+        RenderCamera3D MakeOrbitCamera3D(const EditorViewDesc& view)
+        {
+            constexpr Float Degrees = 3.14159265f / 180.0f;
+            RenderCamera3D editor;
+            editor.projection = Component::CameraProjection3D::Perspective;
+            editor.verticalFieldOfView = view.verticalFieldOfView;
+            editor.rotation = FromEuler(Vector3{
+                view.pitchDegrees * Degrees, view.yawDegrees * Degrees, 0.0f});
+            // 카메라가 보는 쪽은 -z 다(오른손 좌표계의 뷰 규약). 그 반대로 물러난다.
+            const Vector3 forward = Rotate(editor.rotation, Vector3{0.0f, 0.0f, -1.0f});
+            const Vector3 target{view.centerX, view.centerY, view.centerZ};
+            editor.position = Vector3{
+                target.x - forward.x * view.distance,
+                target.y - forward.y * view.distance,
+                target.z - forward.z * view.distance};
+            editor.clearColor = Color{
+                view.clearColor[0], view.clearColor[1], view.clearColor[2], view.clearColor[3]};
+            return editor;
+        }
+    }
+
     RenderResult SubmitEditorView3D(
         const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view, const System::DebugDrawSystem* debugDraw)
     {
@@ -515,24 +540,7 @@ namespace JBro::Internal
         }
         // **게임 카메라를 빌리지 않는다.** 캔버스 뷰는 카메라가 하나도 없는 캔버스도
         // 보여 주어야 하고, 어디서 볼지는 편집하는 사람이 정한다.
-        //
-        // 궤도 카메라다: 바라보는 점 둘레를 도는 자리에 선다. 각에서 방향을 내고,
-        // 그 방향의 반대로 `distance` 만큼 물러난 곳이 카메라 자리다.
-        constexpr Float Degrees = 3.14159265f / 180.0f;
-        RenderCamera3D editor;
-        editor.projection = Component::CameraProjection3D::Perspective;
-        editor.verticalFieldOfView = view.verticalFieldOfView;
-        editor.rotation = FromEuler(Vector3{
-            view.pitchDegrees * Degrees, view.yawDegrees * Degrees, 0.0f});
-        // 카메라가 보는 쪽은 -z 다(오른손 좌표계의 뷰 규약). 그 반대로 물러난다.
-        const Vector3 forward = Rotate(editor.rotation, Vector3{0.0f, 0.0f, -1.0f});
-        const Vector3 target{view.centerX, view.centerY, view.centerZ};
-        editor.position = Vector3{
-            target.x - forward.x * view.distance,
-            target.y - forward.y * view.distance,
-            target.z - forward.z * view.distance};
-        editor.clearColor = Color{
-            view.clearColor[0], view.clearColor[1], view.clearColor[2], view.clearColor[3]};
+        const RenderCamera3D editor = MakeOrbitCamera3D(view);
 
         CameraParams parameters;
         if (false == BuildCamera3D(editor, view.extent, parameters))
@@ -547,6 +555,27 @@ namespace JBro::Internal
         const Bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
             view.debugDraw ? debugDraw : nullptr, editor, static_cast<JBro::Float>(view.extent.height), -1, view.postProcess, nullptr, nullptr, {},
             view.lines, view.lineCount);
+        return accepted ? RenderResult::Submitted : RenderResult::Failed;
+    }
+
+    RenderResult SubmitPreviewView3D(const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view, CameraParams& drawn)
+    {
+        if (false == view.target.IsValid() || view.extent.width == 0 || view.extent.height == 0)
+        {
+            return RenderResult::NothingToSubmit;
+        }
+        const RenderCamera3D editor = MakeOrbitCamera3D(view);
+        CameraParams parameters;
+        if (false == BuildCamera3D(editor, view.extent, parameters))
+        {
+            return RenderResult::Failed;
+        }
+        parameters.target = view.target;
+        parameters.targetExtent = view.extent;
+        drawn = parameters;
+        // 편집에서 감춘 오브젝트는 미리보기 캔버스에 없다 - 게임 뷰처럼 낸다(`editorView` 거짓). 후처리도 없다.
+        const Bool accepted = SubmitLayerViews(world, renderer, parameters, false, editor.position, editor.rotation, nullptr, editor,
+            static_cast<JBro::Float>(view.extent.height), -1, false, nullptr, nullptr, {}, view.lines, view.lineCount);
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 

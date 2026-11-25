@@ -621,6 +621,24 @@ namespace JBro::LocKeys
     inline constexpr const char* CommonOpenWithoutSaving = "common.open_without_saving";
     inline constexpr const char* AssetsOpenCanvas = "assets.open_canvas";
     inline constexpr const char* AssetsOpenInSpriteViewer = "assets.open_in_sprite_viewer";
+    // 모델 에디터(D-461).
+    inline constexpr const char* AssetsOpenInModelEditor = "assets.open_in_model_editor";
+    inline constexpr const char* ModelEditorTitle = "model_editor.title";
+    inline constexpr const char* ModelEditorNeeds3D = "model_editor.needs_3d";
+    inline constexpr const char* ModelEditorNotModel = "model_editor.not_model";
+    inline constexpr const char* ModelEditorMissing = "model_editor.missing";
+    inline constexpr const char* ModelEditorSkeleton = "model_editor.skeleton";
+    inline constexpr const char* ModelEditorNoSkeleton = "model_editor.no_skeleton";
+    inline constexpr const char* ModelEditorLoading = "model_editor.loading";
+    inline constexpr const char* ModelEditorClips = "model_editor.clips";
+    inline constexpr const char* ModelEditorNoClips = "model_editor.no_clips";
+    inline constexpr const char* ModelEditorShowBones = "model_editor.show_bones";
+    inline constexpr const char* ModelEditorFit = "model_editor.fit";
+    inline constexpr const char* ModelEditorPlay = "model_editor.play";
+    inline constexpr const char* ModelEditorPause = "model_editor.pause";
+    inline constexpr const char* ModelEditorLoop = "model_editor.loop";
+    inline constexpr const char* ModelEditorSpeed = "model_editor.speed";
+    inline constexpr const char* ModelEditorTime = "model_editor.time";
     inline constexpr const char* AssetsImport = "assets.import";
     inline constexpr const char* MenuImportSprite = "menu.import_sprite";
     inline constexpr const char* DialogImportTitle = "dialog.import_title";

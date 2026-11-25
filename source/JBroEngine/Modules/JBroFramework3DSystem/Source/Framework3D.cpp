@@ -270,6 +270,7 @@ namespace JBro
         ResolveCameraTargets();
         ResolvePostProcess();
         ResolveEnvironment();
+        UpdatePreviews();
     }
 
     void Framework3D::ResolveCameraTargets()
@@ -427,6 +428,172 @@ namespace JBro
         return Internal::SubmitEditorView3D(m_renderWorld, *m_context.renderer, view, m_context.debugDraw);
     }
 
+    RenderResult Framework3D::RenderPreviewView(const PreviewViewDesc& view)
+    {
+        Preview* preview = FindPreview(view.preview);
+        if (false == m_initialized || m_context.renderer == nullptr || preview == nullptr)
+        {
+            return RenderResult::NothingToSubmit;
+        }
+        CameraParams drawn;
+        const RenderResult result = Internal::SubmitPreviewView3D(*preview->world, *m_context.renderer, view.view, drawn);
+        if (result == RenderResult::Submitted)
+        {
+            preview->camera = drawn;
+            preview->hasCamera = true;
+        }
+        return result;
+    }
+
+    UInt32 Framework3D::CreatePreview()
+    {
+        if (false == m_initialized)
+        {
+            return 0;
+        }
+        try
+        {
+            // **번호는 프로세스에서 겹치지 않는다** - 프로젝트를 다시 열어 프레임워크가 새로 서도 창이 든 옛 번호가 남의 미리보기를 가리키지 않는다.
+            // 메인 스레드에서만 부른다.
+            static UInt32 next = 1;
+            OwnerPtr<Preview> created = MakeOwnerPtr<Preview>();
+            created->id = next;
+            next = next + 1;
+            created->world = MakeOwnerPtr<RenderWorld3D>();
+            // 모델 하나의 메시와 라이트 몇이다. 열린 캔버스만큼 잡지 않는다.
+            if (false == created->world->ReserveMeshes(1024) || false == created->world->ReserveTexts(16) || false == created->world->ReserveLights(16))
+            {
+                return 0;
+            }
+            JAllocator allocator = m_context.memory.persistent;
+            if (allocator.allocate == nullptr || allocator.free == nullptr)
+            {
+                allocator = CreateDefaultAllocator();
+            }
+            created->canvas = MakeOwnerPtr<Canvas>(allocator);
+            auto& systems = created->canvas->GetSystems();
+            systems.AddSystem<System::Transform3DSystem>();
+            auto& meshes = systems.AddSystem<System::MeshRender3DSystem>();
+            meshes.SetRenderWorld(created->world.Get());
+            meshes.SetMeshLibrary(&m_meshes);
+            meshes.SetMaterialLibrary(&m_materials);
+            meshes.SetMeshMaterialLibrary(&m_meshMaterials);
+            systems.AddSystem<System::Light3DSystem>().SetRenderWorld(created->world.Get());
+            auto& animation = systems.AddSystem<System::Animation3DSystem>();
+            animation.SetAssets(m_context.assets);
+            meshes.SetAnimation(m_context.assets, &animation);
+            systems.AddSystem<System::BoneAttachment3DSystem>().SetAnimation(&animation);
+            systems.Initialize(*created->canvas);
+            const UInt32 id = created->id;
+            m_previews.Add(std::move(created));
+            return id;
+        }
+        catch (const std::bad_alloc&)
+        {
+            return 0;
+        }
+    }
+
+    void Framework3D::ReleasePreview(Preview& preview)
+    {
+        if (m_context.assets != nullptr)
+        {
+            m_context.assets->ReleaseAll(preview.assets);
+        }
+        preview.assets.Clear();
+        preview.canvas.Reset();
+        preview.world.Reset();
+    }
+
+    void Framework3D::DestroyPreview(UInt32 preview)
+    {
+        for (std::size_t index = 0; index < m_previews.Size(); ++index)
+        {
+            if (m_previews[index]->id == preview)
+            {
+                ReleasePreview(*m_previews[index]);
+                m_previews.RemoveAt(index);
+                if (m_context.assets != nullptr)
+                {
+                    m_context.assets->CollectUnused();
+                }
+                return;
+            }
+        }
+    }
+
+    Framework3D::Preview* Framework3D::FindPreview(UInt32 preview)
+    {
+        for (OwnerPtr<Preview>& each : m_previews)
+        {
+            if (each->id == preview)
+            {
+                return each.Get();
+            }
+        }
+        return nullptr;
+    }
+
+    const Framework3D::Preview* Framework3D::FindPreview(UInt32 preview) const
+    {
+        for (const OwnerPtr<Preview>& each : m_previews)
+        {
+            if (each->id == preview)
+            {
+                return each.Get();
+            }
+        }
+        return nullptr;
+    }
+
+    Canvas* Framework3D::GetPreviewCanvas(UInt32 preview)
+    {
+        Preview* found = FindPreview(preview);
+        return found != nullptr ? found->canvas.Get() : nullptr;
+    }
+
+    System::Animation3DSystem* Framework3D::GetPreviewAnimation(UInt32 preview)
+    {
+        Preview* found = FindPreview(preview);
+        return found != nullptr ? found->canvas->GetSystems().FindSystem<System::Animation3DSystem>() : nullptr;
+    }
+
+    void Framework3D::AdvancePreview(UInt32 preview, Float seconds)
+    {
+        Preview* found = FindPreview(preview);
+        if (found != nullptr && std::isfinite(seconds) && seconds > 0.0f)
+        {
+            found->pending += seconds;
+        }
+    }
+
+    Bool Framework3D::GetPreviewCamera(UInt32 preview, CameraParams& camera) const
+    {
+        const Preview* found = FindPreview(preview);
+        if (found == nullptr || false == found->hasCamera)
+        {
+            return false;
+        }
+        camera = found->camera;
+        return true;
+    }
+
+    void Framework3D::UpdatePreviews()
+    {
+        // 열린 캔버스의 갱신 뒤, 렌더러 프레임 밖이다. 멈춤·재생과 무관하다 - 시간은 창이 `AdvancePreview` 로 준 만큼만 흐른다.
+        for (OwnerPtr<Preview>& each : m_previews)
+        {
+            Preview& preview = *each;
+            preview.canvas->BeginFrame();
+            preview.world->BeginFrame();
+            const Float delta = preview.pending;
+            preview.pending = 0.0f;
+            preview.canvas->GetSystems().Update(*preview.canvas, delta);
+            preview.canvas->FlushPendingDestroy();
+            preview.world->EndFrame();
+        }
+    }
+
     RenderResult Framework3D::RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail)
     {
         const Layer* layer = m_canvas.Get() != nullptr ? m_canvas->FindLayer(thumbnail.layer) : nullptr;
@@ -474,6 +641,19 @@ namespace JBro
         }
     }
 
+    void Framework3D::BindPreviewAssets(UInt32 preview)
+    {
+        Preview* found = FindPreview(preview);
+        if (m_context.assets == nullptr || found == nullptr)
+        {
+            return;
+        }
+        m_context.assets->ReleaseAll(found->assets);
+        std::pair<AssetSystem*, Array<AssetHandle>*> binding(m_context.assets, &found->assets);
+        ForEachReflectedInstance(*found->canvas, &BindComponentAssetsVisitor, &binding);
+        m_context.assets->CollectUnused();
+    }
+
     void Framework3D::BindCanvasAssets()
     {
         if (m_context.assets == nullptr || m_canvas.Get() == nullptr)
@@ -513,6 +693,12 @@ namespace JBro
 
     void Framework3D::Shutdown()
     {
+        // 미리보기가 먼저다 - 그 캔버스가 함께 쓰는 라이브러리를 아래에서 내린다.
+        for (OwnerPtr<Preview>& each : m_previews)
+        {
+            ReleasePreview(*each);
+        }
+        m_previews.Clear();
         // 캔버스가 잡던 에셋을 놓는다. 에셋 시스템은 호스트가 프레임워크 뒤에 내리므로 아직 살아 있다.
         if (m_context.assets != nullptr)
         {

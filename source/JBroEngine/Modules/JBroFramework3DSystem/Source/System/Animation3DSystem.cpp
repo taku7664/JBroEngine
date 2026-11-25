@@ -10,6 +10,7 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include <cmath>
 #include <cstring>
 #include <utility>
 
@@ -641,6 +642,20 @@ namespace JBro::System
         target.time = 0.0f;
         target.loop = loop;
         target.playing = true;
+        target.fade = 0.0f;
+        target.fadeElapsed = 0.0f;
+        return true;
+    }
+
+    Bool Animation3DSystem::SetLayerTime(InstanceId animator, UInt32 layer, Float time)
+    {
+        State* state = FindState(animator);
+        if (state == nullptr || layer >= state->layers.Size() || false == std::isfinite(time))
+        {
+            return false;
+        }
+        Layer& target = state->layers[layer.Get()];
+        target.time = time;
         target.fade = 0.0f;
         target.fadeElapsed = 0.0f;
         return true;

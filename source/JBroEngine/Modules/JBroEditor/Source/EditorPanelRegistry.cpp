@@ -15,6 +15,7 @@
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
 #include "Panel/SoundEffectPanel.h"
+#include "Panel/ModelEditorPanel.h"
 #include "Panel/NodeGraphPanel.h"
 #include "Panel/NodeGraphInspectorPanel.h"
 #include "Panel/SpriteViewerPanel.h"
@@ -194,5 +195,12 @@ namespace JBro
         RegisterEditorPanelType<NodeGraphPanel>(false, NodeGraphPanel::DockAreaName);
         // 노드 인스펙터는 같은 도크의 오른쪽 칸이다(D-324). 그래프 창을 처음 열 때 선다.
         RegisterEditorPanelType<NodeGraphInspectorPanel>(false, NodeGraphPanel::DockAreaName);
+        // 모델 에디터도 파일을 여는 창이다(D-461). 제 도크에 모델마다 열린다.
+        EditorDockAreaInfo models;
+        models.name = ModelEditorPanel::DockAreaName;
+        models.titleKey = LocKeys::ModelEditorTitle;
+        models.fallbackTitle = "Model Editor";
+        EditorPanelRegistry::Get().RegisterDockArea(models);
+        RegisterEditorPanelType<ModelEditorPanel>(false, ModelEditorPanel::DockAreaName);
     }
 }

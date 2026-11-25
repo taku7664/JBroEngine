@@ -971,6 +971,8 @@ namespace JBro
         // 썸네일 요청은 한 프레임짜리다. 이 프레임을 건너뛰어도 남지 않게 먼저 꺼낸다 - 남은 요청이 그 사이에 놓인 텍스처를 가리킬 수 있다.
         const std::size_t thumbnails = m_layerThumbnailCount;
         m_layerThumbnailCount = 0;
+        const std::size_t previews = m_previewViewCount;
+        m_previewViewCount = 0;
         const auto beginStatus = m_renderer->BeginFrame(m_simulationViewTarget);
         m_lastFrameStatus = beginStatus;
         if (beginStatus == FrameStatus::Skipped)
@@ -1010,6 +1012,17 @@ namespace JBro
                 else if (editorResult == RenderResult::Submitted)
                 {
                     // 게임 카메라가 없어도 이 프레임에는 낼 것이 있다.
+                    renderResult = RenderResult::Submitted;
+                }
+            }
+        }
+        // **모델 에디터의 미리보기도 편집 화면 뒤다**(D-461). 제 캔버스를 그리므로 게임의 그릴 것과 섞이지 않는다. 실패해도 프레임을 버리지 않는다.
+        if (m_framework != nullptr && renderResult != RenderResult::Failed)
+        {
+            for (std::size_t index = 0; index < previews; ++index)
+            {
+                if (m_framework->RenderPreviewView(m_previewViews[index]) == RenderResult::Submitted)
+                {
                     renderResult = RenderResult::Submitted;
                 }
             }
@@ -1141,6 +1154,17 @@ namespace JBro
             return false;
         }
         m_layerThumbnails[m_layerThumbnailCount++] = thumbnail;
+        return true;
+    }
+
+    Bool EngineInstance::RequestPreviewView(const PreviewViewDesc& view)
+    {
+        if (false == AcceptsFrameRequests() || m_previewViewCount >= MaxPreviewViews || view.preview == 0
+            || false == view.view.target.IsValid() || view.view.extent.width == 0 || view.view.extent.height == 0)
+        {
+            return false;
+        }
+        m_previewViews[m_previewViewCount++] = view;
         return true;
     }
 

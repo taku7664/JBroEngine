@@ -647,6 +647,14 @@ namespace JBro
             {
                 m_editor->OpenNodeGraphEditor(entry.record->id);
             }
+            // 모델은 모델 에디터에서 연다(D-461). 2D 프로젝트면 창이 서지 않으니 OS 에 넘긴다.
+            else if (entry.record->type == AssetType::Model)
+            {
+                if (false == m_editor->OpenModelEditor(entry.record->id))
+                {
+                    m_editor->OpenAssetExternally(entry.record->relativePath.c_str());
+                }
+            }
             else
             {
                 // **엔진이 모르는 파일은 OS 에게 넘긴다**(기존 브라우저의 기본 동작).
@@ -713,10 +721,31 @@ namespace JBro
             {
                 m_editor->OpenSpriteViewer(child.owner->id);
             }
+            // 모델의 뼈대·애니메이션·메시는 그 모델의 모델 에디터에서 그것을 고른 채 연다(D-461). 2D 프로젝트면 OS 에 넘긴다.
+            else if (child.owner->type == AssetType::Model)
+            {
+                if (false == m_editor->OpenModelEditor(child.record->id))
+                {
+                    m_editor->OpenAssetExternally(child.owner->relativePath.c_str());
+                }
+            }
             else
             {
                 m_editor->OpenAssetExternally(child.owner->relativePath.c_str());
             }
+        }
+        // 하위 에셋 줄의 우클릭은 모델 에디터에서 열기 하나다. 모델이 아니거나 2D 프로젝트면 까닭과 함께 회색이다.
+        if (Widget::BeginContextMenu("##SubAssetMenu"))
+        {
+            const Bool model = child.owner != nullptr && child.owner->type == AssetType::Model;
+            const Bool threeD = m_editor->GetFramework3D() != nullptr;
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsOpenInModelEditor, "Open in Model Editor"), nullptr, model && threeD,
+                    model ? Loc::TextOr(LocKeys::ModelEditorNeeds3D, "the model editor works in 3D projects")
+                          : Loc::TextOr(LocKeys::ModelEditorNotModel, "only a model and its parts open there")))
+            {
+                m_editor->OpenModelEditor(child.record->id);
+            }
+            Widget::EndContextMenu();
         }
     }
 
@@ -1496,6 +1525,17 @@ namespace JBro
                     "Open in Sprite Viewer"), nullptr, image))
             {
                 m_editor->OpenSpriteViewer(record->id);
+            }
+            // 모델이면 모델 에디터에서 연다(D-461). 그림 뷰어처럼 모델이 아니면 잠근다 - 숨기면 그런 창이 있다는 것조차 알 수 없다.
+            {
+                const Bool model = record != nullptr && record->type == AssetType::Model;
+                const Bool threeD = m_editor->GetFramework3D() != nullptr;
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsOpenInModelEditor, "Open in Model Editor"), nullptr, model && threeD,
+                        model ? Loc::TextOr(LocKeys::ModelEditorNeeds3D, "the model editor works in 3D projects")
+                              : Loc::TextOr(LocKeys::ModelEditorNotModel, "only a model and its parts open there")))
+                {
+                    m_editor->OpenModelEditor(record->id);
+                }
             }
             // 캔버스면 그것을 **편집하러 연다**(D-174). 지금 캔버스의 내용이 그것으로 바뀐다.
             const Bool canvas = record != nullptr && record->type == AssetType::Canvas;

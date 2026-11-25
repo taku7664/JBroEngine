@@ -131,6 +131,9 @@ namespace JBro::System
         Bool SetLayerMode(InstanceId animator, UInt32 layer, AnimatorLayerMode mode);
         // 뿌리 뼈(이름)와 그 가지를 섞는 마스크다. 이름이 비면 마스크를 지운다(모든 뼈). 이름은 여기서 한 번 번호로 푼다.
         Bool SetLayerMask(InstanceId animator, UInt32 layer, std::string_view rootBone, UInt32 blendDepth);
+        // 그 레이어의 시간을 놓는다(모델 에디터의 타임라인 끌기, D-461). 크로스페이드는 끝낸다. 다음 셈이 그 자리의 자세를 짓는다.
+        // 레이어가 넘치거나 시간이 수가 아니면 거짓이다.
+        Bool SetLayerTime(InstanceId animator, UInt32 layer, Float time);
 
         // **소켓 출처의 판**(D-460)이다. 뼈대(핸들과 세대)와 이 애니메이터를 따르는 메시들(핸들과 세대·수)에서 짓고, 소켓·뼈대가 다시 읽히거나
         // 메시가 바뀌면 달라진다. 이름을 견주지 않으므로 붙이기가 프레임마다 이것으로 다시 풀지를 정한다. 자세가 서지 않았으면 0 이다.
