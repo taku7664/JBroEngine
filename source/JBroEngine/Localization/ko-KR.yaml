@@ -688,6 +688,16 @@ Entries:
   model_editor.no_events: "이벤트가 없습니다. 타임라인 아래 줄을 두 번 눌러 추가할 수 있습니다"
   model_editor.remove_event: 이벤트 삭제
   model_editor.unnamed_event: 이름 없는 이벤트
+  model_editor.sockets: 소켓
+  model_editor.add_socket: 소켓 추가
+  model_editor.add_socket_tooltip: 고른 뼈에 뼈대 소켓을 추가합니다
+  model_editor.no_sockets: "소켓이 없습니다"
+  model_editor.unnamed_socket: 이름 없는 소켓
+  model_editor.socket_bone: 뼈
+  model_editor.socket_position: 위치
+  model_editor.socket_rotation: 회전
+  model_editor.socket_scale: 크기
+  model_editor.remove_socket: 소켓 삭제
   model_editor.strip_tooltip: "두 번 누르면 이 시간에 이벤트를 추가합니다. 표식을 끌어 옮깁니다"
   inspector.clip_hint: "클립의 구간·반복·이벤트는 모델 에디터에서 고칩니다"
   inspector.open_model_editor: 모델 에디터 열기

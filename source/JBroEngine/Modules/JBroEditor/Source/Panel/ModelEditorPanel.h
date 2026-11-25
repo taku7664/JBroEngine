@@ -4,6 +4,7 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Runtime/Component.h>
@@ -46,7 +47,9 @@ namespace JBro
     // **3b 클립 설정**(D-462): 고른 클립의 구간(원본의 초)·반복·이벤트를 왼쪽 아래에서 고치고, 원본에서 구간을 떼어 새 클립을 만든다(나눈 클립은 이름을 바꾸고 지울 수 있다).
     // 값은 모델 `.jmeta` 의 그 하위 항목 `Clip` 블록이고 **편집은 이 창의 커맨드다**(창마다 되돌리기 스택, D-456 4) - Ctrl+Z 는 이 창에 포커스가 있으면 이 창의 것을 되돌린다.
     // 끄는 칸(구간·이벤트 시간)은 창 안 초안을 고치다 손을 뗄 때 메타 커맨드 하나로 남긴다 - 끄는 프레임마다 모델 메타를 쓰면 다시 읽기가 매 프레임 돈다.
-    // 이벤트는 타임라인 아래 줄의 표식이다: 두 번 누르면 그 시간에 더하고, 표식을 끌어 옮긴다. 소켓·마스크 편집은 3c·3d 다.
+    // 이벤트는 타임라인 아래 줄의 표식이다: 두 번 누르면 그 시간에 더하고, 표식을 끌어 옮긴다.
+    // **3c 소켓**(D-463): 뼈대 트리 아래가 소켓 목록이다(고른 뼈대의 소켓과 메시마다의 소켓). 고른 소켓은 이름·뼈·위치·회전·크기를 고치고, 미리보기에서 마름모로 보이며
+    // 고른 소켓에 기즈모가 서서 끌어 옮긴다(손을 뗄 때 메타 커맨드 하나, 창의 스택). 소켓 추가는 고른 뼈에 뼈대 소켓을 단다. 마스크 편집은 3d 다.
     class ModelEditorPanel final : public InstancePanel
     {
     public:
@@ -105,6 +108,21 @@ namespace JBro
         Bool DeleteClip();
         Bool IsSplitClip() const { return m_draftSplit; }
         const ModelClipSettings& GetClipDraft() const { return m_draft; }
+        // ── 소켓(D-463). 목록은 고른 뼈대의 소켓 다음 메시마다의 소켓이다. 하나가 메타 커맨드 하나다. ──
+        UInt32 GetSocketCount() const { return static_cast<UInt32>(m_socketDraft.Size()); }
+        const ModelSocket& GetSocket(UInt32 index) const { return m_socketDraft[index.Get()]; }
+        Bool IsSkeletonSocket(UInt32 index) const { return m_socketRows[index.Get()].skeleton; }
+        Int32 GetSelectedSocket() const { return m_selectedSocket; }
+        void SelectSocket(Int32 index);
+        // 고른 뼈(없으면 첫 뼈)에 뼈대 소켓을 단다. 다시 읽힌 뒤 그것을 고른다.
+        Bool AddSocket();
+        Bool SetSocket(UInt32 index, const ModelSocket& socket);
+        Bool RemoveSocket(UInt32 index);
+        // 소켓의 미리보기 월드 자리(초안 기준)와 마지막으로 그린 화면 자리다.
+        Bool ComputeSocketWorld(UInt32 index, Vector3& position, Quaternion& rotation, Vector3& scale) const;
+        Bool GetSocketScreenPosition(UInt32 index, Float& x, Float& y) const;
+        void SetGizmoMode(GizmoMode mode) { m_gizmoMode = mode; }
+
         // 이벤트 표식의 화면 자리다(마지막으로 그린 것). 그리지 않았으면 거짓이다.
         Bool GetEventMarkerPosition(UInt32 index, Float& x, Float& y) const;
         Bool GetEventStripRow(Float& left, Float& top, Float& width, Float& height) const;
@@ -155,6 +173,17 @@ namespace JBro
         void SyncDraft();
         // 지금 고른 클립의 자료(자른 뒤)다. 아직 실리지 않았으면 null.
         const AnimationClipData* GetClipData() const;
+        // 소켓 목록을 메타에서 다시 뜬다(커맨드·되돌리기·레지스트리·뼈대가 바뀌었고 고치는 중이 아닐 때).
+        void SyncSockets();
+        void DrawSockets();
+        // 소켓 마름모와 고른 소켓의 기즈모. 무엇을 잡았으면 참이다(관절 고르기가 양보한다).
+        Bool DrawSocketOverlay(Bool pointerHere, const GizmoCamera& camera);
+        // 그 뼈의 미리보기 월드 자리(오프셋 없음)다.
+        Bool ComputeBoneWorld(Int32 bone, Vector3& position, Quaternion& rotation, Vector3& scale) const;
+        Int32 FindBone(const String& name) const;
+        // 그 소켓 주인(뼈대·메시) 항목을 고치는 메타 커맨드 하나다.
+        template <typename TChange>
+        Bool EditSockets(const char* name, AssetId owner, TChange&& change);
 
         EditorApplication* m_editor = nullptr;
         AssetId m_model;
@@ -213,6 +242,32 @@ namespace JBro
         Int32 m_selectedEvent = -1;
         Int32 m_draggingEvent = -1;
         Array<Float> m_eventScreenX;
+        // 소켓 목록의 줄마다 주인 항목과 그 안의 번호다.
+        struct SocketRow
+        {
+            AssetId owner;
+            Bool skeleton = false;
+            UInt32 index = 0;
+            String ownerName;
+        };
+        Array<SocketRow> m_socketRows;
+        Array<ModelSocket> m_socketDraft;
+        Bool m_socketsStale = true;
+        UInt64 m_socketsRevision = 0;
+        UInt32 m_socketsGeneration = 0;
+        Int32 m_selectedSocket = -1;
+        Bool m_socketEditing = false;
+        Bool m_socketFieldDirty = false;
+        AssetId m_pendingSocketOwner;
+        UInt32 m_pendingSocketIndex = 0;
+        Bool m_hasPendingSocket = false;
+        String m_socketNameText;
+        Array<const char*> m_boneNamePointers;
+        Array<Float> m_socketScreenX;
+        Array<Float> m_socketScreenY;
+        Array<Bool> m_socketOnScreen;
+        Widget::GizmoState m_gizmo;
+        GizmoMode m_gizmoMode = GizmoMode::Translate;
         Float m_stripLeft = 0.0f;
         Float m_stripTop = 0.0f;
         Float m_stripWidth = 0.0f;

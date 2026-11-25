@@ -688,6 +688,16 @@ Entries:
   model_editor.no_events: "no events - double-click the strip under the timeline to add one"
   model_editor.remove_event: Remove Event
   model_editor.unnamed_event: unnamed event
+  model_editor.sockets: Sockets
+  model_editor.add_socket: Add Socket
+  model_editor.add_socket_tooltip: add a skeleton socket on the selected bone
+  model_editor.no_sockets: "no sockets"
+  model_editor.unnamed_socket: unnamed socket
+  model_editor.socket_bone: Bone
+  model_editor.socket_position: Position
+  model_editor.socket_rotation: Rotation
+  model_editor.socket_scale: Scale
+  model_editor.remove_socket: Remove Socket
   model_editor.strip_tooltip: "double-click to add an event here; drag a marker to move it"
   inspector.clip_hint: "Edit this clip's range, loop and events in the model editor"
   inspector.open_model_editor: Open Model Editor

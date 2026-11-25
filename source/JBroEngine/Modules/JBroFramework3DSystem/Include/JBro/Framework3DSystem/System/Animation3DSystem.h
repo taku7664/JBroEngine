@@ -155,7 +155,8 @@ namespace JBro::System
 
         // 붙이기가 고를 수 있는 이름들이다(에디터의 소켓 칸, D-460): 뼈대 소켓, 따르는 메시의 소켓, 뼈 이름 차례. 빈 이름은 빼고 겹치는 이름은 한 번이다.
         // 할당한다 - 프레임 경로가 아니다. 자세가 서지 않았으면 비운다.
-        void CollectSocketNames(Canvas& canvas, const Component::Animator3D& animator, Array<String>& names) const;
+        // `includeBones` 가 거짓이면 소켓만이다(캔버스 뷰의 소켓 표시, D-463).
+        void CollectSocketNames(Canvas& canvas, const Component::Animator3D& animator, Array<String>& names, Bool includeBones = true) const;
 
         // IAnimation3DSystem(스크립트 서비스). 캔버스는 마지막으로 갱신한 것이다.
         Int32 FindSocket(const Component::Animator3D& animator, const char* name) override;

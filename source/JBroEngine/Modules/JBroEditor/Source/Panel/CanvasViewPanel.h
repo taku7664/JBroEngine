@@ -203,6 +203,22 @@ namespace JBro
         void DrawLightEditor3D(const ViewRect& rect);
         // 라이트·카메라 오브젝트의 표시(D-298 의 3D 판). 그림이 없는 오브젝트를 캔버스 뷰에서 찾을 수 있게 한다.
         void DrawObjectMarkers3D(const ViewRect& rect);
+        // **고른 오브젝트의 소켓**(D-463). 고른 것에 애니메이터가 있으면 그 소켓(뼈대 소켓과 따르는 메시의 소켓)을, `BoneAttachment3D` 가 있으면
+        // 가장 가까운 조상 애니메이터의 소켓을 그리고 그것이 따르는 소켓을 강조한다. 자리는 마지막으로 셈한 자세다.
+        void DrawSockets3D(const ViewRect& rect);
+    public:
+        // 마지막으로 그린 소켓 표시다(시험이 본다).
+        struct SocketMarker
+        {
+            String name;
+            Float x = 0.0f;
+            Float y = 0.0f;
+            Bool followed = false;
+        };
+        const Array<SocketMarker>& GetSocketMarkers() const { return m_socketMarkers; }
+    private:
+        Array<SocketMarker> m_socketMarkers;
+        Array<String> m_socketNameScratch;
         // 라이트 손잡이(2D 든 3D 든)를 가리키거나 끄는 중인가. 기즈모·고르기가 마우스를 양보한다.
         Bool LightHandleHot() const;
         // **위젯 사각형**(D-351). 인스펙터에서 고른 버튼·토글·슬라이더(`RectFieldsOf`)의 사각형을 그리고, 변과 가운데의 손잡이를 끌어

@@ -42,6 +42,10 @@
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
+#include <JBro/Framework3DSystem/System/Animation3DSystem.h>
+#include <JBro/Framework3D/Component/Animator3D.h>
+#include <JBro/Framework3D/Component/BoneAttachment3D.h>
+#include <JBro/Runtime/TextStore.h>
 #include <JBro/Framework3DSystem/Physics/ColliderMesh.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Runtime/GameObject.h>
@@ -762,6 +766,7 @@ namespace JBro
             }
             DrawSelectionMarkers3D(rect);
             DrawObjectMarkers3D(rect);
+            DrawSockets3D(rect);
         }
         draw->PopClipRect();
         draw->ChannelsMerge();
@@ -3182,6 +3187,85 @@ namespace JBro
         });
     }
 
+
+    void CanvasViewPanel::DrawSockets3D(const ViewRect& rect)
+    {
+        m_socketMarkers.Clear();
+        Canvas* canvas = m_editor->GetCanvas();
+        GizmoCamera camera;
+        System::Animation3DSystem* animation = canvas != nullptr ? canvas->GetSystems().FindSystem<System::Animation3DSystem>() : nullptr;
+        if (canvas == nullptr || animation == nullptr || false == MakeGizmoCamera(rect, camera))
+        {
+            return;
+        }
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const Array<Object::GameObject*> selected = m_editor->GetSelectedObjects();
+        for (Object::GameObject* object : selected)
+        {
+            if (object == nullptr || object->IsEditorHidden())
+            {
+                continue;
+            }
+            // 고른 것의 애니메이터거나, 붙인 오브젝트면 가장 가까운 조상의 애니메이터다(붙이기 시스템과 같은 조상).
+            const Component::Animator3D* animator = canvas->FindComponentRaw<Component::Animator3D>(object);
+            String followed;
+            if (animator == nullptr)
+            {
+                const auto* attachment = canvas->FindComponentRaw<Component::BoneAttachment3D>(object);
+                if (attachment == nullptr)
+                {
+                    continue;
+                }
+                const ArrayView<const char> text = TextStore::Get().GetText(attachment->socket);
+                followed = String(text.Data() != nullptr ? text.Data() : "", text.Size());
+                for (Object::GameObject* walk = object->GetParent(); walk != nullptr && animator == nullptr; walk = walk->GetParent())
+                {
+                    animator = canvas->FindComponentRaw<Component::Animator3D>(walk);
+                }
+            }
+            if (animator == nullptr || false == animator->IsActiveComponent())
+            {
+                continue;
+            }
+            animation->CollectSocketNames(*canvas, *animator, m_socketNameScratch, false);
+            // 붙인 것이 뼈 이름을 따르면 그 뼈도 하나 그린다.
+            if (false == followed.empty())
+            {
+                Bool listed = false;
+                for (const String& name : m_socketNameScratch)
+                {
+                    listed = listed || name == followed;
+                }
+                if (false == listed)
+                {
+                    m_socketNameScratch.Add(followed);
+                }
+            }
+            for (const String& name : m_socketNameScratch)
+            {
+                System::Animation3DSystem::ResolvedSocket socket;
+                Vector3 position;
+                Quaternion rotation;
+                Vector3 scale;
+                Float x = 0.0f;
+                Float y = 0.0f;
+                if (false == animation->ResolveSocket(*canvas, *animator, std::string_view(name.data(), name.size()), socket)
+                    || false == animation->ComputeSocketWorld(*canvas, *animator, socket, position, rotation, scale)
+                    || false == GizmoModel::Project(camera, position, x, y))
+                {
+                    continue;
+                }
+                const Bool isFollowed = false == followed.empty() && name == followed;
+                // 소켓은 마름모다 - 관절(원)과 오브젝트 표시(원 안 아이콘)와 갈린다. 붙인 것이 따르는 소켓은 노랗다.
+                const ImU32 color = isFollowed ? IM_COL32(255, 214, 90, 255) : IM_COL32(255, 150, 70, 230);
+                const Float half = isFollowed ? Float(6.0f) : Float(4.5f);
+                draw->AddQuadFilled(ImVec2(x, y - half), ImVec2(x + half, y), ImVec2(x, y + half), ImVec2(x - half, y), color);
+                draw->AddQuad(ImVec2(x, y - half), ImVec2(x + half, y), ImVec2(x, y + half), ImVec2(x - half, y), IM_COL32(0, 0, 0, 170), 1.0f);
+                draw->AddText(ImVec2(x + half + 3.0f, y - ImGui::GetFontSize() * 0.5f), IM_COL32(255, 235, 200, 220), name.c_str());
+                m_socketMarkers.Add(SocketMarker{name, x, y, isFollowed});
+            }
+        }
+    }
 
     Bool CanvasViewPanel::DrawVertexMenu(const ViewRect& rect)
     {

@@ -645,7 +645,7 @@ namespace JBro::System
         return true;
     }
 
-    void Animation3DSystem::CollectSocketNames(Canvas& canvas, const Component::Animator3D& animator, Array<String>& names) const
+    void Animation3DSystem::CollectSocketNames(Canvas& canvas, const Component::Animator3D& animator, Array<String>& names, Bool includeBones) const
     {
         names.Clear();
         const State* state = FindState(animator.GetInstanceId());
@@ -681,7 +681,7 @@ namespace JBro::System
                 add(mesh->sockets[index].name);
             }
         });
-        for (std::size_t index = 0; index < skeleton->skeleton.bones.Size(); ++index)
+        for (std::size_t index = 0; includeBones && index < skeleton->skeleton.bones.Size(); ++index)
         {
             add(skeleton->skeleton.bones[index].name);
         }

@@ -16,6 +16,8 @@
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
+#include <JBro/Editor/Widget/FilterCombo.h>
+#include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/Editor/Widget/FormLayout.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Fields.h>
@@ -26,6 +28,7 @@
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Framework3DSystem/Animation/AnimationPose.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
+#include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/System/Animation3DSystem.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Runtime/GameObject.h>
@@ -183,6 +186,7 @@ namespace JBro
     {
         const Bool undone = m_commands.Undo();
         m_draftClip = -1;
+        m_socketsStale = true;
         return undone;
     }
 
@@ -190,6 +194,7 @@ namespace JBro
     {
         const Bool redone = m_commands.Redo();
         m_draftClip = -1;
+        m_socketsStale = true;
         return redone;
     }
 
@@ -396,6 +401,7 @@ namespace JBro
         m_appliedClip = m_clip;
         m_bonesGeneration = 0;
         m_boneNames.Clear();
+        m_socketsStale = true;
         return true;
     }
 
@@ -811,7 +817,7 @@ namespace JBro
             // 처음에는 클립 설정이 다 보이게 뼈대 트리를 작게 둔다. 사람이 끌어 바꾼다.
             if (m_treeHeight <= 0.0f)
             {
-                m_treeHeight = sideHeight * 0.35f;
+                m_treeHeight = sideHeight * 0.5f;
             }
             const Float treeLimit = (std::max)(Float(60.0f), Float(sideHeight - 60.0f));
             const Float treeHeight = JBro::Clamp(m_treeHeight, Float(60.0f), treeLimit);
@@ -866,6 +872,10 @@ namespace JBro
         {
             m_framed = false;
         }
+        // 고른 소켓의 기즈모 모드다(D-463).
+        Widget::ToolBarSeparator();
+        Widget::GizmoModeBar(m_gizmoMode, Loc::TextOr(LocKeys::GizmoTranslate, "Move"), Loc::TextOr(LocKeys::GizmoRotate, "Rotate"),
+            Loc::TextOr(LocKeys::GizmoScale, "Scale"));
     }
 
     void ModelEditorPanel::DrawSkeleton()
@@ -889,6 +899,466 @@ namespace JBro
             }
         }
         m_revealBone = -1;
+        ImGui::Separator();
+        DrawSockets();
+    }
+
+    Int32 ModelEditorPanel::FindBone(const String& name) const
+    {
+        for (std::size_t index = 0; index < m_boneNames.Size(); ++index)
+        {
+            if (m_boneNames[index] == name)
+            {
+                return static_cast<Int32>(index);
+            }
+        }
+        return -1;
+    }
+
+    void ModelEditorPanel::SelectSocket(Int32 index)
+    {
+        m_selectedSocket = index >= 0 && index < static_cast<Int32>(m_socketDraft.Size()) ? index : Int32(-1);
+        m_socketNameText = m_selectedSocket >= 0 ? m_socketDraft[static_cast<std::size_t>(m_selectedSocket.Get())].name : String();
+    }
+
+    void ModelEditorPanel::SyncSockets()
+    {
+        if (m_socketEditing || m_gizmo.dragging)
+        {
+            return;
+        }
+        Framework3D* framework = m_editor->GetFramework3D();
+        Canvas* canvas = framework != nullptr ? framework->GetPreviewCanvas(m_preview) : nullptr;
+        const Component::Animator3D* animator = canvas != nullptr ? FindAnimator(*canvas) : nullptr;
+        const AssetSystem* assets = m_editor->GetAssetSystem();
+        const SkeletonData* skeleton = animator != nullptr && assets != nullptr ? assets->GetSkeleton(animator->skeleton) : nullptr;
+        const UInt32 generation = skeleton != nullptr ? skeleton->dataGeneration : UInt32(0);
+        const UInt64 revision = m_editor->GetAssetRegistry().GetRevision();
+        if (false == m_socketsStale && m_socketsRevision == revision && m_socketsGeneration == generation)
+        {
+            return;
+        }
+        m_socketsStale = false;
+        m_socketsRevision = revision;
+        m_socketsGeneration = generation;
+        m_socketRows.Clear();
+        m_socketDraft.Clear();
+        AssetSystem* writable = m_editor->GetAssetSystem();
+        const AssetRecord* model = m_editor->GetAssetRegistry().Find(m_model);
+        AssetMetaFile meta;
+        AssetMetaError error;
+        if (writable == nullptr || model == nullptr || false == LoadAssetMetaFile(m_editor->GetPlatform(), writable->GetMetaPath(*model).c_str(), meta, error))
+        {
+            SelectSocket(-1);
+            return;
+        }
+        // 고른 뼈대의 소켓이 먼저, 그다음 메시마다의 소켓이다.
+        const auto addRows = [&](AssetId owner, Bool isSkeleton, const String& ownerName) {
+            for (const AssetSubEntry& entry : meta.subAssets)
+            {
+                if (false == (entry.id == owner))
+                {
+                    continue;
+                }
+                for (std::size_t index = 0; index < entry.sockets.Size(); ++index)
+                {
+                    SocketRow row;
+                    row.owner = owner;
+                    row.skeleton = isSkeleton;
+                    row.index = static_cast<UInt32>(index);
+                    row.ownerName = ownerName;
+                    m_socketRows.Add(row);
+                    m_socketDraft.Add(entry.sockets[index]);
+                }
+            }
+        };
+        if (m_skeleton >= 0)
+        {
+            addRows(m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())], true, m_skeletonNames[static_cast<std::size_t>(m_skeleton.Get())]);
+        }
+        for (std::size_t index = 0; index < m_meshIds.Size(); ++index)
+        {
+            addRows(m_meshIds[index], false, m_meshNames[index]);
+        }
+        Int32 keep = m_selectedSocket < static_cast<Int32>(m_socketDraft.Size()) ? m_selectedSocket : Int32(-1);
+        if (m_hasPendingSocket)
+        {
+            for (std::size_t index = 0; index < m_socketRows.Size(); ++index)
+            {
+                if (m_socketRows[index].owner == m_pendingSocketOwner && m_socketRows[index].index == m_pendingSocketIndex)
+                {
+                    keep = static_cast<Int32>(index);
+                    m_hasPendingSocket = false;
+                }
+            }
+        }
+        SelectSocket(keep);
+    }
+
+    template <typename TChange>
+    Bool ModelEditorPanel::EditSockets(const char* name, AssetId owner, TChange&& change)
+    {
+        AssetSystem* assets = m_editor->GetAssetSystem();
+        const AssetRecord* model = m_editor->GetAssetRegistry().Find(m_model);
+        AssetMetaFile before;
+        AssetMetaError error;
+        if (assets == nullptr || model == nullptr || false == LoadAssetMetaFile(m_editor->GetPlatform(), assets->GetMetaPath(*model).c_str(), before, error))
+        {
+            return false;
+        }
+        AssetMetaFile after = before;
+        AssetSubEntry* entry = nullptr;
+        for (AssetSubEntry& each : after.subAssets)
+        {
+            entry = each.id == owner ? &each : entry;
+        }
+        if (entry == nullptr || false == change(*entry))
+        {
+            return false;
+        }
+        AssetFileTarget target;
+        if (false == m_editor->DescribeAssetMeta(owner, target))
+        {
+            return false;
+        }
+        // 소켓은 하위 목록을 바꾸지 않는다 - 레지스트리를 다시 훑지 않고 그 뼈대·메시만 다시 읽는다.
+        target.afterWrite = nullptr;
+        target.afterWriteUser = nullptr;
+        target.name = name;
+        if (false == m_commands.Execute(MakeOwnerPtr<SetAssetFileCommand>(target, FormatAssetMetaFile(before), FormatAssetMetaFile(after))))
+        {
+            return false;
+        }
+        m_socketsStale = true;
+        return true;
+    }
+
+    Bool ModelEditorPanel::AddSocket()
+    {
+        if (m_skeleton < 0 || m_boneNames.IsEmpty())
+        {
+            return false;
+        }
+        const AssetId owner = m_skeletonIds[static_cast<std::size_t>(m_skeleton.Get())];
+        const String bone = m_boneNames[static_cast<std::size_t>(m_selectedBone >= 0 ? m_selectedBone.Get() : 0)];
+        return EditSockets("Add Socket", owner, [&](AssetSubEntry& entry) {
+            ModelSocket socket;
+            socket.bone = bone;
+            // 이름은 비지 않게, 겹치지 않게 짓는다 - 빈 이름의 소켓은 붙이기가 찾지 못한다.
+            for (UInt32 suffix = 1; suffix < 1000 && socket.name.empty(); ++suffix)
+            {
+                String candidate = "Socket";
+                if (suffix > 1)
+                {
+                    candidate += " ";
+                    candidate += String(std::to_string(suffix.Get()).c_str());
+                }
+                Bool taken = false;
+                for (const ModelSocket& each : m_socketDraft)
+                {
+                    taken = taken || each.name == candidate;
+                }
+                socket.name = taken ? String() : candidate;
+            }
+            m_pendingSocketOwner = owner;
+            m_pendingSocketIndex = static_cast<UInt32>(entry.sockets.Size());
+            m_hasPendingSocket = true;
+            entry.sockets.Add(socket);
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::SetSocket(UInt32 index, const ModelSocket& socket)
+    {
+        if (index.Get() >= m_socketRows.Size())
+        {
+            return false;
+        }
+        const SocketRow row = m_socketRows[index.Get()];
+        ModelSocket value = socket;
+        value.rotation = Normalize(value.rotation);
+        m_socketDraft[index.Get()] = value;
+        return EditSockets("Edit Socket", row.owner, [&](AssetSubEntry& entry) {
+            if (row.index.Get() >= entry.sockets.Size())
+            {
+                return false;
+            }
+            entry.sockets[row.index.Get()] = value;
+            return true;
+        });
+    }
+
+    Bool ModelEditorPanel::RemoveSocket(UInt32 index)
+    {
+        if (index.Get() >= m_socketRows.Size())
+        {
+            return false;
+        }
+        const SocketRow row = m_socketRows[index.Get()];
+        const Bool removed = EditSockets("Remove Socket", row.owner, [&](AssetSubEntry& entry) {
+            if (row.index.Get() >= entry.sockets.Size())
+            {
+                return false;
+            }
+            entry.sockets.RemoveAt(row.index.Get());
+            return true;
+        });
+        if (removed)
+        {
+            m_selectedSocket = -1;
+        }
+        return removed;
+    }
+
+    void ModelEditorPanel::DrawSockets()
+    {
+        SyncSockets();
+        Widget::HintText(Loc::TextOr(LocKeys::ModelEditorSockets, "Sockets"));
+        ImGui::SameLine(0.0f, 8.0f);
+        {
+            const Widget::DisableScope disabled(m_skeleton < 0 || m_boneNames.IsEmpty());
+            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorAddSocket, "Add Socket")))
+            {
+                AddSocket();
+            }
+        }
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::ModelEditorAddSocketTooltip, "add a skeleton socket on the selected bone"));
+        if (m_socketDraft.IsEmpty())
+        {
+            Widget::WrappedHintText(Loc::TextOr(LocKeys::ModelEditorNoSockets, "no sockets"));
+            return;
+        }
+        for (std::size_t index = 0; index < m_socketDraft.Size(); ++index)
+        {
+            const Widget::IdScope scope(static_cast<Int32>(index));
+            const ModelSocket& socket = m_socketDraft[index];
+            // 메시 소켓은 그 메시 이름을 붙인다 - 같은 이름이면 뼈대 소켓이 먼저 잡힌다.
+            String label = socket.name.empty() ? String(Loc::TextOr(LocKeys::ModelEditorUnnamedSocket, "unnamed socket")) : socket.name;
+            label += "  -  ";
+            label += socket.bone;
+            if (false == m_socketRows[index].skeleton)
+            {
+                label += "  [";
+                label += m_socketRows[index].ownerName;
+                label += "]";
+            }
+            if (Widget::SelectableRow(label.c_str(), m_selectedSocket == static_cast<Int32>(index)))
+            {
+                SelectSocket(static_cast<Int32>(index));
+            }
+        }
+        if (m_selectedSocket < 0)
+        {
+            return;
+        }
+        const std::size_t at = static_cast<std::size_t>(m_selectedSocket.Get());
+        ModelSocket& draft = m_socketDraft[at];
+        Bool editing = false;
+        Bool commit = false;
+        Widget::FormLayout layout("##model_socket");
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorClipName, "Name")), [&]() {
+            if (Widget::TextField("##socket_name", m_socketNameText).CommitOnFinish()())
+            {
+                draft.name = m_socketNameText;
+                commit = true;
+            }
+            editing = editing || ImGui::IsItemActive();
+        });
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::ModelEditorSocketBone, "Bone")), [&]() {
+            m_boneNamePointers.Clear();
+            for (const String& name : m_boneNames)
+            {
+                m_boneNamePointers.Add(name.c_str());
+            }
+            Int32 current = FindBone(draft.bone);
+            if (Widget::FilterCombo("##socket_bone", ArrayView<const char* const>(m_boneNamePointers.Data(), m_boneNamePointers.Size()), current)
+                    .EmptyText(draft.bone.empty() ? Loc::TextOr(LocKeys::InspectorNoSocket, "(none)") : draft.bone.c_str())
+                    .Draw()
+                && current >= 0 && false == (m_boneNames[static_cast<std::size_t>(current.Get())] == draft.bone))
+            {
+                draft.bone = m_boneNames[static_cast<std::size_t>(current.Get())];
+                commit = true;
+            }
+        });
+        // 위치·회전·크기는 끄는 동안 초안만 바꾸고 손을 떼면 커맨드 하나다. 회전은 쿼터니언 넷이다(인스펙터와 같다).
+        // 묶음 칸은 칸을 여럿 쌓아 마지막 칸만 "손을 뗐다" 를 알린다 - 바뀐 값이 있고 잡은 칸이 없어지면 확정한다.
+        const auto run = [&](const char* id, const char* label, const char* fallback, Float* values, Int32 count) {
+            layout.Row(Widget::FieldLabel(Loc::TextOr(label, fallback)), [&]() {
+                if (Widget::ScalarRunField(id, values, count, 0.01f, false, 0.0f, 0.0f))
+                {
+                    m_socketFieldDirty = true;
+                }
+            });
+        };
+        run("##socket_position", LocKeys::ModelEditorSocketPosition, "Position", &draft.position.x, 3);
+        run("##socket_rotation", LocKeys::ModelEditorSocketRotation, "Rotation", &draft.rotation.x, 4);
+        run("##socket_scale", LocKeys::ModelEditorSocketScale, "Scale", &draft.scale.x, 3);
+        if (m_socketFieldDirty && false == ImGui::IsAnyItemActive())
+        {
+            m_socketFieldDirty = false;
+            commit = true;
+        }
+        m_socketEditing = editing || m_socketFieldDirty;
+        Bool remove = false;
+        layout.Break([&]() {
+            if (Widget::Button(Loc::TextOr(LocKeys::ModelEditorRemoveSocket, "Remove Socket")))
+            {
+                remove = true;
+            }
+        });
+        // 커맨드는 칸을 다 그린 뒤다 - 실행하면 목록이 다시 떠진다.
+        if (remove)
+        {
+            RemoveSocket(static_cast<UInt32>(at));
+        }
+        else if (commit)
+        {
+            const ModelSocket value = draft;
+            SetSocket(static_cast<UInt32>(at), value);
+        }
+    }
+
+    Bool ModelEditorPanel::ComputeBoneWorld(Int32 bone, Vector3& position, Quaternion& rotation, Vector3& scale) const
+    {
+        Framework3D* framework = m_editor->GetFramework3D();
+        Canvas* canvas = framework != nullptr ? framework->GetPreviewCanvas(m_preview) : nullptr;
+        const Component::Animator3D* animator = canvas != nullptr ? FindAnimator(*canvas) : nullptr;
+        const System::Animation3DSystem* animation = framework != nullptr ? framework->GetPreviewAnimation(m_preview) : nullptr;
+        if (animator == nullptr || animation == nullptr || bone < 0)
+        {
+            return false;
+        }
+        System::Animation3DSystem::ResolvedSocket socket;
+        socket.bone = bone;
+        return animation->ComputeSocketWorld(*canvas, *animator, socket, position, rotation, scale);
+    }
+
+    Bool ModelEditorPanel::ComputeSocketWorld(UInt32 index, Vector3& position, Quaternion& rotation, Vector3& scale) const
+    {
+        if (index.Get() >= m_socketDraft.Size())
+        {
+            return false;
+        }
+        const ModelSocket& socket = m_socketDraft[index.Get()];
+        Vector3 bonePosition;
+        Quaternion boneRotation;
+        Vector3 boneScale;
+        if (false == ComputeBoneWorld(FindBone(socket.bone), bonePosition, boneRotation, boneScale))
+        {
+            return false;
+        }
+        ComposeTransform3D(bonePosition, boneRotation, boneScale, socket.position, socket.rotation, socket.scale, position, rotation, scale);
+        return true;
+    }
+
+    Bool ModelEditorPanel::GetSocketScreenPosition(UInt32 index, Float& x, Float& y) const
+    {
+        const std::size_t at = index.Get();
+        if (at >= m_socketOnScreen.Size() || false == m_socketOnScreen[at])
+        {
+            return false;
+        }
+        x = m_socketScreenX[at];
+        y = m_socketScreenY[at];
+        return true;
+    }
+
+    Bool ModelEditorPanel::DrawSocketOverlay(Bool pointerHere, const GizmoCamera& camera)
+    {
+        m_socketScreenX.Clear();
+        m_socketScreenY.Clear();
+        m_socketOnScreen.Clear();
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        Int32 hovered = -1;
+        Float nearest = PickDistance * PickDistance;
+        for (std::size_t index = 0; index < m_socketDraft.Size(); ++index)
+        {
+            Vector3 position;
+            Quaternion rotation;
+            Vector3 scale;
+            Float x = 0.0f;
+            Float y = 0.0f;
+            const Bool onScreen = ComputeSocketWorld(static_cast<UInt32>(index), position, rotation, scale) && GizmoModel::Project(camera, position, x, y);
+            m_socketScreenX.Add(x);
+            m_socketScreenY.Add(y);
+            m_socketOnScreen.Add(onScreen);
+            if (false == onScreen)
+            {
+                continue;
+            }
+            const Float dx = x - mouse.x;
+            const Float dy = y - mouse.y;
+            if (pointerHere && false == m_orbiting && dx * dx + dy * dy <= nearest)
+            {
+                nearest = dx * dx + dy * dy;
+                hovered = static_cast<Int32>(index);
+            }
+        }
+        // 고른 소켓의 기즈모가 먼저 마우스를 받는다. 끄는 동안 초안의 오프셋을 뼈 기준으로 되돌려 적는다.
+        Bool grabbed = false;
+        if (m_selectedSocket >= 0)
+        {
+            const UInt32 selected = static_cast<UInt32>(static_cast<std::uint32_t>(m_selectedSocket.Get()));
+            Vector3 position;
+            Quaternion rotation;
+            Vector3 scale;
+            Vector3 bonePosition;
+            Quaternion boneRotation;
+            Vector3 boneScale;
+            ModelSocket& draft = m_socketDraft[selected.Get()];
+            if (ComputeSocketWorld(selected, position, rotation, scale) && ComputeBoneWorld(FindBone(draft.bone), bonePosition, boneRotation, boneScale))
+            {
+                GizmoSubject subject;
+                subject.position = position;
+                subject.rotation = rotation;
+                subject.scale = scale;
+                const Widget::GizmoOutput output = Widget::Gizmo(m_gizmoMode, camera, subject, m_gizmo, pointerHere || m_gizmo.dragging);
+                if (output.dragging)
+                {
+                    const Quaternion inverse = Conjugate(Normalize(boneRotation));
+                    const auto divide = [](Float value, Float by) { return by != 0.0f ? Float(value / by) : value; };
+                    const Vector3 local = Rotate(inverse, Vector3{output.subject.position.x - bonePosition.x,
+                        output.subject.position.y - bonePosition.y, output.subject.position.z - bonePosition.z});
+                    draft.position = Vector3{divide(local.x, boneScale.x), divide(local.y, boneScale.y), divide(local.z, boneScale.z)};
+                    draft.rotation = Normalize(Multiply(inverse, output.subject.rotation));
+                    draft.scale = Vector3{divide(output.subject.scale.x, boneScale.x), divide(output.subject.scale.y, boneScale.y),
+                        divide(output.subject.scale.z, boneScale.z)};
+                }
+                if (output.dragEnded)
+                {
+                    const ModelSocket value = draft;
+                    SetSocket(selected, value);
+                }
+                grabbed = output.hovered || output.dragging || output.dragEnded;
+            }
+        }
+        // 소켓은 마름모다 - 관절(원)과 갈린다. 고른 소켓은 노랗다.
+        for (std::size_t index = 0; index < m_socketDraft.Size(); ++index)
+        {
+            if (false == m_socketOnScreen[index])
+            {
+                continue;
+            }
+            const Bool selected = m_selectedSocket == static_cast<Int32>(index);
+            const ImU32 color = selected ? IM_COL32(255, 214, 90, 255) : (hovered == static_cast<Int32>(index) ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 150, 70, 230));
+            const Float half = selected ? Float(6.0f) : Float(4.5f);
+            const Float x = m_socketScreenX[index];
+            const Float y = m_socketScreenY[index];
+            draw->AddQuadFilled(ImVec2(x, y - half), ImVec2(x + half, y), ImVec2(x, y + half), ImVec2(x - half, y), color);
+            draw->AddQuad(ImVec2(x, y - half), ImVec2(x + half, y), ImVec2(x, y + half), ImVec2(x - half, y), IM_COL32(0, 0, 0, 170), 1.0f);
+        }
+        if (false == grabbed && hovered >= 0)
+        {
+            const ModelSocket& socket = m_socketDraft[static_cast<std::size_t>(hovered.Get())];
+            Widget::ShowTooltip(socket.name.empty() ? Loc::TextOr(LocKeys::ModelEditorUnnamedSocket, "unnamed socket") : socket.name.c_str());
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                SelectSocket(hovered);
+            }
+            grabbed = true;
+        }
+        return grabbed;
     }
 
     void ModelEditorPanel::DrawBoneRow(UInt32 bone)
@@ -1445,12 +1915,16 @@ namespace JBro
         {
             draw->AddRectFilled(origin, ImVec2(origin.x + available.x, origin.y + available.y), ImGui::GetColorU32(EditorTheme::ViewportBackground));
         }
+        // 기즈모 손잡이가 이 자리 위에서 마우스를 받도록 겹침을 허락한다(캔버스 뷰와 같다).
+        ImGui::SetNextItemAllowOverlap();
         Widget::HitArea("##model_preview", available,
             ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
         const Bool pointerHere = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
         HandleCamera(pointerHere);
         draw->PushClipRect(origin, ImVec2(origin.x + available.x, origin.y + available.y), true);
-        DrawBones(pointerHere);
+        GizmoCamera socketCamera;
+        const Bool socketGrabbed = MakeCamera(socketCamera) && DrawSocketOverlay(pointerHere, socketCamera);
+        DrawBones(pointerHere && false == socketGrabbed);
         draw->PopClipRect();
     }
 

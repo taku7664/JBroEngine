@@ -655,6 +655,17 @@ namespace JBro::LocKeys
     inline constexpr const char* ModelEditorRemoveEvent = "model_editor.remove_event";
     inline constexpr const char* ModelEditorStripTooltip = "model_editor.strip_tooltip";
     inline constexpr const char* ModelEditorUnnamedEvent = "model_editor.unnamed_event";
+    // 소켓(D-463).
+    inline constexpr const char* ModelEditorSockets = "model_editor.sockets";
+    inline constexpr const char* ModelEditorAddSocket = "model_editor.add_socket";
+    inline constexpr const char* ModelEditorAddSocketTooltip = "model_editor.add_socket_tooltip";
+    inline constexpr const char* ModelEditorNoSockets = "model_editor.no_sockets";
+    inline constexpr const char* ModelEditorUnnamedSocket = "model_editor.unnamed_socket";
+    inline constexpr const char* ModelEditorSocketBone = "model_editor.socket_bone";
+    inline constexpr const char* ModelEditorSocketPosition = "model_editor.socket_position";
+    inline constexpr const char* ModelEditorSocketRotation = "model_editor.socket_rotation";
+    inline constexpr const char* ModelEditorSocketScale = "model_editor.socket_scale";
+    inline constexpr const char* ModelEditorRemoveSocket = "model_editor.remove_socket";
     inline constexpr const char* InspectorClipHint = "inspector.clip_hint";
     inline constexpr const char* InspectorOpenModelEditor = "inspector.open_model_editor";
     inline constexpr const char* AssetsImport = "assets.import";
